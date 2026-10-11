@@ -187,6 +187,25 @@ demonstration rather than a hypothesis: two hand-kept copies, a prose edit to ei
 and here they go wrong together, which is the case where drift is invisible because the copies still
 agree with each other.
 
+> - **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
+>   baseline or the committing checkout's count has risen above zero, and **2** when either gating
+>   root was not scanned. A clone with no owning scratch root says *did not scan*, never *clean*.
+>   **Where a finding and a not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s
+>   ordering.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/docs/agents/scratch.md#L71-L75).
+>
+> **Exit status** — 0 clean, 1 for a rise in the owning or committing checkout, 2 when a gating root
+> or the accounted set was not scanned. A peer root never changes status.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/CLAUDE.md#L2156-L2157).
+>
+>   could not read. An unreadable owning or committing root is not scanned; an unreadable peer is
+>   report-only and never changes status. This is coverage of the Git registry, not disclosure of a
+>   scratch-entry path; the count-only rule above still governs every entry under the root.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/docs/agents/scratch.md#L89-L91).
+
 `scratch_census.py` owns the contract; both documents point at it and reproduce no limb; **a test
 asserts they point and do not copy.** `EXIT_2_LIMBS` in `differential_scan.py`, `render_scan.py` and
 `voice_model_scan.py` is the precedent for the object; `reference_scan.NOT_REACHED` and

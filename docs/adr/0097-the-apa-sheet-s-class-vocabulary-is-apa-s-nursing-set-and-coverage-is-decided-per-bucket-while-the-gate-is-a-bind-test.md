@@ -114,6 +114,10 @@ permanently unmet and ADR 0088's class split permanently un-re-derivable.
 of one vocabulary is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) with
 nothing between them; sharing the object means no second implementation survives to disagree.
 
+> from reference_scan import read_document
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/1595299f854cde0e4636647b995fa1e83978e3f8/tools/research_ledger.py#L42-L42).
+
 ### 3. Recognition is per **bucket**, with a declared many-to-one mapping and three states
 
 **The sheet's vocabulary and the recognizable vocabulary cannot be the same set, and that is a

@@ -108,6 +108,11 @@ A cold build goes from roughly 9 minutes to roughly 65. Warm builds are unchange
 
 - **Whether a record is *right*.** The stage verifies that a record is the bytes this build wrote from these inputs. Whether `find_tables()` read the table correctly, and whether a marker match is a recommendation rather than a table-of-contents line, are untouched — the bound mode is an over-report and ADR 0030 and the README both already say so.
 - **The 19 nothing-found documents' truth.** An empty record asserts that neither limb matched, never that the document states no recommendation. `guidelines_recs.py:695` already draws that distinction in its own message and this ruling preserves it.
+
+>         print("Neither a ruled COR/LOE table nor a text marker. Nothing was counted,", file=sys.stderr)
+>         print("which is not the same as this document having no recommendations.", file=sys.stderr)
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/a058158d48bbd57e50cd9aaf4a73febfbe882013/tools/guidelines_recs.py#L695-L696).
 - **The one-PDF command's output.** `guidelines_recs.py --json` still writes to any path `ensure_outside_checkout` permits. That is #518's subject and no ruling here narrows it.
 - **A record this stage writes is invisible to #438's Done-when 5 walk, and that miss is outside the ceiling that walk declares.** That walk asserts no other module opens a `recs-*.json` its own way, and ADR 0030's declared ceiling covers only *a path built by indirection*. Under ruling 2 these records are keyed on `doc_id` and are not named `recs-*.json` at all, so a module opening one is invisible for a reason the ceiling does not name — a differently *named* artifact of the same class rather than an indirect path. The walk's ceiling has to widen, or key on the class rather than the prefix.
 - **Anything about the recs root's existing contents.** ADR 0030 and [ADR 0034](0034-a-recommendation-record-is-resolved-by-exact-name-at-both-read-sites-and-the-directory-scan-hints-rather-than-selects.md) both refuse to delete or rename the orphaned records and `recs-sweep.json`, and this ruling adds a reason to keep the sweep file rather than a reason to remove it.

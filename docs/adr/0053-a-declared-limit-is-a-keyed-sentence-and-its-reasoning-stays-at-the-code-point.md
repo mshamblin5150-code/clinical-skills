@@ -357,6 +357,12 @@ for.
 ordered `skills/practicum-case-study/SKILL.md:727` corrected and the edit never landed*, calling it
 a ratified ruling with an unbuilt limb.
 
+> claims it says, or whether the refutation came from a second agent at all.
+> **A clean scan is not a checked claim** — the refutation pass is what checks a claim, and this
+> command only grades that the pass answered.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/13ebd2014b9eeb378f59e248cef0aa054e8470a0/skills/practicum-case-study/SKILL.md#L727-L729).
+
 **ADR 0042 is [#500](https://github.com/mshamblin5150-code/clinical-skills/issues/500)'s record**,
 and #500 is open, `ready-for-agent` and unbuilt. So that edit is unlanded because the ticket it
 belongs to has not been built — which is not a finding, it is a ticket waiting its turn, and filing

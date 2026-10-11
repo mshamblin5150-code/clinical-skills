@@ -47,6 +47,10 @@ with a zero base rate, which is the datum every ruling below turns on.
 - **`skills/setup-clinical-skills/SKILL.md:75` asks whether the browser tool is available**, so the
   answer is per-account and can be *no*. Neither #500 nor #541 had named that limb.
 
+> - Is a browser tool available that reaches the clinician's real logged-in session? Portal steps need one.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/3376292e622303f21180ca05d12bb49fed576e4f/skills/setup-clinical-skills/SKILL.md#L75-L75).
+
 ## Ruled 2026-08-27
 
 ### What the rule attaches to

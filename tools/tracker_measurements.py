@@ -166,7 +166,12 @@ def _staged_text(root: Path, relative: str) -> str:
 
 
 def _adr_snapshot(root: Path, revision: str) -> dict[str, str]:
-    """Read one entire indexed or committed ADR population; errors are not proof."""
+    """Read tracked numbered ADR files in the selected index or Git revision.
+
+    A successful read covers that tracked population; untracked files remain
+    invisible. Index mode reads staged blobs and excludes unstaged worktree
+    edits. Read errors provide no proof of an annotation-only change.
+    """
     names = (read_path_records(root, "ls-files", "--cached", "-z", "--", "docs/adr/*.md")
              if revision == ":" else
              read_path_records(root, "ls-tree", "-r", "--name-only", "-z", revision, "--", "docs/adr"))

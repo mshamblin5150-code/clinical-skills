@@ -203,6 +203,10 @@ inferred spaces removed) and 2026-08-20 ([#172](https://github.com/mshamblin5150
 operator repair). Its citations were resolved against an extraction that no longer exists
 and nothing in the file can say so.
 
+> citations resolved against C:/codeing/guidelines-src
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/851d3d4a86db4ecdb1813a97cea5f0d8679c9264/reference/thresholds/hypertension.md#L55-L55).
+
 At one sheet that is settled by looking. At 169 it is unanswerable: a corpus refresh moves
 every snippet's substrate at once. `reference/thresholds/README.md:279` already calls the
 existing line *"a held claim"*, which is its honest name and too weak for the scale this

@@ -259,6 +259,12 @@ the measurement. It is false in the tree until that lands, which makes it the mo
 build carries: a live skill telling its reader that a measured question is unmeasured. The observation goes into ruling 4's calibration record, and the figures and the
 raw-editor limit are handed to #991.
 
+> Whether the board's reply box shares the defect is unmeasured, which is
+> [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s open question. The
+> escaping `tools/post_html.py` applies governs an initial post's raw HTML editor, not a reply box.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/81b96373b941c61bfbc1b66ae61d16bb41a22b66/skills/peer-critique/SKILL.md#L266-L268).
+
 **This does not rule #991.** Its option 3 is *"never put a reference list in this box; put it on the
 board"*, and whether the peer critique's substantive body moves to the board is a decision about that
 artifact's shape, for the clinician, on that ticket. All that changes is that the *needs measuring

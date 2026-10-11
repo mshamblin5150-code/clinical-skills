@@ -73,6 +73,10 @@ Not one vocabulary, and not one object. The **rule** is shared and written into 
 
 **The only pattern that changes in this ruling is `tools/discussion_reply_scan.py:53`.**
 
+> REFERENCE_LABEL = re.compile(r"(?mi)^References\s*$")
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/d13f8186c6f0754a00dc6471613329927fca2137/tools/discussion_reply_scan.py#L53-L53).
+
 This makes the ticket's option 1 — *accept both, leave two spellings live forever* — wrong rather than merely cheap: on a path with no renderer, blessing plain forever blesses the one form that arrives unbolded. It selects option 2, and re-prices the cost option 2 was declined over.
 
 ### Rejected: one shared pattern in `discussion_artifact.py`

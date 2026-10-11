@@ -103,6 +103,10 @@ coincidence — and infrastructure gets one implementation.
 for its window and a different mark set. It becomes a declared exception rather than a silent orphan;
 its rows are all 60 words or longer, so nothing about its own floor moves.
 
+>     SHINGLE = 8
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/7bea9b59c2cb639e8bfd3a3c84b8743a47a6bd0c/tools/test_differential_scan.py#L1593-L1593).
+
 ## Ruling 2. The detector is the hybrid, and it already exists
 
 `test_claude_pointers.copied_leaves:127` shingles a row of nine or more normalized words and compares a
