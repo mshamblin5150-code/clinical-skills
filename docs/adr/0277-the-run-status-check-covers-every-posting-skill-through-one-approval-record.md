@@ -92,6 +92,8 @@ run per session was refused as fighting how a shift and coursework are worked to
 names a course and module or a shift date; the check must never put a classmate or patient name in
 the line.
 
+*Superseded 2026-10-11.* The words "When one session touches several approved runs" are superseded by [ADR 0339](0339-a-run-is-touched-by-a-write-and-a-retried-status-line-is-graded-but-never-refused-twice.md) ruling 1. A run is touched only when the session named it in a command and changed a file under it; each touched run still gets its own keyed line.
+
 ## Ruling 5 — `awaiting posting` replaces `awaiting upload`, and the clinician's own route is a clinician posting
 
 The waiting status reads `awaiting posting` for every row, `course-assignment` included. The glossary
