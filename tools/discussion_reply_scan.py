@@ -57,6 +57,7 @@ from discussion_artifact import (
     split_references,
     strip_discussion_markers,
 )
+import reader_remarks
 import run_grader
 import file_digest
 from run_grader import NOT_GRADED
@@ -1140,6 +1141,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         grade, source.path, submission if submissions else None
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, submission if submissions else None)
+    grade = reader_remarks.apply_readers(grade, tuple(r for r in research_ledger.read_records(source.claims) if any(f"[REPLY: {reply.path.stem.removeprefix('response-')}]" in r.claim for reply in source.replies)), heading_read.read_records(source.heading_read_text), tuple(reply.path.name for reply in source.replies))
     return approval_record.apply_completion_gate(
         grade,
         source.path,

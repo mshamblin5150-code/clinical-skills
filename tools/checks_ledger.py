@@ -175,6 +175,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import NamedTuple
 
+import reader_remarks
 import run_grader
 import render_pass
 import file_digest
@@ -214,6 +215,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("reader-remark-free-text", "A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.", EvidenceDisposition.DECLARED_READING),
     # CHECK/VERDICT/FINDINGS carries no provenance about which artifact the
     # reader opened. The same record shape is available to a reader who did not
     # perform the assigned walk, so this remains a declared reading.
@@ -294,7 +296,7 @@ HEADING_READ_HEADER = re.compile(
     r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(VERDICT|FINDINGS|DRAFT|SOURCE|PASS|PAGES|UNSEEN|ROUTE|SENTENCES|PAIR)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?mi)^[ \t]*(VERDICT|FINDINGS|DRAFT|SOURCE|PASS|PAGES|UNSEEN|ROUTE|SENTENCES|PAIR|REMARK)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
 RENDER_SOURCES = frozenset({"word-pdf", "word-xps", "clinician"})
@@ -556,6 +558,9 @@ class Record:
     check: str
     fields: dict[str, str] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=dict)
+    remarks: tuple[str, ...] = ()
+    unread: int = 0
+    artifact: str = ""
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -601,6 +606,9 @@ class Scan:
     failing_checks: int
     missing: tuple[str, ...]
     findings: tuple[Finding, ...]
+    reader_unread: int = 0
+    reader_remarks: tuple[reader_remarks.Remark, ...] = ()
+    unread_records: tuple[str, ...] = ()
 
 
 def read_records(text: str) -> list[Record]:
@@ -614,11 +622,14 @@ def read_records(text: str) -> list[Record]:
     fields: dict[str, str] = {}
     counts: dict[str, int] = {}
     current: str | None = None
+    remarks: list[str] = []
+    unread = 0
+    artifact = ""
 
     def close() -> None:
         if check is not None:
             records.append(
-                Record(check=check, fields=dict(fields), counts=dict(counts))
+                Record(check=check, fields=dict(fields), counts=dict(counts), remarks=tuple(remarks), unread=unread, artifact=artifact)
             )
 
     for line in text.splitlines():
@@ -626,10 +637,20 @@ def read_records(text: str) -> list[Record]:
         heading_read_header = HEADING_READ_HEADER.match(line)
         if heading or heading_read_header:
             close()
+            remarks, unread = [], 0
             check = "the heading read" if heading_read_header else heading.group(1)
+            artifact = heading_read_header.group(1).strip() if heading_read_header else ""
             fields, counts, current = {}, {}, None
             continue
         if check is None:
+            continue
+        remark = re.match(r"(?i)^[ \t]*REMARK[ \t]*:[ \t]*(.*)$", line)
+        if remark:
+            current = None
+            if remark.group(1).strip():
+                remarks.append(remark.group(1).strip())
+            else:
+                unread += 1
             continue
         named = FIELD.match(line)
         if named:
@@ -639,6 +660,8 @@ def read_records(text: str) -> list[Record]:
             continue
         if current and line.strip():
             fields[current] = f"{fields[current]} {line.strip()}".strip()
+        elif line.strip():
+            unread += 1
     close()
     return records
 
@@ -764,6 +787,9 @@ def survey(records: list[Record]) -> Scan:
         failing_checks=len(at_fault),
         missing=tuple(f.check for f in found if f.kind == MISSING_CHECK),
         findings=tuple(found),
+        reader_unread=sum(r.unread for r in records),
+        reader_remarks=tuple(reader_remarks.Remark(f"CHECK: {r.check}", text) for r in records for text in r.remarks),
+        unread_records=tuple(r.check for r in records if r.unread),
     )
 
 
@@ -932,7 +958,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     return BoundChecksSource(
         path,
         text,
-        tuple(read_records(text)),
+        tuple(r for r in read_records(text) if not r.artifact or r.artifact == document.name),
         document,
         document_bytes,
         digest,
@@ -1115,15 +1141,19 @@ def _grade(
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.failing_checks) or aar_failed,
-        coverage_failed=not source.records or bool(heading.unread),
+        coverage_failed=not source.records or bool(heading.unread) or bool(scan.reader_unread),
         diagnostics=tuple(diagnostics),
         reports=(
             heading_read.protocol_coverage(source.claims_text, source.text),
             heading_read.format_coverage(heading),
             rendered_report,
+            reader_remarks.report(scan.reader_remarks),
+            run_grader.format_unread_remainder(scan.reader_unread),
+            *(f"unread reader record: CHECK: {name}" for name in scan.unread_records),
             aar_report,
         ),
     )
+    grade = reader_remarks.apply_readers(grade, source.claims, (), (source.document.name,))
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path.parent, submission
     )

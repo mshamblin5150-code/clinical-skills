@@ -31,7 +31,9 @@ class PostingSkillContract(unittest.TestCase):
             with self.subTest(skill=skill):
                 text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
                 calls = re.findall(r"`(approval_record\.approve\(.*?)`", text, re.DOTALL)
-                self.assertEqual(2 if skill == "discussion-post" else 1, len(calls))
+                self.assertEqual(2 if skill in {"discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"} else 1, len(calls))
+                if len(calls) == 2:
+                    self.assertIn('approval_kind="posting"', calls[1])
                 for call in calls:
                     self.assertIn("clinician_reply=clinician_reply", call)
                 self.assertIn("whole", text)

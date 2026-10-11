@@ -135,6 +135,7 @@ The reader-owned boundaries are in `assignment_docx_scan.DECLARED_LIMITS`:
 - `assignment-fit-unverified`
 - `visual-purpose-unverified`
 - `bar-transcription-unverified`
+- `reader-remark-free-text`
 
 ## Render and inspect every page
 
@@ -168,6 +169,7 @@ SOURCE: word-pdf | word-xps
 UNSEEN: none | <what was not read>
 READ: <what was compared against the retained pages>
 VERDICT: clean - <reason> | defect - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Rerun `assignment_docx_scan.py` after the record is written. It refuses a missing export, a final
@@ -189,10 +191,12 @@ the upload set unless the clinician explicitly names it before approval. Every r
 retained render passes and review records only in the run directory; another scratch workspace is
 work in progress and supplies no approval evidence. Run `python tools/course_assignment_scan.py
 <run-directory> --artifact <docx>` before approval and require its pre-upload grade to exit 0.
+Apply [Reader remarks at the go-ahead](../../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before the Gate 1 question: call `assignment_submission.prepare(run, docx)`, show its numbered remarks with outcomes and every coverage line verbatim, and retain the whole clinician reply.
+
 **Gate 1** is explicit
 approval of that exact filename population; it authorizes choosing and staging only those files in
 Canvas. Bind that decision with
-`assignment_submission.stage(run, docx, artifact_approved=True, approved_carriers=(...))`, which
+`assignment_submission.stage(run, docx, artifact_approved=True, clinician_reply="<whole reply>", remark_outcomes=outcomes, approved_carriers=(...))`, which
 records every approved filename and SHA-256 plus the attachment count in the run's durable
 `submission-gates.json` only after it reruns that clean pre-upload grade against the run directory.
 Show `assignment_submission.approval_surface(staged)` and return to Gate 1

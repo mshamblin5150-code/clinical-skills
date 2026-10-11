@@ -55,6 +55,8 @@ class WholeReplyApproval(unittest.TestCase):
         stack.enter_context(mock.patch.object(aar_scan, "is_live_run", return_value=True))
         stack.enter_context(mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=self.root / "scratch"))
         stack.enter_context(mock.patch.object(approvals, "_pre_post_grade", return_value=(0, "pregrade clean")))
+        # ADR 0318 tests isolate whole-reply binding; ADR 0330 is exercised in test_reader_remarks.
+        stack.enter_context(mock.patch.object(approvals.reader_remarks, "verify", return_value=[]))
         self.write(human())
 
     def write(self, *rows, path=None, shown=True):
@@ -71,17 +73,18 @@ class WholeReplyApproval(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def approve(self, reply=REPLY, skill="discussion-post"):
+    def approve(self, reply=REPLY, skill="discussion-post", kind="content"):
         return approvals.approve(
             self.run, skill=skill, submission="synthetic-post", sources=(self.source,),
-            grader_args=(str(self.run),), content_approved=True, clinician_reply=reply,
+            grader_args=(str(self.run),), content_approved=True, clinician_reply=reply, approval_kind=kind,
         )
 
     def record(self):
         return json.loads((self.run / approvals.RECORD).read_text(encoding="utf-8"))
 
-    def posted(self, skill="discussion-post"):
-        approvals.record_agent_posting(self.run, skill=skill, submission="synthetic-post")
+    def posted(self, skill="discussion-post", clinician=False):
+        recorder = approvals.record_clinician_posting if clinician else approvals.record_agent_posting
+        recorder(self.run, skill=skill, submission="synthetic-post")
         (self.run / "reread.md").write_text(
             "## REREAD: synthetic-post\nPOST-URL: https://example.test/posts/1\n"
             "POSTED: 2026-10-09 12:00\nREAD: 2026-10-09\n"
@@ -253,7 +256,7 @@ class WholeReplyApproval(unittest.TestCase):
         self.transcript.write_text("{unreadable\n", encoding="utf-8")
         self.approve()
         self.assertEqual("not verified", self.record()["items"][0]["reply_verification"])
-        self.posted()
+        self.posted(clinician=True)
         result = approvals.completion_gate(self.run, "discussion-post", "synthetic-post")
         self.assertFalse(tuple(result)[0])
         self.assertTrue(result.coverage)
@@ -273,7 +276,7 @@ class WholeReplyApproval(unittest.TestCase):
         payload = self.record()
         item = payload["items"][0]
         self.assertEqual("not verified", item["reply_verification"])
-        for name in ("reply_verification", "clinician_reply", "approvals"):
+        for name in ("reply_verification", "clinician_reply", "approvals", "approval_kind", "recorded_at"):
             item.pop(name)
         (self.run / approvals.RECORD).write_text(json.dumps(payload), encoding="utf-8")
         self.assertEqual((False, "the approval record: clean"), approvals.completion_gate(self.run, "discussion-post", "synthetic-post"))
@@ -285,14 +288,14 @@ class WholeReplyApproval(unittest.TestCase):
         with self.assertRaises(approvals.ApprovalRecordError):
             self.approve()
         self.write(human(), human(timestamp=NEXT))
-        self.approve()
+        self.approve(kind="posting")
         self.posted()
         self.assertFalse(approvals.completion_gate(self.run, "discussion-post", "synthetic-post")[0])
 
     def test_two_unreadable_gates_need_two_messages_at_completion(self):
         self.transcript.unlink()
         self.approve()
-        self.approve()
+        self.approve(kind="posting")
         self.posted()
         self.write(human())
         self.assertTrue(approvals.completion_gate(self.run, "discussion-post", "synthetic-post")[0])

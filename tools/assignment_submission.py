@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+import reader_remarks
 import file_digest
 import repo_root
 import project_context
@@ -123,11 +124,26 @@ def _upload_route(payload: dict[str, object]) -> UploadRoute | None:
         )
 
 
+def prepare(run: Path, artifact: Path) -> reader_remarks.Prepared:
+    """Grade Gate 1 before asking for the artifact go-ahead."""
+    root, path = Path(run).resolve(), Path(artifact).resolve()
+    clean, report = _pre_upload_grade(root, path)
+    if not clean:
+        raise GateError("the run-directory pre-upload grade is not clean: " + report)
+    context = project_context.go_ahead(root, path.stem, approval_revision=_next_approval_revision(root))
+    if context.finding:
+        raise GateError("project-context go-ahead has a finding: " + context.report)
+    report = reader_remarks.approval_report(report, context.report, root, (path.name,))
+    return reader_remarks.prepare(root, "course-assignment", path.stem, (path,), report)
+
+
 def stage(
     run: Path,
     artifact: Path,
     *,
     artifact_approved: bool,
+    clinician_reply: str,
+    remark_outcomes: tuple[reader_remarks.Outcome, ...] = (),
     approved_carriers: tuple[Path, ...] | None = None,
 ) -> StagedUpload:
     """Persist Gate 1 for the exact filenames approved for LMS upload."""
@@ -160,6 +176,16 @@ def stage(
         raise GateError("project-context go-ahead result could not be written") from failure
     if context.finding:
         raise GateError("project-context go-ahead has a finding: " + context.report)
+    from approval_record import verify_clinician_reply
+    verification = verify_clinician_reply(root, clinician_reply, (path,))
+    if verification.state != "verified":
+        raise GateError("Gate 1 needs a verified whole clinician reply: " + verification.reason)
+    grade_report = reader_remarks.approval_report(grade_report, context.report, root, (path.name,))
+    try:
+        remarks = reader_remarks.verify(root, "course-assignment", path.stem, (path,), grade_report,
+            clinician_reply, verification.matched_at, remark_outcomes)
+    except reader_remarks.RemarkError as failure:
+        raise GateError(str(failure)) from failure
     _write(
         root / RECORD,
         {
@@ -170,6 +196,11 @@ def stage(
             "approved_carriers": _carrier_payload(carriers),
             "uploaded_files": [],
             "gate1_approved": True,
+            "clinician_reply": clinician_reply,
+            "reply_matched_at": verification.matched_at,
+            "reader_remarks": remarks,
+            "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
+            "pregrade_report": grade_report,
             "upload_route": UploadRoute.AWAITING.value,
             "approval_revision": revision,
             "project_context_check": True,

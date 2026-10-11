@@ -67,6 +67,7 @@ from discussion_artifact import (
     split_references,
     strip_discussion_markers,
 )
+import reader_remarks
 import run_grader
 import render_pass
 import page_image
@@ -311,7 +312,7 @@ DECLARED_LIMITS = (
 )
 NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 
-FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
+FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)[ \t]*:[ \t]*(?P<value>[^\n]*?)[ \t]*$")
 REFERENCE_HEADING = re.compile(r"(?mi)^#{1,6}\s+References\s*$")
 MARKDOWN_HEADING = re.compile(r"(?m)^\s*#{1,6}\s+.*$")
 # This stays looser than the citation reader: over-stripping a number is cheaper
@@ -329,7 +330,7 @@ RENDERED_BLOCK = re.compile(
 RENDERED_PAGES_VALUE = re.compile(r"^(?P<seen>\d+) of (?P<expected>\d+) imaged$")
 RENDERED_BLOCKS_VALUE = re.compile(r"^(?P<seen>\d+) of (?P<expected>\d+) read$")
 RENDERED_COMMON_FIELDS = ("SOURCE", "UNSEEN", "READ", "VERDICT")
-RENDERED_FIELDS = ("PAGES", "BLOCKS") + RENDERED_COMMON_FIELDS
+RENDERED_FIELDS = ("PAGES", "BLOCKS", "REMARK") + RENDERED_COMMON_FIELDS
 PAGE_LOCATOR = re.compile(
     r"(?i)\b(?:p{1,2}\.|pages?)\s*\d+(?:\s*[-–]\s*\d+)?"
 )
@@ -403,6 +404,8 @@ class RenderedReading:
     read: str | None
     verdict: str | None
     errors: tuple[str, ...]
+    remarks: tuple[str, ...] = ()
+    unread: int = 0
 
 
 @dataclass(frozen=True)
@@ -791,11 +794,10 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
         matches = tuple(FIELD.finditer(block.group("body")))
         fields = {match.group("name"): match.group("value").strip() for match in matches}
         errors: list[str] = []
-        if FIELD.sub("", block.group("body")).strip():
-            errors.append("unrecognized record content")
+        unread = sum(bool(line.strip()) for line in FIELD.sub("", block.group("body")).splitlines())
         unknown_fields = sorted({match.group("name") for match in matches} - set(RENDERED_FIELDS))
-        if unknown_fields:
-            errors.append("unrecognized field(s): " + ", ".join(unknown_fields))
+        unread += sum(match.group("name") in unknown_fields for match in matches)
+        unread += sum(match.group("name") == "REMARK" and not match.group("value").strip() for match in matches)
         for name in RENDERED_COMMON_FIELDS:
             count = sum(match.group("name") == name for match in matches)
             if count == 0:
@@ -839,6 +841,8 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
                 read=read,
                 verdict=verdict,
                 errors=tuple(errors),
+                remarks=tuple(match.group("value").strip() for match in matches if match.group("name") == "REMARK" and match.group("value").strip()),
+                unread=unread,
             )
         )
     return tuple(readings)
@@ -1699,6 +1703,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         grade, source.path, _parsed.value("--submission")
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, _parsed.value("--submission"))
+    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.draft.name,), source.rendered_readings)
     return approval_record.apply_completion_gate(
         grade, source.path, "discussion-post", _parsed.value("--submission")
     )

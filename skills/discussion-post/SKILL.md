@@ -215,6 +215,7 @@ TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
@@ -453,6 +454,8 @@ loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
 Before asking for each go-ahead (Gate 1 and Gate 2), run `python tools/project_context.py
 <run-directory> --go-ahead <output-Markdown-stem>`. Show its moved places and every added
 memory-index line. A moved item is incomplete coverage the clinician may approve over; a finding
@@ -464,7 +467,7 @@ Set `clinician_reply` to the clinician's whole Gate 1 reply, including any condi
 At Gate 1 call `approval_record.approve(run, skill="discussion-post",
 submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(run), "--draft",
 str(output_markdown), "--html", str(output_html), "--docx", str(output_docx)),
-content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; exit 2 is disclosed as incomplete coverage and
+content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask; exit 2 is disclosed as incomplete coverage and
 does not block, while a finding refuses the record. This durable item opens the status contract:
 every later reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting
 posted reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own
@@ -492,6 +495,7 @@ SOURCE: canvas-box
 UNSEEN: none
 READ: 2026-09-08
 VERDICT: clean - all 13 blocks compared; headings bold, paragraphs and references present
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Replace `13` with the derived block count. Re-renders append: never replace an earlier record or
@@ -528,7 +532,7 @@ Set `clinician_reply` to the clinician's whole Gate 2 reply, including any condi
 `approval_record.approve(run, skill="discussion-post", submission=output_markdown.stem,
 sources=(output_markdown,), grader_args=(str(run), "--draft", str(output_markdown), "--html",
 str(output_html), "--docx", str(output_docx)),
-content_approved=True, clinician_reply=clinician_reply)` again for the same item, retaining both
+content_approved=True, clinician_reply=clinician_reply, approval_kind="posting")` again for the same item, retaining both
 gates' replies and updating its approval revision and fingerprint before the click.
 
 Click Reply on the full body after Gate 2 and follow the shared sheet's observed outcome procedure.

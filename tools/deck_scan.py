@@ -27,6 +27,7 @@ from pathlib import Path
 from posixpath import dirname, join, normpath
 from xml.etree import ElementTree
 
+import reader_remarks
 import run_grader
 import aar_scan
 import assignment_bar
@@ -160,6 +161,7 @@ SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
 )
 
 DECLARED_LIMITS = (
+    DeclaredLimit("reader-remark-free-text", "A visual verdict reason cannot distinguish a concealed reader remark from ordinary text."),
     DeclaredLimit(
         "presentation-intent-is-not-voice",
         "A clean presentation-intent record does not establish consistency with the clinician's canonical voice model; voice_read grades that separate ground.",
@@ -263,6 +265,8 @@ class RenderedRecord:
     deck: str
     fields: dict[str, str]
     counts: dict[str, int]
+    remarks: tuple[str, ...] = ()
+    unread: int = 0
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -825,24 +829,39 @@ def _read_records(
     deck: str | None = None
     fields: dict[str, str] = {}
     counts: dict[str, int] = {}
+    remarks: list[str] = []
+    unread = 0
 
     def close() -> None:
         if deck is not None:
-            records.append(RenderedRecord(deck, dict(fields), dict(counts)))
+            records.append(RenderedRecord(deck, dict(fields), dict(counts), tuple(remarks), unread))
 
     for line in text.splitlines():
         header = header_pattern.match(line)
         if header:
             close()
-            deck, fields, counts = header.group(1).strip(), {}, {}
+            deck, fields, counts, remarks, unread = header.group(1).strip(), {}, {}, [], 0
             continue
         if deck is None:
+            continue
+        if re.match(r"^\s*#{1,6}\s+", line):
+            close()
+            deck = None
+            continue
+        remark = re.match(r"(?i)^\s*REMARK\s*:\s*(.*)$", line)
+        if remark:
+            if remark.group(1).strip():
+                remarks.append(remark.group(1).strip())
+            else:
+                unread += 1
             continue
         named = field_pattern.match(line)
         if named:
             name = named.group(1).upper()
             counts[name] = counts.get(name, 0) + 1
             fields[name] = named.group(2).strip()
+        elif line.strip():
+            unread += 1
     close()
     return tuple(records)
 
@@ -1343,6 +1362,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
     )
+    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.deck.name,), _rendered_records(source.rendered_text or "") + _read_records(source.adversarial_text or "", ADVERSARIAL_HEADER, ADVERSARIAL_FIELD) + _presentation_intent_records(source))
     return lms_attachments.apply_completion_gate(grade, source.root, submission)
 
 

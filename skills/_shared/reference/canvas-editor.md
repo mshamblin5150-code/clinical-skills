@@ -1,15 +1,27 @@
 # Canvas composer load route
 
-Read this sheet after a skill has established that authored bytes must enter a Canvas rich content
-**Composer**. The calling skill owns whether its graded artifact uses a Composer; this sheet owns
-how the finished contribution reaches it and how the loaded result is read back.
+Read this sheet before every Canvas save, submit, or reply click, including a plain Peer-review
+comment and a file-upload submission. The calling skill owns the artifact and surface; this sheet
+owns the loaded-box stop and the Composer load route when that surface is a Composer.
+
+## Stop at the loaded box
+
+Load the contribution, read it back, and leave it loaded and unsubmitted. Name the Chrome tab,
+say the box is loaded and unsubmitted, and report the readback verdict: a match or the exact
+difference. Take a screenshot only when the clinician asks. Click only on his **Posting go-ahead**
+given after he has looked. The content go-ahead authorizes loading and never covers the click.
+Record the Posting go-ahead before recording the posting route. If recording it reports a changed
+project-context notice, show that notice here and renew approval under ADR 0328 before clicking.
+A requested text change creates a new fingerprint: show the complete changed text and obtain a
+new content go-ahead before reloading and taking this stop again.
 
 ## Name the non-Composer surface
 
 ADR 0204 classifies the peer-review comment as a non-Composer surface. Its 2026-09-12 Bluefield
 observation found that surface accepted plain text rather than the HTML build and load routes below.
-A Peer critique therefore loads an exact plain-text build with every character literal, then its
-posted reading compares Canvas's stored comment text with that build.
+Build the plain contribution with `python tools/post_text.py <source.md> <plain.txt>`; a Peer
+critique uses `critique.md` and `critique.txt`. Load that build, then its posted reading compares
+Canvas's stored comment text with the build.
 The 2026-09-12 Bluefield observation found the legacy peer-review page's visible `&amp;` was display
 behavior rather than evidence that the stored comment differed. That four-instrument observation
 and its limits are in the calibration record; it does not establish current behavior elsewhere.
@@ -61,7 +73,7 @@ of the board state.
 
 ## Initial-post attachment fallback (only when the calling skill opts in)
 
-After the calling skill's existing explicit submit authorization, click **Reply** with the full
+After the recorded Posting go-ahead at the loaded-box stop, click **Reply** with the full
 body loaded. Record the built HTML's byte count beside the observed outcome; the count never
 predicts or chooses a route. Read the result on the page. Only a visible message-size refusal
 triggers this fallback. Record the refusal's exact observed wording and ISO date. For acceptance,
@@ -81,7 +93,7 @@ Canvas refused the full text inline for message size. The complete submission is
 
 Attach the finished `.docx`. Read back the pointer's body text and the Composer's displayed
 attachment filename and size. Show those readings and the visually checked document to the
-clinician and wait for a **fresh explicit authorization** to submit this attached entry. The
+clinician at the loaded-box stop and record a fresh **Posting go-ahead** before submitting this attached entry. The
 authorization for the earlier full-body click does not cover it. After posting, use the posted
 entry's **own attachment link** to download the file into `<run-directory>/posted/<filename>`.
 Keep that copy for the terminal grader's SHA-256 comparison with the local `.docx`; a copy from

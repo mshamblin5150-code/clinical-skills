@@ -108,7 +108,7 @@ class TheClinicalRulingsSurviveInProse(ProseBind, unittest.TestCase):
 
 class ThePostingGateIsStated(ProseBind, unittest.TestCase):
     def test_posting_needs_an_explicit_go_ahead(self):
-        self.assertProseIn("Only an explicit go-ahead authorizes posting.", read(SKILL))
+        self.assertProseIn("Only an explicit content go-ahead authorizes loading.", read(SKILL))
 
     def test_the_lms_is_not_edited_after_posting(self):
         self.assertProseIn(
@@ -136,10 +136,10 @@ class ThePeerCritiqueUsesTheRuledSurface(ProseBind, unittest.TestCase):
 
     def test_the_comment_receives_literal_plain_text_not_composer_html(self):
         skill = read(SKILL)
-        self.assertProseIn("plain text built from critique.md", skill)
-        self.assertProseIn("every character literal", skill)
-        self.assertProseIn("plain text names the transport", skill)
-        self.assertProseIn("retain the bold heading markers", skill)
+        self.assertIn("python tools/post_text.py", skill)
+        self.assertIn("approval_kind=", skill)
+        self.assertIn("Posting go-ahead", skill)
+        self.assertNotIn("retain the bold heading markers", skill)
         self.assertProseIn("The peer-review comment is not a Composer", skill)
 
     def test_the_posted_reading_uses_stored_text_and_accepts_the_legacy_display(self):

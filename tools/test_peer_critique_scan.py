@@ -22,6 +22,7 @@ from pathlib import Path
 import peer_critique_scan as scan
 import coursework_run
 import docx_write
+import post_text
 import research_ledger
 import file_digest
 
@@ -98,6 +99,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         REREAD.format(submission_sha256=file_digest.sha256(critique)),
         encoding="utf-8",
     )
+    (root / "critique.txt").write_text(post_text.render(critique.read_text(encoding="utf-8")), encoding="utf-8", newline="")
     write_posting(root)
     digest = hashlib.sha256((root / "critique.md").read_bytes()).hexdigest()
     (root / "heading-read.md").write_text(
@@ -140,6 +142,13 @@ def build_run(
     )
     critique = f"{opening}\n\n{sections}{extra}{references}"
     (directory / "critique.md").write_text(critique, encoding="utf-8")
+    try:
+        plain = post_text.render(critique)
+    except ValueError:
+        # Unsupported synthetic bodies exercise the narrative/source findings.
+        pass
+    else:
+        (directory / "critique.txt").write_text(plain, encoding="utf-8", newline="")
     (directory / "claims.md").write_text(claims, encoding="utf-8")
     digest = hashlib.sha256((directory / "critique.md").read_bytes()).hexdigest()
     (directory / "heading-read.md").write_text(

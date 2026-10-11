@@ -213,6 +213,9 @@ in that paragraph is historical.
 **Correction, 2026-09-08:** `case_study_render.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-10-11:** `post_text.py` is a direct command; its command path calls
+`use_utf8()` and then `require_python_floor()` before building a plain Canvas comment.
+
 **Correction, 2026-09-08:** `post_html.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
@@ -1352,6 +1355,15 @@ count is reported rather than graded.
 finding, 2 for every way of not having scanned, which the module enumerates in `EXIT_2_LIMBS`
 rather than in prose. **A finding wins over incomplete coverage**, on `differential_scan.py`'s
 ordering.
+
+`python tools/post_text.py <critique.md> <critique.txt>` builds the plain Canvas comment
+through `docx_write.blocks` and `inline_spans`. It preserves prose, paragraph spacing, list
+markers, reference URLs, and literal ampersands while removing supported Markdown formatting.
+Unknown shapes refuse with exit 2 and a source line; exit 0 writes the build. The refusal is a
+floor over recognized syntax, not proof that every possible Markdown construct is detected.
+The peer-critique grader rebuilds an existing `critique.txt` byte for byte and refuses a difference;
+a posted agent route with no build is a finding. Stored-comment comparison remains reader-owned.
+Covered by `tools/test_post_text.py`.
 
 Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skill.py`.
 

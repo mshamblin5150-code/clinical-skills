@@ -139,6 +139,7 @@ TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <different refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, superseded cited deliberately - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
@@ -315,6 +316,7 @@ SOURCE: powerpoint-pdf | clinician
 UNSEEN: none | <what was not read>
 READ: <what was compared against the retained slide images>
 VERDICT: clean - <reason> | defect - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Every package scan grades this record's shape when the file exists. At the terminal call, the
@@ -338,6 +340,7 @@ AUDIENCE-PURPOSE: <exact value from bar.md>
 TALK-STYLE: <exact value from bar.md>
 INTERNAL-COMMENTARY: none | found - <slide and commentary>
 SPOKEN-ARC: follows - <reason> | departs - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 `INTERNAL-COMMENTARY: found` and `SPOKEN-ARC: departs` are findings, not alternative clean states.
@@ -371,6 +374,7 @@ UNSEEN: none | <what was not read>
 CLAIMS: <SHA-256 of claims.md when the reader was briefed>
 VERDICT: clean - <reason> | defect - <reason>
 <findings keyed to slide number>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 After the deck or DOCX is final and before the go-ahead, run the **Planter** and separate fresh
@@ -437,6 +441,8 @@ the run key. A per-context scratch path holds work in progress only and never su
 evidence. Run `python tools/course_assignment_scan.py <run-directory> --artifact <deck>` before
 approval and require its pre-upload grade to exit 0 against that run directory.
 
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
 Before asking for this go-ahead, run `python tools/project_context.py <run-directory>
 --go-ahead <artifact-stem>`. Show its moved places and every added memory-index line. A moved
 item is incomplete coverage the clinician may approve over; a finding stops approval. The stage
@@ -444,7 +450,7 @@ call repeats and records the check; show any changed notice and renew approval i
 the notice the clinician saw. Completion carries that result forward after recorded upload.
 
 This is the existing submission gate; wait for the explicit go-ahead once. Then call
-`assignment_submission.stage(run, deck, artifact_approved=True, approved_carriers=(...))` with
+`assignment_submission.stage(run, deck, artifact_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes, approved_carriers=(...))` with
 exactly the approved files and show `assignment_submission.approval_surface(staged)`. Any mismatch
 with the surface the clinician approved returns to the gate. `stage` reruns the same pre-upload
 grade and refuses to record approval unless it is clean; the separate project-context moved-item

@@ -180,6 +180,7 @@ TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
@@ -353,7 +354,9 @@ shows the complete final text with its full reference list before the approval q
 Ask whether the substance is right, whether the register is his, and, separately, whether each
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
-explicit go-ahead authorizes posting.
+explicit content go-ahead authorizes loading.
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
 Before asking for the go-ahead, run `python tools/project_context.py <run-directory>
 --go-ahead critique.md`. Show its moved places and every added memory-index line. A moved item is
 incomplete coverage the clinician may approve over; a finding stops approval. Approval repeats
@@ -367,7 +370,7 @@ Leave the historical runs filed in #1495 as they stand. When touching one that p
 an approval record, report `stopped - posted before the approval recorder could record it (#1495)`.
 At that go-ahead call `approval_record.approve(run, skill="peer-critique",
 submission="critique.md", sources=(run / "critique.md",), grader_args=(str(run),),
-content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask; incomplete coverage does not block, while a
 finding refuses the record. From this record onward every reply touching the run ends with
 `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped -
 reason>`. Several touched runs each receive their own keyed line, and no classmate name enters it.
@@ -378,14 +381,25 @@ comment on the classmate's submission. Both carry references, and the critique i
 to the board. Where a course assigns no peer review, this ruling names no surface; ask the clinician
 where the Peer critique belongs before loading it anywhere.
 
-Create `critique.txt` as plain text built from `critique.md`, as an exact copy with every character
-literal. Here plain text names the transport, not a request to render or strip the authored Markdown
-markers: retain the bold heading markers and reference URLs exactly as the source carries them. In
-particular, keep a real `&` wherever APA 7 requires one. Load that plain text into the peer-review
-comment and compare the textarea value with `critique.txt` before posting. The peer-review comment
-is not a Composer, so the Composer load routes in
-[canvas-editor.md](../_shared/reference/canvas-editor.md) do not apply. The HTML
-`tools/post_html.py` builds is for a Composer and is never loaded into this comment.
+Build `critique.txt` from `critique.md` with:
+
+```bash
+python tools/post_text.py <run-directory>/critique.md <run-directory>/critique.txt
+```
+
+A refusal stops loading. Keep a real `&` wherever APA 7 requires one. Load the build into the
+peer-review comment and compare the textarea value with `critique.txt`. The peer-review comment
+is not a Composer, so only the loaded-box stop in
+[canvas-editor.md](../_shared/reference/canvas-editor.md) applies, not its Composer load routes.
+Follow that stop, then record the **Posting go-ahead** with a second
+`approval_record.approve(run, skill="peer-critique", submission="critique.md",
+sources=(run / "critique.md",), grader_args=(str(run),), content_approved=True,
+clinician_reply=clinician_reply, approval_kind="posting")` call. Use the clinician's whole reply.
+On unchanged text this carries forward the content approval's reader-remark outcomes; the
+remark-list and coverage-line windows retain the content approval display, and approved leave
+proposals need no repeated naming. Show any changed project-context notice and renew approval
+before the **Save** click. A changed draft needs a new content approval, shown in full, before
+loading and taking the stop again. Save only after the Posting go-ahead is recorded.
 
 This route implements [ADR 0204](../../docs/adr/0204-a-peer-critique-posts-to-the-peer-review-comment-and-its-ampersand-is-typed-literally.md)
 and closes [#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991). The 2026-09-12

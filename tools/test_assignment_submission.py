@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 import assignment_submission
+import approval_record
 import file_digest
 from project_context_test_support import write_none_context
 
@@ -18,7 +19,8 @@ class TwoGateUpload(unittest.TestCase):
     def stage(self, run, artifact, **kwargs):
         if not (run / "project-context.md").exists():
             write_none_context(run)
-        return assignment_submission.stage(run, artifact, **kwargs)
+        with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic reply", 4102444800)), mock.patch.object(assignment_submission.reader_remarks, "verify", return_value=[]):
+            return assignment_submission.stage(run, artifact, clinician_reply="Approve the synthetic artifact.", **kwargs)
 
     def setUp(self) -> None:
         self.pre_upload_grade = mock.patch.object(

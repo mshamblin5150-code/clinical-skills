@@ -77,6 +77,7 @@ NO_LIMITS = {
     "page_image": "a page-image conversion adapter with no independent coverage claim",
     "page_text": "a page-text extraction adapter with no independent coverage claim",
     "phi_scan": "a staged-content safety gate whose scanned surfaces are explicit in its implementation",
+    "post_text": "a plain-text construction helper rather than a content-completeness grader",
     "post_html": "an HTML construction helper rather than a content-completeness grader",
     "approval_record": "an exact authorization adapter whose approved source population defines its fingerprint boundary",
     "procedure_codes_lookup": "an exact local database lookup rather than a coding-rules or documentation grader",
