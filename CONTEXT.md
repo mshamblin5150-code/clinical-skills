@@ -357,6 +357,10 @@ _Avoid_: heading digest, heading hash, refuted heading, claim fingerprint
 A fresh reader's pairing of every factual sentence in a finished draft with the [[Claim heading]] it rests on, taken before the go-ahead and holding only the draft and the claim ledger. A sentence no heading states is unrecorded; a sentence claiming more than its heading, or other than it, is drifted. It establishes that the draft and the ledger agree, not that either is right, and it expires when the draft or any heading it names changes.
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
+**Item description**:
+A sentence in a finished coursework draft stating what an item opened for the run's [[Project context record]] says, such as a classmate's plan or a prior submission. It is neither a factual sentence resting on a [[Claim heading]] nor the clinician's own reasoning: its source is the opened item itself, so the [[Heading read]] ties it to that item and compares it claim by claim, never to the ledger.
+_Avoid_: classmate summary, context sentence, paraphrase of the post
+
 **Voice read**:
 A fresh reader's comparison of a finished coursework draft with the canonical voice model's discriminating pairs, taken on a copy carrying one [[Planted sentence]] the reader is not told of. Every pair is answered with a quoted draft sentence and the half it resembles, or no counterpart. It establishes consistency with the model's samples, never that the draft sounds like its clinician. The plant is caught only when the reader both names it and places it on the generic side of whichever pair it most resembles; a missed plant voids the read, and the read expires when the draft changes.
 _Avoid_: voice check, voice audit, voice grade, sounds-like check
