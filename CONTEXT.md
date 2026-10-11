@@ -245,6 +245,14 @@ _Avoid_: context file, memory read, background, project notes
 A **Submission** the clinician already handed in on the same board or the same case as the work being drafted — his initial post beneath a reply, his case study beneath a critique of a classmate's. A run declares it, or declares that none exists with a reason, in its **Project context record**, because a sentence describing his own plan can be checked only against the plan he actually wrote.
 _Avoid_: his post, prior work, own post, earlier submission
 
+**Case material**:
+The fixed data set a case gives every student, whether a file the course supplies or the clinician's own transcription of a case presented by video. A run declares it, or that none exists with a reason, in its **Project context record**. Lines the clinician added to his own copy, such as a sanity check, a differential or a first plan, are his reasoning before research, never the case and never his settled position; that is his **Own submission**.
+_Avoid_: case file, case data, scenario, intake
+
+**Case research**:
+The clinician's own **Evidence dump** for one case: the topics he pulled to write his submission on it. It is his research, never faculty-supplied. A run names its **Dump manifest** entry, or that none exists with a reason, in its **Project context record**, so the compilation is both opened before drafting and reachable by every later search of the **Evidence store**.
+_Avoid_: companion evidence, faculty evidence, his articles, research file
+
 **Project registry**:
 The account's standing statement of the clinician's projects and, for each, the places and services holding what he has said about it, plus the one memory index owed whatever the project. It changes only on his word; a run's one-off direction to search somewhere else belongs to that run's **Project context record**, not here.
 _Avoid_: project list, profile, locations file
