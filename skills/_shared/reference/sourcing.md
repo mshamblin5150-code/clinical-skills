@@ -282,6 +282,7 @@ SENTENCES: <n> factual, <n> clinician's own
 PAIR: <location> -> <first 8 hex of the heading digest>
 CONTEXT-DIGEST: <the project-context record's digest>
 CONTEXT-VERDICT: agrees
+CONTEXT-VERDICT: none
 CONTEXT-VERDICT: narrows - <location>, <what differs>
 CONTEXT-VERDICT: contradicts - <location>, <what differs>
 CONTEXT-VERDICT: sources-conflict - <source A> and <source B>, <what differs>
@@ -292,7 +293,7 @@ FINDINGS: drifted - <location>, <what differs>
 ```
 
 Choose exactly one `CONTEXT-VERDICT` line and one `VERDICT` line from these forms.
-`agrees` and `clean` take nothing after them. A `FINDINGS:` line appears once
+`agrees`, `none`, and `clean` take nothing after them. A `FINDINGS:` line appears once
 per sentence that failed and never on a clean record. This differs from the `## RENDERED:`
 record's `VERDICT: clean - <what was compared>` and from the practicum `## CHECK:` record,
 where a clean record's `FINDINGS:` supplies its substance.
@@ -306,3 +307,6 @@ with that ruling written to memory. A finding blocks the go-ahead. Repair a drif
 heading, or change and refute the heading again. Give an unrecorded sentence a full researched and
 refuted record or cut it. Every repair changes the draft, so a fresh heading read replaces the old
 one before the go-ahead.
+
+The `none` context verdict is retained for legacy records whose context digest is `none`;
+both fields must be `none` there. New runs use the bound digest and the `agrees` verdict.
