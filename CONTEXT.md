@@ -267,6 +267,10 @@ _Avoid_: companion evidence, faculty evidence, his articles, research file
 The account's standing statement of the clinician's projects and, for each, the places and services holding what he has said about it, plus the one memory index owed whatever the project. It changes only on his word; a run's one-off direction to search somewhere else belongs to that run's **Project context record**, not here.
 _Avoid_: project list, profile, locations file
 
+**Owned asset**:
+Something the clinician already holds or has built for a project, such as an account, a number, a domain, or an app he shipped, recorded on the project's entry in the **Project registry** on his word and shown in the **Project context record** header he confirms. A draft recommending he buy, rent, or subscribe to what a listed asset already provides fails the **Heading read**'s context check unless it says why the asset falls short. An asset he never registered is owed by nothing.
+_Avoid_: his tools, existing resources, what he has, inventory
+
 **Account profile**:
 One clinician's standing answers that no other clinician shares: their name, sites, preceptors, payer mapping, and whether and how credentials appear on a title page or a signature. A shared skill reads these and never carries them; a value the profile is silent on is asked once and recorded, never defaulted. Distinct from the **Project registry**, which records the clinician's projects and where their words about them live.
 _Avoid_: settings, config, house rule
