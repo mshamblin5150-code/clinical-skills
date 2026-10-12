@@ -906,6 +906,7 @@ Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 clinician authored in this run's input, exclude faculty and source language, or record explicit
 `none`.
 
+Show the declared project's registered assets with the header being confirmed; a `none` run shows none.
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is

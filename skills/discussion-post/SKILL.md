@@ -139,6 +139,7 @@ explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md).
+Show the declared project's registered assets with the header being confirmed; a `none` run shows none.
 The research return includes `QUALIFIERS`; the refutation brief checks its completeness
 under that shared rule. The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is

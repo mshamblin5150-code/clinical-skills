@@ -179,8 +179,9 @@ Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 clinician authored in this run's input, exclude faculty and source language, or record explicit
 `none`.
 
-Immediately before drafting the first prose, write and confirm the project declaration, retrieve
-every place owed by [sourcing.md](../_shared/reference/sourcing.md), then run both gates:
+Immediately before drafting the first prose, write and confirm the project declaration. Show the
+declared project's registered assets with the header being confirmed; a `none` run shows none.
+Retrieve every place owed by [sourcing.md](../_shared/reference/sourcing.md), then run both gates:
 
 ```bash
 python tools/project_context.py scratch/runs/<course>-<module>-course-assignment --write --submission <submission-key>

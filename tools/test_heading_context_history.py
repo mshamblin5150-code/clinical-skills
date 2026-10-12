@@ -46,6 +46,23 @@ class HeadingContextHistory(ProjectContextFixture):
         self.assertEqual(0, self.write().exit_code)
         self.assertIn(heading_read.CONTEXT_DIGEST_MISMATCH, {f.kind for f in self.grade().findings})
 
+    def test_added_edited_or_removed_asset_breaks_an_unposted_heading_read(self):
+        original = self.registry.read_text(encoding='utf-8')
+        for before, after in (((), ('owned outbox',)),
+                              (('owned outbox',), ('new outbox',)),
+                              (('owned outbox',), ())):
+            with self.subTest(before=before, after=after):
+                for values in (before, after):
+                    self.registry.write_text(original + ''.join(f'ASSET: {v}\n' for v in values),
+                                             encoding='utf-8')
+                    self.record(self.memory_entry(), self.plan_entry(), self.service_entry(),
+                                header=tuple(f'ASSET: {v}' for v in values))
+                    result = self.write()
+                    self.assertEqual(0, result.exit_code, result.report)
+                    if values is before:
+                        digest = result.digest
+                self.assertFalse(context.heading_context_matches(self.run, digest, 'draft.md'))
+
 
 if __name__ == "__main__":
     unittest.main()

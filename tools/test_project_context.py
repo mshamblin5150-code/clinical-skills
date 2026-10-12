@@ -124,6 +124,97 @@ class ProjectContextFixture(unittest.TestCase):
             return context.completion_gate(self.run, submission)
 
 
+class OwnedAssets(ProjectContextFixture):
+    def command(self):
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(self.service_payloads))), \
+                mock.patch("sys.stdout", output), mock.patch("sys.stderr", output):
+            code = context.main([str(self.run), "--write", "--submission", "submission",
+                                 "--service-payloads", "-"])
+        return code, output.getvalue()
+
+    def assets(self, *values):
+        self.registry.write_text(
+            self.registry.read_text(encoding="utf-8") +
+            "".join(f"ASSET: {value}\n" for value in values), encoding="utf-8")
+
+    def test_registry_asset_refusals_use_the_public_command(self):
+        original = self.registry.read_text(encoding="utf-8")
+        for values, message in ((('',), 'ASSET needs a description'),
+                                (('owned outbox', 'owned outbox'), 'duplicate ASSET entry')):
+            with self.subTest(values=values):
+                self.registry.write_text(original, encoding="utf-8")
+                self.assets(*values)
+                self.complete_record()
+                code, output = self.command()
+                self.assertEqual(1, code, output)
+                self.assertIn(message, output)
+
+    def test_header_owes_exactly_the_declared_projects_assets(self):
+        self.assets('owned outbox', 'verified domain')
+        for lines, message in (((), 'missing ASSET'),
+                               (('owned outbox',), 'missing ASSET'),
+                               (('owned outbox', 'verified domain', 'owned outbox'), 'duplicate ASSET'),
+                               (('owned outbox', 'verified domain', 'unregistered tool'), 'unregistered ASSET'),
+                               (('',), 'ASSET needs a description')):
+            with self.subTest(lines=lines):
+                self.record(self.memory_entry(), self.plan_entry(), self.service_entry(),
+                            header=tuple(f'ASSET: {value}' for value in lines))
+                code, output = self.command()
+                self.assertEqual(1, code, output)
+                self.assertIn(message, output)
+
+    def test_assets_parse_render_and_move_the_digest(self):
+        self.complete_record()
+        self.assertEqual(0, self.command()[0])
+        before = context.recorded_digest(self.run)
+        self.assets('owned outbox', 'verified domain')
+        self.record(self.memory_entry(), self.plan_entry(), self.service_entry(),
+                    header=('ASSET: owned outbox', 'ASSET: verified domain'))
+        code, output = self.command()
+        self.assertEqual(0, code, output)
+        self.assertNotEqual(before, context.recorded_digest(self.run))
+        self.assertEqual(('owned outbox', 'verified domain'),
+                         context.read_registry(self.registry.read_text(encoding='utf-8')).projects['Atlas'].assets)
+        written = self.run.joinpath(context.RECORD_NAME).read_text(encoding='utf-8')
+        self.assertIn('ASSET: owned outbox\nASSET: verified domain\n', written)
+        self.assertFalse(self.complete().finding)
+        self.assets('newly shipped tool')
+        self.assertTrue(self.complete().finding)
+
+    def test_none_refuses_assets_without_reading_the_registry(self):
+        self.run.joinpath(context.RECORD_NAME).write_text(
+            'PROJECT-CONTEXT: none - no project\n'
+            'OWN-SUBMISSION: none - no submission\n'
+            'CASE-MATERIAL: none - no case\nCASE-RESEARCH: none - no research\n'
+            'ASSET: owned outbox\nCONFIRMED: 2001-01-01\n', encoding='utf-8')
+        self.registry.unlink()
+        code, output = self.command()
+        self.assertEqual(1, code, output)
+        self.assertIn('a none run cannot carry ASSET', output)
+        self.assertTrue(self.complete().finding)
+
+    def test_assets_belong_to_their_project(self):
+        self.assets('owned outbox')
+        self.registry.write_text(self.registry.read_text(encoding='utf-8') +
+                                 'PROJECT: Other\nASSET: other tool\n', encoding='utf-8')
+        self.record(self.memory_entry(), self.plan_entry(), self.service_entry(),
+                    header=('ASSET: owned outbox',))
+        code, output = self.command()
+        self.assertEqual(0, code, output)
+
+    def test_shared_reference_states_the_purchase_rule_in_both_briefs(self):
+        text = (Path(__file__).resolve().parents[1] /
+                'skills/_shared/reference/sourcing.md').read_text(encoding='utf-8')
+        rule = ('A draft sentence recommending that the clinician or his project buy, rent, or subscribe to something\n'
+                'a listed asset already provides is `CONTEXT-VERDICT: narrows`, unless the draft states why the owned\n'
+                'asset falls short.')
+        draft, reader = text.split('Before any go-ahead, a fresh context receives only', 1)
+        self.assertIn(rule, draft)
+        self.assertIn(rule, reader)
+
+
 class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
     def test_a_complete_record_is_canonicalized_with_machine_written_hashes(self) -> None:
         self.complete_record()
