@@ -171,17 +171,43 @@ UPDATED_COMMAND_DISPATCHES = (
     'te.executeUnhandledCommand({type:X,...F}))',
 )
 
+# Inspected cache/runtime pair on 2026-10-12. Dispatch identifiers changed;
+# the runtime still uses the previously reviewed jO/qR navigation prefix.
+OCTOBER_NAVIGATION_START = (
+    'var QB=F("navigate_tab_url",async(t,e)=>{let r=Number(t.tab_id);'
+    'if(typeof t.url!="string"||!t.url)throw new Error("navigate_tab_url requires a url");'
+    'if(!Number.isInteger(r)||r<=0)throw new Error("navigate_tab_url requires a positive integer tab_id");'
+    'await e.followSessionTab(r),await Jk(e.documentResponses,r);'
+    'let n=t.url,o=typeof t.timeout_ms=="number"?t.timeout_ms:1e4,'
+    'i=new AbortController,s=e.credentialObservationGate?.epoch,a=e.getCurrentSessionId()'
+)
+OCTOBER_COMMAND_DISPATCHES = (
+    'X?await d.withCommandTelemetry(O,I,async()=>await LC(Y,I,(me,Ue)=>X(Ue,me)))'
+    ':await d.withCommandTelemetry(O,I,async()=>await '
+    'Y.executeUnhandledCommand({type:O,...I}))',
+    'he?await d.withCommandTelemetry(K,F,async()=>await PC(re,F,(Ue,ze)=>{'
+    'if(V?.superseded)throw new Error("The download is no longer active.");'
+    'return he(ze,Ue)})):await d.withCommandTelemetry(K,F,async()=>await '
+    're.executeUnhandledCommand({type:K,...F}))',
+)
+REVIEWED_UPDATED_LAYOUTS = (
+    *zip(UPDATED_NAVIGATION_STARTS, UPDATED_COMMAND_DISPATCHES),
+    (OCTOBER_NAVIGATION_START, OCTOBER_COMMAND_DISPATCHES[0]),
+    (UPDATED_NAVIGATION_STARTS[1], OCTOBER_COMMAND_DISPATCHES[1]),
+)
+
 
 def reviewed_updated_dispatch(source: str) -> bool:
-    """Recognize the inspected 26.1002 cache/runtime pair without editing its gates."""
-    if sum(source.count(marker) for marker in UPDATED_NAVIGATION_STARTS) != 1:
+    """Recognize an inspected cache/runtime layout without editing its gates."""
+    navigation_starts = {navigation for navigation, _ in REVIEWED_UPDATED_LAYOUTS}
+    dispatches = {dispatch for _, dispatch in REVIEWED_UPDATED_LAYOUTS}
+    if sum(source.count(marker) for marker in navigation_starts) != 1:
         return False
-    if sum(source.count(marker) for marker in UPDATED_COMMAND_DISPATCHES) != 1:
+    if sum(source.count(marker) for marker in dispatches) != 1:
         return False
-    pairs = zip(UPDATED_NAVIGATION_STARTS, UPDATED_COMMAND_DISPATCHES)
     return sum(
         source.count(navigation) == 1 and source.count(dispatch) == 1
-        for navigation, dispatch in pairs
+        for navigation, dispatch in REVIEWED_UPDATED_LAYOUTS
     ) == 1
 
 

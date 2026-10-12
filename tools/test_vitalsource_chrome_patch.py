@@ -41,6 +41,63 @@ from patch_codex_chrome import (
 
 
 class PatchSourceTests(unittest.TestCase):
+    def october_bundle(self, runtime: bool = False) -> str:
+        # Transcribed from installed 26.1007 cache and cfb32733 runtime, not
+        # assembled from the new production signatures.
+        if runtime:
+            dispatch = (
+                'he?await d.withCommandTelemetry(K,F,async()=>await PC(re,F,(Ue,ze)=>{'
+                'if(V?.superseded)throw new Error("The download is no longer active.");'
+                'return he(ze,Ue)})):await d.withCommandTelemetry(K,F,async()=>await '
+                're.executeUnhandledCommand({type:K,...F}))'
+            )
+            return self.updated_bundle(1).replace(UPDATED_COMMAND_DISPATCHES[1], dispatch)
+        dispatch = (
+            'X?await d.withCommandTelemetry(O,I,async()=>await LC(Y,I,(me,Ue)=>X(Ue,me)))'
+            ':await d.withCommandTelemetry(O,I,async()=>await '
+            'Y.executeUnhandledCommand({type:O,...I}))'
+        )
+        return (
+            self.updated_bundle(0)
+            .replace('var qB=N(', 'var QB=F(')
+            .replace('await jk(e.documentResponses,r)', 'await Jk(e.documentResponses,r)')
+            .replace(UPDATED_COMMAND_DISPATCHES[0], dispatch)
+        )
+
+    def test_october_layouts_change_only_attachment_and_xhtml(self) -> None:
+        for runtime in (False, True):
+            with self.subTest(runtime=runtime):
+                source = self.october_bundle(runtime)
+                expected = source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER).replace(
+                    't==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||'
+                )
+                self.assertEqual(expected, patch_source(source))
+                self.assertEqual(expected, patch_source(expected))
+
+    def test_october_layouts_refuse_drift_mixed_pairs_and_partial_patches(self) -> None:
+        for runtime in (False, True):
+            source = self.october_bundle(runtime)
+            changes = [
+                ('e.followSessionTab(r)', 'e.followSessionTab(0)'),
+                ('e.credentialObservationGate?.epoch', 'void 0'),
+                ('permitNavigatedDocument(r,b.loaderId,s)', 'permitNavigatedDocument(r,b.loaderId,0)'),
+                ('!NY.has(r)', 'NY.has(r)'),
+                (ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER),
+                ('t==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||'),
+            ]
+            changes.extend(
+                [('if(V?.superseded)', 'if(!1)'), ('he(ze,Ue)', 'he(Ue,ze)')]
+                if runtime else [('X(Ue,me)', 'X(me,Ue)'), ('var QB=F(', 'var jO=N(')]
+            )
+            for before, after in changes:
+                with self.subTest(runtime=runtime, seam=before):
+                    self.assertIn(before, source)
+                    with self.assertRaises(PatchError):
+                        patch_source(source.replace(before, after))
+            for extra in UPDATED_COMMAND_DISPATCHES:
+                with self.assertRaises(PatchError):
+                    patch_source(source + extra)
+
     def updated_bundle(self, index: int = 0) -> str:
         # Independent transcription of the observed navigation prefix: do not
         # build this fixture from the production matcher being tested.
