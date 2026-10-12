@@ -362,11 +362,12 @@ def _claim_tokens(claims: str) -> tuple[set[str], set[str], set[str]]:
 
 
 def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
-    citations = read_citations(source.body, _reference_key_set(source))
+    body = strip_discussion_markers(source.body)
+    citations = read_citations(body, _reference_key_set(source))
     spans = {(citation.start, citation.end) for citation in citations}
     return tuple(
         found.group(0).casefold()
-        for found in NUMBER.finditer(source.body)
+        for found in NUMBER.finditer(body)
         if not any(start <= found.start() < end for start, end in spans)
     )
 
