@@ -165,7 +165,7 @@ class RunStatusContract(unittest.TestCase):
                     self.assertEqual("block", response["decision"])
                     for run in (self.run, other):
                         self.assertIn(run.name, response["reason"])
-                    self.assertIn("path appears in the session transcript", response["reason"])
+                    self.assertIn("tool-call input names its directory", response["reason"])
         self.assertIn(malformed, self.grade(f"{malformed}\n{other_line}")["reason"])
         self.assertIn(stopped, self.grade(f"{stopped}\n{other_line}")["reason"])
         mixed = self.grade(f"{stopped}\n{malformed}")["reason"]
@@ -178,7 +178,175 @@ class RunStatusContract(unittest.TestCase):
         self.assertEqual("block", response["decision"])
         self.assertIn("stays stopped", response["reason"])
         self.assertIn(other.name, response["reason"])
-        self.assertIn("path appears in the session transcript", response["reason"])
+        self.assertIn("tool-call input names its directory", response["reason"])
+
+    def write_session(self, *records: dict[str, object]) -> None:
+        self.transcript.write_text(
+            "\n".join(json.dumps(record) for record in records), encoding="utf-8"
+        )
+
+    def start_record(self) -> dict[str, object]:
+        return {"type": "session_meta", "timestamp": "2026-01-01T00:00:00Z"}
+
+    def make_run_old(self) -> None:
+        for path in self.run.rglob("*"):
+            if path.is_file():
+                os.utime(path, (1, 1))
+
+    def test_read_only_read_binds_nothing(self) -> None:
+        self.make_run_old()
+        record = {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": str(self.run / "submission-gates.json")}}
+        ]}}
+        self.write_session(self.start_record(), record)
+        self.assertEqual({}, self.grade("Read for reference."))
+
+    def test_output_prose_and_user_mentions_bind_nothing_even_after_a_write(self) -> None:
+        for record in (
+            {"type": "response_item", "payload": {"type": "function_call_output", "output": str(self.run)}},
+            {"type": "user", "message": {"role": "user", "content": str(self.run)}},
+            claude_assistant_record(str(self.run)),
+            {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": str(self.run)}]}},
+        ):
+            with self.subTest(record=record):
+                self.write_session(self.start_record(), record)
+                self.assertEqual({}, self.grade("No work in this run."))
+
+    def test_folder_listing_output_binds_nothing(self) -> None:
+        record = command_record(self.run)
+        record["payload"]["item"]["command"] = ["ls", str(self.run.parent)]
+        record["payload"]["item"]["aggregated_output"] = str(self.run)
+        self.write_session(self.start_record(), record)
+        self.assertEqual({}, self.grade("Listed folders."))
+
+    def test_command_named_run_with_nested_changed_file_binds(self) -> None:
+        self.make_run_old()
+        nested = self.run / "drafts"
+        nested.mkdir()
+        (nested / "reply.md").write_text("draft", encoding="utf-8")
+        self.write_session(self.start_record(), command_record(self.run))
+        self.assertEqual("block", self.grade("Drafted.")["decision"])
+
+    def test_relative_script_path_does_not_absorb_the_run_path(self) -> None:
+        relative = "scratch/runs/relative-run"
+        run = self.root / relative
+        run.mkdir(parents=True)
+        (run / "reply.md").write_text("draft", encoding="utf-8")
+        for executable in ("python", "C:/Python/python.exe", "/usr/bin/python"):
+            for script in ("post_html.py", "course_assignment_scan.py"):
+                for prefix in ("", "./"):
+                    record = {"type": "response_item", "payload": {"type": "function_call", "arguments": json.dumps({"cmd": f"{executable} tools/{script} {prefix}{relative}"})}}
+                    with self.subTest(executable=executable, script=script, prefix=prefix), mock.patch("os.getcwd", return_value=str(self.root)):
+                        self.assertEqual((run.resolve(),), hook.touched_runs((self.start_record(), record)))
+
+    def test_space_in_structured_and_quoted_absolute_run_paths(self) -> None:
+        run = self.root / "parent with spaces" / "scratch" / "runs" / "space-run"
+        run.mkdir(parents=True)
+        (run / "reply.md").write_text("draft", encoding="utf-8")
+        for inputs in ({"file_path": str(run / "reply.md")}, {"cmd": f'python tool.py "{run}"'}):
+            record = {"type": "response_item", "payload": {"type": "function_call", "arguments": json.dumps(inputs)}}
+            with self.subTest(inputs=inputs):
+                self.assertEqual((run.resolve(),), hook.touched_runs((self.start_record(), record)))
+
+    def test_only_hook_state_changed_binds_nothing(self) -> None:
+        self.make_run_old()
+        (self.run / hook.STATE_RECORD).write_text("{}", encoding="utf-8")
+        self.write_session(self.start_record(), command_record(self.run))
+        self.assertEqual({}, self.grade("Only the hook wrote."))
+
+    def test_codex_and_claude_tool_inputs_bind_changed_runs(self) -> None:
+        records = (
+            {"type": "response_item", "payload": {"type": "function_call", "arguments": json.dumps({"cmd": f'python tool.py "{self.run}"'})}},
+            {"type": "response_item", "payload": {"type": "custom_tool_call", "input": f'edit "{self.run / "reply.md"}"'}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "input": {"file_path": str(self.run / "reply.md")}}]}},
+        )
+        for record in records:
+            with self.subTest(record=record):
+                self.write_session(self.start_record(), record)
+                self.assertEqual((self.run.resolve(),), hook.touched_runs(hook._records(self.transcript)))
+
+    def test_unreadable_start_falls_back_to_mentions(self) -> None:
+        self.make_run_old()
+        for timestamp in (None, "not a date", "2026-01-01T00:00:00"):
+            with self.subTest(timestamp=timestamp):
+                self.write_session({"timestamp": timestamp, "output": str(self.run)})
+                self.assertEqual("block", self.grade("Mention fallback.")["decision"])
+
+    def test_failing_retry_warns_in_both_payload_shapes_and_preserves_state(self) -> None:
+        before = b'{"status":"stopped"}'
+        state = self.run / hook.STATE_RECORD
+        state.write_bytes(before)
+        line = f"Run status: {self.run.name} — complete"
+        for client in ("codex", "claude"):
+            with self.subTest(client=client), mock.patch.object(hook, "completion_is_clean", return_value=False):
+                self.write_session(command_record(self.run), claude_assistant_record(line))
+                payload = {"transcript_path": str(self.transcript), "stop_hook_active": True}
+                if client == "codex":
+                    payload["last_assistant_message"] = line
+                result = hook.handle(payload)
+                self.assertEqual({"systemMessage"}, set(result))
+                self.assertIn(line, result["systemMessage"])
+                self.assertIn("terminal grade", result["systemMessage"])
+                self.assertEqual(before, state.read_bytes())
+
+    def test_retry_warns_for_each_failing_complete_and_writes_no_state(self) -> None:
+        other = self.run.parent / "second-run"
+        other.mkdir()
+        (other / "submission-gates.json").write_bytes((self.run / "submission-gates.json").read_bytes())
+        self.write_session(command_record(self.run), command_record(other))
+        lines = [f"Run status: {run.name} — complete" for run in (self.run, other)]
+        with mock.patch.object(hook, "completion_is_clean", return_value=False):
+            response = hook.handle({"transcript_path": str(self.transcript), "stop_hook_active": True, "last_assistant_message": "\n".join(lines)})
+        self.assertEqual({"systemMessage"}, set(response))
+        for run, line in zip((self.run, other), lines):
+            self.assertIn(f"{line!r}: complete requires", response["systemMessage"])
+            self.assertFalse((run / hook.STATE_RECORD).exists())
+
+    def test_passing_retry_is_recorded(self) -> None:
+        for status in ("stopped - needs correction", "complete"):
+            with self.subTest(status=status), mock.patch.object(hook, "completion_is_clean", return_value=True):
+                response = hook.handle({"transcript_path": str(self.transcript), "stop_hook_active": True, "last_assistant_message": f"Run status: {self.run.name} — {status}"})
+                self.assertEqual({}, response)
+                state = json.loads((self.run / hook.STATE_RECORD).read_text(encoding="utf-8"))
+                self.assertEqual(status.split(" - ")[0], state["status"])
+
+    def test_retry_grammar_and_missing_lines_warn_without_blocking(self) -> None:
+        for line in ("Missing.", f"Run status: {self.run.name} - complete", f"Run status: {self.run.name} — stopped -"):
+            with self.subTest(line=line):
+                response = hook.handle({"transcript_path": str(self.transcript), "stop_hook_active": True, "last_assistant_message": line})
+                self.assertEqual({"systemMessage"}, set(response))
+                self.assertFalse((self.run / hook.STATE_RECORD).exists())
+
+    def test_retry_warning_is_emitted_as_utf8_json_for_both_clients(self) -> None:
+        line = f"Run status: {self.run.name} - complete"
+        self.write_session(command_record(self.run), claude_assistant_record(line))
+        for client in ("codex", "claude"):
+            with self.subTest(client=client):
+                payload = {"transcript_path": str(self.transcript), "stop_hook_active": True}
+                if client == "codex":
+                    payload["last_assistant_message"] = line
+                result = self.command_grade(json.dumps(payload).encode("utf-8"))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(b"", result.stderr)
+                response = json.loads(result.stdout.decode("utf-8"))
+                self.assertEqual({"systemMessage"}, set(response))
+                self.assertIn(line, response["systemMessage"])
+                self.assertIn("separator", response["systemMessage"])
+                self.assertFalse((self.run / hook.STATE_RECORD).exists())
+
+    def test_retry_collects_completion_failure_beside_malformed_or_missing_lines(self) -> None:
+        other = self.run.parent / "second-run"
+        other.mkdir()
+        (other / "submission-gates.json").write_bytes((self.run / "submission-gates.json").read_bytes())
+        self.write_session(command_record(self.run), command_record(other))
+        complete = f"Run status: {other.name} — complete"
+        for first in (f"Run status: {self.run.name} - complete\n", ""):
+            with self.subTest(first=first), mock.patch.object(hook, "completion_is_clean", return_value=False) as grade:
+                response = hook.handle({"transcript_path": str(self.transcript), "stop_hook_active": True, "last_assistant_message": first + complete})
+                self.assertEqual({"systemMessage"}, set(response))
+                self.assertIn(f"{complete!r}: complete requires", response["systemMessage"])
+                grade.assert_called_once()
+                self.assertFalse((other / hook.STATE_RECORD).exists())
 
     def test_awaiting_posting_is_accepted_after_approval(self) -> None:
         self.assertEqual(
