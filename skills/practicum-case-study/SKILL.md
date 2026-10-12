@@ -130,7 +130,7 @@ were coded and these were not:
 
 - **The most likely clinical diagnosis.** It is the single most important line in the document and
   it was the one line with no code on it.
-- **An entry listed only to show it is excluded.** Listing the exclusion is right, and it is graded
+- **An entry listed only to show it is ruled out.** Listing the verdict is right, and it is graded
   — see *Ordering is the graded axis*. Leaving it uncoded makes it decoration.
 - **Anything in the Plan that codes**, where the plan item is itself a diagnosis or a screening.
 
@@ -160,7 +160,8 @@ section* under it. The skeleton, in order:
    on what the exam must include, and any conflict in the source data named out loud.
 4. **Differential Diagnoses** — a numbered list, ranked, ICD-10 pinned with a hyphen.
 5. **Most Likely Clinical Diagnosis** — with the discriminator attached, not bare.
-6. **MDM** — one entry per differential, each stating what in *this case* puts it in or out.
+6. **MDM** — one entry per differential, each stating what in *this case* makes it ruled out or
+   argued down, or supports it as the favored diagnosis.
 7. **Plan:** — imperative orders.
 8. **Patient Education:** — spoken, second person.
 9. **Rx:** — one table per drug, fixed shape, each with the pharmacologic prose block under it.
@@ -254,10 +255,22 @@ made.** So:
 
 - The list is numbered, and `1.` is the favored entry.
 - **Any patient of childbearing age with abdominal or pelvic pain gets pregnancy-related
-  emergencies ranked first**, until imaging or a test excludes them — and when something in the
-  faculty material already excludes one, say which line does it rather than dropping the entry.
-- Rank on *what would kill or maim first*, then on likelihood. A rare diagnosis is argued down in
-  the MDM with an explicit trigger that would promote it, never quietly omitted.
+  emergencies in the emergency tier**, until ruled out; name the faculty-material line or test
+  that establishes the standing. Use the three standings defined in [CONTEXT.md](../../CONTEXT.md):
+  Ruled out, Argued down and Impossible on the history.
+- **Walk the emergency list of every source the run cites for the presenting complaint before
+  the first reader round.** Write `<run-directory>/emergency-walk.json` in the shape below,
+  naming each source walked and every emergency it lists for this complaint in this population.
+  Each is ranked at a named position, ruled out by a named faculty-material line or test, or
+  impossible on the history by a named faculty-material line. Name the latter two standings in
+  the Assessment with that line or test.
+- A rare diagnosis is argued down in the MDM with an explicit trigger that would promote it,
+  never quietly omitted. **The trigger sits in the MDM entry of the diagnosis it promotes**;
+  a trigger written only under another entry does not count for this one.
+
+**The diagnosis meeting most of its published criteria is number 1; every emergency not ruled out
+comes next, by what would kill or maim first even where the history argues it down; the other
+diagnoses not ruled out follow by likelihood; ruled-out entries come last.**
 
 **Where the patient meets most of the published criteria for a diagnosis, that diagnosis leads.**
 It is number one on the differential and it is the most likely clinical diagnosis. **Ruled
@@ -266,12 +279,22 @@ and four of five additional criteria for pelvic inflammatory disease was written
 ranked first, on the strength of an anatomic argument that the pregnancy made ascending infection
 unlikely.
 
+**A criterion defined by change over time needs two observations.** One examination can show a
+finding present or absent; it cannot show that the finding is unchanged, resolving or progressing.
+Where such a criterion carries weight, the Plan orders the repeat observation and the MDM says
+`argued down`, not `ruled out`, until it is back.
+
 **The mechanism was interesting and it was the wrong output.** A criteria set is the thing the
 grader, the guideline and the chart all agree on; an anatomic plausibility argument is a reason the
 criteria might be misleading in this case. **The argument belongs in the MDM entry, underneath the
 diagnosis it qualifies. It does not get to demote the diagnosis it argues about.** A reader who sees
 the criteria met and the diagnosis ranked second has to reconstruct why, and a grader will read it
 as the criteria having been missed.
+
+**A diagnosis impossible on the history is not listed.** An organ the surgical history records
+as removed cannot be the diagnosis, so it takes no differential entry, no MDM entry and no
+promotion trigger. One Assessment sentence names the history line that makes it impossible on
+the history. A later reader reporting it as a rare variant is reporting a settled item.
 
 ## Every clinical claim is looked up, never recalled
 
@@ -384,6 +407,12 @@ inversion at the top of this file:
 pressure because a box demands one; a case study has no box, and a fabricated finding changes the
 answer to the question being graded.
 
+**Before a draft is placed for a reader round, trace every stated negative and descriptor.** Write
+`<run-directory>/fact-trace.json` in the shape below: every absent symptom, normal finding,
+examination descriptor, negative history item and qualifier on a result, including the transcribed
+intake, sits beside its faculty-material line or is marked cut or ordered. Change the draft to
+match the record. The same holds for what the run tells the clinician in chat.
+
 Standing rule 3 still binds: a `PROPOSED (verify before use)` block lists every clinical claim this
 skill contributed that the clinician's draft did not already contain — each differential added,
 each code, each drug, each dose. Write it to `<run-directory>/proposed-<date>.md`, show it to the
@@ -400,9 +429,18 @@ DRAFT: <what the draft says>
 WHY: <why the draft departs>
 ```
 
+**A clinician ruling is restated in its own scope words** wherever the draft or a `DEPARTURE` entry
+repeats it. A ruling that removes a diagnosis from the final diagnosis has not removed it from the
+differential: quote what he ruled and name each section it reaches.
+
 After the clinician reads the section and gives the submission go-ahead, write
 `GO-AHEAD: <ISO date>` under the section. That go-ahead is his ruling on every departure listed.
 No separate stop or mid-draft question is added.
+
+**A causal link drawn between two of the clinician's listed diagnoses is a new claim.** Writing that
+one diagnosis causes or explains another, or adding a code for the combined condition, needs its own
+step 3 claim record and its own `### DEPARTURE:` entry. Without both, the draft keeps the clinician's
+diagnoses as separate entries.
 
 ## Credentials — two strings in one document, and that is correct
 
@@ -525,6 +563,11 @@ resolved by picking the likelier one in silence.
 Note which mode the material sets, and note the questions it asks — the corpus's `Things to
 complete for this case study` list is the assignment, and each item on it must be answerable by
 pointing at a section.
+
+**Record a visit-date assumption whenever a recommendation is date-dependent.** Where the faculty
+material gives no visit date and an immunization, screening window or gestational-age order depends
+on one, write the assumed date and its basis into `<run-directory>/proposed-<date>.md` before
+drafting, and state that assumption wherever the draft states the timing.
 
 ### 2. Read the evidence
 
@@ -903,6 +946,11 @@ description of the case.
 
 ### 5. Draft the body
 
+When first prose begins, retain `FIRST-DRAFT: <ISO timestamp with timezone>` at the top of
+`<run-directory>/checks.md`; keep that first timestamp through revisions. The pre-review walk
+check compares this moment with its start in `reference/completion-check-starts.tsv`. A missing,
+invalid or repeated timestamp grants no historical exemption.
+
 In skeleton order, in his voice — [../_shared/reference/style.md](../_shared/reference/style.md) is the authority and the
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
 `I'm going to stop`. Never *the provider should consider*.
@@ -945,10 +993,46 @@ Reuse a recorded image whole where it fits. Where none fits, follow
 domain may be proposed, and one that works never licenses a second instance.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
-Two things every MDM entry carries: **the discriminator** — what in this case puts the diagnosis in
-or out, not a textbook summary of the disease — and **a citation**. Ruled-out entries end on the
+Two things every MDM entry carries: **the discriminator** — what in this case supports the favored
+diagnosis or makes another ruled out or argued down, not a textbook summary of the disease — and
+**a citation**. Ruled-out entries end on the
 verdict, and the strongest form in the corpus promotes the verdict to the entry's own header line
 with the reasoning underneath.
+
+**Before the first reader round, walk every signed bar element against the draft.** Write
+`<run-directory>/bar-walk.json` in the shape below. Each element `bar.md` carries is met in a named
+section or inapplicable with its one-clause explanation under *A wrapper instruction that does not
+fit this patient is reasoned about* and a `### DEPARTURE:` entry. The faculty to-do reader confirms
+this walk; it does not replace it.
+
+### Pre-review walk records
+
+These files stay in the run directory, outside the graded document. Each is a JSON object with
+`entries`, a list of objects. Every named text field contains substantive text. When a walk has no
+subjects, use `"entries": []` with a `"none"` reason; an empty list alone is incomplete. Emergency
+walks also carry `sources`, a nonempty list naming every source walked, including a source that
+lists no emergencies. Each emergency entry names one of those sources. The outcomes and fields are:
+
+| File | Entry fields | Closed outcome and its required fields |
+| --- | --- | --- |
+| `emergency-walk.json` | `source`, `diagnosis`, `outcome` | `ranked`: `position`, a positive integer string; `ruled out`: `faculty_line` or `test`; `impossible on the history`: `faculty_line` |
+| `bar-walk.json` | `element`, `outcome` | `met`: `section`; `inapplicable`: `wrapper_clause` and `departure`, naming its `### DEPARTURE:` entry |
+| `fact-trace.json` | `statement`, `kind`, `outcome` | `given`: `faculty_line`; `cut`: no further field; `ordered`: `order` |
+
+The trace's `kind` is `absent symptom`, `normal finding`, `examination descriptor`, `negative
+history`, or `result qualifier`. A `faculty_line` names the line in the retained faculty material;
+`test` names the faculty-material test that rules the diagnosis out. A `source` names the walked
+source, not merely its topic. For example, a synthetic emergency record has this shape:
+
+```json
+{"sources": ["Synthetic source, complaint section"], "entries": [
+  {"source": "Synthetic source, complaint section", "diagnosis": "Emergency A",
+   "outcome": "ranked", "position": "2"}
+]}
+```
+
+`checks_ledger.py` grades the records' presence and closed outcome shapes, including required
+locators; truth, completeness, timing and whether the draft matches remain reader judgments.
 
 ### 6. Write the prescriptions
 
@@ -1178,7 +1262,7 @@ rows whose verdict comes from a command.
 | the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
 | the reference list, the part no command reaches | the entries against the Case research | `research_ledger.py` grades a stored UpToDate topic's author surnames, author order, author count, and last-update year; a reader checks authors and years for every other source, whether any entry carries a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and `reference_scan.py` catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the commands reach is §7 — whether each source exists and says what the sentence citing it says, and, under [sourcing.md](../_shared/reference/sourcing.md), whether opening each locator confirms that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue and rule on every bare-number candidate from `reference_scan.py --show` by opening the source and deciding page versus article number (#1570) | no |
-| differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
+| differential ordering | the numbered differential and the intake block | a reader: does the list follow the whole order under *Ordering is the graded axis*, using the three defined standings, with pregnancy-related emergencies in the emergency tier for a patient of childbearing age with abdominal or pelvic pain | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the dose against the record that sourced it | every prescription table, and `<claims-ledger>` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
@@ -1419,7 +1503,7 @@ VERDICT: defect
 DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient of
     childbearing age with pelvic pain and no documented hCG. The pregnancy-related
-    emergency is at 4 and has to be at 1 until the hCG is back.
+    emergency is at 4 and has to follow the criteria-met diagnosis at 1 until ruled out.
 REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
@@ -1450,7 +1534,7 @@ under it is a check that did not run, and the draft is not submitted on it.
 VERDICT: clean
 DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
-    36-hour onset, the absent rebound, the prior appendectomy — and each carries a
+    36-hour onset, the absent rebound, the afebrile course — and each carries a
     citation.
 REMARK: <problem outside the assigned question; repeat as needed>
 ```
@@ -1556,6 +1640,13 @@ before submission:**
 python tools/checks_ledger.py <checks-ledger> --document <the output Markdown>
 ```
 
+A `pre-review-walks` finding means a missing or malformed pre-review walk: a missing JSON file,
+an unreadable object or entries list, a missing subject, an outcome outside the closed vocabulary,
+a missing required locator or action, an emergency source absent from `sources`, an invalid ranked
+position, an unknown trace kind, or an empty entries list without a `none` reason. Repair the record
+and draft before handoff. Runs first drafted before the registered start are not graded on this
+check; the retained `FIRST-DRAFT` timestamp supplies its ledger comparison moment.
+
 Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan** — no file, or no
 `## CHECK:` record in it. Re-run with `--show` to see which, and **that output is PHI**: read it, do
 not paste it. **A clean scan is not a checked draft** — every verdict in that file is a reading, and
@@ -1649,6 +1740,7 @@ Then walk this list, by eye — none of it is mechanical:
 
 **The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
 
+- A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.
 - A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.
 - A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.
 - A well-formed verdict cannot prove that its reader opened or read the draft.
