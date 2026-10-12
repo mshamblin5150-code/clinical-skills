@@ -1,4 +1,8 @@
-"""Durable authorization state for course-assignment upload carriers."""
+"""Durable authorization state for course-assignment upload carriers.
+
+The posted-fingerprint coverage boundary belongs to
+``assignment_submission.DECLARED_LIMITS``; this docstring copies no row.
+"""
 
 from __future__ import annotations
 

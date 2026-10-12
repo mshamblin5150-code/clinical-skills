@@ -13,6 +13,7 @@ import ast
 import re
 import tempfile
 import unittest
+import assignment_submission
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
@@ -878,6 +879,13 @@ class EveryLimitsDeclarationIsClassified(unittest.TestCase):
 
     def test_the_walks_own_limits_are_bound_to_the_module_docstring(self):
         self.assertEqual((), bind(DECLARED_LIMITS, __doc__, mode=NAMING))
+
+    def test_assignment_posted_fingerprint_limits_are_bound_without_copying(self):
+        self.assertEqual((), bind(
+            assignment_submission.DECLARED_LIMITS,
+            assignment_submission.__doc__,
+            mode=NAMING,
+        ))
 
     def test_the_candidacy_derivation_reads_every_declared_name(self):
         population = declarers()
