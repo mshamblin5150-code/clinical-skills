@@ -58,6 +58,11 @@ skills. They link the APA rule at the points where their reference readers apply
   surnames, initials distinguish first authors. Generational suffixes follow birth order rather
   than lexical order.
 
+The paper's language selects the filing alphabet under ADR 0356. Follow
+[Paper language](paper-language.md) before drafting. Preserve published names in
+the list and text; `citation-author-spelling` reports a difference even when
+plain-letter folding matches the citation to its entry.
+
 APA's published Smithsonian example applies the same rule to a group author
 ([McAdoo, 2022](https://apastyle.apa.org/blog/alphabetize-nonsignificant-words)):
 

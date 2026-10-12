@@ -38,6 +38,10 @@ citation has its own believed record carrying the matching reference. Grade that
 `tools/research_ledger.py` and grade the reference list with `tools/reference_scan.py`; commands save
 the walk but do not replace the row contracts written in those tools' invoking skill sections.
 
+Before first prose, follow [Paper language](../../_shared/reference/paper-language.md).
+Pass an individual-paper override as `--paper-language "<language>"` to the
+reference command; retain it in `bar.md` for the DOCX completion grader.
+
 Before drafting, complete the main skill's supplied-voice capture and both pre-draft gates with
 `--submission <submission-key>`. Read only the
 canonical path that command records under the main skill's voice rule. Build the document with

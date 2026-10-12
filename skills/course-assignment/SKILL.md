@@ -52,6 +52,11 @@ standing rule 6 governs independent checks and cleanup.
 
 ## 1. Read the live assignment and establish the bar
 
+Before first prose in either branch, follow
+[Paper language](../_shared/reference/paper-language.md): reuse the saved account
+answer or ask once and save it when missing. Retain an individual-paper override
+in `bar.md`; the DOCX grader also accepts `--paper-language "<language>"`.
+
 Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
 
 Before either branch builds a title page or title slide, read `TITLE-PAGE-CREDENTIALS` from

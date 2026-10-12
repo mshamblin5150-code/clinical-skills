@@ -211,6 +211,9 @@ inventoried in `research_ledger.DECLARED_LIMITS`; this skill points there withou
 
 ## 4. Draft the critique
 
+Before first prose, follow [Paper language](../_shared/reference/paper-language.md):
+reuse the saved account answer or ask once and save it when missing.
+
 Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in this run's input, exclude faculty, classmate, and source language, or record
@@ -325,6 +328,9 @@ Then run the reference list through the shared APA grader:
 ```bash
 python tools/reference_scan.py scratch/runs/<run-key>/critique.md --as-of <the sitting's ISO date> --bold-references
 ```
+
+For an individual-paper override, add `--paper-language "<language>"` as described
+in [Paper language](../_shared/reference/paper-language.md).
 
 Its exit must be 0. Walk `peer_critique_scan.NOT_REACHED` after a clean scan; it is the single
 inventory of what the command cannot decide. **A clean scan is not a checked critique.** Whether the

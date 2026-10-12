@@ -132,6 +132,9 @@ inventory of what that command cannot decide.
 
 ## 3. Outline blind, research the questions, then draft from records
 
+Before first prose, follow [Paper language](../_shared/reference/paper-language.md):
+reuse the saved account answer or ask once and save it when missing.
+
 Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in this run's input, exclude faculty, classmate, and source language, or record
@@ -356,7 +359,9 @@ python tools/reference_scan.py output/discussions/<course>-<module>-discussion-<
 python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md
 ```
 
-`reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
+`reference_scan.py` walks the APA list and citation resolution. Its exit must be 0.
+For an individual-paper override, add `--paper-language "<language>"` to its command
+as described in [Paper language](../_shared/reference/paper-language.md).
 `discussion_post_scan.py` grades the signed word floor and reference minimum. Its
 `narrative-body` row applies the shared house-style rule in
 [style.md](../_shared/reference/style.md) to the graded body through the renderer's block parser.

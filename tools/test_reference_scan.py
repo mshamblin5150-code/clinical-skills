@@ -54,7 +54,7 @@ class BoldReferenceLabelCommand(unittest.TestCase):
         text = "A finding (Ross, 2025).\n**References**\nRoss, J. (2025). A topic. https://example.org/topic\n"
         document = scan.read_document(text, bold_references=True)
         self.assertEqual(len(document.entries), 1)
-        self.assertEqual(scan.survey(document, date(2026, 10, 11)).findings, ())
+        self.assertEqual(scan.survey(document, date(2026, 10, 11), "en").findings, ())
 
     def test_only_the_opt_in_opens_a_bold_label_list(self):
         for label in ("**References**", "**Reference**"):
@@ -67,7 +67,7 @@ class BoldReferenceLabelCommand(unittest.TestCase):
                         args.append("--bold-references")
                     stdout, stderr = io.StringIO(), io.StringIO()
                     with redirect_stdout(stdout), redirect_stderr(stderr):
-                        status = scan.main(args)
+                        status = scan.main([*args, "--paper-language", "en"])
                     # The singular opens the list, then retains APA's label finding.
                     self.assertEqual(1 if label == "**Reference**" or not opted_in else 0, status, stdout.getvalue() + stderr.getvalue())
                     self.assertEqual(not opted_in, "no reference list found" in stderr.getvalue())
@@ -164,8 +164,8 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
     unread.write_text(draft(ACOG, body=unread_body), encoding="utf-8")
     twin.write_text(draft(ACOG, body=clean_body), encoding="utf-8")
     return UnreadRemainderInput(
-        (str(unread), "--as-of", AS_OF.isoformat()),
-        (str(twin), "--as-of", AS_OF.isoformat()),
+        (str(unread), "--as-of", AS_OF.isoformat(), "--paper-language", "en"),
+        (str(twin), "--as-of", AS_OF.isoformat(), "--paper-language", "en"),
         unread_remainder=lambda result: result.citation_coverage.unread,
     )
 
@@ -186,7 +186,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         ),
         encoding="utf-8",
     )
-    as_of = ("--as-of", "2026-08-19")
+    as_of = ("--as-of", "2026-08-19", "--paper-language", "en")
     return EmptyPopulationInput(
         (str(empty), *as_of),
         population_size=lambda result: result.entries,
@@ -196,7 +196,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
 
 def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
     """The finding kinds one draft produces, in order."""
-    return [f.kind for f in scan.findings(scan.read_document(text), as_of)]
+    return [f.kind for f in scan.findings(scan.read_document(text), as_of, "en")]
 
 
 def shown_report(text: str, as_of: date | None = AS_OF) -> str:
@@ -208,7 +208,7 @@ def shown_report(text: str, as_of: date | None = AS_OF) -> str:
     three places for one of them to stop being the thing ``--show`` prints.
     """
     return scan.format_report(
-        scan.survey(scan.read_document(text), as_of), source="case.md", show=True
+        scan.survey(scan.read_document(text), as_of, "en"), source="case.md", show=True
     )
 
 
@@ -276,13 +276,13 @@ class TheHeadingIsTheOneAPARequires(unittest.TestCase):
 
     def test_reference_list_is_a_finding_and_the_renderer_would_not_style_it(self):
         text = draft(ACOG, UPTODATE, heading="## Reference List")
-        found = [f for f in scan.findings(scan.read_document(text), AS_OF) if f.kind == scan.HEADING_NOT_APA]
+        found = [f for f in scan.findings(scan.read_document(text), AS_OF, "en") if f.kind == scan.HEADING_NOT_APA]
         self.assertEqual(len(found), 1)
         self.assertIn("no hanging indent", found[0].detail)
 
     def test_references_cited_is_a_finding_the_renderer_would_still_style(self):
         text = draft(ACOG, UPTODATE, heading="## References Cited")
-        found = [f for f in scan.findings(scan.read_document(text), AS_OF) if f.kind == scan.HEADING_NOT_APA]
+        found = [f for f in scan.findings(scan.read_document(text), AS_OF, "en") if f.kind == scan.HEADING_NOT_APA]
         self.assertEqual(len(found), 1)
         self.assertNotIn("no hanging indent", found[0].detail)
 
@@ -461,7 +461,7 @@ class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
 
     def test_an_entry_with_no_possible_key_is_not_exempt_from_uncited_entry(self):
         entry = "*** (2024). An authorless work. https://example.org/work"
-        result = scan.findings(scan.read_document(draft(entry, body="# Case\n")), AS_OF)
+        result = scan.findings(scan.read_document(draft(entry, body="# Case\n")), AS_OF, "en")
 
         self.assertIn(scan.UNCITED_ENTRY, {finding.kind for finding in result})
 
@@ -751,7 +751,7 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
                 path.write_text(draft(*entries, body=f"# Case\n\nEvidence {cited}.\n"), encoding="utf-8")
                 output = io.StringIO()
                 with redirect_stdout(output), redirect_stderr(io.StringIO()):
-                    scan.main([str(path)])
+                    scan.main([*[str(path)], "--paper-language", "en"])
                 self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+{unlisted}\b")
                 self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+{missing}\b")
 
@@ -814,7 +814,7 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
                 path.write_text(draft(*entries, body=body), encoding="utf-8")
                 output = io.StringIO()
                 with redirect_stdout(output), redirect_stderr(io.StringIO()):
-                    scan.main([str(path)])
+                    scan.main([*[str(path)], "--paper-language", "en"])
                 self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+{unlisted}\b")
                 self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+{missing}\b")
 
@@ -842,7 +842,7 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
                 path.write_text(draft(*entries, body=f"# Case\n\nEvidence {cited}.\n"), encoding="utf-8")
                 output = io.StringIO()
                 with redirect_stdout(output), redirect_stderr(io.StringIO()):
-                    scan.main([str(path)])
+                    scan.main([*[str(path)], "--paper-language", "en"])
                 self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+0\b")
                 self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+0\b")
 
@@ -1209,7 +1209,7 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         document = scan.read_document(text)
 
         self.assertIn(("consolidated", "2022"), {(c.key, c.year) for c in document.citations})
-        self.assertNotIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF)})
+        self.assertNotIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF, "en")})
 
     def test_evidence_first_is_the_behavior_that_repairs_the_statute(self):
         entry = (
@@ -1223,7 +1223,7 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         with mock.patch.object(scan, "_evidenced_parenthetical", return_value=None):
             document = scan.read_document(text)
 
-        self.assertIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF)})
+        self.assertIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF, "en")})
 
     def test_reference_evidence_still_splits_a_wrong_legal_date(self):
         entry = (
@@ -1239,7 +1239,7 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
         mismatches = [
             finding
-            for finding in scan.findings(document, AS_OF)
+            for finding in scan.findings(document, AS_OF, "en")
             if finding.kind == scan.INTEXT_YEAR_MISMATCH
         ]
         self.assertEqual(1, len(mismatches))
@@ -1561,7 +1561,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
 class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
     def setUp(self):
         text = draft(ACOG + "Links to an external site.", UPTODATE)
-        self.scan = scan.survey(scan.read_document(text), AS_OF)
+        self.scan = scan.survey(scan.read_document(text), AS_OF, "en")
 
     def test_the_default_report_prints_no_entry_text(self):
         report = scan.format_report(self.scan, source="case.md")
@@ -1639,17 +1639,17 @@ class EntriesAtFaultCountsEntries(unittest.TestCase):
 
     def test_it_never_exceeds_the_number_of_entries(self):
         text = draft("- " + UPTODATE.replace("*UpToDate*", "UpToDate"), ACOG)
-        result = scan.survey(scan.read_document(text), AS_OF)
+        result = scan.survey(scan.read_document(text), AS_OF, "en")
         self.assertLessEqual(result.entries_at_fault, result.entries)
 
     def test_an_out_of_order_pair_charges_one_entry_and_not_a_third(self):
-        result = scan.survey(scan.read_document(draft(UPTODATE, ACOG)), AS_OF)
+        result = scan.survey(scan.read_document(draft(UPTODATE, ACOG)), AS_OF, "en")
         self.assertEqual(result.entries, 2)
         self.assertEqual(result.entries_at_fault, 1)
 
     def test_a_heading_defect_charges_no_entry(self):
         text = draft(ACOG, UPTODATE, heading="## Works Cited")
-        result = scan.survey(scan.read_document(text), AS_OF)
+        result = scan.survey(scan.read_document(text), AS_OF, "en")
         self.assertEqual(result.entries_at_fault, 0)
         self.assertTrue(result.findings)
 
@@ -1661,7 +1661,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
-                status = scan.main([str(path), "--as-of", "2026-08-19", *extra])
+                status = scan.main([*[str(path), "--as-of", "2026-08-19", *extra], "--paper-language", "en"])
             self.last = out.getvalue() + err.getvalue()
         return status
 
@@ -1710,12 +1710,12 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def test_no_arguments_exits_two(self):
         err = io.StringIO()
         with redirect_stderr(err):
-            self.assertEqual(scan.main([]), 2)
+            self.assertEqual(scan.main([*[], "--paper-language", "en"]), 2)
 
     def test_a_missing_file_exits_two(self):
         err = io.StringIO()
         with redirect_stderr(err):
-            self.assertEqual(scan.main(["no-such-draft.md", "--as-of", "2026-08-19"]), 2)
+            self.assertEqual(scan.main([*["no-such-draft.md", "--as-of", "2026-08-19"], "--paper-language", "en"]), 2)
 
     def test_body_findings_outrank_a_missing_reference_section(self):
         self.assertEqual(self._run(BODY), 1)
@@ -1733,7 +1733,7 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             path.write_text(CLEAN, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
-                status = scan.main([str(path)])
+                status = scan.main([*[str(path)], "--paper-language", "en"])
             self.assertEqual(status, 2)
             self.assertIn("--as-of", err.getvalue())
 
@@ -1743,14 +1743,14 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             path.write_text(draft(UPTODATE, ACOG), encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
-                status = scan.main([str(path)])
+                status = scan.main([*[str(path)], "--paper-language", "en"])
             self.assertEqual(status, 1)
             self.assertIn("--as-of", err.getvalue())
 
     def test_a_bad_exam_date_exits_two(self):
         err = io.StringIO()
         with redirect_stderr(err):
-            self.assertEqual(scan.main(["x.md", "--as-of", "yesterday"]), 2)
+            self.assertEqual(scan.main([*["x.md", "--as-of", "yesterday"], "--paper-language", "en"]), 2)
 
     def test_a_mistyped_flag_is_refused_rather_than_dropped(self):
         """A dropped ``--shwo`` prints a counts-only report, which is exactly what
@@ -1758,13 +1758,13 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         that found nothing."""
         err = io.StringIO()
         with redirect_stderr(err):
-            self.assertEqual(scan.main([str(Path("x.md")), "--as-of", "2026-08-19", "--shwo"]), 2)
+            self.assertEqual(scan.main([*[str(Path("x.md")), "--as-of", "2026-08-19", "--shwo"], "--paper-language", "en"]), 2)
         self.assertIn("--shwo", err.getvalue())
 
     def test_as_of_does_not_swallow_the_next_flag_as_a_date(self):
         err = io.StringIO()
         with redirect_stderr(err):
-            self.assertEqual(scan.main(["x.md", "--as-of", "--show"]), 2)
+            self.assertEqual(scan.main([*["x.md", "--as-of", "--show"], "--paper-language", "en"]), 2)
         self.assertIn("--as-of", err.getvalue())
 
     def test_the_path_is_never_printed_only_the_name(self):
@@ -1858,6 +1858,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # table still states the wide rule, because the table is the rule; what changed
     # is that it now says beside the wide row how far the command reaches.
     ROW_PHRASES = {
+        scan.CITATION_AUTHOR_SPELLING: "A citation spelling an author differently from the reference list",
         scan.HEADING_NOT_APA: "The reference list headed anything but",
         scan.ENTRY_NOT_A_PARAGRAPH: "An entry written as a bullet or a numbered item",
         scan.ENTRY_HAS_NO_YEAR: "An entry carrying no year element",
@@ -1960,7 +1961,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertEqual(len(examples), 1, "section 1 must hold APA's one Smithsonian example")
         document = scan.read_document(examples[0])
         self.assertTrue(document.entries)
-        self.assertEqual([finding.kind for finding in scan.findings(document, None)], [])
+        self.assertEqual([finding.kind for finding in scan.findings(document, None, "en")], [])
 
     def test_the_worked_reference_list_in_the_skill_passes_the_scanner(self):
         """**The one that catches drift a substring cannot see.** A documented
@@ -1969,7 +1970,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         example = self._worked_list()
         document = scan.read_document(example)
         self.assertTrue(document.entries, "the skill's example should hold entries")
-        self.assertEqual([f.kind for f in scan.findings(document, None)], [])
+        self.assertEqual([f.kind for f in scan.findings(document, None, "en")], [])
 
     def _worked_list(self) -> str:
         """The one fenced block in the skill that parses as a reference list.
@@ -2024,6 +2025,8 @@ Pathways were followed (Ibarra, 2020), and one source is cited nowhere (Nobody, 
 
 The ambiguous author is cited (Taylor, 2015). qxmarkerxq
 
+A work is cited (Kubler, 2025). qxmarkerxq
+
 The topic was read on *UpToDate* the same morning. qxmarkerxq
 
 Course material arrived with Links to an external site. attached. qxmarkerxq
@@ -2032,6 +2035,7 @@ Course material arrived with Links to an external site. attached. qxmarkerxq
 # One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
 # comment above each names the row it is there for.
 LEAKY_ENTRIES = (
+    "Kübler, J. (2025). Topic. Publisher.",
     # entry-not-a-paragraph -- a bullet, which the renderer gives the list style.
     "- American College of Obstetricians and Gynecologists. (2023). Urinary tract "
     "infections in pregnancy. https://doi.org/10.1000/acog.91",
@@ -2089,7 +2093,7 @@ class TheReportCannotCarryTheDraftsProse(unittest.TestCase):
 
     def setUp(self):
         self.document = scan.read_document(LEAKY)
-        self.findings = scan.findings(self.document, AS_OF)
+        self.findings = scan.findings(self.document, AS_OF, "en")
         self.report = shown_report(LEAKY)
 
     def test_the_marker_is_really_in_the_draft_and_only_in_its_body(self):
@@ -2221,7 +2225,7 @@ class TheModuleSaysTheRulingRatherThanTheDefault(unittest.TestCase):
             path = Path(directory) / "case.md"
             path.write_text(LEAKY, encoding="utf-8")
             with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
-                status = scan.main([str(path), "--as-of", AS_OF.isoformat()])
+                status = scan.main([*[str(path), "--as-of", AS_OF.isoformat()], "--paper-language", "en"])
         self.assertEqual(status, 1)
         self.assertIn("--show", stderr.getvalue())
         self.assertNotIn("do not paste", stderr.getvalue())
@@ -2446,7 +2450,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
     def bold_label_boundary(self):
         text = "A misplaced label follows.\n\n**References**\n\nRoss, J. (2025). A topic. https://example.org/topic\n"
         document = scan.read_document(text, bold_references=True)
-        self.assertFalse(any(f.kind == scan.HEADING_NOT_APA for f in scan.survey(document, date(2026, 10, 11)).findings))
+        self.assertFalse(any(f.kind == scan.HEADING_NOT_APA for f in scan.survey(document, date(2026, 10, 11), "en").findings))
 
     def shortened_title_ambiguity(self):
         body = "# Case\n\n(The History, 2020) discusses both works.\n"
