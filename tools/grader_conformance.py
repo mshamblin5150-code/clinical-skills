@@ -75,7 +75,7 @@ def artifact_attribution_conformance(module: Any) -> type[unittest.TestCase]:
             self.assertEqual(1, standalone.returncode, standalone.stdout + standalone.stderr)
             standalone_row = next(line for line in standalone.stdout.splitlines() if case.row in line)
             self.assertIn("file 1 of 1", standalone_row)
-            self.assertNotIn(MARKER, standalone_row)
+            self.assertNotIn(MARKER, standalone.stdout + standalone.stderr)
             self.assertIn(f"{MARKER}.md", standalone_shown.stdout)
 
     _set_discoverable_identity(

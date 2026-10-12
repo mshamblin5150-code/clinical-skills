@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from run_grader import EvidenceDisposition
+from run_grader import EvidenceDisposition, artifact_label
 
 ITEM = re.compile(r"^FILLED·(asserted|proposed)\s*(.*)$")
 CLOSER = re.compile(r"^(?:(?:DERIVED|FLAG|GAPS|UNKNOWN|PROPOSED)\b|```|---|#{1,6}\s)")
@@ -41,8 +41,15 @@ def generation_line(name: str, counts: dict[str, tuple[str, ...]]) -> str:
 
 
 def check(run: Path, paths: tuple[Path, ...], terminal: bool, show: bool = False) -> tuple[bool, bool, str]:
-    expected = [generation_line(path.name, generation(path.read_text(encoding="utf-8"))) for path in paths]
-    lines = expected.copy()
+    expected = []
+    lines = []
+    for position, path in enumerate(paths, 1):
+        counts = generation(path.read_text(encoding="utf-8"))
+        expected.append(generation_line(path.name, counts))
+        label = artifact_label(path, position, len(paths))
+        # Keep the established filename form only when the shared rule checked it.
+        name = path.name if show or label != f"file {position} of {len(paths)}" else label
+        lines.append(generation_line(name, counts))
     if show:
         for path in paths:
             lines.extend(f"  {path.name}: proposed {item}" for item in generation(path.read_text(encoding="utf-8"))["proposed"])

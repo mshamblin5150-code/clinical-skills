@@ -31,6 +31,7 @@ class GenerationSummary(unittest.TestCase):
             self.assertTrue(incomplete)
             self.assertNotIn("Antibiotic", report)
             expected = "GENERATION: note-3.md | FILLED·asserted=1 | FILLED·proposed=1\n"
+            self.assertEqual(expected.rstrip(), report.splitlines()[0])
             summary = run / "shift-summary.md"
             summary.write_text(expected, encoding="utf-8")
             self.assertEqual((False, False), shift_summary.check(run, (note,), True)[:2])
@@ -38,6 +39,32 @@ class GenerationSummary(unittest.TestCase):
             for text in ("", expected.replace("proposed=1", "proposed=0"), expected * 2):
                 summary.write_text(text, encoding="utf-8")
                 self.assertEqual((True, False), shift_summary.check(run, (note,), True)[:2])
+
+    def test_private_names_are_display_labels_but_summary_matches_real_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            private = run / "HAND-NAMED-MARKER.md"
+            numbered = run / "NOTE-7.MD"
+            for note in (private, numbered):
+                note.write_text("FILLED·asserted  Vitals\n", encoding="utf-8")
+            paths = (private, numbered)
+            summary = run / "shift-summary.md"
+            real = (
+                "GENERATION: HAND-NAMED-MARKER.md | FILLED·asserted=1 | FILLED·proposed=0\n"
+                "GENERATION: NOTE-7.MD | FILLED·asserted=1 | FILLED·proposed=0\n"
+            )
+            summary.write_text(real, encoding="utf-8")
+            failed, incomplete, report = shift_summary.check(run, paths, True)
+            self.assertEqual((False, False), (failed, incomplete))
+            self.assertEqual(
+                "GENERATION: file 1 of 2 | FILLED·asserted=1 | FILLED·proposed=0\n"
+                "GENERATION: NOTE-7.MD | FILLED·asserted=1 | FILLED·proposed=0\n"
+                "the shift summary: clean", report,
+            )
+            self.assertEqual(real + "the shift summary: clean", shift_summary.check(run, paths, True, True)[2])
+            for wrong in (real.replace("HAND-NAMED-MARKER.md", "file 1 of 2"), real.replace("asserted=1", "asserted=0")):
+                summary.write_text(wrong, encoding="utf-8")
+                self.assertEqual((True, False), shift_summary.check(run, paths, True)[:2])
 
 
 if __name__ == "__main__":
