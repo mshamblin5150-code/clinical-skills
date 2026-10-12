@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import phi_scan
+import completion_checks
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
 
@@ -74,6 +75,9 @@ def records(path: Path) -> list[dict]:
 
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
+    exempt = completion_checks.exemption(run, submission, "outbound_search", "Outbound searches")
+    if exempt is not None:
+        return False, exempt
     if submission is None:
         return False, "Outbound searches: not graded - --submission was not supplied"
     try:

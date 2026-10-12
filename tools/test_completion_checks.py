@@ -41,6 +41,24 @@ class CompletionRegistry(unittest.TestCase):
 
 
 class CheckLandingBetweenPostingAndGrade(FrozenFixture):
+    def test_outbound_search_gate_starts_at_its_landing(self):
+        import outbound_search
+        (self.run / outbound_search.PULLS).write_text(
+            '{"search_id": "missing", "dump_id": "synthetic"}\n', encoding="utf-8")
+        self.item["recorded_at"] = 1791763200  # before the check landed
+        self.save()
+        with checks.grading(self.run, "post"):
+            failed, report = outbound_search.completion_gate(self.run, "post")
+        self.assertFalse(failed)
+        self.assertIn("not graded", report)
+        self.item["recorded_at"] = 1791936000  # after the check landed
+        self.item["approval_revision"] = 2
+        self.save()
+        with checks.grading(self.run, "post"):
+            failed, report = outbound_search.completion_gate(self.run, "post")
+        self.assertTrue(failed)
+        self.assertIn("lack a passed search-record line", report)
+
     def test_qualifiers_keep_the_ledger_moment_under_an_earlier_approval(self):
         from test_research_ledger import CLEAN, replace_field
         self.item["recorded_at"] = 1791590400  # before qualifier adoption
