@@ -1,6 +1,6 @@
 # A damaged byte in the project-context record or registry is refused by line before the gate parses
 
-**Measured at:** bedf3484a402871ec71e3d6fc6ef735506528cd5
+**Measured at:** eb32131952da27e4465a3ae0ee48a341213010b9
 
 [#1563](https://github.com/mshamblin5150-code/clinical-skills/issues/1563) was filed from the
 after-action review of a `course-assignment` run (NUR 5042 Module 11) on 2026-10-04. It said a shell
@@ -118,8 +118,15 @@ declined because that ruling concerns a mechanism that cannot cover this write r
 
 ## Build checklist
 
-- `tools/project_context.py`: before `read_record` and `read_registry` run on the `--write` path,
+- `tools/project_context.py`: at the top of `write_record`, before it reads or rewrites anything,
   read each file's text and report every damaged line by number and character under ruling 4's set.
+  The top of `_write_context_record` is too late: with a submission, `write_record` first rewrites
+  the record through `str.splitlines` to insert its `ORDER-OBSERVATION` line, which silently turns a
+  form feed into a line break on disk and destroys the evidence. Keep the check on the `--write`
+  path rather than in the shared `read_record` or `read_registry` parsers, which the completion
+  gate also calls; putting it there would make it a completion check under
+  [ADR 0346](0346-a-posted-item-s-clean-terminal-grade-is-frozen-and-a-later-check-starts-on-a-recorded-date.md)
+  ruling 4.
   On any damage, exit 1 with only those lines and ruling 1's standing-rule-6 remedy; run no other
   check. Name the file each line came from, since the registry is outside the run. Read the
   registry for damage only where the gate already reads it, so a `none` run is untouched.
