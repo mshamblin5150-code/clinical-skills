@@ -2856,7 +2856,7 @@ def rx_table(order: str, disp: str = "QS", sig: str = "Infuse one gram daily for
             f"| `{order}` |",
             f"| `Disp: {disp}` |",
             f"| `Sig: {sig}` |",
-            "| `<name> FNP-C, CEN, TCRN` |",
+            "| `<name> <prescribing credentials>` |",
             "| `Refill: none` | `DEA number on file with pharmacy` |",
             "",
         ]

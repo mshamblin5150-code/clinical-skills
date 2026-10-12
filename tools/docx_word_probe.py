@@ -205,6 +205,8 @@ BLOCK_QUOTATION = (
 )
 WORD_SAVE_EDIT = "Calibration edit."
 PAD_FILLERS = tuple(range(8, 30))
+# Historical synthetic input bound to the 2026-09-13 Word calibration; #1682.
+# Its credentials describe the measured fixture, never an account default.
 PAD_TABLE = (
     "| | | |\n"
     "| --- | --- | --- |\n"

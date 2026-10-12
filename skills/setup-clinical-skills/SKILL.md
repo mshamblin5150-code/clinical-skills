@@ -115,6 +115,15 @@ later runs. This choice governs title pages only; clinical signature and prescri
 their own settings. `python tools/title_page_credentials.py --record "<answer>"` records the
 choice without changing other profile fields; `none` is the explicit omission answer.
 
+**Clinical credentials.** Ask for the exact `SIGNATURE-CREDENTIALS` line used when signing as
+the clinician on real clinical documentation, and the exact `PRESCRIBING-CREDENTIALS` line
+for the role a case study's `Rx:` block assigns them. Record both beside the clinician's name
+in `scratch/medatrax-profile.md`. Reuse saved values on a re-run; ask once for any missing
+value and save the answer before continuing. These choices supply no defaults and are separate
+from the title-page choice. `python tools/clinical_credentials.py --signature "<answer>" --prescribing "<answer>"`
+records the pair while preserving the rest of the profile; retain an already answered value
+when recording a missing one.
+
 Ask, and record the answers rather than deriving them:
 
 - Which courses, and the documented hour requirement for each. **Medatrax's own Objectives page is not authoritative** — it was stale by 100 hours on one account. The program's own hours breakdown is.

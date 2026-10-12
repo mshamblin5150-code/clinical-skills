@@ -639,7 +639,7 @@ def read_sections(markdown: str) -> tuple[list[Section], list]:
     is a shape a run writes and which the renderer sets as an ordinary paragraph.
     A paragraph that merely *starts* with a label and carries a value after it is
     not a heading and does not open one, which is what keeps
-    ``Signed by: <name>, RN, CEN, TCRN. August 19, 2026`` a signature rather than
+    ``Signed by: <name>, <signature credentials>. August 19, 2026`` a signature rather than
     an empty section.
 
     **At most one recognized section is open at a time, and that is a statement

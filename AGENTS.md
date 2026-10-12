@@ -154,6 +154,10 @@ is silent. `tools/docx_word_probe.py` is a Named maintainer-only calibration com
 consumer Word dependency. Its assignment mode measures the producer's title, caption, figure,
 and figure-note shapes once; the suite compares those shapes with the dated record without Office.
 
+`tools/clinical_credentials.py` is a Named command for the account's signature and case-study
+prescribing credential choices. It reads both profile values or records the answered pair;
+the skills own asking once on silence and saving the answers before drafting.
+
 `tools/course_assignment_scan.py` dispatches the signed artifact to `tools/deck_scan.py` or
 `tools/assignment_docx_scan.py`. `tools/deck_render.py` retains PowerPoint's page-faithful export
 and slide pixels; `tools/assignment_docx.py` produces the rich Word package and
