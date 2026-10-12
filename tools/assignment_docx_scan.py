@@ -182,6 +182,7 @@ class Scan:
     heading_read_unread: int
     findings: tuple[Finding, ...]
     paper_language: str = "unspecified"
+    bare_number_candidates: int = 0
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -242,8 +243,19 @@ def _paragraphs(root: ElementTree.Element) -> tuple[Paragraph, ...]:
         if not text:
             continue
         style_node = paragraph.find("./" + W + "pPr/" + W + "pStyle")
+        style = style_node.get(W + "val", "") if style_node is not None else ""
+        # #1570: only reference runs carry emphasis into the Markdown reader.
+        if style == "Reference":
+            pieces = []
+            for run in paragraph.iter(W + "r"):
+                value = "".join(node.text or "" for node in run.iter(W + "t"))
+                italic = run.find(f"{W}rPr/{W}i")
+                if value and italic is not None and italic.get(W + "val", "true").lower() not in {"0", "false", "off"}:
+                    value = f"*{value}*"
+                pieces.append(value)
+            text = "".join(pieces).strip()
         found.append(
-            Paragraph(text, style_node.get(W + "val", "") if style_node is not None else "")
+            Paragraph(text, style)
         )
     return tuple(found)
 
@@ -555,6 +567,7 @@ def survey(source: Source) -> Scan:
         heading.unread,
         tuple(findings),
         reference_grade.paper_language,
+        len(reference_grade.bare_number_candidates),
     )
 
 
@@ -568,6 +581,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  paragraphs read   {scan.paragraphs_read}",
         f"  body words        {scan.body_words}",
         f"  references read   {scan.references_read}",
+        f"  bare-number candidates   {scan.bare_number_candidates}",
         f"  claim records     {scan.claim_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  rendered records  {scan.rendered_records}",

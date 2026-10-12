@@ -197,6 +197,12 @@ runs after the artifact is final.
 
 The orchestrator writes one final record to `rendered.md`:
 
+The page reader rules on every bare-number candidate reported by `reference_scan.py --show`:
+open its source and decide whether the journal locator is a page or an article number, adding
+`Article` only for the latter. The DOCX grader carries the candidate count into its report;
+zero findings does not settle a candidate. Check the reference-element limits in
+[apa7.md](../../_shared/reference/apa7.md) §7 alongside that reading (#1570).
+
 ```text
 ## RENDERED: <course>-<module>-course-assignment-<date>.docx
 PASS: <positive retained pass number>
