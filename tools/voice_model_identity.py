@@ -74,7 +74,7 @@ def write_record(run: Path, submission: str | None = None) -> str:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
             raise ValueError("write one submission observation at a time")
-        if not (run / "voice-reads" / submission / "supplied-voice.json").is_file():
+        if not (coursework_run.voice_records_directory(run, submission) / "supplied-voice.json").is_file():
             raise ValueError("supplied-voice.json is required before the identity gate")
         record = run / RECORD_NAME
         if record.is_file():

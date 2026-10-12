@@ -66,7 +66,7 @@ class CourseworkFixture(unittest.TestCase):
         (self.run / "voice-model-identity.json").unlink(missing_ok=True)
 
     def supplied(self, key):
-        path = self.run / "voice-reads" / key / "supplied-voice.json"
+        path = coursework_run.voice_records_directory(self.run, key) / "supplied-voice.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}", encoding="utf-8")
 
@@ -140,6 +140,26 @@ class CourseworkCommands(CourseworkFixture):
     def test_missing_capture_refuses_without_writing_identity(self):
         self.assertEqual(self.command(voice_model_identity, "critique.md"), 1)
         self.assertFalse((self.run / voice_model_identity.RECORD_NAME).exists())
+
+    def test_stem_capture_alone_passes_identity_for_replies_and_critiques(self):
+        for key, stem in (("critique.md", "critique"), ("response-maren.md", "response-maren")):
+            with self.subTest(key=key):
+                self.reset()
+                capture = self.run / "voice-reads" / stem / "supplied-voice.json"
+                capture.parent.mkdir(parents=True)
+                capture.write_text("{}", encoding="utf-8")
+                self.assertEqual(self.command(voice_model_identity, key), 0)
+                self.assertFalse((self.run / "voice-reads" / key).exists())
+
+    def test_full_key_capture_alone_refuses_identity(self):
+        for key in ("critique.md", "response-maren.md"):
+            with self.subTest(key=key):
+                self.reset()
+                capture = self.run / "voice-reads" / key / "supplied-voice.json"
+                capture.parent.mkdir(parents=True)
+                capture.write_text("{}", encoding="utf-8")
+                self.assertEqual(self.command(voice_model_identity, key), 1)
+                self.assertFalse((self.run / voice_model_identity.RECORD_NAME).exists())
 
     def test_staging_is_keyed_and_observed_in_both_scratch_roots(self):
         key = "critique.md"

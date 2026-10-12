@@ -212,7 +212,7 @@ command.
 ## 3. Draft reply one
 
 Before each reply's first prose, write that reply's
-`voice-reads/<submission-key>/supplied-voice.json` by
+`voice-reads/<key-stem>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in that reply's run input, exclude faculty, classmate, and source language, or
 record explicit `none`.

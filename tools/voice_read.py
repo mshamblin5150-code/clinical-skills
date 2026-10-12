@@ -22,17 +22,18 @@ from collections.abc import Mapping
 from typing import Generic, NamedTuple, TypeVar
 
 import reader_remarks
+import coursework_run
 import repo_root
 import run_grader
 import voice_model_identity
 from console_codec import require_python_floor, use_utf8
+from coursework_run import RECORDS_DIRECTORY
 
 
 PLANTED_COPY_NAME = "voice-read-planted.txt"
 PLANTER_RECORD_NAME = "voice-read-planter.json"
 READER_RECORD_NAME = "voice-read.json"
 SUPPLIED_VOICE_RECORD_NAME = "supplied-voice.json"
-RECORDS_DIRECTORY = "voice-reads"
 EXPECTED_ROW = "the coursework voice read"
 PROFANITY_EXPECTED_ROW = "graded coursework profanity"
 SCOPED_SKILLS = voice_model_identity.SCOPED_SKILLS
@@ -646,9 +647,9 @@ def _completion_gate(
         return CompletionGate(False, False, (f"{EXPECTED_ROW}: {suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
     keys = tuple(value.strip() for value in submission.split(",") if value.strip())
     surfaces = (
-        {Path(key).stem: surface for key in keys}
+        {coursework_run.voice_records_directory(run, key).name: surface for key in keys}
         if isinstance(surface, DraftSurface)
-        else {Path(key).stem: value for key, value in surface.items()}
+        else {coursework_run.voice_records_directory(run, key).name: value for key, value in surface.items()}
     )
     model_suffix: str | None = None
     try:
@@ -665,9 +666,9 @@ def _completion_gate(
     if model_suffix is not None:
         supplied_results: list[VoiceResult] = []
         for raw_key in keys:
-            key = Path(raw_key).stem
+            records = coursework_run.voice_records_directory(run, raw_key)
+            key = records.name
             draft = surfaces.get(key)
-            records = run / RECORDS_DIRECTORY / key
             if draft is None:
                 missing = _read_supplied_voice(
                     records / SUPPLIED_VOICE_RECORD_NAME
@@ -707,9 +708,9 @@ def _completion_gate(
     profanity_count = 0
     drafts_with_profanity = 0
     for raw_key in keys:
-        key = Path(raw_key).stem
+        records = coursework_run.voice_records_directory(run, raw_key)
+        key = records.name
         draft = surfaces.get(key)
-        records = run / RECORDS_DIRECTORY / key
         if draft is None:
             missing_capture = _read_supplied_voice(
                 records / SUPPLIED_VOICE_RECORD_NAME

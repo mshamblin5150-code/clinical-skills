@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import re
 import time
+import coursework_run
 
 
 SCOPED_SKILLS = frozenset({"course-assignment", "discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
@@ -69,8 +70,9 @@ def voice_remarks(run: Path, artifacts: tuple[str, ...]) -> tuple[Remark, ...]:
     import voice_read
     results = []
     for artifact in artifacts:
-        key = Path(artifact).stem
-        payload = voice_read._read_json(run / voice_read.RECORDS_DIRECTORY / key / voice_read.READER_RECORD_NAME)
+        records = coursework_run.voice_records_directory(run, artifact)
+        key = records.name
+        payload = voice_read._read_json(records / voice_read.READER_RECORD_NAME)
         if isinstance(payload, dict) and isinstance(payload.get("remarks"), list):
             results.extend(Remark(f"VOICE-READ: {key}", text) for text in payload["remarks"] if isinstance(text, str) and text.strip())
     return tuple(results)
