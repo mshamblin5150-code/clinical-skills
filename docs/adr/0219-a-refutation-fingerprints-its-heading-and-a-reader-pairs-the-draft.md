@@ -108,6 +108,12 @@ heading. It receives the headings with their digests from ruling 3's command, so
 never computes them; a copying error names no heading and refuses. A harness with no subagent tool
 uses a written walk by the orchestrator, and the record's `ROUTE:` states which ran.
 
+*Superseded 2026-10-11.* The words "A harness with no subagent tool uses a written walk by the
+orchestrator, and the record's `ROUTE:` states which ran." are withdrawn by
+[ADR 0341](0341-the-heading-read-has-no-self-walk-and-one-course-assignment-brief-covers-both-artifacts.md)
+ruling 1: a heading read with no second context does not complete, under standing rule 6. The fresh
+reader, its blinding from the sources, and the copied digests stand.
+
 ### 10. One record shape, required by each skill's own pre-post grader
 
 One shared module owns the **heading read** record:
@@ -121,6 +127,11 @@ PAIR: <location> -> <first 8 hex of the heading digest>
 VERDICT: clean | defect - <substance>
 FINDINGS: <kind> - <location>, <what differs>
 ```
+
+*Superseded 2026-10-11.* The words "ROUTE: separate context | orchestrator walk" are narrowed by
+[ADR 0341](0341-the-heading-read-has-no-self-walk-and-one-course-assignment-brief-covers-both-artifacts.md)
+ruling 1 to `ROUTE: separate context`, and the grader refuses any other value. The record shape, its
+other fields, and each skill's grader requirement stand.
 
 `practicum-case-study` carries it as a `checks.md` row in `EXPECTED_CHECKS`. `discussion-post`,
 `discussion-reply`, `peer-critique` and `course-assignment` write `heading-read.md` in the run
