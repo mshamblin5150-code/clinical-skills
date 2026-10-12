@@ -125,7 +125,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     empty, twin = root / "empty.md", root / "twin.md"
     empty.write_text("# Checks\n", encoding="utf-8")
     twin.write_text(
-        "# Checks\n\n" + a_clean_record("the rendered document"),
+        "FIRST-DRAFT: 2001-01-01T00:00:00Z\n# Checks\n\n" + a_clean_record("the rendered document"),
         encoding="utf-8",
     )
     document = root / "draft.md"
@@ -178,6 +178,9 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     voice_patch = contextlib.nullcontext()
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
+        text = checks_path.read_text(encoding="utf-8")
+        if "FIRST-DRAFT:" not in text:
+            checks_path.write_text("FIRST-DRAFT: 2001-01-01T00:00:00Z\n" + text, encoding="utf-8")
         (checks_path.parent / "project-context.md").write_text(
             "PROJECT-CONTEXT: none - synthetic case study\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
             "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
@@ -1467,6 +1470,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # scanner knows. ``AGENTS.md`` classes this as a Required command because the
     # skill requires its clean exit before submission.
     ROW_PHRASES = {
+        checks.PRE_REVIEW_WALKS: "a missing or malformed pre-review walk",
         checks.heading_read.QUALIFIER_COUNT: "a heading-read-qualifier-count finding",
         checks.heading_read.ITEM_COUNT: "a heading-read-item-count finding",
         checks.heading_read.OWN_FIGURE_ABSENT: "a `heading-read-own-figure-absent` finding",
@@ -1553,6 +1557,117 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         blocks = re.findall(r"```\n(## CHECK:.*?)```", self.skill, re.S)
         self.assertTrue(blocks, "the skill should carry a worked check record")
         return blocks
+
+
+class PreReviewWalksThroughCommand(unittest.TestCase):
+    def records(self) -> dict:
+        return {
+            "emergency-walk.json": {
+                "sources": ["Synthetic complaint source"],
+                "entries": [
+                    {"source": "Synthetic complaint source", "diagnosis": "Emergency A", "outcome": "ranked", "position": "2"},
+                    {"source": "Synthetic complaint source", "diagnosis": "Emergency B", "outcome": "ruled out", "test": "Faculty imaging line 8"},
+                    {"source": "Synthetic complaint source", "diagnosis": "Emergency C", "outcome": "impossible on the history", "faculty_line": "Faculty surgery line 4"},
+                ],
+            },
+            "bar-walk.json": {"entries": [
+                {"element": "Assessment", "outcome": "met", "section": "Assessment"},
+                {"element": "Growth", "outcome": "inapplicable", "wrapper_clause": "Adult case", "departure": "### DEPARTURE: Growth"},
+            ]},
+            "fact-trace.json": {"entries": [
+                {"statement": "No symptom A", "kind": "absent symptom", "outcome": "given", "faculty_line": "Faculty line 5"},
+                {"statement": "Normal finding B", "kind": "normal finding", "outcome": "cut"},
+                {"statement": "Descriptor C", "kind": "examination descriptor", "outcome": "ordered", "order": "Repeat examination"},
+                {"statement": "Negative history D", "kind": "negative history", "outcome": "given", "faculty_line": "Faculty line 6"},
+                {"statement": "Result qualifier E", "kind": "result qualifier", "outcome": "given", "faculty_line": "Faculty line 7"},
+            ]},
+        }
+
+    def grade(self, records: dict, first_draft: str = "2099-01-01T00:00:00Z") -> tuple[int, str, str]:
+        directory, path = in_a_file("FIRST-DRAFT: " + first_draft + "\n" + whole_file())
+        with directory:
+            for name, value in records.items():
+                (path.parent / name).write_text(json.dumps(value), encoding="utf-8")
+            return run([str(path)])
+
+    def test_all_closed_outcomes_pass(self):
+        self.assertEqual(0, self.grade(self.records())[0])
+        records = self.records()
+        entry = records["emergency-walk.json"]["entries"][1]
+        entry["faculty_line"] = entry.pop("test")
+        self.assertEqual(0, self.grade(records)[0])
+
+    def test_each_missing_record_is_a_finding(self):
+        for filename in self.records():
+            with self.subTest(filename=filename):
+                records = self.records()
+                del records[filename]
+                status, report, _ = self.grade(records)
+                self.assertEqual(1, status)
+                self.assertIn("pre-review-walks", report)
+                self.assertNotIn("Emergency A", report)
+
+    def test_each_entry_needs_a_closed_outcome(self):
+        for filename in self.records():
+            for outcome in (None, "", "maybe", "ranked-but-excluded"):
+                with self.subTest(filename=filename, outcome=outcome):
+                    records = self.records()
+                    entry = records[filename]["entries"][0]
+                    if outcome is None:
+                        del entry["outcome"]
+                    else:
+                        entry["outcome"] = outcome
+                    self.assertEqual(1, self.grade(records)[0])
+
+    def test_missing_locators_and_invalid_positions_fail(self):
+        mutations = (
+            ("emergency-walk.json", 0, "source", "unwalked source"),
+            ("emergency-walk.json", 0, "position", "0"),
+            ("emergency-walk.json", 0, "position", 2),
+            ("emergency-walk.json", 1, "test", ""),
+            ("emergency-walk.json", 2, "faculty_line", ""),
+            ("bar-walk.json", 0, "section", ""),
+            ("bar-walk.json", 1, "wrapper_clause", ""),
+            ("bar-walk.json", 1, "departure", ""),
+            ("fact-trace.json", 0, "faculty_line", ""),
+            ("fact-trace.json", 0, "kind", "unknown"),
+            ("fact-trace.json", 2, "order", ""),
+        )
+        for filename, index, field, value in mutations:
+            with self.subTest(filename=filename, field=field, value=value):
+                records = self.records()
+                records[filename]["entries"][index][field] = value
+                self.assertEqual(1, self.grade(records)[0])
+
+    def test_empty_walks_need_a_reason_and_emergency_sources(self):
+        records = {name: {"entries": [], "none": "No synthetic subjects"} for name in self.records()}
+        records["emergency-walk.json"]["sources"] = ["Synthetic source with no emergencies"]
+        self.assertEqual(0, self.grade(records)[0])
+        for filename in records:
+            bad = json.loads(json.dumps(records))
+            del bad[filename]["none"]
+            self.assertEqual(1, self.grade(bad)[0])
+        del records["emergency-walk.json"]["sources"]
+        self.assertEqual(1, self.grade(records)[0])
+
+    def test_malformed_json_shapes_are_findings(self):
+        for value in ([], None, {"entries": "unread"}, {"entries": [None]}, {"entries": [{}]}):
+            with self.subTest(value=value):
+                records = self.records()
+                records["fact-trace.json"] = value
+                self.assertEqual(1, self.grade(records)[0])
+        directory, path = in_a_file("FIRST-DRAFT: 2099-01-01T00:00:00Z\n" + whole_file())
+        with directory:
+            (path.parent / "fact-trace.json").write_text("{", encoding="utf-8")
+            self.assertEqual(1, run([str(path)])[0])
+
+    def test_earlier_drafts_are_not_graded_but_unknown_dates_are(self):
+        status, report, _ = self.grade({}, "2001-01-01T00:00:00Z")
+        self.assertEqual(0, status)
+        self.assertIn("not graded - first draft predates", report)
+        for moment in ("unknown", "", "2001-01-01T00:00:00Z\nFIRST-DRAFT: 2099-01-01T00:00:00Z"):
+            with self.subTest(moment=moment):
+                self.assertEqual(1, self.grade({}, moment)[0])
 
 
 class ComposerAttachmentOutcome(unittest.TestCase):

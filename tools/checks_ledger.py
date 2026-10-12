@@ -38,8 +38,8 @@ The shared completion rows' ceilings belong to
     DRAFT: <SHA-256 of the output Markdown dispatched to this reader>
     FINDINGS: The differential's 1. is appendicitis, and the intake gives a
         patient of childbearing age with pelvic pain and no documented hCG. The
-        pregnancy-related emergency is at 4 and has to be at 1 until the hCG is
-        back.
+        pregnancy-related emergency is at 4 and has to follow the criteria-met
+        diagnosis at 1 until ruled out.
 
 A field's value runs to the next field line or the next heading, so a finding may
 wrap the way a finding wraps.
@@ -216,6 +216,11 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit(
+        "pre-review-walk-truth",
+        "A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
     DeclaredLimit(
         "page-fingerprint-origin",
         "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
@@ -427,6 +432,7 @@ RENDER_FINGERPRINT_MISMATCH = "render-fingerprint-mismatch"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 INLINE_HTML = "inline-html"
 POSTED_ATTACHMENT = "posted-attachment"
+PRE_REVIEW_WALKS = "pre-review-walks"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -453,6 +459,7 @@ ROWS = {
     SUBMISSION_FINGERPRINT: "#1035",
     INLINE_HTML: "#1154",
     POSTED_ATTACHMENT: "#1154",
+    PRE_REVIEW_WALKS: "#1575",
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
@@ -995,6 +1002,81 @@ def _add_findings(scan: Scan, extra: list[Finding]) -> Scan:
     )
 
 
+def _first_draft_moment(checks_text: str) -> str | None:
+    from datetime import datetime
+
+    drafted = re.findall(r"(?m)^FIRST-DRAFT:[ \t]*(.*?)[ \t]*$", checks_text)
+    if len(drafted) != 1:
+        return None
+    try:
+        parsed = datetime.fromisoformat(drafted[0].replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return drafted[0] if parsed.tzinfo is not None else None
+
+
+def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
+    """Read closed outcomes only; completeness and clinical truth stay reader-owned."""
+    import json
+
+    if not completion_checks.active("checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(checks_text)):
+        return []
+    contracts = {
+        "emergency-walk.json": ("diagnosis", {
+            "ranked": ("position",),
+            "ruled out": (),
+            "impossible on the history": ("faculty_line",),
+        }),
+        "bar-walk.json": ("element", {
+            "met": ("section",),
+            "inapplicable": ("wrapper_clause", "departure"),
+        }),
+        "fact-trace.json": ("statement", {
+            "given": ("faculty_line",), "cut": (), "ordered": ("order",),
+        }),
+    }
+    found = []
+    for filename, (subject, outcomes) in contracts.items():
+        try:
+            record = json.loads((run / filename).read_text(encoding="utf-8"))
+            entries = record["entries"]
+            if filename == "emergency-walk.json":
+                sources = record["sources"]
+                if not isinstance(sources, list) or not sources or not all(_walk_text(s) for s in sources):
+                    raise ValueError("emergency walk needs its sources")
+            if not isinstance(entries, list):
+                raise ValueError("entries must be a list")
+            if not entries and not _walk_text(record.get("none")):
+                raise ValueError("empty entries need a none reason")
+            for entry in entries:
+                if not isinstance(entry, dict) or not _walk_text(entry.get(subject)):
+                    raise ValueError("entry needs its subject")
+                outcome = entry.get("outcome")
+                if not isinstance(outcome, str) or outcome not in outcomes:
+                    raise ValueError("entry needs a closed outcome")
+                if any(not _walk_text(entry.get(name)) for name in outcomes[outcome]):
+                    raise ValueError("outcome needs its named locator or action")
+                if filename == "emergency-walk.json":
+                    if not _walk_text(entry.get("source")) or entry["source"] not in sources:
+                        raise ValueError("emergency needs its walked source")
+                    if outcome == "ruled out" and not any(_walk_text(entry.get(name)) for name in ("faculty_line", "test")):
+                        raise ValueError("ruled-out emergency needs its line or test")
+                    if outcome == "ranked" and not POSITIVE_INTEGER.fullmatch(entry["position"]):
+                        raise ValueError("ranked position must be a positive integer string")
+                if filename == "fact-trace.json" and entry.get("kind") not in {
+                    "absent symptom", "normal finding", "examination descriptor",
+                    "negative history", "result qualifier",
+                }:
+                    raise ValueError("trace needs its stated kind")
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+            found.append(Finding(PRE_REVIEW_WALKS, filename, "missing or malformed pre-review walk"))
+    return found
+
+
+def _walk_text(value: object) -> bool:
+    return isinstance(value, str) and bool(SUBSTANCE.search(value))
+
+
 POSTED_READING_KINDS = {
     "missing-record": SUBMISSION_FINGERPRINT,
     "fingerprint": SUBMISSION_FINGERPRINT,
@@ -1052,7 +1134,7 @@ def _grade(
     rendered_report = f"the rendered pass: {NOT_GRADED} - no check records were read"
     if source.records:
         passes = render_pass.read_passes(source.path.parent / "render")
-        extra: list[Finding] = list(heading_extra)
+        extra: list[Finding] = list(heading_extra) + pre_review_walks(source.path.parent, source.text)
         rendered = next(
             (
                 record
@@ -1162,6 +1244,9 @@ def _grade(
             heading_read.protocol_coverage(source.claims_text, source.text, (source.document.name,), report_other_files=False),
             heading_read.format_coverage(heading),
             rendered_report,
+            "the pre-review walks: shape only" if completion_checks.active(
+                "checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(source.text)
+            ) else f"the pre-review walks: {NOT_GRADED} - first draft predates the check",
             reader_remarks.report(scan.reader_remarks),
             run_grader.format_unread_remainder(scan.reader_unread),
             *(f"unread reader record: CHECK: {name}" for name in scan.unread_records),
