@@ -408,9 +408,9 @@ No separate stop or mid-draft question is added.
 | The `Rx:` block | `<prescribing credentials>` from `PRESCRIBING-CREDENTIALS` |
 | The `Signed by:` line | `<signature credentials>` from `SIGNATURE-CREDENTIALS` |
 
-The `Rx:` table carries the prescribing-role credentials because the case study puts the
-clinician in that role. A signature carries the clinician's own credentials, which may describe
-a role that cannot prescribe, and it is the same string every
+An RN cannot prescribe, so the `Rx:` table carries the prescribing-role credentials because
+the case study puts the clinician in the prescribing role. The signature is the clinician as
+themselves, and it is the same string every
 real clinical note takes in [clinical-note](../clinical-note/SKILL.md),
 [batch-shift](../batch-shift/SKILL.md) and Medatrax.
 Two strings in one document is settled, not a defect. Read the name and both credential values

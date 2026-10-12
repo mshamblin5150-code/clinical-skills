@@ -356,7 +356,7 @@ The `Rx:` block takes the prescribing-role credentials; `Signed by:` and real cl
 documentation take the clinician's signature credentials. Two strings in one document is correct:
 the assigned prescribing role and the clinician signing as themselves may differ.
 
-The `prescription-pad-pagination` row in `word-renderer-calibration.json` retains the
+The prescription-pad-pagination row in `word-renderer-calibration.json` retains the
 credential text measured by Word on 2026-09-13. Its matching `tools/docx_word_probe.py`
 input remains historical synthetic calibration content, not an account setting.
 
