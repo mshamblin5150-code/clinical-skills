@@ -124,7 +124,10 @@ def sign(run: Path, clinician_reply: str) -> dict:
     if history and boundary is None:
         raise run_grader.SourceError(f"previous signature time unreadable; {REMEDY}")
     verification = verify_clinician_reply(run, clinician_reply, (bar,),
-        after=boundary.timestamp() if boundary else None)
+        after=boundary.timestamp() if boundary else None,
+        # A re-signing may implement the clinician's preceding own-work request.
+        # Its whole reply must follow the previous signature, not the requested edit.
+        source_modified_at=boundary.timestamp() if boundary else None)
     if verification.state == "not found":
         raise run_grader.SourceError("the clinician bar reply was not found: " + verification.reason)
     if bar.read_bytes() != original:
@@ -143,8 +146,14 @@ def sign(run: Path, clinician_reply: str) -> dict:
         "reply_matched_at": verification.matched_at,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
     }
-    _replace(bar, content)
-    _replace(run / RECORD, (json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"))
+    try:
+        _replace(bar, content)
+        _replace(run / RECORD, (json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"))
+    except BaseException:
+        copy.unlink(missing_ok=True)
+        if bar.read_bytes() == content:
+            _replace(bar, original)
+        raise
     return entry
 
 
@@ -159,12 +168,16 @@ def completion_gate(run: Path) -> tuple[bool, str]:
                 return False, EXPECTED_ROW + ": not graded - bar signed before the command existed"
             raise run_grader.SourceError(f"bar has no recorded signature; {REMEDY}")
         latest = history[-1]
-        copy = Path(latest.get("copy", ""))
+        copy_name = latest.get("copy")
+        if not isinstance(copy_name, str):
+            raise run_grader.SourceError(f"signed bar copy identity unreadable; {REMEDY}")
+        copy = Path(copy_name)
         if copy.is_absolute() or copy.parts != ("signed-bars", f"bar-{len(history)}.md"):
             raise run_grader.SourceError(f"signed bar copy identity unreadable; {REMEDY}")
         if file_digest.sha256(run / "bar.md") != latest.get("sha256") or file_digest.sha256(run / copy) != latest.get("sha256"):
             raise run_grader.SourceError(f"bar.md does not match its latest signature; {REMEDY}")
-        if latest.get("reply_verification") not in {"verified", "not verified"} or not str(latest.get("clinician_reply", "")).strip():
+        reply = latest.get("clinician_reply")
+        if latest.get("reply_verification") not in ("verified", "not verified") or not isinstance(reply, str) or not reply.strip():
             raise run_grader.SourceError(f"bar signature reply unreadable; {REMEDY}")
         suffix = " - clinician reply not verified" if latest["reply_verification"] == "not verified" else ""
         return False, EXPECTED_ROW + ": clean" + suffix

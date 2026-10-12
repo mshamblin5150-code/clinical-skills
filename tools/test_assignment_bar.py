@@ -189,8 +189,11 @@ class BarSignatures(unittest.TestCase):
         return assignment_bar.sign(self.run, reply)
 
     def scan(self, *args):
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            return course_assignment_scan.main([str(self.run), *args])
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            status = course_assignment_scan.main([str(self.run), *args])
+        self.report = output.getvalue()
+        return status
 
     def test_signed_bytes_and_both_versions_are_retained_for_each_branch(self):
         for text in (DOCX_BAR, DECK_BAR):
@@ -202,10 +205,14 @@ class BarSignatures(unittest.TestCase):
                 self.sign()
                 first = self.bar.read_bytes()
                 self.assertEqual(0, self.scan("--bar-only"))
+                with mock.patch.object(course_assignment_scan, "_import_adapter") as imported:
+                    imported.return_value.main.return_value = 0
+                    self.assertEqual(0, self.scan("--artifact", "paper.docx", "--submission", "paper"))
                 self.bar.write_bytes(first + b"Changed requirement.\n")
                 self.assertEqual(2, self.scan("--bar-only"))
                 self.assertEqual(2, self.scan("--artifact", "missing.docx"))
                 self.assertEqual(2, self.scan("--artifact", "missing.docx", "--submission", "paper"))
+                self.assertIn("does not match its latest signature", self.report)
                 self.sign("I confirm the amended bar.", "2100-10-09T12:01:00Z")
                 self.assertEqual(0, self.scan("--bar-only"))
                 record = json.loads((self.run / assignment_bar.RECORD).read_text())
@@ -222,6 +229,47 @@ class BarSignatures(unittest.TestCase):
         self.assertFalse(failed)
         self.assertIn("not graded", report)
         self.assertIn("assignment_bar:completion_gate", completion_checks.registry())
+        self.bar.write_text(DOCX_BAR.replace("2026-09-13", "2026-10-12"))
+        self.assertIn("not graded", assignment_bar.completion_gate(self.run)[1])
+
+    def test_own_work_request_can_precede_the_requested_bar_edit(self):
+        self.draft(DOCX_BAR)
+        self.sign()
+        request = "Please use my own unpublished work."
+        self.messages.append({"type": "user", "timestamp": "2100-10-09T12:01:00Z",
+                              "message": {"content": request}})
+        self.bar.write_text(self.bar.read_text().replace("government", "government | clinician's own work"))
+        os.utime(self.bar, (4126852920, 4126852920))  # later than the request
+        assignment_bar.sign(self.run, request)
+        self.assertFalse(assignment_bar.completion_gate(self.run)[0])
+
+    def test_failed_signature_write_can_be_retried_without_losing_the_draft(self):
+        self.draft(DOCX_BAR)
+        original = self.bar.read_bytes()
+        replace = assignment_bar._replace
+        def fail_record(path, content):
+            if path.name == assignment_bar.RECORD:
+                raise OSError("record write failed")
+            return replace(path, content)
+        with mock.patch.object(assignment_bar, "_replace", side_effect=fail_record):
+            with self.assertRaisesRegex(OSError, "record write failed"):
+                self.sign()
+        self.assertEqual(original, self.bar.read_bytes())
+        self.assertEqual([], list((self.run / "signed-bars").iterdir()))
+        self.sign("I confirm the retry.", "2100-10-09T12:01:00Z")
+        self.assertFalse(assignment_bar.completion_gate(self.run)[0])
+
+    def test_malformed_copy_and_reply_fields_refuse_without_crashing(self):
+        self.draft(DOCX_BAR)
+        self.sign()
+        path = self.run / assignment_bar.RECORD
+        original = json.loads(path.read_text())
+        for field, value in (("copy", None), ("copy", []), ("clinician_reply", None), ("reply_verification", [])):
+            with self.subTest(field=field, value=value):
+                payload = json.loads(json.dumps(original))
+                payload["signatures"][-1][field] = value
+                path.write_text(json.dumps(payload))
+                self.assertTrue(assignment_bar.completion_gate(self.run)[0])
 
     def test_absent_substring_blank_stale_and_reused_reply_refuse(self):
         self.draft(DOCX_BAR)
