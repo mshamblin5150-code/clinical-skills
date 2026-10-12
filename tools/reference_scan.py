@@ -144,8 +144,8 @@ beside the command, and a test asserts that sentence is still there.
 
 Three parser limits worth knowing before quoting a count. **Author matching is on
 the first significant word of the entry against the first significant word of the citation** -- so two
-sources whose first authors share a surname are one key here, and a citation naming
-an author the entry spells differently reads as unlisted. **A parenthetical is read
+    sources whose first authors share a surname are one key here. Folded spelling
+differences match and receive their own finding. **A parenthetical is read
 as a citation when its first word looks like an author** -- a proper noun, a quoted
 short title, or a lowercase name particle -- so ``(systolic, 2000 to 3000)`` is not
 one and a capitalized common noun in that position still is. And **sorting compares
@@ -240,6 +240,7 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
+import reference_alphabets
 from run_grader import NOT_GRADED
 from discussion_artifact import (
     CITATION_RESOLUTION_NOT_REACHED,
@@ -547,6 +548,7 @@ UNLISTED_CITATION = "unlisted-citation"
 MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 CITATION_READER_COVERAGE = "citation-reader-coverage"
+CITATION_AUTHOR_SPELLING = "citation-author-spelling"
 REFERENCE_BUCKETS = (
     ReferenceBucket("uptodate", ("UpToDate article",)),
     ReferenceBucket("statpearls", ("StatPearls",)),
@@ -604,6 +606,7 @@ BODY_ROWS = (
     UNLISTED_CITATION,
     MISSING_FIRST_AUTHOR_INITIALS,
     CITATION_READER_COVERAGE,
+    CITATION_AUTHOR_SPELLING,
 )
 NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 
@@ -633,6 +636,7 @@ ROWS = {
     UNCITED_ENTRY: "apa7 5",
     UNLISTED_CITATION: "apa7 5",
     MISSING_FIRST_AUTHOR_INITIALS: "apa7 5",
+    CITATION_AUTHOR_SPELLING: "apa7 5",
 }
 KINDS = tuple(ROWS)
 
@@ -803,7 +807,7 @@ def normalize(text: str) -> str:
     after decomposition; this is intentionally not ``guidelines_recs.fold``, which
     deletes accented letters instead of folding them.
     """
-    folded = unicodedata.normalize("NFKD", text.casefold())
+    folded = reference_alphabets.matching(text)
     without_marks = "".join(
         character for character in folded if not unicodedata.combining(character)
     )
@@ -878,18 +882,13 @@ def alphabetic_numerals(text: str) -> str:
     return _NUMBER_TOKEN.sub(lambda match: numeral_words(match.group()), text)
 
 
-def ordering_text(text: str) -> str:
+def ordering_text(text: str, language: str = "en") -> str:
     """§§9.44 and 9.49 comparison with spacing and punctuation disregarded."""
 
-    folded = unicodedata.normalize("NFKD", alphabetic_numerals(text).casefold())
-    return "".join(
-        character
-        for character in folded
-        if character.isalnum() and not unicodedata.combining(character)
-    )
+    return reference_alphabets.ordering(alphabetic_numerals(text), language)
 
 
-def author_for_ordering(text: str) -> str:
+def author_for_ordering(text: str, language: str = "en") -> str:
     """Remove credited roles/usernames and rank birth-order suffixes explicitly."""
 
     head = text.strip().rstrip(". ")
@@ -902,10 +901,10 @@ def author_for_ordering(text: str) -> str:
         head = _AUTHOR_USERNAME.sub("", head).rstrip(". ")
     suffix = _BIRTH_SUFFIX.search(head)
     if suffix is None:
-        return ordering_text(head)
+        return ordering_text(head, language)
     token = normalize(suffix.group(1)).replace(" ", "")
     core = head[: suffix.start()]
-    return f"{ordering_text(core)}birthorder{_BIRTH_RANK[token]}"
+    return f"{ordering_text(core, language)}birthorder{_BIRTH_RANK[token]}"
 
 
 def bare_year(token: str) -> str:
@@ -1175,6 +1174,9 @@ class Entry:
 
     @property
     def sort_key(self) -> str:
+        return self.filing_key("en")
+
+    def filing_key(self, language: str) -> str:
         """What ``sorted is sorted`` compares, with the year element ranked.
 
         Plain normalization puts ``2019`` before ``n d``, and APA puts an undated
@@ -1186,15 +1188,18 @@ class Entry:
         text = without_leading_article(self.text)
         match = ENTRY_YEAR.search(text)
         if not match:
-            return ordering_text(text)
+            return ordering_text(text, language)
         token = year_key(self.year)
         rank, letter = ("0000", token[2:]) if token.startswith("nd") else (token[:4], token[4:])
-        head = author_for_ordering(text[: match.start()])
-        tail = ordering_text(text[match.end() :])
+        head = author_for_ordering(text[: match.start()], language)
+        tail = ordering_text(text[match.end() :], language)
         return f"{head} {rank}{letter} {tail}"
 
     @property
     def title(self) -> str:
+        return self.filing_title("en")
+
+    def filing_title(self, language: str) -> str:
         """What follows the year element, to the end of that sentence.
 
         Empty where the entry states no year, which is the one shape the ``a``/``b``
@@ -1205,7 +1210,7 @@ class Entry:
             return ""
         rest = self.text[match.end() :].lstrip(". \t")
         head = without_leading_article(rest.split(".")[0])
-        return ordering_text(head)
+        return ordering_text(head, language)
 
     @property
     def date_order(self) -> tuple[int, int, int]:
@@ -1359,6 +1364,7 @@ class Scan:
     entries_at_fault: int
     findings: tuple[Finding, ...]
     citation_coverage: CitationCoverage = CitationCoverage()
+    paper_language: str = "unspecified"
 
 
 def _is_reference_heading(text: str) -> bool:
@@ -1933,10 +1939,10 @@ def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     return found
 
 
-def _order_findings(entries: tuple[Entry, ...]) -> list[Finding]:
+def _order_findings(entries: tuple[Entry, ...], language: str) -> list[Finding]:
     found: list[Finding] = []
     for earlier, later in zip(entries, entries[1:]):
-        if later.sort_key < earlier.sort_key:
+        if later.filing_key(language) < earlier.filing_key(language):
             # Charged to the later entry, which is the one out of place. Charging
             # it to the pair would make one row count as an entry of its own.
             found.append(
@@ -1950,7 +1956,7 @@ def _order_findings(entries: tuple[Entry, ...]) -> list[Finding]:
     return found
 
 
-def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
+def _disambiguation_findings(entries: tuple[Entry, ...], language: str | None) -> list[Finding]:
     """The two ``a``/``b`` rows, section 3.
 
     Grouped on the **full author string** and the bare year, so the undisambiguated
@@ -1987,7 +1993,7 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
         ordered = sorted(lettered, key=lambda e: year_key(e.year))
         date_orders = [entry.date_order for entry in ordered]
         parts = [entry.series_part for entry in ordered]
-        titles = [entry.title for entry in ordered]
+        titles = [entry.filing_title(language) for entry in ordered] if language else []
         if len(set(date_orders)) > 1:
             assignment_is_wrong = date_orders != sorted(date_orders)
         elif all(part is not None for part in parts) and len(set(parts)) == len(parts):
@@ -2055,6 +2061,28 @@ def _citation_findings(document: Document) -> list[Finding]:
         if normalize(bare_surname).replace(" ", "") in ambiguous:
             found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
         matched = tuple(entry for entry in document.entries if matches(citation, entry))
+        # Read only corresponding surnames or full group names, never body prose.
+        # Abbreviated groups and shortened titles are not spelling differences.
+        cited_names = re.split(r"\s+(?:&|and)\s+|\s+et\s+al\.", phrase, flags=re.I)
+        for entry in matched:
+            if entry.year and citation.year != year_key(entry.year):
+                continue
+            match = entry._year_match
+            listed_names = personal_authors(entry.text[:match.start()] if match else entry.text)
+            compared_citations = cited_names
+            if not listed_names and normalize(phrase) == normalize(entry.citation_author):
+                listed_names = ((entry.citation_author, ""),)
+                compared_citations = [phrase]
+            for cited, (listed, _initials) in zip(compared_citations, listed_names):
+                if citation.first_name is not None:
+                    cited = re.sub(r"^(?:[^\W\d_]\.\s*)+", "", cited)
+                cited_words = re.findall(r"[^\W\d_]+", unicodedata.normalize("NFC", cited))
+                listed_words = re.findall(r"[^\W\d_]+", unicodedata.normalize("NFC", listed))
+                for cited_word, listed_word in zip(cited_words, listed_words):
+                    if (normalize(cited_word) == normalize(listed_word)
+                            and cited_word.lower() != listed_word.lower()):
+                        found.append(Finding(CITATION_AUTHOR_SPELLING, "body",
+                                             f"{cited_word} / {listed_word} {citation.year}"))
         listed_years = {
             year for entry in matched for _key, year in entry.resolution_keys
         }
@@ -2086,7 +2114,7 @@ def _citation_findings(document: Document) -> list[Finding]:
     return found
 
 
-def findings(document: Document, as_of: date | None) -> list[Finding]:
+def findings(document: Document, as_of: date | None, paper_language: str | None = None) -> list[Finding]:
     """Every row this draft's reference list fails, in report order.
 
     ``as_of`` of ``None`` means no exam date was given, so the retrieval window is
@@ -2100,18 +2128,21 @@ def findings(document: Document, as_of: date | None) -> list[Finding]:
         found.append(Finding(UPTODATE_ITALICS, "body", "the database name is italicized in running text"))
     for entry in document.entries:
         found.extend(_entry_findings(entry, as_of))
-    found.extend(_order_findings(document.entries))
-    found.extend(_disambiguation_findings(document.entries))
+    language = reference_alphabets.language_name(paper_language)
+    supported = language in reference_alphabets.TABLE["languages"]
+    if supported:
+        found.extend(_order_findings(document.entries, language))
+    found.extend(_disambiguation_findings(document.entries, language if supported else None))
     found.extend(_citation_findings(document))
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: order[f.kind])
 
 
-def survey(document: Document, as_of: date | None) -> Scan:
+def survey(document: Document, as_of: date | None, paper_language: str | None = None) -> Scan:
     """Count across one draft. Takes a parsed document rather than a path, so the
     counts carry no provenance of their own -- the file's **name** is printed by
     ``format_report`` the way every sibling prints a run directory's."""
-    found = findings(document, as_of)
+    found = findings(document, as_of, paper_language)
     at_fault = {f.line for f in found if f.line is not None}
     classified = tuple((entry, classify_entry(entry)) for entry in document.entries)
     bucket_counts = summarize_buckets(tuple(bucket for _, bucket in classified))
@@ -2124,6 +2155,7 @@ def survey(document: Document, as_of: date | None) -> Scan:
         legal=sum(1 for e in document.entries if e.is_legal),
         citations=len(document.citations),
         citation_coverage=document.citation_coverage,
+        paper_language=reference_alphabets.language_name(paper_language),
         bucket_counts=bucket_counts,
         undecidable_remainder=sum(
             count.population
@@ -2156,6 +2188,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         if scan.as_of
         else f"reference list in {source}, NO EXAM DATE - the retrieval window was {NOT_GRADED}",
         "",
+        f"  reference order ({scan.paper_language})  " + (
+            "graded" if scan.paper_language in reference_alphabets.TABLE["languages"] else NOT_GRADED
+        ),
         f"  reference entries read           {scan.entries}",
         f"    UpToDate entries               {scan.uptodate}",
         f"    entries carrying a DOI         {scan.with_doi}",
@@ -2205,6 +2240,7 @@ class Source:
     path: Path
     document: Document
     as_of: date | None
+    paper_language: str | None = None
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -2226,11 +2262,14 @@ def _load(parsed: run_grader.Parsed) -> Source:
         path.read_text(encoding="utf-8", errors="replace"),
         bold_references=parsed.enabled("--bold-references"),
     )
-    return Source(path, document, as_of)
+    profile_text = parsed.value("--profile")
+    return Source(path, document, as_of, reference_alphabets.paper_language(
+        parsed.value("--paper-language"), Path(profile_text) if profile_text else None
+    ))
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
-    scan = survey(source.document, source.as_of)
+    scan = survey(source.document, source.as_of, source.paper_language)
     diagnostics: list[str] = []
     if source.document.heading is None:
         diagnostics.append(f"no reference list found in {source.path.name}")
@@ -2241,6 +2280,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             f"{source.path.name} was scanned with no --as-of <YYYY-MM-DD> exam date, so no"
             " retrieval date in it was measured against the day the paper is written."
         )
+    if scan.paper_language not in reference_alphabets.TABLE["languages"]:
+        diagnostics.append(f"reference order for {scan.paper_language} was {NOT_GRADED}; supply an answered paper language with a committed alphabet")
     if scan.findings:
         diagnostics.append(
             f"{len(scan.findings)} reference defect(s) against"
@@ -2255,16 +2296,19 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             source.as_of is None
             or not source.document.entries
             or bool(scan.citation_coverage.unread)
+            or scan.paper_language not in reference_alphabets.TABLE["languages"]
         ),
         diagnostics=tuple(diagnostics),
     )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show] [--bold-references]",
+    usage="usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show] [--bold-references] [--paper-language <language>] [--profile <path>]",
     options=(
         run_grader.Option("--show"),
         run_grader.Option("--bold-references"),
+        run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+        run_grader.Option("--profile", takes_value=True, repeatable=False),
         run_grader.Option(
             "--as-of",
             takes_value=True,

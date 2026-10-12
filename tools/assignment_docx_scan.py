@@ -35,6 +35,7 @@ from discussion_post_scan import traceable_numeric_values
 import file_digest
 import heading_read
 import reference_scan
+import reference_alphabets
 import render_pass
 import research_ledger
 import reader_remarks
@@ -166,6 +167,7 @@ class Source:
     rendered: str
     heading_read_text: str
     document: ElementTree.Element
+    paper_language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -179,6 +181,7 @@ class Scan:
     heading_reads: int
     heading_read_unread: int
     findings: tuple[Finding, ...]
+    paper_language: str = "unspecified"
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -363,6 +366,11 @@ def load(
         rendered,
         heading_read_text,
         document,
+        reference_alphabets.paper_language(
+            parsed.value("--paper-language") if parsed.value("--paper-language") is not None
+            else (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
+            Path(parsed.value("--profile")) if parsed.value("--profile") else None,
+        ),
     )
 
 
@@ -470,7 +478,7 @@ def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
 def survey(source: Source) -> Scan:
     markdown, references = _document_parts(source.paragraphs)
     document = reference_scan.read_document(markdown)
-    reference_grade = reference_scan.survey(document, source.bar.signed)
+    reference_grade = reference_scan.survey(document, source.bar.signed, source.paper_language)
     findings = list(source.package_findings)
     heading = heading_read.scan(
         source.heading_read_text,
@@ -546,12 +554,16 @@ def survey(source: Source) -> Scan:
         heading.records_read,
         heading.unread,
         tuple(findings),
+        reference_grade.paper_language,
     )
 
 
 def format_report(scan: Scan, _source: str, show: bool = False) -> str:
     lines = [
         "assignment DOCX scan",
+        f"reference order ({scan.paper_language}): " + (
+            "graded" if scan.paper_language in reference_alphabets.TABLE["languages"] else NOT_GRADED
+        ),
         "",
         f"  paragraphs read   {scan.paragraphs_read}",
         f"  body words        {scan.body_words}",
@@ -591,7 +603,8 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         scan=scan,
         source=str(source.root),
         findings_failed=bool(scan.findings) or aar_failed or gate_failed,
-        coverage_failed=not source.paragraphs or bool(scan.heading_read_unread),
+        coverage_failed=(not source.paragraphs or bool(scan.heading_read_unread)
+                         or scan.paper_language not in reference_alphabets.TABLE["languages"]),
         diagnostics=("DOCX findings require review",) if scan.findings else (),
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.docx.name,)), heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
     )
@@ -626,6 +639,8 @@ GRADER = run_grader.Grader(
     options=(
         run_grader.Option("--docx", takes_value=True, missing_value="--docx needs a Word file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
+        run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+        run_grader.Option("--profile", takes_value=True, repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
 )

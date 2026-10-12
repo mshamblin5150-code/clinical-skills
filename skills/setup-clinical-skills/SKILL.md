@@ -107,6 +107,12 @@ absent answer never manufactures the waiver.
 
 ### 3. Program and hours
 
+**Paper language.** Ask which language the clinician writes papers in, offering
+English first. Save `PAPER-LANGUAGE: <answer>` in `scratch/medatrax-profile.md`
+beside the credential choices; reuse a saved answer on re-runs and resolve duplicate
+answers to one. Follow [Paper language](../_shared/reference/paper-language.md)
+for individual-paper overrides and the filing alphabet.
+
 **Title-page credentials.** Ask whether Word title pages and deck title slides should carry a
 credential line and, if yes, its exact text. APA ordinarily omits degrees and licenses from the
 byline; this account choice is a deliberate departure. Record `TITLE-PAGE-CREDENTIALS: none` or

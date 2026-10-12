@@ -9,6 +9,9 @@ underneath it. The output is the finished academic document, its rendered `.docx
 directory that proves what produced it. The live LMS submission type decides whether the `.docx`
 is the submitted artifact or an archive of a contribution loaded into a Canvas Composer.
 
+Before first prose, follow [Paper language](../_shared/reference/paper-language.md):
+reuse the saved account answer or ask once and save it when missing.
+
 This is **not** [clinical-note](../clinical-note/SKILL.md), and the difference is not the format.
 A clinical note documents a patient the clinician saw. A case study answers a faculty prompt about
 a patient nobody saw, against a published rubric, in a course. **The single rule that inverts is
@@ -1010,6 +1013,7 @@ sorted.
 | An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](../_shared/reference/apa7.md) §4 |
 | A retrieval date on a guideline, article or textbook | remove it — [apa7.md](../_shared/reference/apa7.md) §4. **The command reaches this only where a committed source classifier settles that the cited form is fixed**; DOI presence alone is not the archive test, and an unresolved URL stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
+| A citation spelling an author differently from the reference list (`citation-author-spelling`) | restore the published spelling in both places; folded matching preserves citation resolution |
 | A citation missing first-author initials when listed first authors share a surname but differ in initials | add the entry's complete first-author initials, [apa7.md](../_shared/reference/apa7.md) §5 |
 | Two entries with the same authors and year and no `a`/`b` | disambiguate in both places: assign letters by **date specificity and chronology first**, then identical-date title order or the identified series order, [apa7.md](../_shared/reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
@@ -1029,6 +1033,9 @@ its own revision date — use it.
 ```bash
 python tools/reference_scan.py output/case-studies/<course>-<module>-case-study-<date>.md --as-of <the exam date>
 ```
+
+For an individual-paper override, add `--paper-language "<language>"` as described
+in [Paper language](../_shared/reference/paper-language.md).
 
 `--as-of` is **the exam date** — the day the paper is written. The retrieval-date row is measured
 against it and never against the clock, so a draft graded twice a year apart grades the same both

@@ -23,6 +23,7 @@ DOCX_BAR = """\
 ASSIGNMENT: https://example.invalid/assignment
 SIGNED: 2026-09-13
 ARTIFACT: docx
+PAPER-LANGUAGE: English
 SUBMISSION-TYPE: file-upload
 WORD-MIN: 1
 WORD-MAX: 200
