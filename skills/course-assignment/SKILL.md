@@ -84,7 +84,7 @@ date. Then write these mechanical fields exactly once at the top of `bar.md`:
 
 ```text
 ASSIGNMENT: <live assignment URL>
-SIGNED: <ISO date after clinician approval>
+SIGNED: <written by the signing command after clinician approval>
 ARTIFACT: deck
 SUBMISSION-TYPE: file-upload | canvas-composer
 SLIDE-MAX: <integer>
@@ -106,8 +106,21 @@ use `all`. `AUDIENCE-PURPOSE` records what the presentation must do for its audi
 the fields, copy the relevant assignment and syllabus wording and record the precedence decision.
 Then show `bar.md` to the clinician and wait for explicit confirmation that the transcription,
 direction, slide-limit scope, audience purpose, talk style, source classes, recency window,
-submission type, and precedence are right. Only then write `SIGNED:` and
-continue. A missing field is not a default: both graders exit 2 because the run was not scanned.
+submission type, and precedence are right. Then run
+`python tools/assignment_bar.py <run-directory> --reply "<whole confirming reply>"`.
+The Required command writes `SIGNED:`, retains each signed bar under `signed-bars/`, and records
+its fingerprint and reply in `bar-signatures.json`. It refuses a reply absent from readable
+clinician messages; an unreadable transcript is recorded as `not verified`. Run
+`python tools/course_assignment_scan.py <run-directory> --bar-only` before continuing.
+The bar-only grade, completion grade, and both submission gates refuse a changed or unrecorded
+current bar. A legacy bar signed before this check started reports `not graded`.
+A missing field is not a default: both graders exit 2 because the run was not scanned.
+
+When the build discovers that the signed bar promises something the producer cannot make or the
+house rule forbids, stop. Show the old and new wording of each changed bar line with its reason,
+and wait. The clinician's reply either signs the amended bar through `tools/assignment_bar.py`
+with that whole reply, or keeps the requirement and pauses the run while the producer is extended
+through a ticket. Use this changed-line showing for every re-signing.
 
 The source-class vocabulary is `society guideline`, `peer-reviewed`, `government`,
 `tertiary reference`, `market source`, and `clinician's own work`. The bar selects the subset this artifact permits.
@@ -406,7 +419,7 @@ the final `.pptx` or `.docx`, `claims.md`, the printed heading digests, and ever
 in `project-context.md`. It opens those items itself. Do not give it research sources. It writes the
 shared `## HEADING-READ: <artifact file>` record from [sourcing.md](../_shared/reference/sourcing.md)
 to `<run-directory>/heading-read.md`. Locations name slide bullets and speaker-note sentences for a
-deck, and body paragraphs, table cells, captions, and figure notes for a DOCX. Repair every
+deck, and body paragraphs, captions, and figure notes for a DOCX. Repair every
 `unrecorded` or `drifted` finding and repeat the read after any repair. The reader writes each problem
 outside its assigned question on a `REMARK: <problem>` line, repeated for each remark, and nowhere
 else in the record. Rerun the signed artifact's `course_assignment_scan.py`; it refuses a missing

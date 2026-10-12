@@ -7,11 +7,17 @@ research/refutation, claim records, voice, private paths, and standing rule 6 re
 
 ## Sign the DOCX bar
 
+Before showing the bar, state what `tools/assignment_docx.py` writes: a title page, Heading 1
+prose sections, optional command relationships as paragraphs, at most one supplied figure with
+caption, alt text and note, and references. The narrative-body rule forbids tables and lists.
+Put any assignment requirement outside that set to the clinician before signing: either record
+its omission and why in the bar, or pause the run while the producer is extended through a ticket.
+
 Write these fields exactly once at the top of `bar.md`:
 
 ```text
 ASSIGNMENT: <live assignment URL>
-SIGNED: <ISO date after clinician approval>
+SIGNED: <written by the signing command after clinician approval>
 ARTIFACT: docx
 SUBMISSION-TYPE: file-upload
 WORD-MIN: <positive integer>
@@ -26,9 +32,21 @@ states a ceiling, otherwise `none`. `WORD-MIN` governs the prose body after the 
 before References; references and captions are outside that count. A numeric course maximum is
 transcribed into the bar but never enforced by removing evidence-bearing prose or its qualifiers.
 When the course supplies no minimum, resolve `WORD-MIN` to a positive integer with the clinician.
-Show the bar to the clinician and wait for explicit confirmation before writing `SIGNED:`.
+Show the bar to the clinician and wait for explicit confirmation. Then run the Required command
+`python tools/assignment_bar.py <run-directory> --reply "<whole confirming reply>"`.
+It writes `SIGNED:`, fingerprints the signed bytes with the reply in `bar-signatures.json`, and
+retains every version under `signed-bars/`. A reply absent from readable clinician messages is
+refused; an unreadable transcript is recorded as `not verified`.
 Run `python tools/course_assignment_scan.py <run-directory> --bar-only`; exit 2 means the signed
-envelope or DOCX branch bar was ambiguous, incomplete, or unreadable and production stops.
+envelope or DOCX branch bar was ambiguous, incomplete, unreadable, or differs from its latest
+signature and production stops. The completion grade and both submission gates enforce the same
+signature; legacy bars signed before the check started report `not graded`.
+
+When the build finds a signed promise the producer cannot make or the house rule forbids, stop,
+show the old and new wording of each changed bar line with the reason, and wait. The clinician's
+reply either signs the amended bar through `tools/assignment_bar.py` with that whole reply, or
+keeps the requirement and pauses the run while the producer is extended through a ticket.
+Every re-signing shows those changed lines before confirmation.
 
 ## Research and author the rich Word artifact
 
@@ -171,7 +189,7 @@ export stops; a generic office conversion or unbound PDF cannot be called verifi
 
 Run `render_scan.py` to grade readable pixel coverage. A vision-capable **Second reader** opens every
 PNG in the highest pass at 100% and compares it with the DOCX and signed bar. It reports clipping,
-overlap, broken tables, font substitution, stranded captions, missing content, page-number defects,
+overlap, font substitution, stranded captions, missing content, page-number defects,
 and unreadable contrast. Preserve each original finding and repair through the authoring context's
 JSON specification. If a visual repair changes the `.docx`, repeat the heading read on the new bytes
 before rendering, then repeat the render and the independent visual read. The voice read still

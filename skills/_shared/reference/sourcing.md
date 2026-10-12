@@ -68,6 +68,10 @@ assignment, at signing or by amending and re-signing `bar.md` when he asks mid-r
 authorizes that re-signing; retain it with the bar. Where no bar exists, write one with `SIGNED`,
 the assignment's permitted `SOURCE-CLASSES`, and `RECENCY-WINDOW-YEARS` before using the class.
 A record outside the signed classes fails `unknown-source-class`; stop to ask the clinician.
+For `course-assignment`, show the old and new wording of each changed bar line with its reason
+and sign the amended bar with
+`python tools/assignment_bar.py <run-directory> --reply "<whole request message>"`;
+the request message is the reply checked and retained by the command.
 Keep a full sourced claim record and independent refutation. Use APA's unpublished-manuscript
 form in [apa7.md](apa7.md) §42. The ordinary recency window still applies: older work needs
 `nothing newer` or `guideline in force` with a reason.

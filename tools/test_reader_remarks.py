@@ -118,6 +118,8 @@ class ApprovalSurfaces(unittest.TestCase):
 
     def prepare(self, course=False):
         if course:
+            from test_assignment_bar import DOCX_BAR
+            (self.run / 'bar.md').write_text(DOCX_BAR, encoding='utf-8')
             self.source = self.root / 'draft.docx'
             self.source.write_bytes(b'synthetic artifact')
             os.utime(self.source, (1, 1))
