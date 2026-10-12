@@ -71,6 +71,15 @@ class FrozenGrade(FrozenFixture):
         self.assertEqual(0, frozen_grade.adopt(self.run).adopted)
         self.assertIsNone(frozen_grade.report(self.run, "post"))
 
+    def test_a_legacy_item_is_dated_by_its_posting_not_the_shared_record_mtime(self):
+        self.item.pop("recorded_at")
+        self.save()
+        (self.run / "reread.md").write_text("## REREAD: post\nPOSTED: 2026-10-01T12:00:00Z\n", encoding="utf-8")
+        review = self.run / "aar" / "post.md"
+        review.parent.mkdir(parents=True)
+        review.write_text("Retained synthetic review", encoding="utf-8")
+        self.assertEqual(1, frozen_grade.adopt(self.run).adopted)
+
     def test_stored_complete_adopts_only_covered_revisions(self):
         (self.run / hook.STATE_RECORD).write_text(json.dumps(dict(status="complete",
             approval_revision=json.dumps([["discussion-post", "post", 1]], separators=(",", ":")))), encoding="utf-8")

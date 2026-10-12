@@ -156,8 +156,6 @@ def adopt(run: Path) -> Adoption:
         timestamp = item.get("recorded_at", item.get("reply_matched_at"))
         if isinstance(timestamp, (int, float)) and timestamp >= boundary:
             continue
-        if timestamp is None and (run / spec.approval_record).stat().st_mtime >= boundary:
-            continue
         key, revision = item["submission"], item.get("approval_revision")
         graded = [spec.skill, key, revision] in covered
         posted = item.get("posting_route") in {"agent", "clinician"} or item.get("upload_route") in {"agent", "clinician"}
