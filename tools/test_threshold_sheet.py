@@ -3722,11 +3722,11 @@ class TheQuotingPostureFiguresAreReDerived(unittest.TestCase):
 
     def test_the_populations_table_word_count(self):
         values = list(self._sheet().populations.values())
-        self.assertEqual(len(values), 32)
-        self.assertEqual(sum(len(value.split()) for value in values), 199)
+        self.assertEqual(len(values), 41)
+        self.assertEqual(sum(len(value.split()) for value in values), 271)
         readme = self._readme()
-        self.assertIn("**199**", readme)
-        self.assertIn("32 rows", readme)
+        self.assertIn("**271**", readme)
+        self.assertIn("41 rows", readme)
 
     def test_the_source_page_count_is_the_catalogs(self):
         """105 is the catalog's ``page_count`` for the cited document, not a recollection.

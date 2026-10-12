@@ -76,6 +76,15 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | adults-dm | adults with diabetes |
 | adults-ckd | adults with chronic kidney disease |
 | adults-pregnancy | pregnant individuals |
+| adults-htn-planning-pregnancy | individuals with hypertension who are planning a pregnancy or who become pregnant |
+| adults-pregnancy-chronic-htn | Pregnant individuals with chronic hypertension |
+| adults-pregnancy-severe-htn | Pregnant individuals with SBP ≥160 mm Hg or DBP ≥110 mm Hg |
+| adults-pregnancy-gestational-htn | individuals with gestational hypertension |
+| adults-preeclampsia-moderate-highrisk | individuals at moderate or high risk |
+| adults-hdp-history | individuals with a history of HDP |
+| adults-pregnancy-previously-normal-bp | a woman with previously normal BP |
+| adults-pregnancy-new-onset-htn | New Onset Hypertension |
+| adults-postpartum-resolved-htn | Postpartum individuals with a history of pregnancy-associated hypertension in whom BP elevations resolve and antihypertensive medications are discontinued |
 | adults-resistant-htn | adults with resistant hypertension |
 | adults-overweight | adults with overweight or obesity |
 | adults-women | adult women who consume alcohol |
@@ -399,7 +408,7 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | diabetes-mild-albuminuria-threshold | adults-dm | <30 mg/g | "RENDERED: mild albuminuria <30 mg/g" | aha-2025 | p4 | p4/narrative/3 | narrative |
 | acute-ich-presenting-sbp-range | adults-ich | 150-220 mm Hg | "RENDERED: presenting systolic blood pressure 150 to 220 mm Hg" | aha-2025 | p4 | p4/narrative/4 | narrative |
 | cognitive-prevention-sbp-goal | adults-htn | <130 mm Hg | "RENDERED: systolic blood pressure goal <130 mm Hg" | aha-2025 | p5 | p5/narrative/1 | narrative |
-| pregnancy-severe-bp-confirmation-interval | adults-pregnancy | within 15 minutes | "RENDERED: systolic blood pressure ≥160 mm Hg or diastolic blood pressure ≥110 mm Hg, confirmed within 15 minutes" | aha-2025 | p5 | p5/narrative/2 | narrative |
+| pregnancy-severe-bp-confirmation-interval | adults-pregnancy-severe-htn | within 15 minutes | "RENDERED: systolic blood pressure ≥160 mm Hg or diastolic blood pressure ≥110 mm Hg, confirmed within 15 minutes" | aha-2025 | p5 | p5/narrative/2 | narrative |
 | awake-out-of-office-high-bp-threshold | adults | >=130/80 mm Hg | "RENDERED: awake SBP ≥130 mm Hg or DBP ≥80 mm Hg" | aha-2025 | p19 | p19/narrative/1 | narrative |
 | full-day-out-of-office-high-bp-threshold | adults | >=125/75 mm Hg | "RENDERED: 24-hour SBP ≥125 mm Hg or DBP ≥75 mm Hg" | aha-2025 | p19 | p19/narrative/2 | narrative |
 | prompt-treatment-office-bp-threshold | adults | >=160/100 mm Hg | "RENDERED: Office BP ≥160/100 mm Hg should prompt treatment and medication titration" | aha-2025 | p19 | p19/narrative/3 | narrative |
@@ -410,21 +419,21 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | ckd-raasi-monitoring-interval | adults-ckd | 2-4 weeks | "RENDERED: recheck electrolytes 2 to 4 weeks after starting or intensifying ACEi or ARB" | aha-2025 | p51 | p51/narrative/1 | narrative |
 | ckd-raasi-egfr-continuation-threshold | adults-ckd | <30 mL/min/1.73 m2 | "RENDERED: ACEi or ARB can continue at eGFR <30 mL/min/1.73 m2" | aha-2025 | p51 | p51/narrative/2 | narrative |
 | gestational-htn-onset-week | adults-pregnancy | >=20 weeks | "RENDERED: Gestational hypertension begins at ≥20 weeks" | aha-2025 | p61 | p61/narrative/1 | narrative |
-| gestational-severe-bp-threshold | adults-pregnancy | persistent >=160/110 mm Hg | "RENDERED: Severe-range gestational BP is persistent SBP ≥160 or DBP ≥110 mm Hg" | aha-2025 | p61 | p61/narrative/2 | narrative |
+| gestational-severe-bp-threshold | adults-pregnancy-gestational-htn | persistent >=160/110 mm Hg | "RENDERED: Severe-range gestational BP is persistent SBP ≥160 or DBP ≥110 mm Hg" | aha-2025 | p61 | p61/narrative/2 | narrative |
 | pregnancy-labetalol-maintenance-dose | adults-pregnancy | 200-2400 mg/d in 2-3 doses; start 100-200 mg twice daily | "Labetalol 200-2400 mg/d orally in 2 to 3 divided doses. Commonly initiated at 100-200 mg twice daily." | aha-2025 | p62 | p62/narrative/301 | narrative |
 | pregnancy-nifedipine-maintenance-dose | adults-pregnancy | 30-120 mg/d; start 30-60 mg once daily | "RENDERED: Nifedipine 30-120 mg/d orally of an extended-release preparation. Commonly initiated at 30-60 mg once daily" | aha-2025 | p62 | p62/narrative/302 | narrative |
 | pregnancy-methyldopa-maintenance-dose | adults-pregnancy | 500-3000 mg/d in 2-4 doses; start 250 mg 2-3 times daily | "Methyldopa 500-3000 mg/d orally in 2 to 4 divided doses. Commonly initiated at 250 mg 2 or 3 times daily." | aha-2025 | p62 | p62/narrative/303 | narrative |
 | pregnancy-hctz-maintenance-dose | adults-pregnancy | 12.5-50 mg daily | "Hydrochlorothiazide 12.5-50 mg daily" | aha-2025 | p62 | p62/narrative/304 | narrative |
-| pregnancy-labetalol-urgent-dose | adults-pregnancy | 10-20 mg IV; then 20-80 mg every 10-30 min; max 300 mg; or 1-3 mg/min | "Labetalol 10-20 mg IV, then 20-80 mg every 10-30 min to a maximum cumulative dosage of 300 mg; or constant infusion 1-3 mg/min IV" | aha-2025 | p62 | p62/narrative/305 | narrative |
-| pregnancy-hydralazine-urgent-dose | adults-pregnancy | 5 mg IV or IM; then 5-10 mg every 20-40 min; max 20 mg; or 0.5-10 milligrams/hour | "Hydralazine 5 mg IV or IM, then 5-10 mg IV every 20-40 min to a maximum cumulative dosage of 20 mg; or constant infusion of 0.5-10 mg/h" | aha-2025 | p62 | p62/narrative/306 | narrative |
-| pregnancy-nifedipine-urgent-dose | adults-pregnancy | 10-20 mg; repeat in 20 min; then every 2-6 h; max 180 mg/d | "RENDERED: Nifedipine (immediate release) 10-20 mg orally, repeat in 20 min if needed; then 10-20 mg every 2-6 h; maximum daily dose is 180 mg" | aha-2025 | p62 | p62/narrative/307 | narrative |
-| preeclampsia-bp-diagnostic-threshold | adults-pregnancy | >=140/90 mm Hg on 2 occasions >=4 h apart after 20 weeks | "RENDERED: SBP ≥140 mm Hg or DBP ≥90 mm Hg on 2 occasions at least 4 h apart after 20 wks of gestation" | aha-2025 | p63 | p63/narrative/301 | narrative |
+| pregnancy-labetalol-urgent-dose | adults-pregnancy-severe-htn | 10-20 mg IV; then 20-80 mg every 10-30 min; max 300 mg; or 1-3 mg/min | "Labetalol 10-20 mg IV, then 20-80 mg every 10-30 min to a maximum cumulative dosage of 300 mg; or constant infusion 1-3 mg/min IV" | aha-2025 | p62 | p62/narrative/305 | narrative |
+| pregnancy-hydralazine-urgent-dose | adults-pregnancy-severe-htn | 5 mg IV or IM; then 5-10 mg every 20-40 min; max 20 mg; or 0.5-10 milligrams/hour | "Hydralazine 5 mg IV or IM, then 5-10 mg IV every 20-40 min to a maximum cumulative dosage of 20 mg; or constant infusion of 0.5-10 mg/h" | aha-2025 | p62 | p62/narrative/306 | narrative |
+| pregnancy-nifedipine-urgent-dose | adults-pregnancy-severe-htn | 10-20 mg; repeat in 20 min; then every 2-6 h; max 180 mg/d | "RENDERED: Nifedipine (immediate release) 10-20 mg orally, repeat in 20 min if needed; then 10-20 mg every 2-6 h; maximum daily dose is 180 mg" | aha-2025 | p62 | p62/narrative/307 | narrative |
+| preeclampsia-bp-diagnostic-threshold | adults-pregnancy-previously-normal-bp | >=140/90 mm Hg on 2 occasions >=4 h apart after 20 weeks | "RENDERED: SBP ≥140 mm Hg or DBP ≥90 mm Hg on 2 occasions at least 4 h apart after 20 wks of gestation" | aha-2025 | p63 | p63/narrative/301 | narrative |
 | preeclampsia-proteinuria-24h-threshold | adults-pregnancy | >=300 mg/24 h | "Proteinuria ≥300 mg per 24-h urine collection" | aha-2025 | p63 | p63/narrative/302 | narrative |
 | preeclampsia-protein-creatinine-threshold | adults-pregnancy | >=0.3 | "RENDERED: Protein/creatinine ratio ≥0.3" | aha-2025 | p63 | p63/narrative/303 | narrative |
 | preeclampsia-dipstick-threshold | adults-pregnancy | 2+ | "Dipstick reading of 2+" | aha-2025 | p63 | p63/narrative/304 | narrative |
-| preeclampsia-platelet-threshold | adults-pregnancy | <100 x 109/L | "Platelet count <100 × 109/L" | aha-2025 | p63 | p63/narrative/305 | narrative |
-| preeclampsia-creatinine-threshold | adults-pregnancy | >1.1 mg/dL or doubling | "RENDERED: Serum creatinine concentrations >1.1 mg/dL or a doubling of serum creatinine concentration" | aha-2025 | p63 | p63/narrative/306 | narrative |
-| preeclampsia-transaminase-threshold | adults-pregnancy | twice normal | "RENDERED: liver transaminases to twice normal concentration" | aha-2025 | p63 | p63/narrative/307 | narrative |
+| preeclampsia-platelet-threshold | adults-pregnancy-new-onset-htn | <100 x 109/L | "Platelet count <100 × 109/L" | aha-2025 | p63 | p63/narrative/305 | narrative |
+| preeclampsia-creatinine-threshold | adults-pregnancy-new-onset-htn | >1.1 mg/dL or doubling | "RENDERED: Serum creatinine concentrations >1.1 mg/dL or a doubling of serum creatinine concentration" | aha-2025 | p63 | p63/narrative/306 | narrative |
+| preeclampsia-transaminase-threshold | adults-pregnancy-new-onset-htn | twice normal | "RENDERED: liver transaminases to twice normal concentration" | aha-2025 | p63 | p63/narrative/307 | narrative |
 | resistant-spironolactone-dose | adults-resistant-htn | 25-50 mg/day | "RENDERED: addition of spironolactone (25-50 mg/day) as the fourth drug" | aha-2025 | p64 | p64/narrative/301 | narrative |
 | resistant-eplerenone-dose | adults-resistant-htn | 25-100 mg daily | "doses between 25 and 100 mg daily" | aha-2025 | p64 | p64/narrative/302 | narrative |
 | resistant-amiloride-dose | adults-resistant-htn | 10-20 mg | "amiloride (10-20 mg) has been shown to be as effective as spironolactone" | aha-2025 | p64 | p64/narrative/303 | narrative |
@@ -621,10 +630,10 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | elevated-bp-reassessment-interval | adults | 3-6 months | "RENDERED: Reassess in 3-6 mo" | aha-2025 | p59 | p59/narrative/2 | narrative |
 | medication-bp-reassessment-interval | adults-htn-medication | 1 month | "RENDERED: Reassess in 1 mo" | aha-2025 | p59 | p59/narrative/3 | narrative |
 | controlled-bp-reassessment-interval | adults-htn | 3-6 months | "RENDERED: Reassess in 3-6 mo" | aha-2025 | p59 | p59/narrative/4 | narrative |
-| preeclampsia-aspirin-start-week | adults-pregnancy | 12 weeks gestation | "daily low-dose aspirin taken during pregnancy after 12 weeks’ gestation" | aha-2025 | p60 | p60/narrative/1 | narrative |
+| preeclampsia-aspirin-start-week | adults-preeclampsia-moderate-highrisk | 12 weeks gestation | "daily low-dose aspirin taken during pregnancy after 12 weeks’ gestation" | aha-2025 | p60 | p60/narrative/1 | narrative |
 | postpartum-bp-check-interval | adults-pregnancy-postpartum | 3-10 days after discharge | "RENDERED: BP check for individuals with an HDP within 3 to 10 days of discharge" | aha-2025 | p62 | p62/narrative/1 | narrative |
-| postpartum-bp-monitoring-interval | adults-pregnancy-postpartum | at least annually | "BP measured at least annually" | aha-2025 | p62 | p62/narrative/2 | narrative |
-| preeclampsia-aspirin-start-week | adults-pregnancy | 12 weeks gestation | "RENDERED: starting at 12 weeks of gestation during subsequent pregnancies" | aha-2025 | p62 | p62/narrative/3 | narrative |
+| postpartum-bp-monitoring-interval | adults-postpartum-resolved-htn | at least annually | "BP measured at least annually" | aha-2025 | p62 | p62/narrative/2 | narrative |
+| preeclampsia-aspirin-start-week | adults-hdp-history | 12 weeks gestation | "RENDERED: starting at 12 weeks of gestation during subsequent pregnancies" | aha-2025 | p62 | p62/narrative/3 | narrative |
 | resistant-htn-medication-count | adults-resistant-htn | 3 medications | "BP above goal despite treatment with 3 antihypertensive medications" | aha-2025 | p63 | p63/narrative/1 | narrative |
 | controlled-resistant-htn-medication-count | adults-resistant-htn | >=4 medications | "BP at goal but requiring ≥4 medications" | aha-2025 | p63 | p63/narrative/2 | narrative |
 | rdn-artery-diameter-range | adults-rdn | 3-8 mm | "artery diameters between 3 and 8 mm" | aha-2025 | p64 | p64/narrative/1 | narrative |
@@ -691,11 +700,11 @@ extraction identity: producer e0e241393b3cf92231a7c40123046db47cdcb57b; tools/gu
 | bp-treatment-threshold-sbp | adults-htn-cvd | >=130 mm Hg | "have an average office SBP/DBP of ≥130/80 mm Hg, antihypertensive medication treatment can be beneficial" | aha-2025 | p54 | p54/secondary-stroke-prevention/3 | 2a |
 | bp-treatment-threshold-dbp | adults-htn-cvd | >=80 mm Hg | "have an average office SBP/DBP of ≥130/80 mm Hg, antihypertensive medication treatment can be beneficial" | aha-2025 | p54 | p54/secondary-stroke-prevention/3 | 2a |
 | follow-up-interval | adults-htn | monthly | "follow-up evaluations for medication adherence and response to treatment at monthly intervals" | aha-2025 | p56 | p56/plan-of-care-for-hypertension/4 | 1 |
-| aspirin-preeclampsia-prophylaxis-dose | adults-pregnancy | 81 mg/day | "counseled about the benefits of low-dose (81 mg/day) aspirin to reduce the risk" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/2 | 1 |
-| pregnancy-severe-bp-treatment-threshold | adults-pregnancy | >=160/110 mm Hg | "Pregnant individuals with SBP ≥160 mm Hg or DBP ≥110 mm Hg confirmed on repeat" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/3 | 1 |
-| pregnancy-acute-bp-target | adults-pregnancy | <160/110 mm Hg within 30-60 min | "lower BP to <160/<110 mm Hg within 30 to 60 minutes" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/3 | 1 |
-| chronic-htn-pregnancy-staging-cutoff | adults-pregnancy | 140-159/90-109 mm Hg | "SBP 140 to 159 mm Hg and/or DBP 90 to 109 mm Hg prior to" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/4 | 1 |
-| pregnancy-bp-treatment-goal | adults-pregnancy | <140/90 mm Hg | "should receive antihypertensive therapy to achieve BP <140/90 mm Hg to prevent maternal" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/4 | 1 |
+| aspirin-preeclampsia-prophylaxis-dose | adults-htn-planning-pregnancy | 81 mg/day | "counseled about the benefits of low-dose (81 mg/day) aspirin to reduce the risk" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/2 | 1 |
+| pregnancy-severe-bp-treatment-threshold | adults-pregnancy-severe-htn | >=160/110 mm Hg | "Pregnant individuals with SBP ≥160 mm Hg or DBP ≥110 mm Hg confirmed on repeat" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/3 | 1 |
+| pregnancy-acute-bp-target | adults-pregnancy-severe-htn | <160/110 mm Hg within 30-60 min | "lower BP to <160/<110 mm Hg within 30 to 60 minutes" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/3 | 1 |
+| chronic-htn-pregnancy-staging-cutoff | adults-pregnancy-chronic-htn | 140-159/90-109 mm Hg | "SBP 140 to 159 mm Hg and/or DBP 90 to 109 mm Hg prior to" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/4 | 1 |
+| pregnancy-bp-treatment-goal | adults-pregnancy-chronic-htn | <140/90 mm Hg | "should receive antihypertensive therapy to achieve BP <140/90 mm Hg to prevent maternal" | aha-2025 | p58 | p58/individuals-with-hypertension-and-pregnancy/4 | 1 |
 | egfr-threshold-mra | adults-resistant-htn | >=45 mL/min/1.73 m2 | "with an eGFR of ≥45 mL/min/1.73 m2), addition of a MRA is recommended" | aha-2025 | p63 | p63/resistant-hypertension-and-renal-denervation/2 | 1 |
 | rdn-eligibility-bp | adults-resistant-htn | SBP 140-180 mm Hg and DBP >=90 mm Hg | "office SBP 140-180 mm Hg and DBP ≥90 mm Hg" | aha-2025 | p63 | p63/resistant-hypertension-and-renal-denervation/4 | 2b |
 | egfr-threshold-rdn | adults-resistant-htn | >=40 mL/min/1.73 m2 | "eGFR ≥40 mL/ min/1.73 m2 who have resistant hypertension despite optimal treatment" | aha-2025 | p63 | p63/resistant-hypertension-and-renal-denervation/4 | 2b |

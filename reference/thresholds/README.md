@@ -55,7 +55,7 @@ sources.
 | snippet cells, and distinct snippets among them | 316, of which **298** are distinct |
 | words across the distinct snippets | **2,860** |
 | longest / median / shortest snippet, in words | 30 / 8 / 3 |
-| words in the `## Populations` table, 32 rows of verbatim scope wording | **199** |
+| words in the `## Populations` table, 41 rows of verbatim scope wording | **271** |
 | pages in the source guideline | **105** |
 
 In [diabetes.md](diabetes.md), re-ruled on #482 after its complete source-page read
