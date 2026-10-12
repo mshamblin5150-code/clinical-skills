@@ -74,9 +74,8 @@ ALL_CHECKS = (
     Check("tracker_coordinates", "Tracker coordinate accompaniment"),
     Check("tracker_measurements", "Publication measurement base"),
     Check("tracker_filed_from", "Tracker Filed-from line"),
-    Check("map_scan", "Implementation map producer stamp"),
 )
-PHI, BRANCH, BODY, COORDINATES, MEASUREMENTS, FILED_FROM, MAP = ALL_CHECKS
+PHI, BRANCH, BODY, COORDINATES, MEASUREMENTS, FILED_FROM = ALL_CHECKS
 
 
 def _body_changed(document: dict[str, Any]) -> bool:
@@ -123,15 +122,6 @@ def select_checks(document: Any, event_name: str) -> tuple[Check, ...]:
         action == "opened" or (action == "edited" and changed_body)
     ):
         selected.append(FILED_FROM)
-    issue = document.get("issue")
-    if (
-        event_name == "issues"
-        and action == "edited"
-        and changed_body
-        and isinstance(issue, dict)
-        and issue.get("number") == 596
-    ):
-        selected.append(MAP)
     return tuple(selected)
 
 

@@ -1699,8 +1699,8 @@ The complete boundary belongs to `tracker_event_checks.NOT_REACHED`; this
 section points to that object and copies none of its rows.
 
 Covered by `tools/test_tracker_event_checks.py`, which drives comment, issue,
-pull-request, title/body edit, and implementation-map event shapes through the
-public command seam and selection function.
+pull-request, and title/body edit event shapes through the public command seam
+and selection function.
 
 ### Tracker publication correspondence
 
@@ -1923,8 +1923,7 @@ single UTC cutoff in `FILED_FROM_CUTOFF`. The publish hook uses its issue-create
 and issue-edit policy before publication. Its `--github-event` mode reports the
 same loss after an issue open or body edit, and its `--harvest` mode lists open
 post-cutoff issues missing the line. A harvest that reaches its supplied cap is
-not complete and exits 2. All three readers reuse the implementation map's
-producer-stamp pattern for the exemption.
+not complete and exits 2.
 
 The event and harvest commands read caller-supplied JSON and open no socket.
 Exit 0 means a complete clean grade, 1 means findings, and 2 means the requested
@@ -1936,112 +1935,6 @@ none of its rows.
 
 Covered by `tools/test_tracker_filed_from.py`, which drives synthetic event and
 harvest JSON through the public functions and command boundary.
-
-### Implementation map disagreement scan
-
-`map_scan.py` reads the complete issues REST harvest offline and grades both
-readiness directions, per-ADR review records above the reconciliation floor, the
-coordination issue's pointer back to the grader, and the producer stamp in its
-derived Snapshot. Its GitHub-event mode grades that same stamp predicate on an
-edited #596 body. The fetch remains the caller's operation; the scanner opens
-no socket:
-
-```powershell
-$issueProbe = Join-Path $env:RUNNER_TEMP 'tracker-issues-population.json'
-$commentProbe = Join-Path $env:RUNNER_TEMP 'tracker-comments-population.http'
-$reviewProbe = Join-Path $env:RUNNER_TEMP 'tracker-reviews-population.http'
-$population = Join-Path $env:RUNNER_TEMP 'tracker-population.json'
-gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' |
-  Out-File -FilePath $issueProbe -Encoding utf8
-gh api --include 'repos/OWNER/REPO/issues/comments?per_page=1&page=1' |
-  Out-File -FilePath $commentProbe -Encoding utf8
-gh api --include 'repos/OWNER/REPO/pulls/comments?per_page=1&page=1' |
-  Out-File -FilePath $reviewProbe -Encoding utf8
-python tools/tracker_population.py $issueProbe $commentProbe $reviewProbe --write $population
-$harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
-gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
-  Out-File -FilePath $harvest -Encoding utf8
-python tools/map_scan.py $harvest --population $population
-```
-
-Under ADR 0279, grandfathered debt in `map_scan.GRANDFATHERED_ADRS` and
-`map_scan.GRANDFATHERED_TICKETS` prints without refusing. ADR obligations qualify
-only when their triggering first-parent commit is the freeze commit or an
-ancestor; a later change is new debt. On push, pass
-`--pushed-range before..sha` to report ADRs landed by that range as owed by this
-merge without refusing. Manual runs pass no range. Every other readiness or
-obligation finding refuses; unresolved ranges and other did-not-scan results
-exit 2, with refusing findings taking precedence. The report always states
-grandfathered, owed-by-this-merge, refusing, and discharged populations;
-discharged entries print as due for removal and refuse nothing. The PHI
-disclosure and Test suite steps run even after a map failure.
-The producer-stamp row remains visible but advisory in this whole-harvest
-route. The edited-#596 workflow is the refusing stamp route. The full boundary
-is `map_scan.DECLARED_LIMITS`; this section points to that object and copies
-none of its rows. Exit 0 establishes no refusing debt plus an advisory stamp
-result; reported debt may remain. It does not establish a checked implementation map.
-
-Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
-throwaway checkouts in a temp directory. **The real tracker is deliberately not
-a fixture** — the suite reads no live tracker state and opens no socket, on the
-scanner's own offline boundary.
-
-### Implementation map helper
-
-`tools/implementation_map.py` is the committed producer and mutator for the
-coordination issue. `check`, `claim`, `render`, and `audit` are read-only;
-`publish` rebuilds derived views without advancing `reconciled_through`; and
-`apply-delta` applies reviewed judgment. Its direct placement form takes one
-ready ticket and an authored outcome, then derives the packet shell and native
-HARD edges without inventing semantic prose. `--review-adr` records each ADR a
-delta reviews; the record derives the packets changed by that delta or requires
-one authored `--no-work` sentence. `reconciled_through` is the floor beneath
-those records and advances across the contiguous reviewed first-parent prefix,
-independently of the ready-ticket remainder, which every run still names.
-The issues population probe and `user_content_edits` GraphQL response both pass
-through `github_graphql.read_response` with no declared absences. A nonzero
-`gh` status is therefore accepted only far enough to let a JSON payload decide;
-non-JSON stdout keeps the command's existing stderr refusal.
-
-Every map overwrite takes the map's own nonblocking artifact-lock identity,
-compares the state-block hash through a fresh single-record read immediately
-before publication, and after publication re-validates against the
-process-lifetime population-gated tracker snapshot. Publication changes only
-the map body; the fresh state-hash and read-back path remains `get_issue`.
-Concurrent overwrites from different
-machines do not conflict and can clobber; the revision-chain harvest detects and
-attributes that loss after the fact rather than preventing it. A refusal
-preserves its authored outcome in an accounted scratch record whose path the run
-names and `check` lists. The rendered Mermaid block draws only packets
-carrying a HARD, GATE, or REBUILD-SAVING edge. Before publication it is checked
-for defined nodes, unique edges, accounted lines, and a complete partition of
-state packets into drawn and omitted free-standing sets, with its denominator
-and unread remainder reported. The derived Snapshot keeps the default-branch
-commit as information and stamps the git-normalized content identity of the
-repository-relative producer. The body then crosses the
-direct-writer entry point in `tracker_publish_hook.py` before `gh` receives it.
-`check` states that it also walked the ADR review records and local first-parent
-history, compares the published derived sections with a fresh render, and
-reports their agreement without grading it. `audit` runs those same findings
-and grades each stale derived section. `publish` writes only when the state,
-derived views, or producer stamp changed. The hourly scheduled workflow uses
-`publish --scheduled`, whose exit policy treats a concurrent state change and
-owned post-write findings as green while leaving publication failures red.
-There is no `stale-snapshot` finding.
-
-The `PostToolUse` hook in `tools/implementation_map_post_hook.py` adds context
-after a ready-ticket flip or a command that lands branch ADRs on the default
-branch. It reads no tracker record and never refuses the completed command. Its
-modeled tools use the shared command reader; an unmodeled tool receives context
-stating that no implementation-map work was derived and must be inspected by
-hand. The three tool registrations mirror `COMMAND_TOOLS`, with no `if`
-condition on any of them. The complete boundary belongs to
-`implementation_map_post_hook.DECLARED_LIMITS`;
-this section points to that object and copies none of its rows.
-
-The complete boundary belongs to `implementation_map.DECLARED_LIMITS`; this
-section points to that object and copies none of its rows. Covered by
-`tools/test_implementation_map.py`, whose tracker is entirely in memory.
 
 ### Tracker bodies
 
@@ -3100,7 +2993,7 @@ Covered by `tools/test_scratch_census.py` and the root-shape mutant guard in `to
 
 ### Continuous integration
 
-`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The maintainer job at Python `3.14` runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, the advisory closing-keyword check, and the post-merge `map_scan.py` gate. The floor job runs the complete `python tools/suite.py` command at Python `3.10`. Neither job installs anything. The threshold and map steps put their reports in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
+`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The maintainer job at Python `3.14` runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`. Neither job installs anything. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
 

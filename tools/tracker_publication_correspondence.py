@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-import map_scan
 import tracker_bodies
 import tracker_branch_scope
 import tracker_coordinates
@@ -47,16 +46,13 @@ class RuntimeCondition(str, Enum):
 
 class Host(str, Enum):
     HOOK_COMMAND = "hook command route"
-    DIRECT_WRITER = "direct-writer seam"
     CHANGED_RECORD = "changed-record event command"
     RECEIPT_PREPUBLICATION = "receipt prepublication event command"
 
 
 class Writer(str, Enum):
     PUBLISHER_COMMAND = "publisher command route"
-    MAP_SESSION = "publisher in-process map write"
     MERGE_RECEIPT = "merge-receipt unwatched write"
-    HOURLY_MAP_REFRESH = "hourly map-refresh unwatched write"
 
 
 class Surface(str, Enum):
@@ -102,7 +98,6 @@ class PostureRow:
     surface: Surface
     trigger: Trigger
     hook_command: PostureCell
-    direct_writer: PostureCell
     changed_record: PostureCell
     receipt_prepublication: PostureCell
     reason: str | None = None
@@ -110,7 +105,6 @@ class PostureRow:
     def cell(self, host: Host) -> PostureCell:
         return {
             Host.HOOK_COMMAND: self.hook_command,
-            Host.DIRECT_WRITER: self.direct_writer,
             Host.CHANGED_RECORD: self.changed_record,
             Host.RECEIPT_PREPUBLICATION: self.receipt_prepublication,
         }[host]
@@ -201,13 +195,12 @@ def _row(
     surface: Surface,
     trigger: Trigger,
     hook: PostureCell = ABSENT,
-    direct: PostureCell = ABSENT,
     changed: PostureCell = ABSENT,
     receipt: PostureCell = ABSENT,
     reason: str | None = None,
 ) -> PostureRow:
     return PostureRow(
-        predicate, surface, trigger, hook, direct, changed, receipt, reason
+        predicate, surface, trigger, hook, changed, receipt, reason
     )
 
 
@@ -226,17 +219,6 @@ WRITER_REACH = tuple(
             },
         ),
         (
-            Writer.MAP_SESSION,
-            {
-                Host.DIRECT_WRITER: (True, EvidenceDisposition.BEHAVIOR, None),
-                Host.CHANGED_RECORD: (
-                    True,
-                    EvidenceDisposition.DECLARED_READING,
-                    "ADR 0240 consequence 'Decision 3 of the ticket'",
-                ),
-            },
-        ),
-        (
             Writer.MERGE_RECEIPT,
             {
                 Host.RECEIPT_PREPUBLICATION: (
@@ -251,17 +233,6 @@ WRITER_REACH = tuple(
                 ),
             },
         ),
-        (
-            Writer.HOURLY_MAP_REFRESH,
-            {
-                Host.DIRECT_WRITER: (True, EvidenceDisposition.BEHAVIOR, None),
-                Host.CHANGED_RECORD: (
-                    False,
-                    EvidenceDisposition.DECLARED_READING,
-                    "ADR 0240 ruling 3 consequences",
-                ),
-            },
-        ),
     )
     for host in Host
     for reaches, disposition, record in (
@@ -272,9 +243,7 @@ WRITER_REACH = tuple(
                 EvidenceDisposition.DECLARED_READING,
                 {
                     Writer.PUBLISHER_COMMAND: "ADR 0099 ruling 4 publisher measurement",
-                    Writer.MAP_SESSION: "ADR 0240 ruling 3 writer measurement",
                     Writer.MERGE_RECEIPT: "ADR 0241 ruling 8 writer measurement",
-                    Writer.HOURLY_MAP_REFRESH: "ADR 0241 ruling 8 unwatched-write measurement",
                 }[writer],
             ),
         ),
@@ -284,7 +253,6 @@ WRITER_REACH = tuple(
 HOOK_TRIGGERS = frozenset(
     (Trigger.CREATE, Trigger.BODY_EDIT, Trigger.TITLE_EDIT, Trigger.COMMENT, Trigger.REVIEW)
 )
-DIRECT_WRITER_KEYS = frozenset(((Surface.BODY, Trigger.BODY_EDIT),))
 EVENT_TRIGGERS = frozenset(
     (
         Trigger.CREATE,
@@ -355,7 +323,6 @@ PUBLICATION_SCOPES = (
 
 
 def _paired_cells(
-    surface: Surface,
     trigger: Trigger,
     hook_rule: str,
     event_rule: str,
@@ -363,15 +330,10 @@ def _paired_cells(
     hook_posture: Posture,
     event_reaches: bool = True,
     conditions: tuple[tuple[RuntimeCondition, Posture], ...] = (),
-) -> tuple[PostureCell, PostureCell, PostureCell, PostureCell]:
+) -> tuple[PostureCell, PostureCell, PostureCell]:
     hook = (
         PostureCell(hook_posture, hook_rule, conditions)
         if trigger in HOOK_TRIGGERS
-        else ABSENT
-    )
-    direct = (
-        PostureCell(hook_posture, hook_rule, conditions)
-        if (surface, trigger) in DIRECT_WRITER_KEYS
         else ABSENT
     )
     changed = (
@@ -388,7 +350,7 @@ def _paired_cells(
         if trigger is Trigger.COMMENT
         else ABSENT
     )
-    return hook, direct, changed, receipt
+    return hook, changed, receipt
 
 
 def _paired_row(
@@ -407,7 +369,6 @@ def _paired_row(
         surface,
         trigger,
         *_paired_cells(
-            surface,
             trigger,
             hook_rule,
             event_rule,
@@ -434,7 +395,6 @@ def _branch_row(rule: str, surface: Surface, trigger: Trigger) -> PostureRow:
         if key in HOOK_BRANCH_KEYS
         and not (rule == "branch:in-flight" and trigger is Trigger.CREATE)
         else ABSENT,
-        PostureCell(normal, rule, conditions) if key in DIRECT_WRITER_KEYS else ABSENT,
         PostureCell(
             Posture.REPORT,
             rule,
@@ -500,20 +460,8 @@ POSTURE_ROWS = (
             surface,
             trigger,
             _cell(Posture.ADVISE, "citation:retired-correction-rule"),
-            direct=(
-                _cell(Posture.ADVISE, "citation:retired-correction-rule")
-                if (surface, trigger) in DIRECT_WRITER_KEYS
-                else ABSENT
-            ),
         )
         for surface, trigger in PUBLICATION_SCOPES
-    ),
-    _row(
-        "implementation-map-producer-stamp",
-        Surface.BODY,
-        Trigger.BODY_EDIT,
-        direct=_cell(Posture.DENY, "producer-stamp"),
-        changed=_cell(Posture.REPORT, "producer-stamp"),
     ),
     *(
         _paired_row(
@@ -617,11 +565,6 @@ POSTURE_ROWS = (
             surface,
             trigger,
             _cell(Posture.ADVISE, rule),
-            direct=(
-                _cell(Posture.ADVISE, rule)
-                if (surface, trigger) in DIRECT_WRITER_KEYS
-                else ABSENT
-            ),
         )
         for rule in ("phi:corpus-name", "phi:corpus-date")
         for surface, trigger in PUBLICATION_SCOPES
@@ -651,7 +594,6 @@ def event_rule_population() -> frozenset[str]:
         "tracker_coordinates": (tracker_coordinates.UNANCHORED,),
         "tracker_measurements": tracker_measurements.RULES,
         "tracker_filed_from": tracker_filed_from.EVENT_RULES,
-        "map_scan": map_scan.EVENT_RULES,
     }
     if selected_modules != set(vocabularies):
         raise ValueError("event-check vocabulary does not match the dispatcher")
@@ -664,7 +606,6 @@ def named_rules(rows: tuple[PostureRow, ...] = POSTURE_ROWS) -> frozenset[str]:
         for row in rows
         for cell in (
             row.hook_command,
-            row.direct_writer,
             row.changed_record,
             row.receipt_prepublication,
         )
@@ -699,7 +640,7 @@ DECLARED_LIMITS = (
     ),
     (
         "ad-hoc argv-list publications cross neither host",
-        "The unmodeled argv-list publications measured by ADR 0188 call neither the command hook nor the direct-writer seam.",
+        "The unmodeled argv-list publications measured by ADR 0188 do not call the command hook.",
     ),
 )
 

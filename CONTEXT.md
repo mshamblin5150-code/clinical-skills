@@ -649,7 +649,7 @@ A held declaration for a verdict a command produced while knowingly reading an a
 _Avoid_: provenance stamp, taint, untrusted flag
 
 **Lock identity**:
-What a nonblocking artifact lock is keyed on, so that two processes reaching for the same thing find each other. It is a **name** and need not be a file: a coordination issue on the tracker has no filesystem location, and the tool that owns one hands the lock a synthetic path standing in for it. A reader who assumes the argument is the artifact designs for the wrong unit — the lock never opens what it is named after, and its cost and its debris are properties of the identity rather than of anything the identity points at.
+What a nonblocking artifact lock is keyed on, so that two processes reaching for the same thing find each other. It is a **name** and need not be a file: a tool locking something with no filesystem location hands the lock a synthetic path standing in for it. A reader who assumes the argument is the artifact designs for the wrong unit — the lock never opens what it is named after, and its cost and its debris are properties of the identity rather than of anything the identity points at.
 _Avoid_: lock file, lock key, locked artifact, lock path
 
 **Lock root**:
@@ -1343,49 +1343,9 @@ _Avoid_: ruling, triage, suppression, exception, allowlist entry
 A file's own statement, alone on a line near its top, that its PHI-shaped literals are invented. It switches off the shape rules for that file and never the corpus layer, and only a file somebody reviewed may make one: a tracker record or a commit message was typed by whoever published it, so the same line inside one is inert and the text is graded as though it were absent. Distinct from a **finding verdict**, which clears one occurrence from outside the text rather than a whole file from within it.
 _Avoid_: pragma, opt-out, exemption, synthetic flag
 
-**Packet**:
-The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
-_Avoid_: task, item, issue, ticket, story
-
-**Collision group**:
-A named set of packets that touch the same file, carrying one of two obligations, which are different enough that one name for both misleads. A **sequence** group's packets are ordered and violating that order destroys work — a rebuild lands against a state its predecessor has not established yet. An **unordered** group's packets carry no order at all. Both kinds must not be in flight together; whoever merges second re-runs the first's tests. A group whose kind nobody has ruled is **unclassified** and is treated as a sequence, because the two errors are not symmetric: reading an unordered group as ordered costs a delay, and reading a sequence as unordered costs the destroyed rebuild the groups exist to prevent. Classifying a group `sequence` is also the moment its list order is ruled. Membership is many-to-many rather than chain-shaped — a packet sits in as many groups as it has shared files — which is why a drawing cannot say which constraint a link belongs to and the map renders these as a table. An unordered group's members are emitted sorted, since the field is a list and would otherwise keep looking ordered. Distinct from a **hard blocker**, which is semantic and holds whatever files the packets touch.
-_Avoid_: collision, chain, conflict group, file lock, serialization
-
 **Ready ticket**:
-An open ticket carrying `ready-for-agent`: a promise that an unattended agent can build it without guessing. A claim about the **specification**, made by whoever respec'd it, and revocable — a ticket relabeled `grilling` stops being one. Distinct from a **startable packet**, which is a claim about sequencing and never reads this label.
+An open ticket carrying `ready-for-agent`: a promise that an unattended agent can build it without guessing. A claim about the **specification**, made by whoever respec'd it, and revocable — a ticket relabeled `grilling` stops being one.
 _Avoid_: ready, startable, claimable, unblocked
-
-**Startable packet**:
-A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor, no unmet sequence predecessor in any **collision group** it belongs to, and nothing in flight. An unordered peer never bears on it: that is a claim about concurrency rather than about sequencing, and folding it in would refuse work that is genuinely startable. An unclassified group bears on it as a sequence until its kind and, if applicable, order are ruled. The frontier therefore holds an unmet unclassified predecessor, while `claim` names the same unverified order as a warning and remains claimable; this deliberate strength split preserves the signal that nobody has ruled the order. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, so the map derives readiness separately and refuses the disagreement at its claim, check and frontier surfaces.
-_Avoid_: ready, available, open, next
-
-**Reconciliation**:
-The reviewed judgment that places changed work into the map — written as a delta, reviewed against the ADR's rulings, then applied. It is semantic and cannot be derived: placement needs judgments no rule produces. Distinct from a **publish**, which re-renders the derived views from unchanged state and reconciles nothing, which is why the obligation to have reconciled is anchored on a field the delta sets rather than on the rendered snapshot a publish rewrites.
-_Avoid_: update, refresh, sync, rebuild
-
-**Unreconciled ADR**:
-An ADR added or changed on the default branch that no **reconciliation** has recorded as reviewed for the work it creates, splits, resequences or invalidates. The obligation is held per ADR and belongs to whoever merged it, so ADRs are discharged in any order and one session's review never vouches for another's; recording, with its reason, that an ADR creates no work discharges it as fully as placing a packet. Distinct from a **ready ticket** in no packet, which belongs to whoever made the ticket ready: the two arise together at the end of a grilling, and neither waits on the other. It is owed from the push after the one that landed it, because the review can be recorded only once the merge commit exists; on its own landing push it is reported and refuses nothing. A **grandfathered** one is owed and never refuses.
-_Avoid_: anchor lag, unreconciled commit
-
-**Grandfathered map debt**:
-The **unreconciled ADRs** and ready tickets in no packet carried from before the map check graded only new debt. It is reported on every push and refuses none, it shrinks only when a **reconciliation** discharges an entry, and it cannot grow. It is real work still owed, excused from refusing only by when it arose, so a clean map check means nothing new is owed and never that nothing is owed. Distinct from the scratch **Ratchet**, whose baseline is a count because its members may be PHI; these members are not, so they are named.
-_Avoid_: amnesty, waiver, exemption, baseline, backlog
-
-**Map disagreement**:
-A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
-_Avoid_: staleness, mismatch, error, out of date
-
-**Map view**:
-A section of the implementation map drawn from its stored state and the tracker as it stands: the frontier, the packet table, the dependency graph. It is never read back as memory and belongs to no session, because the tracker moving is enough to make it wrong: a closed ticket stales it without the closer owing anything. So a stale one is reported rather than failed, and refreshing one is a **publish**, never a **reconciliation**. Distinct from a **Map disagreement**, which is the stored state against the tracker; a map view can be stale while the state agrees with the tracker completely.
-_Avoid_: snapshot, cache, map copy, frontier file
-
-**Map overwriter**:
-A writer that replaces an existing implementation map body, which is the unit the concurrency obligations attach to: its own lock identity, the state-hash comparison, and re-validation after publication. Deliberately not *map writer* — creating the coordination issue is outside the role by **definition** rather than by exemption, because there is no prior state to compare against and nothing to clobber. The distinction is why the obligation set can be one enforced set rather than a posture declared per command, which is the arrangement that goes stale at a merge. Exclusion between two of them holds only where they compute the same **lock root**, so one on another machine is outside exclusion by construction and a person editing the body in a browser is outside it altogether.
-_Avoid_: map writer, publisher, map author, reconciler
-
-**Revision chain**:
-The ordered sequence of a tracker record's retained body revisions, each declaring the state it superseded, so that a lost overwrite is attributable without an actor — the record's own history names an account and never which writer wrote it. What makes a break legible is the declared predecessor rather than the ordering: a revision whose declared superseded state is not the state of the revision before it is a clobber, and no gap is visible without that declaration. It is **retained rather than kept**: the host caps and slides it, so a reader of one states how far back it reached and what it did not read. Distinct from a **Map disagreement**, which is a state of the map against the tracker and says nothing about who caused it, and from an **audit trail** written into the artifact, which a clobber destroys along with the content it was recording.
-_Avoid_: audit trail, edit history, revision log, body history
 
 **In flight**:
 The state a ticket is in while an agent is working it, marked by the label of that name: work is going on now, so unmerged work may exist on the ticket. A claim about **the ticket**, never about any one comment on it — `docs/agents/issue-tracker.md` says in as many words not to read the label as a claim's provenance, which is what the dated branch state block is for. It has a documented add-time and no stated end: nothing removes it, at close or ever, so a ticket carrying it is not necessarily one an agent is working.

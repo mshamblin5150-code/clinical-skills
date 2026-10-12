@@ -96,6 +96,12 @@ distinguishable from a corrected fact everywhere in the log. It then:
 **Quoting is load-bearing**: ADR 0191 ruling 6 records a draft that called a third sentence the
 second, which would have withdrawn the exception that record grants.
 
+*Superseded 2026-10-11.* The words "The marker sits directly beneath the overturned ruling or
+ground." are narrowed by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 5: a record whose every ruling is withdrawn carries one banner above its first section
+instead. The fixed opening and the four parts still stand.
+
 ## Ruling 5 — the overturning ADR declares its targets, and a suite test binds both directions
 
 A record that overturns anything carries an optional `## Supersedes` section naming each target and
@@ -110,6 +116,11 @@ refused because it misses the verb-free form and fires on a record saying it *co
 
 **This record's own `## Supersedes` section is the first instance**, and the build either parses it
 as written or reconciles it in the same change.
+
+*Superseded 2026-10-11.* The words "naming each target and its ruling" are narrowed by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 5: a wholly withdrawn record is declared with `every ruling` in place of a ruling number. The
+binding in both directions and its floor still stand.
 
 ## Ruling 6 — a missing marker fails the suite and refuses no commit
 

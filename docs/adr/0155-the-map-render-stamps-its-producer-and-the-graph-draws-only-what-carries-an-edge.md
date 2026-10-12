@@ -1,5 +1,11 @@
 # The map render stamps its producer and the graph draws only what carries an edge
 
+*Superseded 2026-10-11.* Every ruling in this record, "The map render stamps its producer and the
+graph draws only what carries an edge", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#756](https://github.com/mshamblin5150-code/clinical-skills/issues/756) was filed because #596's
 Mermaid graph mostly drew collision sequencing rather than dependency.
 [ADR 0108](0108-the-map-graph-draws-dependency-alone-and-the-render-is-declared-rather-than-bounded.md)

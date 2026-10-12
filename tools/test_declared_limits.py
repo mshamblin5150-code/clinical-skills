@@ -118,7 +118,6 @@ NOT_LIMITS = {
     "differential_scan.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "guidelines_manifest.DISCOVERY_CEILING": "tokens used by the lexical consumer-discovery walk",
     "guidelines_search.DEFAULT_LIMIT": "the default number of search results to display",
-    "map_scan.LIMITS_POINTER": "the literal qualified pointer required in the implementation map",
     "peer_critique_scan.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "peer_critique_scan.WORD_CEILING_COUNT": "the course's reported, ungraded word expectation",
     "prose_bind.LIMIT_CONSTANTS": "the exact object-name vocabulary consumed by both limits walks",

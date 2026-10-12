@@ -163,11 +163,6 @@ DECLARED_CANDIDATES = (
         "The compound headings name records, sweeps, labels, or omissions of recommendations.",
     ),
     Candidate(
-        "Packet",
-        Verdict.NARROWING,
-        "A Startable packet is a packet whose sequencing conditions are clear.",
-    ),
-    Candidate(
         "Ruling",
         Verdict.COLLISION,
         "The bare term is one ratified ADR decision; a Ruling cohort groups the "

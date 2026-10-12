@@ -201,6 +201,13 @@ neither record. The copies that are commands an agent runs gain the probes; noth
 **Finding the cause is out**, on the body's own ground that the remedy does not depend on it, and see
 ruling 8.
 
+*Superseded 2026-10-11.* The ruling "Four consumers, and the harvest command is not consolidated" is
+narrowed by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1: the two implementation-map consumers are deleted with the map. The `tracker_bodies`
+population, the label-overflow sentence and the refusal to consolidate the harvest command still
+stand.
+
 ## Ruling 4. `blocked_by` is sized from the header of the call it already makes
 
 `GitHub.blocked_by` requests `per_page=100` with `--include` and reads the `Link` header. **An absent

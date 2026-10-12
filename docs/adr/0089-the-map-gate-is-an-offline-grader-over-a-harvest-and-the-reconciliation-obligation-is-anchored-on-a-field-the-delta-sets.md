@@ -1,5 +1,12 @@
 # The map gate is an offline grader over a harvest and the reconciliation obligation is anchored on a field the delta sets
 
+*Superseded 2026-10-11.* Every ruling except ruling 9 in this record, "The map gate is an offline
+grader over a harvest and the reconciliation obligation is anchored on a field the delta sets", is
+withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Ruling 9, that `Drift` stays clinical, still stands;
+the rest remains the record of what was decided while the map existed.
+
 [#679](https://github.com/mshamblin5150-code/clinical-skills/issues/679) was filed after a
 reconciliation of the implementation map found that its Maintenance rule 3 — *reconcile at every ADR
 closeout that creates, splits, resequences or invalidates work* — is prose in an issue body, and had

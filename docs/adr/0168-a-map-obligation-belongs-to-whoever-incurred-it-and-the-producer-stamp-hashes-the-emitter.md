@@ -1,5 +1,11 @@
 # A map obligation belongs to whoever incurred it and the producer stamp hashes the emitter
 
+*Superseded 2026-10-11.* Every ruling in this record, "A map obligation belongs to whoever incurred
+it and the producer stamp hashes the emitter", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#920](https://github.com/mshamblin5150-code/clinical-skills/issues/920) was filed because a
 grilling session's standing tail loads implementation-map findings by construction: merging the ADR
 puts `main` past the reconciliation anchor, and flipping the ticket to `ready-for-agent` puts a ready

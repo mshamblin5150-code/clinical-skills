@@ -191,21 +191,6 @@ class TheEventDispatcherOwnsTheChangedRecordCheckSet(unittest.TestCase):
         self.assert_selected(event("opened"), "issues", expected)
         self.assert_selected(event("edited", body_changed=True), "issues", expected)
 
-    def test_the_implementation_map_body_edit_adds_its_producer_stamp_check(self):
-        self.assert_selected(
-            event("edited", number=596, body_changed=True),
-            "issues",
-            [
-                "tracker_scan",
-                "tracker_branch_scope",
-                "tracker_bodies",
-                "tracker_coordinates",
-                "tracker_measurements",
-                "tracker_filed_from",
-                "map_scan",
-            ],
-        )
-
 
 class ChangedIssueAndPullRequestTitlesAreGraded(unittest.TestCase):
     CASES = (

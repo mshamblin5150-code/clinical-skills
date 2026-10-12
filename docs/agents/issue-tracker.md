@@ -309,8 +309,6 @@ block includes every following line beginning with `>`. For example:
 **Filed from:** ...
 ```
 
-A body carrying the implementation map's exact producer stamp is exempt.
-
 The line is append-only. A respec keeps it word for word at that position. A
 correction of the line goes on its own dated line directly beneath the
 unchanged line, and no correction of anything else goes above it. **Every other
@@ -319,8 +317,7 @@ correction is written at the text it corrects**, which is
 and supersedes the earlier permission to place one anywhere below the line. A
 [carried claim](../../CONTEXT.md#tracker) is repaired where it stands, with a
 dated line recording what it said and why it changed directly beneath it,
-because a correction below a carried claim reaches nobody who carried it. A body
-carrying the implementation map's exact producer stamp is exempt from this too.
+because a correction below a carried claim reaches nobody who carried it.
 **A published comment is not corrected in place.** A sweep verdict is a dated
 reading rather than a carried claim, and the next comment supersedes it; editing
 one to repair a statement of fact that was false when posted is a per-defect

@@ -21,11 +21,9 @@ the leading part of a path, and a Git Bash ``/c/...`` path is also tried in its
 Windows spelling. What is left unreadable is refused above.
 
 Every readable publication is graded through ``analyze``. On the command route,
-each denying row refuses and carries its rule's remedy. The direct writer uses
-the same analysis and preserves advisory rows as report lines; its map-specific
-producer-stamp check remains on top. A title receives PHI shape, the two
-title-scoped integrity predicates, coordinate accompaniment, and branch path
-triggers; measurement, Filed-from, and every other body-integrity row remain
+each denying row refuses and carries its rule's remedy. A title receives PHI
+shape, the two title-scoped integrity predicates, coordinate accompaniment, and
+branch path triggers; measurement, Filed-from, and every other body-integrity row remain
 body-only. Policy limits belong to ``NOT_REACHED``; reading limits belong to
 ``command_reader.NOT_REACHED`` rather than copied into this docstring or ``CLAUDE.md``.
 
@@ -40,8 +38,7 @@ ceiling.
 One anchor-free loose classifier also finds literal publications the precise
 single-call reader did not reproduce, including quoted argv lists. A modeled
 command carrying such a publication is refused unread before any partial grade;
-the same classifier bounds the unmodeled-shell refusal and the implementation-
-map post-hook's observation. The reading boundary belongs to ``command_reader.NOT_REACHED``.
+the same classifier bounds the unmodeled-shell refusal. The reading boundary belongs to ``command_reader.NOT_REACHED``.
 """
 
 from __future__ import annotations
@@ -669,89 +666,6 @@ def analyze(
     if not findings:
         lines.append(f"scanned {publication.field}: 0 findings")
     return Analysis(tuple(findings), "\n".join(lines))
-
-
-def authorize_issue_body(
-    body: str,
-    label: str,
-    *,
-    issue_number: int | None = None,
-    issue: TrackerRecord | dict | None = None,
-    title: str | None = None,
-) -> str:
-    """Grade a direct issue publication through the shared analyzer.
-
-    Most tracker writes arrive as a shell command and enter through ``handle``.
-    An in-process writer already holds the exact body, so making it reconstruct
-    shell quoting would add a second, weaker extraction path. This entry point
-    sends its exact fields through ``analyze`` and returns the resulting report
-    without running the command route's citation readback.
-    """
-    if isinstance(issue, TrackerRecord):
-        context_number = issue.number
-    elif isinstance(issue, dict) and isinstance(issue.get("number"), int):
-        context_number = issue["number"]
-    else:
-        context_number = None
-    if (
-        issue_number is not None
-        and context_number is not None
-        and issue_number != context_number
-    ):
-        raise ValueError(
-            f"tracker body refused for {label}: issue number and context disagree"
-        )
-    publication_number = (
-        issue_number if issue_number is not None else context_number
-    )
-    if publication_number is not None:
-        # Lazy import avoids the module-level cycle: implementation_map uses
-        # this direct-writer gate when it publishes the same body.
-        from implementation_map import MAP_ISSUE, producer_stamp_problem
-
-        if publication_number == MAP_ISSUE:
-            problem = producer_stamp_problem(body)
-            if problem is not None:
-                raise ValueError(
-                    f"tracker body refused for {label}: producer stamp: {problem}"
-                )
-    index, missing = current_index()
-    remote_fresh = refresh_default_branch()
-    route = (
-        ("issue", "edit")
-        if publication_number is not None
-        else ("issue", "create")
-    )
-    publications = [Publication("body", body)]
-    if title is not None:
-        publications.append(Publication("title", title))
-    analyses = [
-        analyze(
-            publication,
-            index=index,
-            issue=issue,
-            remote_fresh=remote_fresh,
-            route=route,
-        )
-        for publication in publications
-    ]
-    lines = []
-    if missing:
-        lines.append(
-            "PHI corpus layer incomplete: " + ", ".join(missing) + " not available"
-        )
-    lines.extend(analysis.report for analysis in analyses)
-    denied = tuple(
-        finding.rule
-        for analysis in analyses
-        for finding in analysis.findings
-        if finding.posture == "deny"
-    )
-    report = "\n".join(lines)
-    if denied:
-        rules = ", ".join(dict.fromkeys(denied))
-        raise ValueError(f"tracker body refused for {label}: {rules}\n{report}")
-    return report
 
 
 def current_index() -> tuple[phi_scan.CorpusIndex, tuple[str, ...]]:

@@ -1,5 +1,11 @@
 # The map's views refresh hourly and a stale view is reported rather than failed
 
+*Superseded 2026-10-11.* Every ruling in this record, "The map's views refresh hourly and a stale
+view is reported rather than failed", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058) was split out of #920's
 grilling by [ADR 0168](0168-a-map-obligation-belongs-to-whoever-incurred-it-and-the-producer-stamp-hashes-the-emitter.md)
 ruling 9. The implementation map's derived views (the frontier, the packet table, the dependency
