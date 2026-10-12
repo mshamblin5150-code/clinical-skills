@@ -473,6 +473,7 @@ class CommandModes(SyntheticSnapshotCase):
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                1\n"
             "  private extract written         post-1.extract.md\n"
+            "  review record filename          post-1.md\n"
             "unread remainder 0\n",
         )
 
