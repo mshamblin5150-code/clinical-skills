@@ -8,6 +8,22 @@ import coursework_run
 
 
 class RunKey(unittest.TestCase):
+    def test_voice_records_use_only_supported_extension_stems(self):
+        run = Path("run")
+        for key, directory in (
+            ("response-x.md", "response-x"),
+            ("critique.md", "critique"),
+            ("assignment.pptx", "assignment"),
+            ("assignment.docx", "assignment"),
+            ("atlas-discussion-2026-10-03", "atlas-discussion-2026-10-03"),
+            ("atlas.discussion", "atlas.discussion"),
+        ):
+            with self.subTest(key=key):
+                self.assertEqual(
+                    coursework_run.voice_records_directory(run, key),
+                    run / "voice-reads" / directory,
+                )
+
     def test_a_submission_date_is_provenance_not_identity(self):
         self.assertEqual(
             coursework_run.key_of("nur5144-m1-case-study-2026-08-20"),

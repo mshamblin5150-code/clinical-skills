@@ -383,7 +383,7 @@ the document's author and scope at the after-action review, not mid-draft, becau
 moves the gate-hashed memory index. Nothing grades the whole read or these questions; see
 `project_context.DECLARED_LIMITS`, row `agreement-inherits-item-errors`.
 
-Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
+Capture `voice-reads/<key-stem>/supplied-voice.json` before the gates. The identity gate
 requires that file before writing its record. Use the terminal submission key for both commands;
 when staging a coursework draft under standing rule 6, use that key as the pass folder's name.
 The gates retain their first observation for each key across reruns. Keep their machine-written
