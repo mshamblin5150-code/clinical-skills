@@ -52,6 +52,14 @@ response status is not verification: a near-miss address and a login form can bo
 sourced claim record's `RESOLVED` field therefore names the address confirmed as the work's own,
 never a bare status.
 
+## An undated source needs a reasoned excuse
+
+A `REFERENCE` with no year (`n.d.`, including `n.d.-a` and `n.d.-b`) cannot be measured
+against the recency window. Its record therefore writes `RECENCY: nothing newer - <reason>`
+or `RECENCY: guideline in force - <reason>`, never `current` or `within five`.
+`research_ledger.py`'s `undated-reference` row refuses an undated reference without one of
+these reasoned excuses.
+
 ## The clinician's own unpublished work
 
 `clinician's own work` is admitted only by the assignment's signed `SOURCE-CLASSES`.

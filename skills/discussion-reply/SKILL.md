@@ -171,7 +171,7 @@ REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the reply's exact numeric token where applicable>
 PASSAGE: <where in the source the supporting language sits>
 QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"
-RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
+RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>; an n.d. reference: see [An undated source needs a reasoned excuse](../_shared/reference/sourcing.md#an-undated-source-needs-a-reasoned-excuse)
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <reason>
