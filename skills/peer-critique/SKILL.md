@@ -315,6 +315,8 @@ The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
 `heading-read-context-defect`, plus `heading-read-qualifier-count`,
 `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
+`heading-read-own-figure-absent` reports a number listed on an `OWN` or `ITEM` line
+that is absent from the critique's traced body numbers.
 
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported

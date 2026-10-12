@@ -520,7 +520,11 @@ def survey(source: Source) -> Scan:
     claim_keys, claim_numbers, claim_records = _claim_keys(source.claims)
     if not claim_records:
         findings.append(Finding(CLAIM_LEDGER, "claims.md has no CLAIM record"))
-    for number in sorted(set(traceable_numeric_values(body)) - claim_numbers):
+    artifact_numbers = set(traceable_numeric_values(body))
+    own_figures = heading_read.own_figures(source.heading_read_text, source.docx.name)
+    for number in sorted(own_figures - artifact_numbers):
+        findings.append(Finding(heading_read.OWN_FIGURE_ABSENT, f"{number} is absent from the artifact's traced numbers"))
+    for number in sorted(artifact_numbers - claim_numbers - own_figures):
         findings.append(Finding(UNTRACED_NUMBER, f"{number} has no claim record"))
     reference_key_set = ReferenceKeySet.from_references(references)
     cited = read_citations(body, reference_key_set)

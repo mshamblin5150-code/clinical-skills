@@ -375,7 +375,13 @@ def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
 
 def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
     believed, disbelieved, restatement_numbers = _claim_tokens(source.claims)
-    return tuple(
+    own_figures = heading_read.own_figures(source.heading_read_text, "critique.md")
+    artifact_numbers = tuple(dict.fromkeys(_body_numeric_tokens(source)))
+    absent = tuple(
+        Finding(heading_read.OWN_FIGURE_ABSENT, "critique.md", f"{value} is absent from the artifact's traced numbers")
+        for value in sorted(own_figures - set(artifact_numbers))
+    )
+    return absent + tuple(
         Finding(
             UNTRACED_NUMBER,
             "critique.md",
@@ -387,8 +393,8 @@ def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
                 else f"{value} is absent from claims.md"
             ),
         )
-        for value in dict.fromkeys(_body_numeric_tokens(source))
-        if value not in believed
+        for value in artifact_numbers
+        if value not in believed and value not in own_figures
     )
 
 

@@ -20,6 +20,7 @@ import reader_remarks
 import file_digest
 import research_ledger
 import run_grader
+from discussion_artifact import NUMBER
 from run_grader import EvidenceDisposition
 
 
@@ -30,6 +31,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("own-figure-classification-unverified", "A listed figure cannot establish that its sentence is the clinician's own or that an item figure agrees with the opened item.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("qualifier-count-correctness-unverified", "A complete qualifier count cannot establish that the reader judged the sentence's qualifiers correctly.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("item-comparison-unverified", "An ITEM line names an opened item but cannot establish that the reader compared its claims correctly.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit(
@@ -75,14 +77,16 @@ HEADER = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
 HEADING_CANDIDATE = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ\b.*$")
 OTHER_HEADER = re.compile(r"^[ \t]*#{1,6}[ \t]+")
 FIELD = re.compile(
-    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|ITEM|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS|REMARK)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|ITEM|OWN|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS|REMARK)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 SENTENCES = re.compile(
     r"(?i)^(?P<factual>[0-9]+)[ \t]+factual,[ \t]*(?P<own>[0-9]+)[ \t]+clinician's own(?:,[ \t]*(?P<item>[0-9]+)[ \t]+item)?$",
     re.ASCII,
 )
 PAIR = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<prefix>[0-9a-fA-F]{8})(?:[ \t]+\|[ \t]+qualifiers (?P<read>[0-9]+) of (?P<total>[0-9]+))?$", re.ASCII)
-ITEM = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+)$")
+FIGURES = rf"{NUMBER.pattern}(?:[ \t]*,[ \t]+{NUMBER.pattern})*"
+OWN = re.compile(rf"^(?P<location>.+?)[ \t]+->[ \t]+(?P<figures>{FIGURES})$", re.IGNORECASE)
+ITEM = re.compile(rf"^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+?)(?:[ \t]+\|[ \t]+figures (?P<figures>{FIGURES}))?$", re.IGNORECASE)
 ROUTES = frozenset(("separate context",))
 
 MISSING_RECORD = "missing-heading-read"
@@ -101,7 +105,9 @@ CONTEXT_DEFECT_VERDICT = "heading-read-context-defect"
 QUALIFIER_COUNT = "heading-read-qualifier-count"
 ITEM_COUNT = "heading-read-item-count"
 UNOPENED_ITEM = "heading-read-unopened-item"
+OWN_FIGURE_ABSENT = "heading-read-own-figure-absent"
 KINDS = (
+    OWN_FIGURE_ABSENT,
     QUALIFIER_COUNT,
     ITEM_COUNT,
     UNOPENED_ITEM,
@@ -130,6 +136,18 @@ class Record:
     items: tuple[str, ...] = ()
     remarks: tuple[str, ...] = ()
     unread: int = 0
+    own: tuple[str, ...] = ()
+
+    @property
+    def own_figures(self) -> frozenset[str]:
+        return frozenset(
+            value.casefold()
+            for lines, grammar in ((self.own, OWN), (self.items, ITEM))
+            for line in lines
+            for parsed in (grammar.fullmatch(line),)
+            if parsed is not None and parsed.group("figures") is not None
+            for value in NUMBER.findall(parsed.group("figures"))
+        )
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -171,23 +189,24 @@ def read_records(text: str) -> tuple[Record, ...]:
     pairs: list[str] = []
     findings: list[str] = []
     items: list[str] = []
+    own: list[str] = []
     remarks: list[str] = []
     unread = 0
 
     def close() -> None:
         if artifact is not None:
-            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings), tuple(items), tuple(remarks), unread))
+            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings), tuple(items), tuple(remarks), unread, tuple(own)))
 
     for line in text.splitlines():
         heading = HEADER.match(line)
         if heading:
             close()
             artifact = heading.group(1).strip()
-            fields, pairs, findings, items, remarks, unread = {}, [], [], [], [], 0
+            fields, pairs, findings, items, remarks, unread, own = {}, [], [], [], [], 0, []
             continue
         if artifact is not None and OTHER_HEADER.match(line):
             close()
-            artifact, fields, pairs, findings, items, remarks, unread = None, {}, [], [], [], [], 0
+            artifact, fields, pairs, findings, items, remarks, unread, own = None, {}, [], [], [], [], 0, []
             continue
         if artifact is None:
             continue
@@ -205,12 +224,22 @@ def read_records(text: str) -> tuple[Record, ...]:
             pairs.append(value)
         elif name == "ITEM":
             items.append(value)
+        elif name == "OWN":
+            if OWN.fullmatch(value):
+                own.append(value)
+            else:
+                unread += 1
         elif name == "FINDINGS":
             findings.append(value)
         else:
             fields[name] = value
     close()
     return tuple(records)
+
+
+def own_figures(text: str, artifact: str) -> frozenset[str]:
+    """Return only figures listed by this artifact's heading reader."""
+    return frozenset(value for record in read_records(text) if record.artifact == artifact for value in record.own_figures)
 
 
 def _drifted_at(detail: str, location: str) -> bool:

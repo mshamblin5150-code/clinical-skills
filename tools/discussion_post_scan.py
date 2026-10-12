@@ -1493,8 +1493,13 @@ def survey(source: RunSource) -> Scan:
         value for record in records for value in record.restatement_numbers
     )
     distinct_numbers = tuple(dict.fromkeys(value.casefold() for value in numbers))
+    own_figures = heading_read.own_figures(source.heading_read_text, source.draft.name)
+    for value in sorted(own_figures - set(distinct_numbers)):
+        findings.append(
+            Finding(heading_read.OWN_FIGURE_ABSENT, source.draft.name, f"{value} is absent from the artifact's traced numbers")
+        )
     for value in distinct_numbers:
-        if value not in traced_numbers:
+        if value not in traced_numbers and value not in own_figures:
             findings.append(
                 Finding(
                     UNTRACED_NUMBER,
