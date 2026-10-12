@@ -129,6 +129,11 @@ Three variants were built and run over the whole corpus, **at `4693353`, against
 
 **The cost is real and is accepted:** folding makes `Kübler` and `Kubler` one author, a false-negative risk on `missing-ab`. It is distinguished from `docx_read.py`'s deliberately narrow homoglyph map on the ground that the map crosses scripts while NFKD-then-strip-marks stays inside one and undoes a decomposition Unicode itself defines. That is an argument and not a measurement, and the corpus cannot settle it.
 
+*Superseded 2026-10-12.* The words "Folding is what letter-by-letter comparison means." are narrowed by
+[ADR 0356](0356-the-paper-language-picks-the-filing-alphabet-and-english-files-a-special-letter-as-its-plain-letter.md)
+ruling 1: the paper's language picks the filing alphabet, and folding is the English row of that
+table. The elimination of code-point order and the acceptance of folded equality still stand.
+
 ## Ruling 8 — `in press` is a date value everywhere `n.d.` is, and its letter form is published
 
 `n.d.` is fully supported on both sides of both readers and `in press` on neither, though APA names them together. Driven at `4693353`, a **fully correct** in-press pair — two entries, two citations — yields zero citations and two `entry-has-no-year` findings. That is this ticket's thesis verbatim: a correct document reports a defect **in the entry** because the reader lacks a token.

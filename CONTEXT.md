@@ -92,6 +92,13 @@ The face a **Composer** is showing: the formatted view, where the contribution a
 at and posted only in the formatted view; the code views are a **Load route**'s working space.
 _Avoid_: mode, HTML mode, editor mode, raw editor
 
+**Paper language**:
+The language a coursework artifact is written in. It decides the alphabet the artifact's reference
+list files under, so a name sits where a reader of that language looks for it. Distinct from the
+language a cited work is written in and from the origin of a cited author's name, neither of which
+moves an entry. The name itself is always printed as published.
+_Avoid_: locale, source language, author language, reference language
+
 **Attachment fallback**:
 Posting an **Initial post** as an attached document under a fixed pointer body after its **Composer**
 refused the full text for message size, which makes the attached document the **Submission**.
