@@ -528,6 +528,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     """Bind each behavior row to its blind-spot test and positive control."""
 
     HANDLERS = {
+        "review-footer-other-wording-unseen": ("ReviewFooterDates.test_legitimate_years_and_no_year_review_explanation_pass", "ReviewFooterDates.test_a_review_footer_cannot_supply_an_agreeing_reference_year"),
         "record-population-unbounded": ("AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_short_ledger_is_only_visible_because_the_headings_were_written_first", "AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_bare_heading_fails"),
         "restatement-semantic-equivalence-unchecked": ("TheRestatementIsNotTheClaimAgain.test_a_real_paraphrase_passes", "TheRestatementIsNotTheClaimAgain.test_pasting_the_claim_back_is_a_finding"),
         "numeric-values-uncompared": ("ANumericClaimGetsANumericRestatement.test_the_source_may_answer_in_its_own_units", "ANumericClaimGetsANumericRestatement.test_a_number_answered_with_prose_is_a_finding"),
@@ -2175,6 +2176,65 @@ class TheReportCarriesNoClaimTextWithoutShow(unittest.TestCase):
                 self.assertIn(f"{ledger.ROWS[kind]} - {kind}", report)
 
 
+class ReviewFooterDates(unittest.TestCase):
+    def run_record(self, page_year, reference_year="2009"):
+        record = CLEAN.replace("(2009)", f"({reference_year})")
+        record = replace_field(record, "PAGE-YEAR", page_year)
+        record = replace_field(record, "RECENCY", "nothing newer - searched for a dated replacement; none supports this claim")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "claims.md"
+            path.write_text(ledger_text(record), encoding="utf-8")
+            write_bar(root)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                status = ledger.main([str(path), "--show"])
+            return status, out.getvalue()
+
+    def test_a_review_footer_cannot_supply_an_agreeing_reference_year(self):
+        status, report = self.run_record("2009 - Page last reviewed: May 15, 2009 footer")
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"page-year-review-footer\s+1")
+
+    def test_reviewed_forms_refuse_even_when_the_reference_is_undated(self):
+        for label in ("last reviewed", "last-reviewed", "Reviewed:", "medically reviewed on"):
+            for year in ("2009", "n.d."):
+                with self.subTest(label=label, year=year):
+                    status, report = self.run_record(f"2009 - {label} May 15, 2009 footer", year)
+                    self.assertEqual(status, 1)
+                    self.assertRegex(report, r"page-year-review-footer\s+1")
+                    self.assertRegex(report, r"page-year-disagrees\s+0")
+                    for remedy in ("no-year PAGE-YEAR", "n.d.", "reasoned RECENCY excuse"):
+                        self.assertIn(remedy, report)
+
+    def test_legitimate_years_and_no_year_review_explanation_pass(self):
+        for field, year in (
+            ("2009 - published on the peer-reviewed article masthead", "2009"),
+            ("2009 - published on the peer reviewed article masthead", "2009"),
+            ("2009 - PEER–REVIEWED article masthead", "2009"),
+            ("2009 - literature review current through May", "2009"),
+            ("2009 - last updated May 15", "2009"),
+            ("the page states no year; its only date is a last reviewed footer", "n.d."),
+            ("2009 - content checked May 15", "2009"),
+            ("2009 - verified May 15", "2009"),
+        ):
+            with self.subTest(field=field):
+                status, report = self.run_record(field, year)
+                self.assertEqual(status, 0, report)
+                self.assertRegex(report, r"page-year-review-footer\s+0")
+
+    def test_peer_review_does_not_hide_a_second_review_footer(self):
+        status, report = self.run_record("2009 - peer-reviewed article; medically reviewed footer")
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"page-year-review-footer\s+1")
+
+    def test_review_footer_does_not_replace_the_independent_field_form_row(self):
+        status, report = self.run_record("2009 - published; reviewed in 2011")
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"page-year-review-footer\s+1")
+        self.assertRegex(report, r"page-year-form\s+1")
+
+
 class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def _run(self, text: str, name: str = "claims.md") -> int:
         with tempfile.TemporaryDirectory() as temp:
@@ -2394,6 +2454,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.BARE_PAGE_YEAR: "a `PAGE-YEAR` that is a year and nothing else",
         ledger.PAGE_YEAR_DISAGREES: "a `PAGE-YEAR` that is not the year in `REFERENCE`",
         ledger.PAGE_YEAR_FORM: "a `PAGE-YEAR` outside its field form",
+        ledger.PAGE_YEAR_REVIEW_FOOTER: "a dated `PAGE-YEAR` naming a review footer",
         ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the four",
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
@@ -2545,10 +2606,10 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     def _rows_for(self, ticket: str) -> set[str]:
         return {kind for kind, owner in ledger.ROWS.items() if owner == ticket}
 
-    def test_the_citation_helper_holds_every_231_and_1480_row_and_nothing_else(self):
+    def test_the_citation_helper_holds_every_231_1480_and_1566_row_and_nothing_else(self):
         self.assertEqual(
             self._kinds_constructed_in("_citation_findings"),
-            self._rows_for("#231") | self._rows_for("#1480"),
+            self._rows_for("#231") | self._rows_for("#1480") | self._rows_for("#1566"),
         )
 
     def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):

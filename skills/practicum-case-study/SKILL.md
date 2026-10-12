@@ -727,6 +727,7 @@ can be several of them at once:
 | a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
 | a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
 | a `PAGE-YEAR` outside its field form | a year in 1900–2099 must open the field with no second, different year; locators after `p.`, `pp.` or `page` are exempt, and a field stating none carries no year |
+| a dated `PAGE-YEAR` naming a review footer | `reviewed` refuses whatever `REFERENCE` says, except when welded to `peer`; it replaces the disagreement finding and requires the content date or a no-year field, `n.d.`, and a reasoned `RECENCY` excuse |
 | a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
 | a `REFUTATION` outside the four | it gates the row below, so a fifth word is a record the refutation never read |
 | refutation fields that match no kept return | the record disagrees with the saved refuter return; applies from its ledger-date start in `reference/completion-check-starts.tsv` |

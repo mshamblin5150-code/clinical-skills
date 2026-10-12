@@ -108,7 +108,10 @@ they are not backfilled. Sourceless and `DROPPED` records owe no qualifier field
   page heading, never the browser tab text or a backing dataset's record. For the clinician's own
   unpublished work, use the ordered year sources above; for online works a year or date comes from
   visible text, never an HTML comment. An online reference entry is dated by the publisher's citation
-  form or its last content revision, never by a link-only history row. `PAGE-YEAR` holds only the
+  form or its last content revision, never by a link-only history row or a review footer (APA §9.15).
+  A page whose only date is a review footer states no year; follow
+  [An undated source needs a reasoned excuse](#an-undated-source-needs-a-reasoned-excuse).
+  `PAGE-YEAR` holds only the
   page's own year or says the page states none. A year in 1900–2099 opens the field; no second,
   different year in that range appears, except a locator after `p.`, `pp.` or `page`. A field saying
   the page states none carries no year. A redirect or login-wall claim records the final address

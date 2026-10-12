@@ -1076,7 +1076,9 @@ Preserve individual and group names as published, including diacritics, capitali
 particles, suffixes, usernames, and creator roles. List up to 20 authors; for 21 or more, retain the
 first 19 and final author around an ellipsis without an ampersand. Use the most specific responsible
 group and omit a publisher identical to that group. Dates identify the cited version and may be a
-year, fuller date, span, `n.d.`, or `in press`; retrieval dates follow §4.
+year, fuller date, span, `n.d.`, or `in press`; retrieval dates follow §4. Under §9.15, a last-updated
+date dates the entry only when it demonstrably belongs to the cited content. A last-reviewed date
+never dates the entry because review does not establish a content change.
 
 Use sentence case for work titles and title case for periodical titles. Italic treatment depends on
 whether the work stands alone or sits inside a larger work. Bracket a nonroutine work description
