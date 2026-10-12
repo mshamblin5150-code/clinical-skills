@@ -422,6 +422,17 @@ class AnEmptyBodyIsStillAFindingUnderAZeroBar(unittest.TestCase):
 
 
 class CanvasSubmissionRows(unittest.TestCase):
+    def test_an_undecodable_loaded_box_readback_refuses_the_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            (run.root / "render/pass-1/editor-readback.json").write_bytes(b"\xff")
+            status, report, error = run.grade("--html", str(html))
+            self.assertEqual(2, status)
+            self.assertEqual("", report)
+            self.assertIn("could not read the Composer readback", error)
+
     def test_readback_coverage_is_ungraded_before_loading_and_reports_partial_html(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

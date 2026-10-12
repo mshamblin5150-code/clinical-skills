@@ -387,6 +387,8 @@ class RunSource:
     docx_matches_rebuild: bool | None
     rendered_readings: tuple[RenderedReading, ...]
     render_passes: tuple[tuple[int, RenderPass], ...]
+    editor_readback: str | None
+    built_html: str | None
     missing_pass_numbers: int
     refused_label: str | None
     post_url: str | None
@@ -964,6 +966,18 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         submitted_blocks,
     ) = _html_properties(html, draft_text) if html is not None else (0, 0, None, None)
     render_passes, missing_pass_numbers = _render_passes(root)
+    try:
+        readback_path = (
+            root / "render" / f"pass-{render_passes[-1][0]}" / "editor-readback.json"
+            if render_passes else None
+        )
+        editor_readback = (
+            readback_path.read_text(encoding="utf-8")
+            if readback_path is not None and readback_path.is_file() else None
+        )
+        built_html = html.read_text(encoding="utf-8") if html is not None else None
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read the Composer readback: {failure}") from failure
     return RunSource(
         path=root,
         draft=draft,
@@ -992,6 +1006,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         ),
         rendered_readings=_rendered_readings(post_text) if html is not None else (),
         render_passes=render_passes,
+        editor_readback=editor_readback,
+        built_html=built_html,
         missing_pass_numbers=missing_pass_numbers,
         refused_label=section.refused_label,
         post_url=post_fields.get("POST-URL"),
@@ -1324,11 +1340,8 @@ def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int
         return (), 0, 0
     number = source.render_passes[-1][0]
     path = source.path / "render" / f"pass-{number}" / "editor-readback.json"
-    try:
-        retained = path.read_text(encoding="utf-8") if path.is_file() else None
-    except (OSError, UnicodeError):
-        return (Finding(EDITOR_READBACK, str(path.relative_to(source.path)), "editor readback is unreadable"),), 0, 0
-    built = source.html.read_text(encoding="utf-8") if source.html is not None else None
+    retained = source.editor_readback
+    built = source.built_html
     if (source.rendered_readings and source.rendered_readings[-1].measure == "PAGES") or any(
         item.composer_outcome == "attachment" and item.artifact == source.draft.stem
         for item in source.readings

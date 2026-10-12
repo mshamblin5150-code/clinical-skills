@@ -536,7 +536,7 @@ false block denominator, an incomplete final reading, or a non-clean final verdi
 exit 1.
 
 Show the captures to the clinician and follow `canvas-editor.md`'s loaded-box message, naming
-the formatted Composer view and readback verdict with the tab and unsubmitted state.
+the formatted Composer view and readback verdict with the tab and the loaded and unsubmitted state.
 A non-clean reading stops here and returns to the clinician; the agent does not
 adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
 authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread
