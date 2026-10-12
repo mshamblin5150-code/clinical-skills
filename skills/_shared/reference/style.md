@@ -135,7 +135,7 @@ Ruled 2026-08-19. Italicize the organism names and leave the sentence in body fa
 
 ### The signature is one line
 
-`Signed by: <name>, RN, CEN, TCRN` and the date sit on **one** line, separated as a sentence is. The
+`Signed by: <name>, <signature credentials>` and the date sit on **one** line, separated as a sentence is. Read the credentials from the account profile under §8. The
 first submission put the date on its own line beneath, which renders as a stray orphan paragraph.
 
 ### These rules are graded by a command, and that is why they are written this precisely
@@ -272,7 +272,7 @@ The pad stays on one page with the start of its prose; Word 16 calibration
 | `<drug> <dose> <route> <frequency> [x duration]` |
 | `Disp: <quantity, "QS", or "N week supply">` |
 | `Sig: <spoken-out instruction> for <indication>` |
-| `<name> FNP-C, CEN, TCRN` |
+| `<name> <prescribing credentials>` |
 | `Refill: <none, or 0-3>` | `DEA number on file with pharmacy` |
 
 **The table is three columns and most of its rows are merged, which is what makes it look like a
@@ -344,9 +344,21 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   than a number recalled. **A route change is a different drug unless the drug has that route**, and
   saying so in the order is cheaper than a reader assuming it does.
 
-**The credential in this block is `FNP-C, CEN, TCRN`** — the prescribing role the case study puts
-him in. The `Signed by:` line at the foot of the document takes `RN, CEN, TCRN`, which is what
-every real clinical note takes. Two strings in one document is correct.
+**Credentials are account values.** Before drafting, read the name,
+`SIGNATURE-CREDENTIALS: <signature credentials>`, and
+`PRESCRIBING-CREDENTIALS: <prescribing credentials>` from `scratch/medatrax-profile.md`.
+If the name or either credential value is silent, stop once, ask for the missing values,
+and write the answers into the profile before continuing; reuse them on subsequent runs.
+An ambiguous setting needs resolving with the clinician. `python tools/clinical_credentials.py`
+reads the saved pair and refuses silence or ambiguity; its `--signature "<answer>" --prescribing "<answer>"`
+form records both values without changing the other profile fields.
+The `Rx:` block takes the prescribing-role credentials; `Signed by:` and real clinical
+documentation take the clinician's signature credentials. Two strings in one document is correct:
+the assigned prescribing role and the clinician signing as themselves may differ.
+
+The prescription-pad-pagination row in `word-renderer-calibration.json` retains the
+credential text measured by Word on 2026-09-13. Its matching `tools/docx_word_probe.py`
+input remains historical synthetic calibration content, not an account setting.
 
 ### The prose block under each table — ruled 2026-08-18
 

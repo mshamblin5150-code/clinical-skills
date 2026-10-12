@@ -64,7 +64,7 @@ RX_TABLE = """\
 | Ceftriaxone 500 mg IM once |
 | Disp: 1 vial |
 | Sig: Inject 500 mg into the muscle one time for pelvic inflammatory disease |
-| M. S. FNP-C, CEN, TCRN |
+| Example Clinician NP, Example Credential |
 | Refill: none | DEA number on file with pharmacy |
 """
 

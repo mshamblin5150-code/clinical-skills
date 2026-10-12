@@ -1387,6 +1387,18 @@ Covered by `tools/test_post_text.py`.
 
 Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skill.py`.
 
+### Clinical credential settings
+
+`python tools/clinical_credentials.py` reads the owning account profile's
+`SIGNATURE-CREDENTIALS` and `PRESCRIBING-CREDENTIALS` pair.
+After the clinician answers, `--signature "<answer>" --prescribing "<answer>"` saves both
+values while preserving unrelated profile settings. Exit 0 means both saved choices were read;
+exit 2 means an unread profile, missing or ambiguous choice, or invalid answer pair.
+The skill owns asking once and saving missing answers before drafting; the command supplies
+no credential defaults. Signature credentials describe the clinician as themselves;
+prescribing credentials describe the role assigned by a case study's prescription block.
+Tests in `tools/test_clinical_credentials.py` exercise silence, persistence, and refusal.
+
 ### Course assignment artifact grading
 
 `title_page_credentials.py` reads or records the account's `TITLE-PAGE-CREDENTIALS` choice in the

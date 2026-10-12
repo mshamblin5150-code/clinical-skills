@@ -1236,7 +1236,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
         self.assertIn("An RN cannot prescribe", credentials)
         self.assertIn("the case study puts the clinician in the prescribing role", credentials)
-        self.assertIn("The signature is him as himself", credentials)
+        self.assertIn("The signature is the clinician as themselves", credentials)
 
     def test_the_proposed_record_carries_departures_and_the_go_ahead_ruling(self):
         tiers = self.skill.split("## Tiers", 1)[1].split("## Credentials", 1)[0]

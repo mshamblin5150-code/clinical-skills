@@ -1,5 +1,6 @@
 {
   "command": "tools/docx_word_probe.py --word",
+  "historical_credential_note": "The prescription-pad-pagination text is the synthetic Word input measured on 2026-09-13. Its credential string is retained as dated calibration evidence, not an account default (#1682).",
   "pad_rows": {
     "prescription-pad-pagination": {
       "measured_on": "2026-09-13",
