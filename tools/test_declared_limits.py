@@ -86,6 +86,7 @@ NO_LIMITS = {
     "project_context_test_support": "test support for synthetic project-context approval fixtures, not a public checker",
     "prose_bind": "the shared binding instrument; its exact name vocabulary is separately classified",
     "reference_class_census": "a source-class census whose counted inputs are stated by its report",
+    "reference_alphabets": "filing-key and account-language helpers whose repertoire is fixed by the committed alphabet table, not an independent completeness grader",
     "render_pass": "shared retained-pass data structures rather than an independent grader",
     "repo_root": "checkout-root resolution helpers with no population assertion",
     "scratch_work": "ticket-directory path and lifecycle helpers with no population assertion",

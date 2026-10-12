@@ -390,12 +390,13 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
             run.write_heading_read()
             document = run.root / "post.docx"
             html = run.root / "post.html"
+            signed_date = re.search(r"(?m)^SIGNED: (\S+)", (run.root / "bar.md").read_text(encoding="utf-8")).group(1)
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 post_status = discussion_post_scan.main(
                     [str(run.root), "--draft", str(run.draft)]
                 )
                 reference_status = reference_scan.main(
-                    [str(run.draft), "--as-of", "2026-08-22"]
+                    [str(run.draft), "--as-of", signed_date, "--paper-language", "en"]
                 )
                 html_status = post_html.main([str(run.draft), str(html)])
                 render_status = docx_write.main([str(run.draft), str(document)])
