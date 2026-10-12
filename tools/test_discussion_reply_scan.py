@@ -147,6 +147,19 @@ class Run:
 
 
 class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
+    def test_a_shared_initial_post_record_is_reported_without_blocking_the_reply(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            path = run.root / "heading-read.md"
+            own = path.read_text(encoding="utf-8")
+            path.write_text(own + own.replace("response-maren.md", "nur0000-m2.md"), encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+        self.assertEqual(0, status)
+        self.assertIn("heading-read records for other files: 1", stdout.getvalue())
+        self.assertIn("item-description comparisons: not graded - unread 1 heading-read records", stdout.getvalue())
+
     def test_a_missing_heading_read_fails_the_existing_pre_post_scan(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
