@@ -355,6 +355,10 @@ _Avoid_: claim, entry, source record
 A working copy of a [[Claim ledger]] kept beside it in its run directory — taken before a refutation pass, or staged mid-run — and read by nothing that grades or certifies. It is preserved run material, never corrected into agreement with the ledger, and a figure counted over it is a figure about the snapshot, not about the run.
 _Avoid_: working ledger, staged ledger, backup ledger, draft ledger
 
+**Refuter return**:
+A refuter's returned block for one [[Claim record]], saved word for word and kept beside the [[Claim ledger]] it was applied to. The refutation fields in the ledger must agree with one; agreement shows the ledger matches what was saved, never that a separate refuter wrote it.
+_Avoid_: refuter output, verdict block, result file, refutation result
+
 **Claim heading**:
 The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. Before research it states the question the research must answer; once the record returns it is rewritten as the claim in the source's own words, and only that form is refuted, cited or drafted from. A heading changed after its refutation is a new claim.
 _Avoid_: claim question, claim title, prompt
