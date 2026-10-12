@@ -262,6 +262,27 @@ class Run:
 
 
 class TheHeadingReadPrecedesThePostingGoAhead(unittest.TestCase):
+    def test_nameless_heading_reads_stop_a_clean_initial_post_grade(self):
+        for heading in ("## HEADING-READ:", "## HEADING-READ: response-typo", "## HEADING-READ"):
+            with self.subTest(heading=heading), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                path = run.root / "heading-read.md"
+                path.write_text(path.read_text(encoding="utf-8") + heading + "\n", encoding="utf-8")
+                status, report, _ = run.grade(bind_heading_read=False)
+                self.assertEqual(2, status)
+                self.assertIn("unread remainder 1", report)
+
+    def test_a_shared_reply_record_is_reported_without_blocking_the_initial_post(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            path = run.root / "heading-read.md"
+            own = path.read_text(encoding="utf-8")
+            path.write_text(own + own.replace(run.draft.name, "response-maren.md"), encoding="utf-8")
+            status, report, _ = run.grade(bind_heading_read=False)
+        self.assertEqual(0, status)
+        self.assertIn("heading-read records for other files: 1", report)
+        self.assertIn("item-description comparisons: not graded - unread 1 heading-read records", report)
+
     def test_a_missing_heading_read_fails_the_existing_pre_post_scan(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

@@ -934,6 +934,14 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with directory:
             self.assertEqual(run([str(path)])[0], 0)
 
+    def test_other_file_heading_reads_have_one_coverage_line(self):
+        other = a_clean_record("the heading read").replace("draft.md", "other.md")
+        directory, path = in_a_file(whole_file(CLEAN_RECORD, DEFECT_RECORD) + other)
+        with directory:
+            status, report, _ = run([str(path)])
+        self.assertEqual(0, status)
+        self.assertEqual(1, report.splitlines().count("heading-read records for other files: 1"))
+
     def test_a_file_missing_the_change_leftovers_heading_exits_one(self):
         name = "the leftovers of every change after the first draft"
         text = "\n".join(
