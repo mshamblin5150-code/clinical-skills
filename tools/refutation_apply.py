@@ -176,6 +176,7 @@ def apply(ledger: Path, returns: list[Path], show: bool = False) -> int:
             unread += 1
         for block_number, block in enumerate(blocks, 1):
             counts["read"] += 1
+            unread += block.unread
             matches = [(index, record) for index, part in enumerate(parts)
                        for record in research_ledger.read_records(part) if record.claim == block.record.claim]
             outcome, reason = "refused", "kept return has different bytes"
@@ -183,7 +184,6 @@ def apply(ledger: Path, returns: list[Path], show: bool = False) -> int:
                 pass
             elif block.unread:
                 reason = "unrecognized lines"
-                unread += block.unread
             elif not matches:
                 outcome, reason = "unmatched", "heading names no record"
                 failed = True
