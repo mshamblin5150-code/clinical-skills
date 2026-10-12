@@ -24,7 +24,7 @@ measurement moved.
 
 Bluefield **NUR 5144 M2 Discussion**, `/courses/9232/discussion_topics/123776`, 2026-09-12 —
 deliberately the same board the ambiguous 2026-09-08 calibration entry names. Nothing was typed,
-both composers were cancelled, the tab was closed. No board write and no publication, on ADR 0147
+both composers were canceled, the tab was closed. No board write and no publication, on ADR 0147
 ruling 8's terms.
 
 Two composers sit on one page and Canvas labels both of them *Reply*:

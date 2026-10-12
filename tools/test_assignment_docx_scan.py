@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import mechanics_test_support
+
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
+
 import unittest
 import tempfile
 import zipfile

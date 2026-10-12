@@ -32,6 +32,11 @@ prose explaining it. Both were mutation-tested before they were believed.
 
 from __future__ import annotations
 
+import mechanics_test_support
+
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
+
 import ast
 import io
 import re

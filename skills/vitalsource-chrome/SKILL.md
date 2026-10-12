@@ -39,9 +39,12 @@ live bundle, and record both statuses. Treat the result as an ordered comparison
    route below so that fix lands first.
 3. When both patchers refuse, follow the repair route below.
 
-Restart Codex after either patcher reports `patched`. A running browser service cannot load changed
-code in place. A personal installation and a prior successful session are insufficient evidence
-that the current bundle works.
+After either patcher reports `patched`, refresh this chat's browser-tool session and verify a
+new book tab under step 2. If that refresh cannot render the book, restart Codex and verify
+again. The [2026-10-12 recovery](../../reference/coursework-mechanics-read-20261012.md#browser-recovery-observation)
+rendered the Manual while Codex stayed open; it establishes that session's result, not a general
+hot-reload guarantee. A personal installation and a prior successful session are insufficient
+evidence that the current bundle works.
 
 A refused repository patcher starts this route in order:
 

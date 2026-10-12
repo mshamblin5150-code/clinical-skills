@@ -91,6 +91,8 @@ existed -- are both in ``NOT_REACHED``.**
 
 from __future__ import annotations
 
+import coursework_mechanics
+
 import re
 import sys
 from dataclasses import dataclass
@@ -1323,7 +1325,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         if scan.no_section
         else ()
     )
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scan,
         source=source.name,
         findings_failed=bool(scan.findings),
@@ -1333,11 +1335,16 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         or scan.skeleton_unread,
         diagnostics=diagnostics,
     )
+    return coursework_mechanics.apply_grade(
+        grade, Path(source.name).parent, ((Path(source.name).name, source.markdown),), _parsed,
+    )
 
 
 GRADER = run_grader.Grader(
     usage="usage: python tools/case_study_scan.py <a draft .md> [--show]",
-    options=(run_grader.Option("--show"),),
+    options=(run_grader.Option("--show"),
+             run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+             run_grader.Option("--profile", takes_value=True, repeatable=False)),
     load=_load,
     grade=_grade,
     format_report=format_report,

@@ -46,6 +46,7 @@ import imagery_proposals
 import project_context
 import lms_attachments
 import coursework_style
+import coursework_mechanics
 from run_grader import NOT_GRADED
 
 
@@ -652,7 +653,12 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     )
     grade = project_context.apply_completion_gate(grade, source.root, submission)
     grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered))
-    return lms_attachments.apply_completion_gate(grade, source.root, submission)
+    grade = lms_attachments.apply_completion_gate(grade, source.root, submission)
+    return coursework_mechanics.apply_grade(
+        grade, source.root,
+        ((source.docx.name, coursework_mechanics.word_surface(source.document)),),
+        parsed, language=source.paper_language,
+    )
 
 
 GRADER = run_grader.Grader(

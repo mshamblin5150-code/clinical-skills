@@ -3,6 +3,12 @@
 phi-scan: synthetic
 """
 
+
+
+import mechanics_test_support
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
+
 import io
 import re
 import tempfile

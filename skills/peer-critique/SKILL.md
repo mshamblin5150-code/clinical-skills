@@ -285,6 +285,10 @@ After the drafting context returns the critique, this **Grader handoff** under
 python tools/peer_critique_scan.py scratch/runs/<run-key>
 ```
 
+Before accepting the body grade, resolve its blocking mechanics rows and record every uncertain
+prefix or digit under [Mechanics of scholarly prose](../_shared/reference/apa7.md#34-mechanics-of-scholarly-prose).
+That shared step specifies the run's `coursework-mechanics.json`, digest, and allowed handling.
+
 The default report is counts only; `--show` prints classmate names and finding detail, so its output
 is private working material and must not be pasted. Exit 0 means every mechanical row passes, 1 means
 a finding, and 2 means the run was not completely scannable.

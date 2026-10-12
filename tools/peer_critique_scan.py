@@ -64,6 +64,7 @@ import approval_record
 import heading_read
 import research_ledger
 import coursework_style
+import coursework_mechanics
 
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
@@ -764,8 +765,12 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, parsed.value("--submission"))
     grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER)
-    return approval_record.apply_completion_gate(
+    grade = approval_record.apply_completion_gate(
         grade, source.path, "peer-critique", parsed.value("--submission")
+    )
+    return coursework_mechanics.apply_grade(
+        grade, source.path, (("critique.md", source.critique),), parsed,
+        coverage_limb=UNREAD_REMAINDER,
     )
 
 
@@ -775,6 +780,8 @@ GRADER = run_grader.Grader(
     grade=grade,
     format_report=format_report,
     options=(
+        run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+        run_grader.Option("--profile", takes_value=True, repeatable=False),
         run_grader.Option("--show", repeatable=False),
         run_grader.Option(
             "--submission",

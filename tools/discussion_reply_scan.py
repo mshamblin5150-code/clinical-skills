@@ -70,6 +70,7 @@ import project_context
 import lms_attachments
 import approval_record
 import coursework_style
+import coursework_mechanics
 import heading_read
 import research_ledger
 
@@ -1083,11 +1084,14 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, submission if submissions else None)
     grade = reader_remarks.apply_readers(grade, tuple(r for r in research_ledger.read_records(source.claims) if any(f"[REPLY: {reply.path.stem.removeprefix('response-')}]" in r.claim for reply in source.replies)), heading_read.read_records(source.heading_read_text), tuple(reply.path.name for reply in source.replies))
-    return approval_record.apply_completion_gate(
+    grade = approval_record.apply_completion_gate(
         grade,
         source.path,
         "discussion-reply",
         submission if submissions else None,
+    )
+    return coursework_mechanics.apply_grade(
+        grade, source.path, tuple((reply.path.name, reply.text) for reply in source.replies), _parsed,
     )
 
 
@@ -1097,6 +1101,8 @@ GRADER = run_grader.Grader(
     grade=grade,
     format_report=format_report,
     options=(
+        run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+        run_grader.Option("--profile", takes_value=True, repeatable=False),
         run_grader.Option("--show", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
