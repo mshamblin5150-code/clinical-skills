@@ -394,6 +394,10 @@ _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 A sentence in a finished coursework draft stating what an item opened for the run's [[Project context record]] says, such as a classmate's plan or a prior submission. It is neither a factual sentence resting on a [[Claim heading]] nor the clinician's own reasoning: its source is the opened item itself, so the [[Heading read]] ties it to that item and compares it claim by claim, never to the ledger.
 _Avoid_: classmate summary, context sentence, paraphrase of the post
 
+**Own figure**:
+A number in a finished coursework draft's sentence of the clinician's own reasoning, or in an [[Item description]], that the [[Heading read]] lists against that sentence, so it needs no [[Claim heading]] to stand in the draft. The reader lists it; the writer never does. It establishes that a separate reader judged the sentence to be the clinician's or the item's, never that the number is right or that any file states it.
+_Avoid_: plan figure, exempt number, untraced exemption, clinician's number
+
 **Voice read**:
 A fresh reader's comparison of a finished coursework draft with the canonical voice model's discriminating pairs, taken on a copy carrying one [[Planted sentence]] the reader is not told of. Every pair is answered with a quoted draft sentence and the half it resembles, or no counterpart. It establishes consistency with the model's samples, never that the draft sounds like its clinician. The plant is caught only when the reader both names it and places it on the generic side of whichever pair it most resembles; a missed plant voids the read, and the read expires when the draft changes.
 _Avoid_: voice check, voice audit, voice grade, sounds-like check
