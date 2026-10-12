@@ -509,6 +509,10 @@ _Avoid_: go-ahead record, sign-off, gate record, approval
 The clinician's word, given after he has looked at a contribution loaded and unsubmitted on its Canvas surface, that authorizes the one click posting it. It is a second reply on the contribution's **Approval record**, after the go-ahead on its content, and the content go-ahead never stands in for it. A contribution the clinician posts himself owes none, because it exists for the run's own click.
 _Avoid_: Gate 2, submit gate, in-box approval, second approval, click approval
 
+**Change list**:
+The account shown to the clinician with a revised draft of every sentence added, removed or reworded since the version he last saw. It is computed by comparing the two versions, never recalled by whoever made the changes, so it covers a change he asked for and a repair he did not. A draft's first showing has none. Distinct from a **Reader remark**, which accounts for one problem and the fix made for it.
+_Avoid_: diff, changelog, revision summary, redline
+
 **Evidence dump**:
 One filing of complete tertiary-source topic bodies into the **Evidence store**: the clinician's own **Case research**, or a topic a run pulled through his account. It is never faculty-supplied, and its own contents cannot show who compiled it. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
 _Avoid_: sources, corpus, articles
