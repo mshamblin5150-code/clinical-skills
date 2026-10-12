@@ -503,6 +503,10 @@ _Avoid_: sources, corpus, articles
 The account-owned accumulation of every **Evidence dump**, gitignored under the scratch root and searched rather than read whole. It is what a run researches *from*; it is not what entitles a run to cite, because a **Topic sheet** carries its own retrieval record and is citable by anyone holding the repository.
 _Avoid_: evidence folder, shared reference, cache, library
 
+**Outbound search**:
+A search of the clinician's live UpToDate account made for a real encounter, so its words leave the machine. It carries clinical terms, at most one population word and at most one sex word, and nothing else the encounter supplied, and it is checked before it is typed, because once typed it has reached a third party. Distinct from a search of the **Evidence store**, which stays local, and from a coursework search, whose case carries no patient.
+_Avoid_: live lookup, patient search, UpToDate query
+
 **Topic sheet**:
 The committed distillation of one supplied topic: the source's own summary section restated in this repository's prose, verbatim only where a number, dose, criterion or cut point is the honesty mechanism, beside every bibliographic fact a citation needs. Keyed to the clinical topic and never to the dump that supplied it, so a topic supplied twice is one sheet read twice.
 _Avoid_: summary, digest, extract, article, evidence sheet
