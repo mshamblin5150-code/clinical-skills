@@ -1,6 +1,6 @@
 # A render reader counts blind and the case-study graders rerun as handoffs before every reader round
 
-**Measured at:** ac4bfe0f2866eb172b84c7bb591259387df193c6
+**Measured at:** a4762685952bb152ffc27f14c62c44cc179027ed
 
 [#1577](https://github.com/mshamblin5150-code/clinical-skills/issues/1577) was filed from the
 after-action review of a `practicum-case-study` run (NUR 5144 Module 4). It proposed nine changes to
@@ -42,6 +42,17 @@ owes the memory index only on a run whose declaration is not `none`. `tools/proj
 refuses a `PROJECT-SEARCH`, `PROJECT-WAIVE` or `## PLACE:` entry on a `none` run that declares no
 classmate or `COURSE-HISTORY` retrieval, and the paragraph above the sentence already owns the
 declared-retrieval branch.
+
+**A comment from the #1576 sweep reached this ticket during the grilling.** It assigned two
+reader briefs to this build and raised a timing gap. [ADR 0362](0362-a-case-study-s-routing-walk-is-a-written-record-and-a-red-flag-exception-goes-to-the-clinician.md)
+Ruling 2 leaves whether each Receiving item is clinically right to the decisions reader, and the
+#1576 build spec says the step 9 briefs that read the routing walk belong here. ADR 0362 Ruling 9,
+as corrected in [#1792](https://github.com/mshamblin5150-code/clinical-skills/pull/1792), gives the
+leftovers reader `proposed-<date>.md` as an input and says that brief belongs here. The four
+pre-review walk records from ADR 0361 and ADR 0362 must exist before the first reader round, but
+only `tools/checks_ledger.py` grades them, and it runs before the go-ahead. It has no mode that
+grades the walk records alone; run before readers, every prewritten heading without a verdict is
+also a finding.
 
 ## Ruling 1 — sections 1, 2, 3 and 6 are adopted as written
 
@@ -108,3 +119,22 @@ and replace no row. The ticket's *private preflight* was declined. Rule 6 forbid
 checking its own draft except through a handoff whose raw result is preserved, and a preflight that
 leaves no output cannot be told apart from one that was skipped. The run of `checks_ledger.py`
 before the go-ahead is dropped from this change because ADR 0330 ruling 4 already requires it.
+
+## Ruling 7 — the two inherited reader briefs are written by this build
+
+The clinical-decisions row's brief takes the routing walk and judges whether each Receiving item is
+clinically right, as ADR 0362 Ruling 2 assigns, and the same edit carries Ruling 3's stakes
+standard so the row is written once. The `the leftovers of every change after the first draft`
+row's inputs gain `proposed-<date>.md`, as ADR 0362 Ruling 9 as corrected assigns; an entry left
+stale by a change is one of that round's leftovers. Neither brief was a new decision here; both
+were ruled in the #1576 grilling and are recorded so this build owns them.
+
+## Ruling 8 — the walk records are graded before every reader round by a walks-only mode
+
+`tools/checks_ledger.py` gains a mode that grades only the pre-review walk records, and that mode
+joins Ruling 6's Grader handoffs before every step 9 reader round. A missing or malformed walk is
+repaired before readers see the draft. Running the full command and reading only its walk finding
+was declined, because the one real finding sits among the expected missing-verdict findings and an
+agent filtering by hand is how it gets missed. Leaving the check at the go-ahead was declined: the
+walks exist so readers read a walked draft, and a late finding reruns every round after the repair.
+The full command before the go-ahead is unchanged.
