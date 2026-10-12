@@ -566,8 +566,8 @@ render command's `SOURCE`, `UNSEEN: none`, an ISO `READ` date, and a substantiat
 `VERDICT: clean - ...`. The final pass retains `post-draft.sha256`; a changed Markdown or a
 missing visual reading refuses the attachment path. Then load the shared sheet's fixed pointer,
 attach the `.docx`, read back the pointer body and the displayed filename and size, and ask the
-clinician for a **fresh explicit submit authorization**. After posting, download the attachment
-from that entry's own link into `<run-directory>/posted/`. For any other click outcome, read the
+clinician for a **fresh explicit submit authorization**. After posting, identify and read the
+attachment under [Posted files](../_shared/reference/lms-attachments.md#posted-files). For any other click outcome, read the
 board for an entry, report what was found, and stop at the clinician.
 
 The graders read the Markdown, HTML, Word archive, and ledger; the reread owns any change between
@@ -593,7 +593,7 @@ SUBMISSION-SHA256: <SHA-256 of the output Markdown>
 COMPOSER-OUTCOME: <inline or attachment>
 HTML-BYTES: <byte count of the built HTML>
 REFUSAL: <ISO date> - <observed wording, attachment only>
-ATTACHMENT: posted/<filename, attachment only>
+POSTED-FILE: <shared Posted files line, attachment only>
 VERDICT: matches - <what the reading found>
 ```
 
@@ -607,7 +607,7 @@ must be 0.
 Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares that reply records
 belong to the sibling grader.
 
-Compute `SUBMISSION-SHA256` before `/AAR` extracts the record with
+Write the attachment's `POSTED-FILE:` line and compute `SUBMISSION-SHA256` before `/AAR` extracts the record with
 `python tools/file_digest.py "<output Markdown>"`;
 adding or changing the line after extraction makes the after-action review stale because `aar_scan`
 fingerprints the whole block. Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun

@@ -1689,7 +1689,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
                 "COMPOSER-OUTCOME: inline\n",
                 "COMPOSER-OUTCOME: attachment\n"
                 "REFUSAL: 2026-09-17 - message size exceeds maximum length\n"
-                "ATTACHMENT: posted/post.docx\n",
+                f"POSTED-FILE: post.docx | sha256={file_digest.sha256(document)} | route=clinician-supplied | path=posted/post.docx\n",
             ),
             encoding="utf-8",
         )
@@ -1732,6 +1732,39 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertIn("posted-attachment: 0", out)
         self.assertIn("rendered-pages: 0", out)
         self.assertIn("bold-headings: not graded", out)
+
+    def test_page_fingerprint_matches_without_a_posted_copy(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(reread.read_text(encoding="utf-8").replace(
+                f"POSTED-FILE: post.docx | sha256={file_digest.sha256(document)} | route=clinician-supplied | path=posted/post.docx",
+                f"POSTED-FILE: post.docx | sha256={file_digest.sha256(document)} | route=page",
+            ), encoding="utf-8")
+            (run.root / "posted" / document.name).unlink()
+            status, report, error = run.grade("--html", str(html), "--docx", str(document))
+        self.assertEqual((0, ""), (status, error), report)
+        self.assertIn("posted-attachment: 0", report)
+
+    def test_page_fingerprint_defects_are_public_command_findings(self):
+        for mutation in ("mismatch", "missing", "malformed", "duplicate", "extra", "wrong-path"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                run, html, document = self.attachment_run(Path(temp))
+                reread = run.root / "reread.md"
+                original = f"POSTED-FILE: post.docx | sha256={file_digest.sha256(document)} | route=clinician-supplied | path=posted/post.docx"
+                page = f"POSTED-FILE: post.docx | sha256={file_digest.sha256(document)} | route=page"
+                replacements = {
+                    "mismatch": page.replace(file_digest.sha256(document), "a" * 64),
+                    "missing": "",
+                    "malformed": page.replace("route=page", "route=unknown"),
+                    "duplicate": page + "\n" + page,
+                    "extra": page + "\n" + page.replace("post.docx", "extra.docx"),
+                    "wrong-path": original.replace("path=posted/post.docx", "path=posted/other.docx"),
+                }
+                reread.write_text(reread.read_text(encoding="utf-8").replace(original, replacements[mutation]), encoding="utf-8")
+                status, report, error = run.grade("--html", str(html), "--docx", str(document))
+                self.assertEqual(1, status, error)
+                self.assertTrue("posted-attachment:" in report or "missing-posted-reading:" in report, report)
 
     def test_attachment_ignores_the_refused_canvas_pass(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -2874,7 +2907,7 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
         self.assertIn("## RENDERED: post.md", text)
         self.assertIn("BLOCKS:", text)
         self.assertIn("PAGES:", text)
-        self.assertIn("posted/", text)
+        self.assertIn("lms-attachments.md#posted-files", text)
         self.assertIn("canvas-box", text)
         self.assertIn("Re-renders append", text)
 
@@ -2887,6 +2920,10 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "page-fingerprint-origin": (
+            "APostedInitialEntryHasItsOwnReading.test_page_fingerprint_matches_without_a_posted_copy",
+            "APostedInitialEntryHasItsOwnReading.test_page_fingerprint_defects_are_public_command_findings",
+        ),
         "first-name citations combining a given name with initials": (
             "CitationResolutionResidues.test_combined_given_name_and_initials_remain_unlisted",
             "CitationResolutionResidues.test_single_given_name_resolves",

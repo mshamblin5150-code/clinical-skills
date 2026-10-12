@@ -218,10 +218,11 @@ A changed file returns to rendering and Gate 1. Persist the separate decision wi
 the click. If the clinician reports that he uploaded the approved DOCX himself, record the route
 instead with
 `assignment_submission.record_clinician_upload(run, docx, uploaded_carriers=(...))`; this refuses
-without the same recorded approval and does not authorize an agent click. In either route, download
-and read the posted artifact before continuing. After submission,
-read the posted artifact and append the main skill's `## REREAD:` record using the DOCX stem,
-including `ATTACHMENT-COUNT:` and one `SUBMITTED-FILE:` for every submitted filename.
+without the same recorded approval and does not authorize an agent click. In either route, apply
+[Posted files](../../_shared/reference/lms-attachments.md#posted-files) to identify and read every
+posted carrier. Append the main skill's `## REREAD:` record using the DOCX stem, including
+`ATTACHMENT-COUNT:` and one `SUBMITTED-FILE:` and `POSTED-FILE:` for every submitted filename,
+before `/AAR` extracts the block.
 
 Invoke `/AAR` with that stem. Its completion report must say `the after-action review: clean`.
 Then run the artifact-aware completion grader:

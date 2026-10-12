@@ -13,6 +13,7 @@ import ast
 import re
 import tempfile
 import unittest
+import assignment_submission
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
@@ -38,7 +39,6 @@ NO_LIMITS = {
     "assignment_bar": "a narrow envelope parser whose artifact adapters own branch completeness",
     "assignment_docx": "a deterministic producer whose supplied specification defines its output",
     "assignment_docx_render": "the renderer produces retained evidence and does not grade its coverage",
-    "assignment_submission": "an exact authorization adapter whose approved carrier set defines its population",
     "artifact_lock_test_support": "test support for artifact-lock fixtures, not a public checker",
     "assertion_record": "shared assertion-record data structures with no independent coverage claim",
     "case_study_render": "the renderer produces retained evidence and does not grade its coverage",
@@ -879,6 +879,13 @@ class EveryLimitsDeclarationIsClassified(unittest.TestCase):
 
     def test_the_walks_own_limits_are_bound_to_the_module_docstring(self):
         self.assertEqual((), bind(DECLARED_LIMITS, __doc__, mode=NAMING))
+
+    def test_assignment_posted_fingerprint_limits_are_bound_without_copying(self):
+        self.assertEqual((), bind(
+            assignment_submission.DECLARED_LIMITS,
+            assignment_submission.__doc__,
+            mode=NAMING,
+        ))
 
     def test_the_candidacy_derivation_reads_every_declared_name(self):
         population = declarers()

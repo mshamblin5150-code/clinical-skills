@@ -149,12 +149,10 @@ Attach the finished `.docx`. Run the same page script on the formatted pointer a
 Read back the pointer's body text and the Composer's displayed
 attachment filename and size. Show those readings and the visually checked document to the
 clinician at the loaded-box stop and record a fresh **Posting go-ahead** before submitting this attached entry. The
-authorization for the earlier full-body click does not cover it. After posting, use the posted
-entry's **own attachment link** to download the file into `<run-directory>/posted/<filename>`.
-Keep that copy for the terminal grader's SHA-256 comparison with the local `.docx`; a copy from
-the general files area does not establish what this entry carries. Write
+authorization for the earlier full-body click does not cover it. After posting, apply
+[Posted files](lms-attachments.md#posted-files) to identify and read the attachment. Write
 `COMPOSER-OUTCOME: attachment`, `HTML-BYTES:`, `REFUSAL: <ISO date> - <observed wording>`, and
-`ATTACHMENT: posted/<filename>` in the posted reading before `/AAR` extracts it. An accepted
+the shared section's `POSTED-FILE:` line in the posted reading before `/AAR` extracts it. An accepted
 full-body entry instead records `COMPOSER-OUTCOME: inline` and `HTML-BYTES:`.
 
 The dated observations behind the surface discriminator, route, and known limits are in
