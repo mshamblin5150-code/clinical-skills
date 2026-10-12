@@ -1,13 +1,13 @@
 # A review footer never dates a reference and a page year that names one is refused
 
-**Measured at:** 59c440e7a6c2f5c81b33dcd14ce4f6e392693226
+**Measured at:** 9c287d321ef89f7b0d9a8cad67f6361c53fad774
 
 [#1566](https://github.com/mshamblin5150-code/clinical-skills/issues/1566) was filed from the
 after-action review of a `course-assignment` run (NUR 5042 Module 11) on 2026-10-04. A research
 agent took a government web page's reference year from its "last reviewed" footer, a first refuter
 affirmed it, and a later read caught it. `research_ledger.py` records where the page year came from in
 `PAGE-YEAR` but graded nothing about a year sourced from a review stamp. The ticket left the
-recognized vocabulary open. Grilled 2026-10-12 against `main`, where the freshness gate read `FRESH`;
+recognized vocabulary open. Grilled 2026-10-12 against `main` at `59c440e7`, where the freshness gate read `FRESH`;
 the clinician ruled every point below in that session. **Nothing is built here; this is the record
 the build reads.**
 
@@ -55,7 +55,9 @@ the wording, not whether each footer was the year's true source.
 year, so a field that states a year and names one is either the defect or noise. The new finding is
 raised whatever `REFERENCE` says, and on that record it replaces `page-year-disagrees`, whose remedy
 points the wrong way here. Its remedy: date the entry by the content's own publication or revision
-date, or record that the page states no year and write `n.d.` with a retrieval date.
+date, or record that the page states no year and write `n.d.`, with a retrieval date where `apa7.md`
+§4 calls for one. An `n.d.` entry also needs the reasoned `RECENCY` excuse that `sourcing.md`'s
+undated-source section requires, or `undated-reference` refuses it, so the remedy names both.
 
 **At its edge the row reads a field that states a year.** A field recording that the page states no
 year may say why, including that the only date is a review footer; that is the honest form the
@@ -118,7 +120,10 @@ declined because the registry would keep certifying a reading its grounded secti
   passes.
 - `reference/completion-check-starts.tsv`: a row for the new check at the build's landing time,
   compared with approval.
-- `skills/_shared/reference/sourcing.md` and `apa7.md` §39 per ruling 5; re-confirm every coverage row
+- The finding's remedy names both halves of ruling 1's `n.d.` route: the no-year `PAGE-YEAR` and
+  the reasoned `RECENCY` excuse.
+- `skills/_shared/reference/sourcing.md` and `apa7.md` §39 per ruling 5, the `sourcing.md` case
+  pointing to its existing undated-source section rather than restating it; re-confirm every coverage row
   grounding §39 and refresh its digest, with a binding note naming #1566's diff.
 - `skills/practicum-case-study/SKILL.md` step 3's grader table gains the row, keyed by the existing
   test that requires one sentence per kind.
