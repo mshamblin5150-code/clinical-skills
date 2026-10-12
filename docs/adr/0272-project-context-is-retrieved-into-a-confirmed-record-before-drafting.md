@@ -202,6 +202,12 @@ no pair. A verdict other than `agrees` is a finding, cleared by revising the dra
 clinician's ruling. On a `none` run both fields read `none`. The rows live once in the shared
 heading-read module and reach all five graders through it.
 
+*Superseded 2026-10-12.* **The binding "CONTEXT-DIGEST: <must equal the project context record's digest>" is
+superseded by [ADR 0346](0346-a-posted-item-s-clean-terminal-grade-is-frozen-and-a-later-check-starts-on-a-recorded-date.md)
+ruling 6 and is left as written.** An unposted item's read is broken only when an item it saw is
+edited or removed or a place or item is added, and a posted item's read is not re-bound. The
+`CONTEXT-VERDICT` field, its finding and the reader's obligations stand.
+
 The course-assignment adversarial reader alone was refused because it would leave four bound skills
 with a record and no check of use; a new reader in all five was refused because the heading read
 already exists in all five and is where the exemption that let the failure through lives.
