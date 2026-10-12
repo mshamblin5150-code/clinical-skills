@@ -1298,6 +1298,10 @@ _Avoid_: advisory, aside, side finding, observation, note
 A **Briefing surface** giving a non-authoring context a completed artifact and a committed command. It writes no record and returns a result, which is why it takes neither the prewrite rule nor the one-writer rule, and why its result survives being produced by the author so long as it is reported verbatim rather than summarized.
 _Avoid_: check, independent check, grading pass, review step
 
+**Required instruction**:
+A file a fixture-generating pass reads as part of its prompt, whether or not the run opened anything under `fixtures/`, so naming a concrete fixture in one hands the pass the answer the run withholds. The blind-instruction check deliberately reads a wider population than this, adding files authors edit often though no pass reads them; a file the check reads is not thereby a required instruction, and a required instruction the check does not read is still one.
+_Avoid_: guarded file, checked file, prompt file, instruction file
+
 **Narrowing**:
 What a **Briefing surface** states that the shared rule does not contain — a blinding whitelist, a capability requirement, an ordering gate. It is the only thing a surface writes for itself, because anything else it states about delegation is a copy of a rule that already binds it. Distinct from a **Hatch**, which excuses a finding rather than adding an obligation.
 _Avoid_: exception, override, local rule, carve-out
