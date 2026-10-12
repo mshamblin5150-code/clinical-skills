@@ -591,9 +591,8 @@ def _gh_remove_label(row: Receipt) -> int:
 
 
 def publish_plan(path: str) -> int:
+    """Publish rows; an empty plan is a no-op after the planner's status gate."""
     rows = _read_plan(path)
-    if not rows:
-        raise ValueError("receipt plan is empty")
     return publish_receipts(
         rows,
         read_ticket=_gh_ticket,
