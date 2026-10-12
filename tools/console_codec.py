@@ -60,7 +60,10 @@ UNMOVABLE = (ValueError, OSError, LookupError)
 
 
 def use_utf8(*streams: TextIO) -> None:
-    """Put ``streams`` -- by default stdout and stderr -- on UTF-8 with replacement.
+    """Put ``streams`` -- by default stdin, stdout and stderr -- on UTF-8 with replacement.
+
+    Stdin is covered so UTF-8 hook payloads and piped text are read as sent,
+    rather than silently decoded through the Windows locale codec. #1520.
 
     Silent, and it swallows every way a stream can refuse to be reconfigured: a
     helper whose whole job is keeping a print from taking a run down would be
@@ -76,7 +79,7 @@ def use_utf8(*streams: TextIO) -> None:
     The varargs exist for the tests: production always calls it with none, and the
     alternative was a helper that could only be exercised by monkeypatching ``sys``.
     """
-    for stream in streams or (sys.stdout, sys.stderr):
+    for stream in streams or (sys.stdin, sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue

@@ -41,6 +41,7 @@ def dispatch(payload: bytes) -> bytes:
 
 
 def main() -> int:
+    # Forward the payload bytes unchanged to the full hook.
     sys.stdout.buffer.write(dispatch(sys.stdin.buffer.read()))
     return 0
 

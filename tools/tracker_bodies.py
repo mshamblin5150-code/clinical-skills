@@ -628,10 +628,7 @@ def read_stdin(stream=None) -> list[Record]:
     one; caught by review before it merged, and it is why this is a named
     argument rather than a path the caller has to spell.
     """
-    if stream is None:
-        raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
-    else:
-        raw = stream.read()
+    raw = (sys.stdin if stream is None else stream).read()
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as error:

@@ -88,19 +88,21 @@ class TheHelper(unittest.TestCase):
         self.assertEqual(out.encoding, "utf-8")
         self.assertEqual(err.encoding, "utf-8")
 
-    def test_it_defaults_to_stdout_and_stderr(self):
+    def test_it_defaults_to_stdin_stdout_and_stderr(self):
         """Called with no arguments it is a process-level policy, which is why the
         tools call it from `__main__` and never at import."""
         import sys
 
-        out, err = cp1252_stream(), cp1252_stream()
-        original = sys.stdout, sys.stderr
-        sys.stdout, sys.stderr = out, err
+        incoming, out, err = cp1252_stream(), cp1252_stream(), cp1252_stream()
+        original = sys.stdin, sys.stdout, sys.stderr
+        sys.stdin, sys.stdout, sys.stderr = incoming, out, err
         try:
             use_utf8()
         finally:
-            sys.stdout, sys.stderr = original
-        self.assertEqual((out.encoding, err.encoding), ("utf-8", "utf-8"))
+            sys.stdin, sys.stdout, sys.stderr = original
+        for stream in (incoming, out, err):
+            self.assertEqual(stream.encoding, "utf-8")
+            self.assertEqual(stream.errors, "replace")
 
 
 class ThePythonFloorGuard(unittest.TestCase):
