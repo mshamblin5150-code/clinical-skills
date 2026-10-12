@@ -49,6 +49,10 @@ CLASSMATE_SKILLS = MappingProxyType({
 CLASSMATE_FIELDS = ("CLASSMATE-POST", "CLASSMATE-BOARD", "CLASSMATE-ATTACHMENT")
 DECLARED_LIMITS = (
     ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
+    ("printable-write-damage-unseen", "The write preflight cannot detect damage that leaves only printable characters, such as a lost backslash."),
+    ("later-control-damage-unchecked", "Go-ahead and completion re-reads do not check control characters introduced after the last --write."),
+    ("other-record-damage-unchecked", "The write preflight checks only project-context.md and the account registry, not other hand-written run records."),
+    ("heredoc-route-ungraded", "The write preflight checks file contents, not whether a heredoc was used to write them."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
     ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
     ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
@@ -907,8 +911,47 @@ def order_waived(run: Path, submission: str, draft_path: str) -> bool:
     return False
 
 
+def _damaged_lines(path: Path) -> list[str]:
+    # Unlike tracker-body #723, tabs and bare CR are damage: Windows path
+    # escapes can produce them. Only LF and CR immediately before LF are safe.
+    with path.open(encoding="utf-8", newline="") as source:
+        text = source.read()
+    findings = []
+    lines = text.split("\n")
+    for number, line in enumerate(lines, 1):
+        for offset, character in enumerate(line):
+            if ord(character) >= 32:
+                continue
+            if character == "\r" and offset == len(line) - 1 and number < len(lines):
+                continue
+            findings.append(f"{path}: line {number}: U+{ord(character):04X} ({ascii(character)})")
+    return findings
+
+
+def _write_damage(run: Path) -> GateResult | None:
+    path = run / RECORD_NAME
+    if not path.is_file():
+        return None
+    findings = _damaged_lines(path)
+    if not findings:
+        record = read_record(path.read_text(encoding="utf-8"))
+        project, _ = _declaration(record)
+        if project is not None and project != "none":
+            registry = repo_root.project_registry()
+            if registry.is_file():
+                findings = _damaged_lines(registry)
+    if not findings:
+        return None
+    return GateResult(1, "project context: finding - damaged text\n" + "\n".join(findings) +
+        "\nRewrite using AGENTS.md standing rule 6: the Write tool in a private staging "
+        "folder, then one copy, rename, and read-back; never a shell heredoc. Use spaces for tabs.")
+
+
 def write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
     """Refresh retrieval and retain each sitting's first draft observation."""
+    damage = _write_damage(run)
+    if damage is not None:
+        return damage
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
