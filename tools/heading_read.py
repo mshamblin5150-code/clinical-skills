@@ -386,7 +386,7 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
 
 def _other_files(text: str, artifacts: set[str]) -> int:
     return sum(
-        name not in artifacts and bool(PurePath(name).suffix)
+        name not in artifacts and PurePath(name).suffix not in ("", ".")
         for line in HEADING_CANDIDATE.findall(text)
         if ":" in line
         for name in (line.split(":", 1)[1].strip(),)

@@ -76,7 +76,7 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
         self.assertIn("heading-read records for other files: 1", report)
 
     def test_names_that_do_not_identify_a_file_are_unread(self):
-        for heading in ("## HEADING-READ:", "## HEADING-READ: response-jane", "## HEADING-READ"):
+        for heading in ("## HEADING-READ:", "## HEADING-READ: response-jane", "## HEADING-READ: response.", "## HEADING-READ"):
             with self.subTest(heading=heading):
                 result = scan(record() + heading + "\n")
                 self.assertEqual((1, 1, ()), (result.records_read, result.unread, result.findings))
