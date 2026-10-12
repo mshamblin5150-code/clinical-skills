@@ -2756,6 +2756,15 @@ Covered by `tools/test_guidelines_recs.py`, which builds synthetic tables in tha
 
 ### UpToDate evidence store
 
+`tools/outbound_search.py check <query> --run <directory> --search-id <id>` is the
+real-encounter pretyping boundary; `pull` links each live pull to a passed search. Exit 2
+refuses the action, and exit 0 records it. The owning workflow is
+[clinical-note's UpToDate route](skills/clinical-note/SKILL.md#uptodate-at-the-gaps);
+the command's complete ceiling belongs to `outbound_search.DECLARED_LIMITS`.
+Both note and shift submission graders read those private records. Store ingest's
+`--supersedes <prior-dump-id>` retires only shared topic titles from current searches and
+evidence joins while retaining every source for historical citations.
+
 `tools/uptodate_store.py` owns the account-level `scratch/uptodate/` store. `ingest` copies one
 deliberately named dump, writes its per-dump manifest, and rebuilds the SQLite FTS5 index; `search`
 queries literal topic text; `sweep` counts topic-shaped material outside the store and writes

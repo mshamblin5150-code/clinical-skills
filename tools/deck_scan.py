@@ -50,6 +50,7 @@ from discussion_artifact import (
     claim_record_can_certify_values,
     read_citations,
     read_posted_readings,
+    strip_discussion_markers,
 )
 from discussion_post_scan import traceable_numeric_values
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
@@ -1189,7 +1190,7 @@ def survey(source: Source) -> Scan:
         if len(slide.bullets) > source.bar.bullets_per_slide:
             findings.append(Finding(BULLETS_PER_SLIDE, slide.number, f"{len(slide.bullets)} bullets exceeds {source.bar.bullets_per_slide}"))
         for bullet in slide.bullets:
-            count = len(WORD.findall(bullet))
+            count = len(WORD.findall(strip_discussion_markers(bullet)))
             words_read += count
             if count > source.bar.words_per_bullet:
                 findings.append(Finding(WORDS_PER_BULLET, slide.number, f"{count} words exceeds {source.bar.words_per_bullet}"))

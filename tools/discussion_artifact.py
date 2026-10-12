@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import file_digest
+from imagery_proposals import WORKING_MARKER
 from run_grader import EvidenceDisposition
 
 
@@ -643,9 +644,9 @@ def read_invoked_sources(text: str) -> tuple[InvokedSource, ...]:
 
 
 def strip_discussion_markers(text: str) -> str:
-    """Remove current and retired invisible working annotations."""
+    """Remove current and retired working annotations, including visible markers."""
 
-    return INVOKED.sub("", AMPLIFICATION.sub("", text))
+    return INVOKED.sub("", AMPLIFICATION.sub("", WORKING_MARKER.sub("", text)))
 
 
 def invoked_source_has_substance(source: InvokedSource) -> bool:

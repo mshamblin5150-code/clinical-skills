@@ -29,6 +29,7 @@ from discussion_artifact import (
     claim_record_can_certify_values,
     read_citations,
     reference_keys,
+    strip_discussion_markers,
 )
 from discussion_post_scan import traceable_numeric_values
 import file_digest
@@ -492,7 +493,7 @@ def survey(source: Source) -> Scan:
         if finding.kind == kind
     )
     body = document.body
-    body_words = len(WORD.findall(body))
+    body_words = len(WORD.findall(strip_discussion_markers(body)))
     if body_words < source.bar.word_min:
         findings.append(
             Finding(

@@ -80,6 +80,16 @@ File a `tracker-ticket` or `skill-file` ticket as soon as its body passes the pu
 
 ## 4. Write and grade the record
 
+For a `clinical-note` or `batch-shift` run, also read its `UPTODATE CONFLICTS` go-ahead block.
+For each threshold-sheet conflict UpToDate won, search the tracker for an open ticket naming
+that sheet and row before filing. Reuse the existing ticket when present; otherwise file a
+sheet-row re-read ticket through the publication route above. Its clinical content names only
+the sheet file, row, UpToDate topic title and last-updated date, and what differs. Carry no
+encounter detail, identifiers, or shorthand into the search or ticket. Record the reused or
+new ticket address in this round's private record. A conflict is evidence requiring a sheet
+re-read, not by itself an observed correction to invent for the classifier. This work is owed
+even when the correction population is empty (ADR 0347 ruling 6).
+
 For the first round, write `<run-directory>/aar/<submission-key>.md`. For a later round, write the
 numbered review-record path beside the numbered extract the command produced. Never replace an
 earlier round. Use this shape:

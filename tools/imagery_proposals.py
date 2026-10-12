@@ -62,7 +62,7 @@ _DOMAINS = re.compile(
     r"^## Imagery\s*$.*?^### The domains\s*$\n(?P<body>.*?)(?=^### |^## |\Z)",
     re.MULTILINE | re.DOTALL,
 )
-_WORKING_MARKER = re.compile(
+WORKING_MARKER = re.compile(
     r"\[\[PROPOSED IMAGE (?P<key>[^\]\n]+)\]\]"
 )
 TScan = TypeVar("TScan")
@@ -253,7 +253,7 @@ def completion_gate(
         elif proposal.status == "proposed-and-removed" and image_present:
             findings.append(f"{proposal.key} removed image remains")
     for artifact, text in artifacts.items():
-        for marker in _WORKING_MARKER.finditer(text):
+        for marker in WORKING_MARKER.finditer(text):
             findings.append(
                 f"{marker.group('key').strip()} working marker remains in {artifact}"
             )

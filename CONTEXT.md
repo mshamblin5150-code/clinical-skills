@@ -479,6 +479,16 @@ _Avoid_: final, output, deliverable
 The record of a graded contribution as it stands where it was posted after submission — a course Board, a clinical portal, or a Peer-review comment — carrying that surface's own locator, its timestamp, and a verdict on whether what the surface stores is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. It also carries a fingerprint of the source its verdict describes, so an edit to that source after the reading voids the verdict rather than leaving it standing over a document nobody reread. For a clinical shift, one reading covers every visit entered under the shift's one go-ahead, each visit with its own portal locator and time, because the shift is what was approved. Distinct from a **Submission**, which is the document a course marks: a Reply has no submission. For a Peer critique, ADR 0204 makes the reviewed submission's page the locator because its dated observation exposed no deep link for the comment itself.
 _Avoid_: reread, confirmation, post-check, board diff
 
+**Posted fingerprint**:
+The SHA-256 of a file a posted entry carries, computed from the course site's own bytes of it, which
+a **Posted reading** records to prove the surface holds the approved file. Once it equals the
+approved file's fingerprint, reading the local approved file is reading what was posted, because the
+bytes are the same. It is computed in the page, or from a copy the clinician saved from the entry
+when the page cannot read the file, and never from a file the run downloaded. Distinct from the
+fingerprint a **Faculty file** is matched by, which identifies something supplied to the clinician
+rather than his own **Submission**.
+_Avoid_: posted hash, download digest, attachment copy, posted copy
+
 **Clinician posting**:
 A graded contribution the clinician puts on its surface himself — a course assignment, a Board post, a Peer-review comment or a clinical portal entry — after he has looked at it and approved it. It is one of two routes to the same place — the other is the run posting the approved content — and it reaches completion the same way, through a **Posted reading** that proves what the surface stores is what he approved. What it gives up is timing: a wrong posting is found only after the surface has it, and a surface that cannot take it back keeps it.
 _Avoid_: clinician upload, manual submission, self-upload, out-of-band upload

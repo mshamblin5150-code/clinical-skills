@@ -91,6 +91,7 @@ from corpus_census import Reading, is_normal_bp
 import aar_scan
 import bmi_codes
 import delegated_answers
+import outbound_search
 import medatrax_posting
 from discussion_artifact import PostedReadingOutcome
 import approval_record
@@ -797,6 +798,9 @@ def grade(
     delegated_failed, delegated_report = delegated_answers.completion_gate(
         directory, parsed.value("--submission")
     )
+    outbound_failed, outbound_report = outbound_search.completion_gate(
+        directory, parsed.value("--submission")
+    )
 
     diagnostic_by_kind = {
         "B13": (
@@ -874,10 +878,10 @@ def grade(
     result = run_grader.Grade(
         scan=scan,
         source=directory.name,
-        findings_failed=findings_failed,
+        findings_failed=findings_failed or outbound_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
-        reports=(summary_report, chain_report, aar_report, posting_report, delegated_report),
+        reports=(summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")

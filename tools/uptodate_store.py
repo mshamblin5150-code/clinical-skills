@@ -357,6 +357,7 @@ def store_snapshot(store: Path | None = None) -> StoreSnapshot:
     newest: dict[str, tuple[str, StoredTopic, str]] = {}
     for path, manifest in _manifest_rows(root):
         digests.add(str(manifest["source_sha256"]))
+    for path, manifest in _active_manifests(root):
         received = str(manifest["received_on"])
         currency = str(manifest["literature_review_current_through"])
         for row in manifest.get("topics", []):
@@ -435,6 +436,29 @@ def source_topic(dump_id: str, title: str, store: Path | None = None) -> Topic |
     return None
 
 
+def _active_manifests(store: Path) -> Iterable[tuple[Path, dict[str, object]]]:
+    """Preserve source history while retiring explicitly refreshed topic copies."""
+    manifests = list(_manifest_rows(store))
+    by_id = {str(manifest["dump_id"]): manifest for _path, manifest in manifests}
+    retired: set[tuple[str, str]] = set()
+    for _path, manifest in manifests:
+        prior_ids = manifest.get("supersedes", [])
+        if not isinstance(prior_ids, list) or any(not isinstance(value, str) for value in prior_ids):
+            raise ValueError("supersedes must be a list of dump ids")
+        current = {topic_key(row["title"]) for row in manifest["topics"]}
+        for prior_id in prior_ids:
+            if prior_id == manifest["dump_id"] or prior_id not in by_id:
+                raise ValueError("superseded dump is absent or names itself")
+            overlap = current & {topic_key(row["title"]) for row in by_id[prior_id]["topics"]}
+            if not overlap:
+                raise ValueError("superseded dump shares no topic title")
+            retired.update((prior_id, key) for key in overlap)
+    for path, manifest in manifests:
+        rows = [row for row in manifest["topics"] if (str(manifest["dump_id"]), topic_key(row["title"])) not in retired]
+        if rows:
+            yield path, {**manifest, "topics": rows}
+
+
 def rebuild_index(store: Path) -> Path:
     store.mkdir(parents=True, exist_ok=True)
     target = store / INDEX_NAME
@@ -446,7 +470,7 @@ def rebuild_index(store: Path) -> Path:
         connection.execute(
             "CREATE VIRTUAL TABLE topic_fts USING fts5(dump_id UNINDEXED, title, body)"
         )
-        for manifest_path, manifest in _manifest_rows(store):
+        for manifest_path, manifest in _active_manifests(store):
             source_path = manifest_path.with_name(str(manifest.get("source_file", SOURCE_NAME)))
             if not source_path.is_file() or file_digest.sha256(source_path) != manifest.get("source_sha256"):
                 raise ValueError(f"source does not match manifest: {manifest_path.parent.name}")
@@ -487,6 +511,7 @@ def ingest_dump(
     module: str,
     received_on: date,
     references: Path | None = None,
+    supersedes: tuple[str, ...] = (),
 ) -> IngestReport:
     source = source.expanduser().resolve()
     root = (store or default_store()).expanduser().resolve()
@@ -535,6 +560,8 @@ def ingest_dump(
                 for topic in topics
             ],
         }
+        if supersedes:
+            manifest["supersedes"] = list(supersedes)
         if references is not None:
             copied_references = destination / REFERENCE_NAME
             shutil.copyfile(references, copied_references)
@@ -622,6 +649,7 @@ def _parser() -> argparse.ArgumentParser:
     ingest.add_argument("--module", required=True)
     ingest.add_argument("--received-on", type=date.fromisoformat, required=True)
     ingest.add_argument("--references", type=Path)
+    ingest.add_argument("--supersedes", action="append", default=[])
     find = sub.add_parser("search")
     find.add_argument("queries", nargs="+")
     find.add_argument("--limit", type=int, default=20)
@@ -641,6 +669,7 @@ def main(argv: list[str]) -> int:
                 module=args.module,
                 received_on=args.received_on,
                 references=args.references,
+                supersedes=tuple(args.supersedes),
             )
             print(
                 f"ingested topic blocks read {report.blocks_read} of {report.candidates}; "

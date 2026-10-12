@@ -137,6 +137,12 @@ Markdown fingerprint for the attachment fallback. Without its clean exit and a v
 page reading, the attached `.docx` cannot receive the fallback go-ahead or pass the terminal grader.
 
 **The shared UpToDate path depends on committed store and sheet tools.**
+`tools/outbound_search.py` is a Required command before each real-encounter live account
+search. It records a passed search before typing; its `pull` command records each live pull.
+The `clinical-note` and `batch-shift` submission graders refuse a recorded live pull without
+its passed search-record line. Missing corpus or profile coverage refuses the pretyping check.
+Its complete ceiling belongs to `outbound_search.DECLARED_LIMITS`.
+
 `tools/uptodate_store.py` ingests one deliberately filed dump into `scratch/uptodate/`, writes
 its per-dump manifest and FTS5 index, searches the accumulated store, and reports unfiled
 topic-shaped material without ingesting it. `tools/uptodate_sheet.py` grades staged

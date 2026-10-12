@@ -789,6 +789,63 @@ Guideline artifacts ship in this repo, and where one covers what a Plan item ass
 
 **Gating this on a stated number was the live alternative and it was rejected.** `Colorectal cancer screening discussed` names no band and rests on one exactly as hard as `colorectal cancer screening from 45` does — the age decided whether to write the line at all. A number-gated rule would consult the sheet for the second and not the first, **which lets a line escape by being vague**, and that is the direction this repo refuses everywhere else: an unnumbered screening item is the *harder* one to check, not the exempt one.
 
+### UpToDate at the gaps
+
+[ADR 0347](../../docs/adr/0347-a-real-encounter-consults-uptodate-at-the-gaps-and-a-live-search-carries-clinical-terms-only.md)
+adds the **Evidence store** beside the sheets: at every routed Plan decision run
+`python tools/uptodate_store.py search <clinical terms>` and read each relevant filed topic.
+A missing or empty store establishes no topic coverage. Ordinary symptom relief and generic
+return precautions keep their exemption. Search the clinician's live UpToDate account through
+the **Authenticated route** only where the sheet route would otherwise end in
+`recalled, no shipped sheet` or `sheet does not settle it`, or to settle the conflict below.
+
+An **Outbound search** carries only diagnosis, drug, test, or procedure words, at most one
+population word (`adult`, `child`, `infant`, `adolescent`, `pregnancy`, `older adult`) and at most
+one sex word (`male`, `female`). Compose these words separately from the shorthand: carry no
+exact age, date, site, or other encounter free text. Before typing each search, run:
+
+```bash
+python tools/outbound_search.py check "<clinical terms>" --run <run-directory> --search-id <unique-id>
+```
+
+Exit 0 writes its passed line to `outbound-searches.jsonl`; type that exact query only after
+the clean exit. A refusal is never typed; revise the query or use the failed-pull route if the
+check cannot run. This Required command reads the PHI corpus and the account profile's Site
+picklist. It cannot certify clinical vocabulary or detect unrecorded activity. Its complete
+ceiling belongs to `outbound_search.DECLARED_LIMITS`.
+
+Record every successful live pull with
+`python tools/outbound_search.py pull --run <run-directory> --search-id <passed-id> --dump-id <dump-id>`.
+File its topic through ordinary
+`python tools/uptodate_store.py ingest <retained-topic> --dump-id <dump-id> --module <run-key> --received-on <date>`.
+The topic copy contains publisher text, never the encounter or the query. Both note and shift
+completion graders refuse a recorded live pull lacking its passed search-record line.
+
+**UpToDate wins a conflict with a threshold sheet.** If a store copy disagrees, obtain a fresh
+live copy through the same pretyping check. Read the live position, which wins; ingest with
+`--supersedes <old-dump-id>` for each conflicting prior copy of that topic. Later searches and
+current evidence joins then use the fresh topic while the old source remains reopenable for
+prior citations. Other topics in an old dump remain active.
+
+An UpToDate-backed item carries one of these same-line `FILLED·proposed` tails:
+
+```text
+[uptodate: <topic title>, updated <month year>, <dump id>]
+[uptodate over thresholds/<sheet> <row>: <topic title>, updated <month year>, <dump id>]
+```
+
+Use the full month name. The dump id resolves the topic that was read; the second form names the
+sheet stem and its row locator. The first replaces the gap verdict. Neither form puts a citation
+in the note body, and neither proves that the topic's position applies to this patient.
+
+**A failed live pull keeps the run going.** A gap retains its existing `recalled, no shipped sheet`
+or `sheet does not settle it` verdict. A conflict falls back to the threshold sheet, never the
+stale store copy, and its sheet tail ends `; uptodate pull failed`. Keep the failure and the
+instrument tried in the private run record. At the go-ahead show `UPTODATE CONFLICTS` (sheet,
+row, topic, update date, and what differs) and `UPTODATE FAILED PULLS` (decision and instrument),
+or `none` for each. The after-action review follows its sheet-row ticket route for every conflict
+UpToDate won; it searches for an open ticket before filing PHI-free content.
+
 ### The two silences are not the same silence
 
 Absence of a row means different things in the two sheets, and writing one wording over both is the defect this section exists to prevent.
@@ -867,7 +924,7 @@ DERIVED           10-year risk 12.4% = PREVENT, age 58 / male / SBP 148 treated 
 
 ### When nothing ships
 
-Where no sheet covers the topic, the item reads `recalled, no shipped sheet` and the note may name **one** further thing: a document from [`reference/guidelines-catalog.md`](../../reference/guidelines-catalog.md), **and only on a literal match**. The catalog says what each document *is* and never what it says, so naming one is a checkable fact about which documents exist rather than a clinical claim — and gating it on a grep is what keeps it that way.
+Where no sheet covers the topic and UpToDate could not fill the gap, the item reads `recalled, no shipped sheet` and the note may name **one** further thing: a document from [`reference/guidelines-catalog.md`](../../reference/guidelines-catalog.md), **and only on a literal match**. The catalog says what each document *is* and never what it says, so naming one is a checkable fact about which documents exist rather than a clinical claim — and gating it on a grep is what keeps it that way.
 
 - `grep -i "chronic obstructive" reference/guidelines-catalog.md` hits, so a COPD item may read `[recalled, no shipped sheet; catalog lists GOLD 2026]`.
 - `grep -i "zoster" reference/guidelines-catalog.md` returns nothing — the ACIP row's topic reads `adult immunization schedule`, which shares no word with it. So a zoster item names no document. **Finding it would take knowing that zoster is ACIP's business, which is recall wearing a citation.**
@@ -1331,7 +1388,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 21 | **Proposals** | Every `FILLED·proposed` item appears in the note body. **An item is one numbered `FILLED·proposed` entry holding one separately acceptable action.** The repeated label and decimal numeral open it; **a wrapped line belongs to the numbered item that opened it and never opens one**. If a preceptor could accept or drop two parts independently, they are two numbered items. **Checked by counting, the way rows 2, 16 and 18 are:** count the numbered entries, then name where each one landed — the Plan order or treatment, the Education point, the Follow up interval, the results line, an Assessment entry, or **a self-contained Assessment suggestion written in the note's own voice**. **An item that landed nowhere was dropped**, and landing one part of a bundled item never lands the rest. Fixed by writing the item or by striking it from the block, **never by a verdict saying it is there**. An `UNKNOWN`, a `FLAG`, a `GAPS` line, or an Assessment promise of an absent Plan item is not a landing |
 | 22 | **Entry name** | Three limbs. **Naming** — every differential entry is named for the code it carries. **Slot** — no code marked `NOT CODED` anywhere in the note appears in any entry's code slot; the mark is the welded `NOT CODED: <code>` and a bare one is not read as a refusal at all. **Collapse** — two refusals resting on one documented finding are **one** entry naming both, not two entries sharing a label. **The favored entry and the conclusion line are exempt from the naming limb and from neither of the others** — `Final diagnosis` on **both branches** since 2026-08-16, and inside it every code not in a `NOT CODED:` clause is slot-held whatever pins it — because those keep the clinician's hedge, with a code beside it that is still only what the encounter supports. Where nothing was refused this row is satisfied by construction; it is failed by a label asserting a disease its code does not |
 | 23 | **Ranking** | The Assessment's differential is a **numbered list ordered most likely first** — `1.` is the favored entry — and **one entry per numbered item**. No diagnosis is argued down inside a paragraph: a differential written as prose fails this row however good the reasoning in it. The item is the unit, not the line, and a wrapped line belongs to the item that opened it. The diagnosis pins its code with a hyphen on both branches; SOAP continues with `: rationale`, while H&P keeps the Differential as `Name - CODE` and carries the rationale in the matching MDM item. A code in parentheses or pinned with a colon fails this row. The conclusion is exempt from the form and row 22 says why |
-| 24 | **Guideline backing** | Every active diagnosis is routed through the catalog and `coverage.md` before its diagnosis-directed testing, treatment, medication continuation or hold, monitoring, referral, and disposition are written. A joined sheet is read even when the decision is qualitative. Every Plan item whose appropriateness rests on a **population** or threshold carries its bracketed tail on that same physical `FILLED·proposed` line; the obligation fires on its subject, never whether it states a number, so an unnumbered screening line owes this row. An item resting on neither a population nor a threshold never fails this row. A qualitative recommendation scoped out only because it holds no number is opened at its named source page and its tail records guideline, status, recommendation or practice-point identifier, population, and page; a draft is labeled `draft`. The verdicts are `no USPSTF row`, `sheet does not settle it`, `recalled, no shipped sheet`, and `recalled, source page unread`, applied under the distinctions above. No citation appears in the note body. Whether the recommendation applies remains a reader's decision, and the mechanical scanner grades only the documented floor it declares below |
+| 24 | **Guideline backing** | Every active diagnosis is routed through the catalog and `coverage.md` before its diagnosis-directed testing, treatment, medication continuation or hold, monitoring, referral, and disposition are written. A joined sheet is read even when the decision is qualitative. Every Plan item whose appropriateness rests on a **population** or threshold carries its bracketed tail on that same physical `FILLED·proposed` line; the obligation fires on its subject, never whether it states a number, so an unnumbered screening line owes this row. An item resting on neither a population nor a threshold never fails this row. A qualitative recommendation scoped out only because it holds no number is opened at its named source page and its tail records guideline, status, recommendation or practice-point identifier, population, and page; a draft is labeled `draft`. The verdicts are `no USPSTF row`, `sheet does not settle it`, `recalled, no shipped sheet`, and `recalled, source page unread`, applied under the distinctions above. No citation appears in the note body. Whether the recommendation applies remains a reader's decision, and the mechanical scanner grades only the documented floor it declares below  UpToDate store search joins every routed decision; live search joins the gaps and refreshes a store conflict. Same-line tails accept [uptodate: topic title, updated month year, dump id] and [uptodate over thresholds/sheet row: topic title, updated month year, dump id]. A failed live conflict falls back to the sheet with a ; uptodate pull failed suffix. Conflicts and failures are shown at the go-ahead. |
 | 25 | **Impossible givens** | Every numeric given that cannot be true as labeled is preserved exactly in the note and declared unusable pending verification; `UNKNOWN` quotes it and marks every candidate as a guess not applied; `FLAG` requests source verification and names what is blocked. The value supports no arithmetic, diagnosis, code, dose or clinical reasoning. A structured Medatrax field that would take it carries an explicit `GAPS` entry saying the source value is unusable and the usable value is unrecoverable, never the impossible token or a guessed replacement. An unusual but possible value is outside this row |
 | 26 | **FLAG scope** | Every `FLAG` is true of the **finished note** it travels with: the action it says is absent remains absent from the **Assessment or Plan**. A failure of the **source encounter** that the finished note corrects belongs under `FILLED·proposed` and is not a FLAG. Merely naming the finding does not clear a true missing-action FLAG. Check every entry against the note body; encounter-scoped wording and a clarifier do not rescue a contradiction |
 | 27 | **Reaction reasoning** | For each distinct allergen whose reaction was filled, after obvious misspellings are corrected, the tier block carries its own `FILLED·asserted` entry naming the allergen, the reaction, and what it was **reasoned from** for that allergen. One rationale for an allergen list fails every entry it does not support separately. Repeated reactions do not fail by themselves, and two spellings of one allergen do not create two entries. A reaction the shorthand supplied is given and outside this row |
