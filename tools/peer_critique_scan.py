@@ -29,6 +29,7 @@ from __future__ import annotations
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 from discussion_artifact import PostedReading, read_posted_readings
 
+import completion_checks
 import re
 import sys
 from dataclasses import dataclass
@@ -421,9 +422,13 @@ POSTED_READING_KINDS = {
 }
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     try:
         if submission != 'critique.md':
             raise run_grader.SourceError('posted reading names another critique')
@@ -462,6 +467,7 @@ def _reread_findings(
     )
 
 
+@completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
     """Grade one run and return its counts and findings."""
 
@@ -474,6 +480,7 @@ def survey(source: RunSource) -> Scan:
                 source.critique_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.path),
+                context_run=source.path,
                 as_of=research_ledger.ledger_date(source.claims),
                 opened_items=project_context.recorded_opened_items(source.path),
                 other_classmate_items=project_context.other_classmate_items(source.path, "critique.md"),

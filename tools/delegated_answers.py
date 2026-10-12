@@ -25,6 +25,7 @@ result is ``delegated_answers.DECLARED_LIMITS``.
 
 from __future__ import annotations
 
+import completion_checks
 import re
 from pathlib import Path
 
@@ -137,6 +138,9 @@ def completion_gate(
     run: Path, submission: str | None, root: Path | None = None
 ) -> tuple[bool, str]:
     """Grade the run's delegated-answer record at an explicit terminal submission."""
+    frozen = completion_checks.exemption(run, submission, "delegated_answers", "delegated answers")
+    if frozen is not None:
+        return False, frozen
     if submission is None:
         return False, f"{EXPECTED_ROW}: {run_grader.NOT_GRADED} - --submission was not supplied"
     path = run / RECORD

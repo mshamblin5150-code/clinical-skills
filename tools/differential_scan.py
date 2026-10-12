@@ -221,6 +221,7 @@ File attribution uses ``run_grader.artifact_label`` for pasteable output; privat
 
 from __future__ import annotations
 
+import completion_checks
 import re
 import sys
 from dataclasses import dataclass, replace
@@ -1349,6 +1350,7 @@ def note_findings(note: Note) -> list[Finding]:
     ]
 
 
+@completion_checks.dated_scan
 def survey(notes: list[Note]) -> Scan:
     """Count across parsed notes. Command loading separately binds file attribution.
 
@@ -1740,9 +1742,13 @@ GRADER = run_grader.Grader(
 )
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     return medatrax_posting.posted_reading_check(run, submission, batch=False)
 
 

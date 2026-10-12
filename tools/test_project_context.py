@@ -577,6 +577,16 @@ class GoAheadRechecks(ProjectContextFixture):
         self.assertFalse(result.coverage, result.report)
         self.assertIn("carried forward", result.report)
 
+    def test_posted_result_is_not_rebound_when_a_reply_refreshes_context(self):
+        self.check()
+        self.record_posting()
+        self.memory.write_text("memory index\na later session's pointer\n", encoding="utf-8")
+        self.assertEqual(0, self.write().exit_code)
+        result = self.complete()
+        self.assertFalse(result.finding, result.report)
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("carried forward", result.report)
+
     def test_posted_move_is_reported_as_approved_over_and_passes(self):
         self.plan.write_text("changed plan\n", encoding="utf-8")
         self.assertTrue(self.check().coverage)
@@ -654,10 +664,18 @@ class GoAheadRechecks(ProjectContextFixture):
         self.assertEqual(self.write().exit_code, 0)
         claims = self.run / "heading-read.md"
         claims.write_text(claims.read_text(encoding="utf-8").replace("e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf", context.recorded_digest(self.run)), encoding="utf-8")
-        self.plan.write_bytes(b"changed plan\n")
+        # A concurrent writer moves the plan after the real pre-post read and
+        # before the go-ahead recheck. A pre-read edit instead breaks the heading
+        # read under ADR 0346 (covered in test_heading_context_history).
+        actual_run = approval_record.subprocess.run
+        def move_after_read(*args, **kwargs):
+            result = actual_run(*args, **kwargs)
+            if len(args[0]) > 1 and str(args[0][1]).endswith("discussion_reply_scan.py"):
+                self.plan.write_bytes(b"changed plan\n")
+            return result
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(
             approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)
-        ), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
+        ), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]), mock.patch.object(approval_record.subprocess, "run", side_effect=move_after_read):
             approved = approval_record.approve(
                 self.run, skill="discussion-reply", submission="submission",
                 sources=(self.run / "response-maren.md",), grader_args=(str(self.run),),

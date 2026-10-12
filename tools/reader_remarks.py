@@ -57,6 +57,9 @@ def apply_readers(grade, claims, headings, artifacts: tuple[str, ...], visuals=(
     records += tuple(("RENDERED", name, r) for r in visuals for name in (getattr(r, "deck", getattr(r, "artifact", "")),) if name in artifacts)
     remarks = tuple(Remark(f"{kind}: {name}", text) for kind, name, r in records for text in r.remarks)
     unread = sum(r.unread for _, _, r in records)
+    import completion_checks
+    if not completion_checks.active("reader_remarks:unread-reader-record"):
+        unread = 0
     details = tuple(f"unread reader record: {kind}: {name}" for kind, name, r in records if r.unread)
     limbs = grade.coverage_limbs + ((coverage_limb,) if unread and coverage_limb and coverage_limb not in grade.coverage_limbs else ())
     return replace(grade, coverage_failed=grade.coverage_failed or bool(unread), coverage_limbs=limbs,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import completion_checks
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
@@ -348,10 +349,14 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
         return False
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, artifact: Path
 ) -> tuple[PostedReadingOutcome, ...]:
     """Check the posted artifact and the complete approved carrier population."""
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     payload = _read(run)
     approved = payload.get("approved_carriers")
     if not isinstance(approved, list) or not all(isinstance(item, dict) for item in approved):
@@ -370,6 +375,9 @@ def completion_gate(
     run: Path, artifact: Path, submission: str | None = None
 ) -> tuple[bool, str]:
     """Grade approvals and the terminal canonical and posted artifact joins."""
+    frozen = completion_checks.exemption(run, submission, "assignment_submission", "assignment submission")
+    if frozen is not None:
+        return False, frozen
 
     root = Path(run).resolve()
     path = Path(artifact).resolve()

@@ -182,7 +182,10 @@ artifact-specific gate; `discussion-post`, `discussion-reply`, `peer-critique`,
 `python tools/install_run_status_guard.py` installs the same Stop hook for Codex after the tracked
 files reach the owning checkout. The hook reads its open and close rules from one per-skill table,
 requires one keyed terminal `Run status:` line per touched approved run, and holds `complete` to
-every approved item's artifact-aware `--submission` grade. Its complete ceiling belongs to
+every approved item's artifact-aware `--submission` grade or its per-revision frozen grade under
+ADR 0346. `tools/frozen_grade.py` adopts eligible pre-build postings with a named, counted
+exemption; `reference/completion-check-starts.tsv` owns each check's start and comparison moment.
+The derivation boundary belongs to `completion_checks.DECLARED_LIMITS`. Its complete ceiling belongs to
 `run_status_stop_hook.DECLARED_LIMITS`.
 
 **The five coursework skills depend on `tools/project_context.py`.** `course-assignment`,
@@ -193,7 +196,9 @@ bytes and supplied service text, and writes the context digest. Their completion
 file items only while a key is unposted; after recorded posting they carry forward its go-ahead
 result and name any move approved over by the clinician. At each go-ahead, the approval path
 rechecks opened files, records the keyed result, and reports a move as incomplete coverage.
-The shared heading read binds the draft to that digest. Without a clean pre-draft
+The shared heading read binds the draft to the items retained at that digest; edited or removed
+items or added places or items break it, while appended memory-index lines preserve it. A posted
+item's read is not rebound. Without a clean pre-draft
 exit, drafting stops; without the completion row, the run is not mechanically verified.
 
 **`tools/lms_attachments.py` is a Required command for the five coursework skills.**

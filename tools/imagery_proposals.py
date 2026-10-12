@@ -9,6 +9,7 @@ than attesting it as the clinician's independent writing.
 
 from __future__ import annotations
 
+import completion_checks
 import json
 import re
 from dataclasses import dataclass, replace
@@ -194,6 +195,9 @@ def completion_gate(
     known_artifacts: set[str] | frozenset[str] | None = None,
 ) -> CompletionGate:
     """Grade proposal records against terminal artifact text and the canonical model."""
+    frozen = completion_checks.exemption(run, ",".join(artifacts) if artifacts is not None else None, "imagery_proposals", EXPECTED_ROW)
+    if frozen is not None:
+        return CompletionGate(False, False, frozen)
     if artifacts is None:
         return CompletionGate(
             False,

@@ -6,6 +6,7 @@ Clinical prose outside the populations remains a reader's decision; see DECLARED
 
 from __future__ import annotations
 
+import completion_checks
 import argparse
 import json
 import re
@@ -175,6 +176,9 @@ def record_repair(run: Path, before: Path, after: Path, scope: dict) -> dict:
 
 
 def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) -> tuple[bool, str]:
+    frozen = completion_checks.exemption(run, submission, "artifact_repairs", "artifact repairs")
+    if frozen is not None:
+        return False, frozen
     if submission is None:
         return False, "the repair hash chain: NOT GRADED - --submission was not supplied"
     failures = 0

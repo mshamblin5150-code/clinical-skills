@@ -9,6 +9,7 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+import completion_checks
 import importlib
 import sys
 from pathlib import Path
@@ -52,10 +53,14 @@ def _adapter_arguments(argv: list[str], artifact: str) -> list[str]:
     return [*argv[:index], option, argv[index + 1], *argv[index + 2 :]]
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
     """Use the terminal assignment gate's posted artifact and carrier checks."""
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     args = list(grader_args)
     if "--artifact" not in args:
         raise run_grader.SourceError("--artifact needs the assignment artifact file")
@@ -70,6 +75,13 @@ def main(argv: list[str]) -> int:
         if not argv or argv[0].startswith("--"):
             raise run_grader.SourceError("course_assignment_scan.py needs a run directory")
         run = Path(argv[0])
+        if "--submission" in argv:
+            import frozen_grade
+            key = argv[argv.index("--submission") + 1]
+            frozen = frozen_grade.report(run, key)
+            if frozen is not None:
+                print(frozen)
+                return 0
         envelope = assignment_bar.parse((run / "bar.md").read_text(encoding="utf-8"))
         adapter = _import_adapter(assignment_bar.adapter_name(envelope))
         if "--bar-only" in argv:

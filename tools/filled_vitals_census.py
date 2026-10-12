@@ -78,6 +78,7 @@ File attribution uses ``run_grader.artifact_label`` for pasteable output; privat
 
 from __future__ import annotations
 
+import completion_checks
 import re
 import sys
 from collections import Counter
@@ -573,6 +574,7 @@ def read_fill(text: str) -> Fill:
     )
 
 
+@completion_checks.dated_scan
 def survey(texts: list[str]) -> Scan:
     """Count the filled bodies across a set of note texts.
 
@@ -903,9 +905,13 @@ GRADER = run_grader.Grader(
 )
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     return medatrax_posting.posted_reading_check(run, submission, batch=True)
 
 

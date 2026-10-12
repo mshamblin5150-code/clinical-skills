@@ -1290,7 +1290,9 @@ The same five completion graders enable the shared row with `--submission`. Afte
 they carry forward the go-ahead result and name moves approved over by the clinician. A posted
 approval predating the check is named, counted, and passes on this row. An unposted key keeps the
 whole-file completion recheck. Service text is not retrieved again, and a finding wins.
-Their shared heading read binds `CONTEXT-DIGEST` to the record and permits only `agrees`, or `none`
+Their shared heading read binds `CONTEXT-DIGEST` to the items retained when the read was taken.
+Edited or removed items, or added places or opened items, break it; appended memory-index lines
+preserve it. A posted item's read is not rebound. It permits only `agrees`, or `none`
 on a confirmed `none` run. The complete ceiling belongs to `project_context.DECLARED_LIMITS`; this
 section copies no row from it.
 
@@ -1801,6 +1803,25 @@ not identify it. The hook retracts missing, duplicate, unkeyed or early-complete
 `stopped`, and a waiting status that tries to reopen the same stopped approval. The complete detection
 boundary belongs to `run_status_stop_hook.DECLARED_LIMITS`; this section points at that object and
 copies none of its rows.
+
+ADR 0346 freezes each approved item at its first clean terminal grade in the run's
+`frozen-grades.json`, keyed to that item's approval revision. A new revision grades fresh.
+Completion counts a frozen item without rerunning its grader; one line names its freeze date
+and reports a change to its own approved sources as a note. Shared context is not compared.
+All terminal commands and posted-reading consumers use `tools/frozen_grade.py`.
+
+After the build lands in the owning checkout, run `python tools/frozen_grade.py <runs-directory>`
+for each account run location. It adopts items covered by retained `complete` results as graded
+clean, and other recorded postings with both a retained reading and review as
+`frozen at adoption, never graded clean`. The command names and counts both kinds and retains
+its one-time adoption result; later command use also adopts eligible historical items lazily.
+The complete boundary belongs to `frozen_grade.DECLARED_LIMITS`.
+
+`reference/completion-check-starts.tsv` is the single start-date and comparison-moment table.
+`tools/completion_checks.py` applies it before status is computed and reports later checks as
+`not graded`. Its `DECLARED_LIMITS` owns the source derivation boundary; the suite refuses a
+derived check missing from the table. Existing extraction, confirmation and ledger moments stay
+in force. New checks use the item's approval time.
 
 Claude Code registers the hook in `.claude/settings.json`. After this change is present in the
 owning checkout, `python tools/install_run_status_guard.py` installs the same hook beside existing

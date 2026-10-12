@@ -20,6 +20,7 @@ and exit 2 means a required input or mechanically readable population was absent
 
 from __future__ import annotations
 
+import completion_checks
 import hashlib
 import json
 import re
@@ -130,7 +131,7 @@ BAR_FIELD = re.compile(
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
 DATE_HEADER = re.compile(r"(?mi)^[ \t]*DATE[ \t]*:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
-QUALIFIER_CUTOFF = date(2026, 10, 11)
+QUALIFIER_CUTOFF = completion_checks.registry()["research_ledger:qualifiers"][0].date()
 QUOTED_QUALIFIER = r'"(?:[^"\\]|\\.)+"'
 QUALIFIER_LIST = re.compile(rf'{QUOTED_QUALIFIER}(?:\s*\|\s*{QUOTED_QUALIFIER})*')
 
@@ -159,7 +160,7 @@ def qualifiers(value: str) -> tuple[str, ...] | None:
 
 
 def qualifiers_required(as_of: date | None) -> bool:
-    return isinstance(as_of, date) and as_of >= QUALIFIER_CUTOFF
+    return isinstance(as_of, date) and completion_checks.active("research_ledger:qualifiers", as_of)
 
 
 QUALIFIER_KINDS = ("qualifier-field", "qualifier-passage-missing", "qualifier-heading-missing", "qualifier-restatement-missing")
@@ -1444,6 +1445,9 @@ def record_findings(
         found.append(Finding(UNEXPECTED_INSTRUMENTS, claim, record.value("INSTRUMENTS")))
 
     # Stable, so two findings of one kind keep the order their helper appended them in.
+    if not completion_checks.active("research_ledger:stated-expiry", as_of):
+        found = [f for f in found if not (f.kind == MISSING_FIELD and f.detail == "STATED-EXPIRY")
+                 and f.kind not in {UNKNOWN_STATED_EXPIRY, STATED_EXPIRY_REACHED}]
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
 
 
@@ -1868,6 +1872,7 @@ def _stated_expiry_unscanned(records: Iterable[Record]) -> bool:
     return bool(sourced) and not any("STATED-EXPIRY" in record.fields for record in sourced)
 
 
+@completion_checks.dated_scan
 def survey(
     records: list[Record],
     as_of: date | None,
@@ -1907,7 +1912,7 @@ def survey(
         for record in records
     ]
     sourced = [record for record in records if record.status == SOURCED]
-    stated_expiry_unscanned = _stated_expiry_unscanned(sourced)
+    stated_expiry_unscanned = completion_checks.active("research_ledger:stated-expiry", as_of) and _stated_expiry_unscanned(sourced)
     if stated_expiry_unscanned:
         # The whole-ledger retired shape is coverage failure, not one repeated
         # missing-field finding per record. Other findings remain and outrank

@@ -300,6 +300,13 @@ def _validated_posting_item(
 
 
 def completion_is_clean(run: Path, spec: RunKind, approval: Mapping[str, object]) -> bool:
+    import frozen_grade
+    submission_key = approval.get("submission")
+    if isinstance(submission_key, str):
+        frozen = frozen_grade.report(run, submission_key)
+        if frozen is not None:
+            print(frozen, file=sys.stderr)
+            return True
     if spec.skill == "course-assignment":
         artifact = approval.get("artifact_path")
         if not isinstance(artifact, str) or not artifact:
@@ -332,6 +339,8 @@ def completion_is_clean(run: Path, spec: RunKind, approval: Mapping[str, object]
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
+    if completed.returncode == 0:
+        frozen_grade.freeze(run, spec.skill, dict(approval))
     return completed.returncode == 0
 
 

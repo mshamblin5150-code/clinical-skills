@@ -8,6 +8,7 @@ no row.
 
 from __future__ import annotations
 
+import completion_checks
 import argparse
 import hashlib
 import json
@@ -811,6 +812,9 @@ def _completion_gate(
 def completion_gate(
     run: Path, submission: str | None, surface: DraftSurface | Mapping[str, DraftSurface],
 ) -> CompletionGate:
+    frozen = completion_checks.exemption(run, submission, "voice_read", EXPECTED_ROW)
+    if frozen is not None:
+        return CompletionGate(False, False, (frozen, ""))
     gate = _completion_gate(run, submission, surface)
     keys = tuple(surface) if isinstance(surface, Mapping) else tuple(submission.split(",")) if submission else ()
     return replace(gate, remarks=reader_remarks.voice_remarks(run, keys))

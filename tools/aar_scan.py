@@ -32,6 +32,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from hashlib import sha256
+import completion_checks
 import json
 import importlib
 from pathlib import Path
@@ -51,12 +52,12 @@ import browser_tab_hook
 
 
 NOT_GRADED = run_grader.NOT_GRADED
-REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
-POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
-UNREAD_REMAINDER_CUTOFF = datetime(2026, 10, 3, 17, 57, tzinfo=timezone.utc)
-LANDING_OUTPUT_CUTOFF = datetime(2026, 10, 8, tzinfo=timezone.utc)
-MEMORY_MEASUREMENT_CUTOFF = datetime(2026, 10, 11, 20, 16, 17, tzinfo=timezone.utc)
-SYSTEM_SUBTYPE_CUTOFF = datetime(2026, 10, 12, 14, 12, 31, tzinfo=timezone.utc)
+REVIEW_CLASSIFIER_ENTRY_CUTOFF = completion_checks.registry()["aar_scan:review-classifier-entry"][0]
+POSTED_READING_FINGERPRINT_CUTOFF = completion_checks.registry()["aar_scan:posted-reading-fingerprint"][0]
+UNREAD_REMAINDER_CUTOFF = completion_checks.registry()["aar_scan:unread-remainder"][0]
+LANDING_OUTPUT_CUTOFF = completion_checks.registry()["aar_scan:landing-output"][0]
+MEMORY_MEASUREMENT_CUTOFF = completion_checks.registry()["aar_scan:memory-measurement"][0]
+SYSTEM_SUBTYPE_CUTOFF = completion_checks.registry()["aar_scan:system-subtype"][0]
 MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
 # ECMAScript WhiteSpace and LineTerminator characters used by String.trim().
 JS_TRIM_WHITESPACE = (
@@ -1465,6 +1466,9 @@ def _check_snapshot_posted_reading(run: Path, submission: str) -> None:
     """Resolve the approved skill; its grader owns every posted-reading rule."""
     import approval_record
     import assignment_submission
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return
 
     approvals = run / approval_record.RECORD
     items = approval_record._read(run).get("items", []) if approvals.exists() else []
@@ -2236,6 +2240,7 @@ def _optional_count(fields: Mapping[str, str], name: str) -> int:
         return 0
 
 
+@completion_checks.dated_scan
 def survey(run: Path, submission: str) -> Scan:
     round_numbers = _review_round_numbers(run, submission) or (1,)
     scans = tuple(
@@ -2341,7 +2346,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
     """The expected row shared by ``COMPLETION_GRADERS``."""
+    import frozen_grade
     for submission in submissions:
+        if frozen_grade.report(run, submission) is not None:
+            continue
         scan = survey(run, submission)
         if scan.findings or scan.unread or scan.unread_remainder:
             return f"{EXPECTED_ROW} is incomplete for {submission}"
@@ -2363,6 +2371,9 @@ def is_live_run(run: Path) -> bool:
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     """Grade the shared expected row only for an explicitly terminal submission."""
+    frozen = completion_checks.exemption(run, submission, "aar_scan", EXPECTED_ROW)
+    if frozen is not None:
+        return False, frozen
     if submission is None:
         return False, f"{EXPECTED_ROW}: {NOT_GRADED} - --submission was not supplied"
     finding = completion_finding(run, (submission,))

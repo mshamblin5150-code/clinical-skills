@@ -152,9 +152,17 @@ class OrderGrade:
 
 
 def grade_order(
-    observations: object, submission: str, waived: Callable[[str, str], bool]
+    observations: object, submission: str, waived: Callable[[str, str], bool], *, run: Path | None = None
 ) -> OrderGrade:
     """Grade historical observations; only the confirmed record grants waivers."""
+    if run is not None:
+        import completion_checks
+        keys = submission_keys(submission)
+        current = [key for key in keys if completion_checks.active(
+            "coursework_run:draft-order", completion_checks.approval_moment(run, key))]
+        if not current:
+            return OrderGrade(False, "draft order: not graded - approval predates the observation check")
+        submission = ",".join(current)
     try:
         validate_observations(observations)
         keys = submission_keys(submission)

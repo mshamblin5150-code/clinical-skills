@@ -8,6 +8,7 @@ The project-context row's ceiling belongs to
 
 from __future__ import annotations
 
+import completion_checks
 import re
 import sys
 import zipfile
@@ -465,6 +466,7 @@ def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
     return tuple(Finding(RENDERED_RECORD, defect) for defect in defects), len(passes), records
 
 
+@completion_checks.dated_scan
 def survey(source: Source) -> Scan:
     markdown, references = _document_parts(source.paragraphs)
     document = reference_scan.read_document(markdown)
@@ -478,6 +480,7 @@ def survey(source: Source) -> Scan:
                 source.docx_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.root),
+                context_run=source.root,
                 as_of=research_ledger.ledger_date(source.claims),
                 opened_items=project_context.recorded_opened_items(source.root),
             ),

@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dataclass_replace
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
@@ -690,16 +690,52 @@ def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
 
 
 def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
-    """Run one grader with source failures before output and status at the tail."""
-
     use_utf8()
     require_python_floor()
+    import completion_checks
+    # Parsing still belongs to the ordinary runner; invalid invocations retain
+    # its existing exit contract.
+    try:
+        parsed = parse(command, argv)
+        path = Path(parsed.source)
+        run_path = path.parent if path.is_file() else path
+        submission = parsed.value("--submission")
+    except ParseError:
+        return _run(command, argv)
+    with completion_checks.grading(run_path, submission):
+        status = _run(command, argv)
+        notice = completion_checks.report()
+        if notice:
+            print(notice)
+        return status
+
+
+def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
+    """Run one grader with source failures before output and status at the tail."""
+
     try:
         parsed = parse(command, argv)
     except ParseError as failure:
         _require_declared_exit_2_limb(command, command.invalid_invocation_limb)
         print(str(failure), file=sys.stderr)
         return 2
+    import frozen_grade
+    submission = parsed.value("--submission")
+    run_path = Path(parsed.source)
+    if run_path.is_file():
+        run_path = run_path.parent
+    if submission and not parsed.enabled("--extract") and not parsed.enabled("--measure-memory"):
+        active = []
+        for key in submission.split(","):
+            key = key.strip()
+            frozen = frozen_grade.report(run_path, key)
+            if frozen is None:
+                active.append(key)
+            else:
+                print(frozen)
+        if not active:
+            return 0
+        parsed = dataclass_replace(parsed, values=MappingProxyType({**parsed.values, "--submission": ",".join(active)}))
     try:
         source = command.load(parsed)
     except SourceError as failure:
@@ -733,6 +769,11 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         return 1
     if result.coverage_failed:
         return 2
+    if submission and Path(command.grade.__code__.co_filename).stem in {
+        "discussion_post_scan", "discussion_reply_scan", "peer_critique_scan",
+        "checks_ledger", "differential_scan", "filled_vitals_census", "deck_scan", "assignment_docx_scan",
+    }:
+        frozen_grade.command_result(run_path, parsed.value("--submission") or submission, 0)
     return 0
 
 
