@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
 import differential_scan
 import uptodate_store
 from test_uptodate_store import topic

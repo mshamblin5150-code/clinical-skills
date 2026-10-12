@@ -15,7 +15,7 @@ from pathlib import Path
 
 import phi_scan
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 DECLARED_LIMITS = (
     "Whether the remaining words are clinical vocabulary is not proved by identifier and shape checks.",
@@ -93,7 +93,7 @@ def main(argv: list[str]) -> int:
     sub = parser.add_subparsers(dest="action", required=True)
     check = sub.add_parser("check")
     check.add_argument("query")
-    check.add_argument("--profile", type=Path, default=scratch_root() / "medatrax-profile.md")
+    check.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     pull = sub.add_parser("pull")
     pull.add_argument("--dump-id", required=True)
     for command in (check, pull):
@@ -131,6 +131,6 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    require_python_floor()
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

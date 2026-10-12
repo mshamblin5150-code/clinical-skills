@@ -152,6 +152,7 @@ DECLARED_SECTIONS = {
     "uspstf_table": "USPSTF recommendation table",
     "uptodate_sheet": "UpToDate evidence store",
     "uptodate_store": "UpToDate evidence store",
+    "outbound_search": "UpToDate evidence store",
     "voice_corpus": "The corpus a voice model is built from",
     "voice_model_identity": "Coursework voice-model identity",
     "voice_model_scan": "Voice model shape",

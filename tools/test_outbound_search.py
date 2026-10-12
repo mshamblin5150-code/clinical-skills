@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
 import outbound_search as command
 import differential_scan
 import filled_vitals_census
