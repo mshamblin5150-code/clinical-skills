@@ -48,6 +48,7 @@ CLASSMATE_SKILLS = MappingProxyType({
 })
 CLASSMATE_FIELDS = ("CLASSMATE-POST", "CLASSMATE-BOARD", "CLASSMATE-ATTACHMENT")
 DECLARED_LIMITS = (
+    ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
     ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
     ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
@@ -103,7 +104,7 @@ _OPENED = re.compile(
 )
 _HEADER_FIELDS = frozenset(
     {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
-) | frozenset(CLASSMATE_FIELDS)
+) | frozenset(CLASSMATE_FIELDS) | {"ASSET"}
 _ENTRY_FIELDS = frozenset(
     {
         "STATE",
@@ -118,7 +119,7 @@ _ENTRY_FIELDS = frozenset(
         "MEMORY-LINES",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", *CLASSMATE_FIELDS})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", "ASSET", *CLASSMATE_FIELDS})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -128,6 +129,7 @@ class Project:
     name: str
     locations: tuple[str, ...]
     services: tuple[str, ...]
+    assets: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -211,17 +213,19 @@ def read_registry(text: str) -> Registry:
     current_name: str | None = None
     current_locations: list[str] = []
     current_services: list[str] = []
+    current_assets: list[str] = []
 
     def close_project() -> None:
-        nonlocal current_name, current_locations, current_services
+        nonlocal current_name, current_locations, current_services, current_assets
         if current_name is None:
             return
         if current_name in projects:
             raise RegistryFinding("duplicate PROJECT entry")
         projects[current_name] = Project(
-            current_name, tuple(current_locations), tuple(current_services)
+            current_name, tuple(current_locations), tuple(current_services), tuple(current_assets)
         )
         current_name, current_locations, current_services = None, [], []
+        current_assets = []
 
     for raw in text.splitlines():
         if not raw.strip():
@@ -242,6 +246,13 @@ def read_registry(text: str) -> Registry:
             if _URL.match(service):
                 raise RegistryFinding("a SERVICE must be an MCP server name, never a URL")
             current_services.append(service)
+        elif stripped.startswith("ASSET:") and current_name is not None:
+            asset = stripped.split(":", 1)[1].strip()
+            if not asset:
+                raise RegistryFinding("ASSET needs a description")
+            if asset in current_assets:
+                raise RegistryFinding("duplicate ASSET entry")
+            current_assets.append(asset)
         else:
             raise RegistryFinding("unrecognized project registry line")
     close_project()
@@ -464,7 +475,22 @@ def _context_declaration_errors(record: Record, *, recheck_files: bool = True) -
               if (error := _file_declaration_error(record, name))]
     if error := _case_research_error(record, recheck_files=recheck_files):
         errors.append(error)
+    assets = record.values("ASSET")
+    if any(not asset for asset in assets):
+        errors.append("ASSET needs a description")
+    if len(set(assets)) != len(assets):
+        errors.append("duplicate ASSET entry in confirmed header")
+    if _declaration(record)[0] == "none" and assets:
+        errors.append("a none run cannot carry ASSET lines")
     return errors
+
+
+def _asset_errors(record: Record, registry: Registry, project_name: str) -> list[str]:
+    """Require the clinician's header to carry precisely the registered assets."""
+    expected = () if project_name == "none" else registry.projects[project_name].assets
+    declared = record.values("ASSET")
+    return ([f"missing ASSET from confirmed header: {asset}" for asset in expected if asset not in declared] +
+            [f"unregistered ASSET in confirmed header: {asset}" for asset in declared if asset not in expected])
 
 
 def _searches(record: Record) -> tuple[dict[str, str], list[str]]:
@@ -667,7 +693,7 @@ def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
     payload = "".join(name + "\0" + record.value(name) + "\n"
                       for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     payload += "".join(name + "\0" + value + "\n"
-                       for name in CLASSMATE_FIELDS for value in record.values(name))
+                       for name in (*CLASSMATE_FIELDS, "ASSET") for value in record.values(name))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -682,6 +708,7 @@ def _render(
     lines.extend(f"{name}: {record.value(name)}"
                  for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     lines.extend(f"{name}: {value}" for name in CLASSMATE_FIELDS for value in record.values(name))
+    lines.extend(f"ASSET: {value}" for value in record.values("ASSET"))
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
     lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
@@ -765,6 +792,9 @@ def _write_context_record(
         return GateResult(2, "project context NOT SCANNED - project registry is unreadable")
     except RegistryFinding as failure:
         return GateResult(1, f"project context: finding - {failure}")
+
+    if errors := _asset_errors(record, registry, project_name):
+        return GateResult(1, "project context: finding - " + "; ".join(errors))
 
     by_place: dict[str, list[Entry]] = {}
     for entry in record.entries:
@@ -985,7 +1015,7 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             retain_heading_context(run)
         previous = read_record(path.read_text(encoding="utf-8"))
         current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
-        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS)
+        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET")
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
         if any(previous.values(name) != current.values(name) for name in names):
@@ -1085,6 +1115,7 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
             False,
             f"{EXPECTED_ROW}: finding - project registry shape is invalid",
         )
+    shape_errors.extend(_asset_errors(record, registry, declaration))
     by_place: dict[str, list[Entry]] = {}
     for entry in record.entries:
         by_place.setdefault(entry.place, []).append(entry)

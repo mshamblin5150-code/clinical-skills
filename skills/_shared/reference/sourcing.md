@@ -280,12 +280,14 @@ Before the first prose in a coursework run, write the purpose-named
 with a reason. The account registry resolved by `repo_root.project_registry()` states one
 `MEMORY-INDEX:` and each `PROJECT:` with its absolute `LOCATION:` paths and named `SERVICE:` MCP
 servers. Never write a service URL. An unregistered project stops for the clinician's ruling.
+Each project may also carry `ASSET: <description>` lines, added only on the clinician's word.
 
 ```text
 PROJECT-CONTEXT: <project> | none - <reason>
 OWN-SUBMISSION: <path> | none - <reason>
 CASE-MATERIAL: <path> | none - <reason>
 CASE-RESEARCH: <dump id> | none - <reason>
+ASSET: <one registered asset of the declared project; repeat for each>
 CLASSMATE-POST: <submission key> -> <absolute path to the selected classmate's post>
 CLASSMATE-BOARD: <submission key> -> <absolute path to the board snapshot>
 CLASSMATE-ATTACHMENT: <submission key> -> <absolute path to a retained attachment copy> | <submission key> -> none - <reason>
@@ -304,6 +306,12 @@ QUERY: <terms> | THRESHOLD: <value> | LIMIT: <count> | HITS: <count>
 DETAIL: <why an unreadable or absent place failed>
 OPENED: <file path or service item identifier> | none
 ```
+
+Show every registered asset of the declared project in the header. Confirmation affirms that
+the shown assets are current. An asset the clinician names at confirmation goes into the registry
+and the header before the gate runs. A `none` run carries no asset lines. The gate refuses an
+empty, duplicated, missing, or unregistered asset. An unregistered asset remains outside the
+gate's coverage under `project_context.DECLARED_LIMITS`.
 
 `OWN-SUBMISSION` declares the clinician's submission already handed in on the same board or
 case, or `none` with a reason. The absolute file path holds the handed-in text or the run's
@@ -350,13 +358,19 @@ Run `python tools/project_context.py <run-directory> --write --submission <submi
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and a context digest binding the
-`OWN-SUBMISSION`, `CASE-MATERIAL`, and `CASE-RESEARCH` header lines and sorted place/item/hash triples,
+`OWN-SUBMISSION`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
+and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
 service items again.
 
 ### Draft order
+
+A draft sentence recommending that the clinician or his project buy, rent, or subscribe to something
+a listed asset already provides is `CONTEXT-VERDICT: narrows`, unless the draft states why the owned
+asset falls short. This is a finding that blocks the go-ahead until the draft is revised or the
+clinician rules, under [ADR 0349](../../../docs/adr/0349-an-owned-asset-is-registered-by-the-clinician-and-a-purchase-it-already-covers-is-a-context-finding.md).
 
 An **Item description** states what an item opened for `project-context.md` says, such as a
 classmate's plan or a prior submission. Compare that sentence with the opened item claim by
@@ -419,6 +433,9 @@ a third sentence class, each with an `ITEM` line naming the opened item identifi
 A sentence stating who wrote, compiled, or supplied a document agrees only when a confirmed
 project-context header line, a memory entry, or the clinician's recorded answer states it, never on
 the document's own contents; where none does, write `CONTEXT-VERDICT: contradicts` and name the sentence.
+A draft sentence recommending that the clinician or his project buy, rent, or subscribe to something
+a listed asset already provides is `CONTEXT-VERDICT: narrows`, unless the draft states why the owned
+asset falls short.
 For every pair whose claim carries `QUALIFIERS`, the reader counts the named qualifiers retained
 in the sentence as `qualifiers N of M`. The total equals the record's list length, including
 `0 of 0` for `none`. A shortfall has a `FINDINGS: drifted - <same location>, <difference>` line;
@@ -451,6 +468,7 @@ REMARK: <problem outside the assigned question; repeat as needed>
 Keep the digest from the read's sitting. `project_context` retains that context
 under the run's `private/heading-contexts/`. A later grade compares the items it
 held: edits, removals, or an added place or opened item break the read. Appended
+asset declarations, or an edited or removed asset, also break the read. Appended
 memory-index lines preserve it under ADR 0328's line comparison. A posted item's
 read is not rebound. ADR 0346 governs its frozen terminal grade, and
 `completion_checks.DECLARED_LIMITS` owns the dated-check derivation boundary.

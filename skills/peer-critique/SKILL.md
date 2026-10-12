@@ -217,6 +217,7 @@ explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md).
+Show the declared project's registered assets with the header being confirmed; a `none` run shows none.
 Write the selected classmate's keyed declarations under `critique.md`, following that
 reference's header rules. Compare descriptions of the classmate's work under
 [Draft order](../_shared/reference/sourcing.md#draft-order).
