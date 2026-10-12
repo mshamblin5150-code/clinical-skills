@@ -1912,6 +1912,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A pointer is not a source",
                 "Search the evidence store and guideline index first",
                 "A resolving locator is not verification",
+                "An undated source needs a reasoned excuse",
                 "The clinician's own unpublished work",
                 "A record is read at the source's width",
                 "A failed read is not a negative",
