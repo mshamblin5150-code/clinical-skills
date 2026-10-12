@@ -6,6 +6,12 @@ Turning ER-style clinical shorthand into academic documentation — comprehensiv
 
 ### The work
 
+**Outbound search**:
+A real encounter's search sent to a third-party clinical source: clinical terms, at most one
+population word and one sex word, with nothing else from the encounter. A private local store
+search carries no outbound exposure. [ADR 0347](docs/adr/0347-a-real-encounter-consults-uptodate-at-the-gaps-and-a-live-search-carries-clinical-terms-only.md).
+_Avoid_: patient query, de-identified shorthand
+
 **Shorthand**:
 Raw ER-style scratch for one encounter, written at the bedside, typo-ridden and incomplete.
 _Avoid_: notes, scribbles, raw text

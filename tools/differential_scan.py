@@ -229,6 +229,8 @@ from pathlib import Path
 import run_grader
 import aar_scan
 import delegated_answers
+import outbound_search
+import uptodate_store
 import medatrax_posting
 from discussion_artifact import PostedReadingOutcome
 import approval_record
@@ -315,15 +317,15 @@ TIER_LABEL = re.compile(
     r"^(?:DERIVED|FILLED·asserted|FILLED·proposed|FLAG|GAPS|UNKNOWN)\b"
 )
 GUIDELINE_TAIL = re.compile(
-    r"\[((?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled,[^\]]*)\]",
+    r"\[((?:uptodate(?: over thresholds/[^:\]]+)?|uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled,[^\]]*)\]",
     re.IGNORECASE,
 )
 GUIDELINE_TAIL_START = re.compile(
-    r"\[(?:uspstf|thresholds/|guideline/|recalled)",
+    r"\[(?:uptodate|uspstf|thresholds/|guideline/|recalled)",
     re.IGNORECASE,
 )
 GUIDELINE_ATTEMPT = re.compile(
-    r"\[((?:uspstf|thresholds/|guideline/|recalled)[^\]]*)\]",
+    r"\[((?:uptodate|uspstf|thresholds/|guideline/|recalled)[^\]]*)\]",
     re.IGNORECASE,
 )
 RECALLED_NO_SHEET = re.compile(
@@ -420,7 +422,7 @@ NOT_VALIDATED_AGAINST = (
     (
         "guideline attempts outside the tail keyword prefix",
         "A bracketed proposal segment is opened as a guideline attempt only "
-        "when it begins with uspstf, thresholds/, guideline/, or recalled. "
+        "when it begins with uptodate, uspstf, thresholds/, guideline/, or recalled. "
         "A proposed verdict beginning with another word remains unread as a "
         "tail; without a separately recognizable subject trigger it stays a "
         "candidate. This bounded prefix leaves clinical interpretation with "
@@ -983,6 +985,40 @@ def _guideline_floor(
             tail = match.group(1).strip()
             subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
             lowered = tail.casefold()
+            if lowered.startswith("uptodate"):
+                citation = re.fullmatch(
+                    r"uptodate(?: over thresholds/([a-z0-9-]+)(?:\.md)? ([^:]+))?: (.+), updated ([A-Za-z]+ \d{4}), ([a-z0-9][a-z0-9._-]*)",
+                    tail,
+                )
+                if citation is None:
+                    findings.append(GuidelineFinding(item.line, "malformed UpToDate verdict", item.text))
+                    continue
+                try:
+                    topic = uptodate_store.source_topic(citation.group(5), citation.group(3))
+                    from datetime import date
+                    matches = topic is not None and date.fromisoformat(topic.last_updated).strftime("%B %Y") == citation.group(4)
+                except (OSError, ValueError, UnicodeError):
+                    matches = False
+                if not matches:
+                    findings.append(GuidelineFinding(item.line, "UpToDate title, update month, or dump does not match filed evidence", item.text))
+                    continue
+                if citation.group(1):
+                    sheet = THRESHOLD_ROOT / f"{citation.group(1)}.md"
+                    if not sheet.is_file():
+                        findings.append(GuidelineFinding(item.line, "UpToDate conflict names no shipped sheet", item.text))
+                        continue
+                    if citation.group(2).strip() not in sheet.read_text(encoding="utf-8"):
+                        findings.append(GuidelineFinding(item.line, "UpToDate conflict row locator is absent from the sheet", item.text))
+                        continue
+                checked += 1
+                candidates.append(GuidelineCandidate(item.line, item.text))
+                continue
+            if lowered.endswith("; uptodate pull failed"):
+                if not lowered.startswith("thresholds/"):
+                    findings.append(GuidelineFinding(item.line, "failed-pull fallback must cite a threshold sheet", item.text))
+                    continue
+                tail = tail[:-len("; uptodate pull failed")].rstrip()
+                lowered = tail.casefold()
             if lowered.startswith("recalled"):
                 if not (
                     RECALLED_NO_SHEET.fullmatch(tail)
@@ -1670,16 +1706,19 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     delegated_failed, delegated_report = delegated_answers.completion_gate(
         source.directory, _parsed.value("--submission")
     )
+    outbound_failed, outbound_report = outbound_search.completion_gate(
+        source.directory, _parsed.value("--submission")
+    )
     grade = run_grader.Grade(
         scan=scan,
         source=source.directory.name,
         findings_failed=(
-            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed
+            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed
         ),
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(aar_report, posting_report, chain_report, delegated_report),
+        reports=(aar_report, posting_report, chain_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")
