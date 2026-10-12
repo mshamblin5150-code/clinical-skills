@@ -1,6 +1,6 @@
 # A damaged byte in the project-context record or registry is refused by line before the gate parses
 
-**Measured at:** 9cf60f4168ef78666c9505d17def3e2d3df6792f
+**Measured at:** bedf3484a402871ec71e3d6fc6ef735506528cd5
 
 [#1563](https://github.com/mshamblin5150-code/clinical-skills/issues/1563) was filed from the
 after-action review of a `course-assignment` run (NUR 5042 Module 11) on 2026-10-04. It said a shell
@@ -49,8 +49,12 @@ None carries a tab or any other control character, and neither does the account 
 
 Before it parses anything, `project_context.py --write` checks every line of the run's
 `project-context.md` for damage, not only path lines. On damage it names each line number and the
-character, and gives the Write tool as the remedy. This replaces the generic `input is unreadable`
-for this cause and covers the free-text fields.
+character, and gives the remedy: rewrite the file by
+[AGENTS.md](../../AGENTS.md) standing rule 6's file-write route, the Write tool in a private staging
+folder and then one copy, rename, and read-back, never a shell heredoc. Naming the bare Write tool
+was not enough, because from a worktree it cannot write the owning checkout's `scratch/runs/`
+directly. This replaces the generic `input is unreadable` for this cause and covers the free-text
+fields.
 
 Closing the ticket as already handled was declined because the next run would meet the same
 unexplained refusal, and a control character in `TERMS` or `DETAIL` would still be confirmed.
@@ -77,7 +81,10 @@ are hand-written, both hold Windows paths, and a damaged registry path silently 
 a project owes. The files a run opened and the text a service returned are fingerprinted, not
 parsed, and are left alone; an opened `.docx` is full of control characters by nature.
 
-A damaged registry stops every coursework run until it is fixed. That is accepted, because a
+The registry is checked whenever the gate reads it, which is the ruling's own test. A run whose
+`PROJECT-CONTEXT` is `none` never reads the registry (#1506 pinned that it passes with the registry
+absent), so its registry is not checked and that behavior is unchanged. A damaged registry stops
+every declared-project coursework run until it is fixed. That is accepted, because a
 registry that misstates what is owed has no safe partial reading. Checking the record alone was
 declined because it would leave registry damage failing the way the record did on 2026-10-04, as an
 unexplained absent or unreadable place.
@@ -113,14 +120,15 @@ declined because that ruling concerns a mechanism that cannot cover this write r
 
 - `tools/project_context.py`: before `read_record` and `read_registry` run on the `--write` path,
   read each file's text and report every damaged line by number and character under ruling 4's set.
-  On any damage, exit 1 with only those lines and the Write-tool remedy; run no other check. Name
-  the file each line came from, since the registry is outside the run.
+  On any damage, exit 1 with only those lines and ruling 1's standing-rule-6 remedy; run no other
+  check. Name the file each line came from, since the registry is outside the run. Read the
+  registry for damage only where the gate already reads it, so a `none` run is untouched.
 - The character set and its divergence from #723's row are stated beside the check, with the reason.
 - `DECLARED_LIMITS` gains the limits below that a clean check does not reach.
 - Tests that drive the public `--write` command with a planted tab, bell, NUL, form feed, vertical
   tab, and bare carriage return in a path line, in a free-text field, and in the registry. Each
   expects exit 1 naming the line. A control record with Windows line endings and none of those
-  characters exits 0.
+  characters exits 0, and a `none` run with a damaged or absent registry still passes.
 
 ## What this record does not reach
 
