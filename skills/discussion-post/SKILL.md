@@ -479,7 +479,7 @@ keyed line in one final block, and a run with several approved items reports the
 Never put a classmate name in that line.
 
 Load the exact `.html` contents by the route declared at Gate 1, following `canvas-editor.md`, and
-inspect the rendered Composer before doing anything else.
+switch back to the formatted Composer view and inspect it before doing anything else.
 
 Create the next retained `render/pass-N/`. Copy the exact output `.html` into that pass as
 `post.html`, and retain enough PNG captures of the scrolling Canvas box to make every rendered
@@ -510,6 +510,14 @@ count must equal the export's count. An earlier pass may stop after a defect; on
 must account for every block, name `UNSEEN: none`, and carry a clean verdict with substantive
 reading detail.
 
+At the loaded-box stop, run the fixed page script in `canvas-editor.md` and retain its unedited
+JSON output as `render/pass-N/editor-readback.json` in the newest pass. The `editor-readback` row
+requires the formatted Composer view and matching block text, anchor destinations, and anchor
+count. Missing, unidentified, raw, or pretty views refuse even when the HTML matches. Earlier
+readbacks cannot certify the newest pass. Before a Canvas-box load there is no readback candidate.
+On the attachment fallback the newest Word pass retains the formatted pointer's readback; the
+row compares it with the shared sheet's fixed pointer rather than the refused full body.
+
 Run the artifact grader:
 
 ```bash
@@ -527,7 +535,8 @@ A missing or malformed record, an unreadable capture, a nonidentical newest reta
 false block denominator, an incomplete final reading, or a non-clean final verdict makes the scan
 exit 1.
 
-Show the captures to the clinician and say explicitly that the Canvas box is loaded and unsubmitted.
+Show the captures to the clinician and follow `canvas-editor.md`'s loaded-box message, naming
+the formatted Composer view and readback verdict with the tab and unsubmitted state.
 A non-clean reading stops here and returns to the clinician; the agent does not
 adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
 authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread

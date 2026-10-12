@@ -7,8 +7,9 @@ owns the loaded-box stop and the Composer load route when that surface is a Comp
 ## Stop at the loaded box
 
 Load the contribution, read it back, and leave it loaded and unsubmitted. Name the Chrome tab,
-say the box is loaded and unsubmitted, and report the readback verdict: a match or the exact
-difference. Take a screenshot only when the clinician asks. Click only on his **Posting go-ahead**
+say the box is loaded and unsubmitted, and name the **Composer view** in the readback verdict:
+"loaded in the formatted view, unsubmitted, in tab '<tab title>'; readback matches", or the exact
+view and difference. A non-Composer surface keeps its own readback verdict. Take a screenshot only when the clinician asks. Click only on his **Posting go-ahead**
 given after he has looked. The content go-ahead authorizes loading and never covers the click.
 Record the Posting go-ahead before recording the posting route. If recording it reports a changed
 project-context notice, show that notice here and renew approval under ADR 0328 before clicking.
@@ -45,8 +46,8 @@ skill's existing clinician gate, and keep it for this load:
 
 1. **Raw HTML:** use the `data-btn-id="rce-edit-btn"` control, then confirm the resulting editor is
    the plain textarea whose status control offers *Switch to pretty HTML Editor*. The click alone
-   is not confirmation because Canvas remembers the account's last-used HTML mode. Load the built
-   HTML into that textarea.
+   is not confirmation because Canvas remembers the account's last-used Composer view. Load the built
+   HTML into that textarea, then switch back to the formatted view before reading back or stopping.
 2. **Content interface:** use `tinymce.get(<editor-id>).setContent(...)` only when the identified
    live instance exposes callable `setContent` and `getContent`. After `setContent`, make the editor
    register the change with one keystroke at the end of the opening line, never after a URL; that
@@ -59,17 +60,70 @@ the load on its own.
 
 ## Read back the loaded contribution
 
-Before posting, read the Composer's serialized HTML: the raw textarea value while the raw editor is
-active; `getContent` from the identified TinyMCE instance on the content-interface route; or the
-identified rich-editor body's serialized `innerHTML` on the typing route when `getContent` is
-unavailable. Compare it with the built HTML by paragraph and other visible block text, and by the
-ordered anchor destinations and anchor count. Attribute order, insignificant whitespace, and other
-serialization differences do not make the readback diverge.
+Run this fixed page script verbatim after the switch back. Supply the identified editor id and a
+live selector for its enclosing Composer: exactly one element containing that editor's source
+textarea, rich editor, and status control, with no other Composer inside it. These are page inputs,
+not edits to the script. Retain the returned JSON string unedited in the calling skill's readback
+file. It reads the Composer view and serialized contribution together; a code-view, unidentified,
+missing-view, or differently shaped readback is not clean even when its text equals the build.
 
-The calling skill owns where that serialized HTML is retained and which independent check grades
-it. A clean pre-posting readback establishes neither that the correct Composer was chosen nor that
-Canvas preserved the same content after posting; the posted reading remains the account
-of the board state.
+```javascript
+(editorId, composerSelector) => {
+  const result = {editor_id: editorId, view: "unidentified", html: ""};
+  const roots = document.querySelectorAll(composerSelector);
+  if (roots.length !== 1 || !/^message-body-(root|\d+)$/.test(editorId))
+    return JSON.stringify(result);
+  const root = roots[0];
+  const source = document.getElementById(editorId);
+  const sources = root.querySelectorAll('textarea[id^="message-body-"]');
+  if (!source || !root.contains(source) || sources.length !== 1)
+    return JSON.stringify(result);
+  const visible = element => {
+    if (!element || !element.getClientRects().length) return false;
+    for (let node = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden" || node.hidden)
+        return false;
+    }
+    return true;
+  };
+  const textareaVisible = [...root.querySelectorAll("textarea")].some(visible);
+  const codeMirrorPresent = !!root.querySelector(".CodeMirror, .cm-editor");
+  const toolbarVisible = [...root.querySelectorAll(".tox-toolbar, .tox-toolbar__primary, .mce-toolbar")].some(visible);
+  const status = [...root.querySelectorAll("button, [role=button]")]
+    .filter(visible).map(node => [node.textContent, node.getAttribute("aria-label"), node.getAttribute("title")].filter(Boolean).join(" "))
+    .join(" ");
+  if (!textareaVisible && !codeMirrorPresent && toolbarVisible)
+    result.view = "formatted";
+  else if (textareaVisible && !codeMirrorPresent && !toolbarVisible && /Switch to pretty HTML Editor/i.test(status))
+    result.view = "raw";
+  else if (codeMirrorPresent && !toolbarVisible)
+    result.view = "pretty";
+  const editor = window.tinymce?.get(editorId);
+  const frame = document.getElementById(editorId + "_ifr");
+  const body = typeof editor?.getBody === "function" ? editor.getBody()
+    : (frame && root.contains(frame) ? frame.contentDocument?.body : null);
+  result.html = typeof editor?.getContent === "function" ? editor.getContent()
+    : (body ? body.innerHTML : "");
+  if (typeof result.html !== "string" || (!editor && !body)) {
+    result.view = "unidentified";
+    result.html = "";
+  }
+  return JSON.stringify(result);
+}
+```
+
+The graders require exactly the string fields `editor_id`, `view`, and `html`, with `view` equal
+to `formatted`. They compare the serialized HTML with the build by paragraph and other visible
+block text, ordered anchor destinations, and anchor count. Attribute order, insignificant
+whitespace, and other serialization differences do not make the readback diverge.
+
+The calling skill owns the retained file and the check. A clean pre-posting readback establishes
+neither that the correct board's Composer was chosen nor that Canvas preserved the content after
+posting; the posted reading remains the account of the board state. Change nothing in the Composer
+between this readback and the click; a later change requires a new readback and loaded-box stop.
+The first live run under ADR 0344 adds a dated observation of the threaded Composer's switch back,
+with its editor id, to the calibration record below; the build alone supplies no such observation.
 
 ## Initial-post attachment fallback (only when the calling skill opts in)
 
@@ -91,7 +145,8 @@ body with this fixed pointer, substituting only the artifact title and attached 
 Canvas refused the full text inline for message size. The complete submission is attached as <attachment filename>.
 ```
 
-Attach the finished `.docx`. Read back the pointer's body text and the Composer's displayed
+Attach the finished `.docx`. Run the same page script on the formatted pointer and retain its output in the newest render pass.
+Read back the pointer's body text and the Composer's displayed
 attachment filename and size. Show those readings and the visually checked document to the
 clinician at the loaded-box stop and record a fresh **Posting go-ahead** before submitting this attached entry. The
 authorization for the earlier full-body click does not cover it. After posting, use the posted

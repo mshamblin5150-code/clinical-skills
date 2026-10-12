@@ -12,6 +12,7 @@ import base64
 import io
 import hashlib
 import re
+import json
 import sys
 import tempfile
 import unittest
@@ -254,6 +255,8 @@ class Run:
         pass_directory = self.root / "render" / f"pass-{render_pass}"
         pass_directory.mkdir(parents=True)
         (pass_directory / "post.html").write_bytes(html.read_bytes())
+        (pass_directory / "editor-readback.json").write_text(
+            json.dumps({"editor_id": "message-body-root", "view": "formatted", "html": html.read_text(encoding="utf-8")}), encoding="utf-8")
         for capture in range(1, captured_images + 1):
             (pass_directory / f"capture-{capture}.png").write_bytes(PNG)
 
@@ -419,6 +422,44 @@ class AnEmptyBodyIsStillAFindingUnderAZeroBar(unittest.TestCase):
 
 
 class CanvasSubmissionRows(unittest.TestCase):
+    def test_readback_coverage_is_ungraded_before_loading_and_reports_partial_html(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            _, report, _ = run.grade("--html", str(html))
+            self.assertIn("editor-readback: not graded - awaiting a Canvas-box load", report)
+            run.record_canvas_render(html)
+            (run.root / "render/pass-1/editor-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-root", "view": "formatted", "html": "<p>Unclosed"}), encoding="utf-8")
+            status, report, _ = run.grade("--html", str(html))
+            self.assertEqual(1, status)
+            self.assertIn("editor-readback: 1", report)
+            self.assertRegex(report, r"editor HTML units read: \d+ of \d+; unread 1")
+
+    def test_the_loaded_box_requires_a_formatted_view_even_when_html_matches(self):
+        for view in ("formatted", "raw", "pretty", "unidentified", ""):
+            with self.subTest(view=view), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                html, _ = self.rendered(run)
+                run.record_canvas_render(html)
+                record = {"editor_id": "message-body-root", "view": view, "html": html.read_text(encoding="utf-8")}
+                (run.root / "render/pass-1/editor-readback.json").write_text(json.dumps(record), encoding="utf-8")
+                status, stdout, _ = run.grade("--html", str(html))
+                self.assertEqual(0 if view == "formatted" else 1, status)
+                self.assertIn(f"editor-readback: {0 if view == 'formatted' else 1}", stdout)
+
+    def test_only_the_newest_pass_readback_can_certify_the_loaded_box(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            run.record_canvas_render(html, render_pass=2)
+            (run.root / "render/pass-2/editor-readback.json").unlink()
+            status, stdout, _ = run.grade("--html", str(html))
+            self.assertEqual(1, status)
+            self.assertIn("editor-readback: 1", stdout)
+
+
     def test_first_load_is_incomplete_but_retained_pass_requires_a_record(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1604,6 +1645,9 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         docx_write.write_docx(BODY, document)
         run.record_canvas_render(html, render_pass=1)
         run.record_render(render_pass=2)
+        pointer = "Access Is More Than Availability\n\nCanvas refused the full text inline for message size. The complete submission is attached as post.docx."
+        (root / "render/pass-2/editor-readback.json").write_text(
+            json.dumps({"editor_id": "message-body-root", "view": "formatted", "html": post_html.render(pointer)}), encoding="utf-8")
         (root / "render" / "pass-2" / "post-draft.sha256").write_text(
             file_digest.sha256(run.draft) + "\n", encoding="ascii"
         )
@@ -2855,7 +2899,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "CanvasSubmissionRows.test_docx_is_archival_and_does_not_grade_submission_rows",
             "CanvasSubmissionRows.test_clean_html_submission_and_structured_docx_archive_pass",
         ),
-        "whether each reference URL was submitted as a link": (
+        "whether the board preserved each reference URL as a link": (
             "CanvasSubmissionRows.test_an_unlinked_reference_url_passes_submission_text",
             "CanvasSubmissionRows.test_changed_block_quotation_text_fails_html_parity",
         ),
