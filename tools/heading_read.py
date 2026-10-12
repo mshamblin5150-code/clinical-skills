@@ -13,7 +13,7 @@ import completion_checks
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import NamedTuple
 
 import reader_remarks
@@ -161,6 +161,7 @@ class Scan:
     findings: tuple[Finding, ...]
     remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
+    other_files: int | None = None
 
 
 def read_records(text: str) -> tuple[Record, ...]:
@@ -367,7 +368,9 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
 def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     """Grade records for the caller's expected drafts and claim scopes."""
     records = read_records(text)
-    population = sum(1 for line in HEADING_CANDIDATE.findall(text) if ":" not in line or line.split(":", 1)[-1].strip() in {b.artifact for b in bindings})
+    artifacts = {binding.artifact for binding in bindings}
+    other_files = _other_files(text, artifacts)
+    population = len(HEADING_CANDIDATE.findall(text)) - other_files
     read = 0
     found: list[Finding] = []
     expected = {binding.artifact: binding for binding in bindings}
@@ -386,13 +389,27 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     bound_records = tuple(r for r in records if r.artifact in expected)
     unread = max(0, population - read) + sum(r.unread for r in bound_records)
     remarks = tuple(reader_remarks.Remark(f"HEADING-READ: {r.artifact}", text) for r in bound_records for text in r.remarks)
-    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread))
+    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread), other_files)
+
+
+def _other_files(text: str, artifacts: set[str]) -> int:
+    return sum(
+        name not in artifacts and PurePath(name).suffix not in ("", ".")
+        for line in HEADING_CANDIDATE.findall(text)
+        if ":" in line
+        for name in (line.split(":", 1)[1].strip(),)
+    )
+
+
+def _format_other_files(count: int) -> str:
+    return f"heading-read records for other files: {count}"
 
 
 def format_coverage(result: Scan) -> str:
     return "\n".join(line for line in
         (
             f"heading-read records: {result.records_read}",
+            _format_other_files(result.other_files) if result.other_files is not None else "",
             run_grader.format_unread_remainder(result.unread),
             *(f"unread reader record: HEADING-READ: {name}" for name in result.unread_records),
             reader_remarks.report(result.remarks),
@@ -400,7 +417,9 @@ def format_coverage(result: Scan) -> str:
     )
 
 
-def protocol_coverage(claims_text: str, heading_text: str) -> str:
+def protocol_coverage(
+    claims_text: str, heading_text: str, artifacts: tuple[str, ...], *, report_other_files: bool = True
+) -> str:
     """Report the ungraded legacy populations without implying a clean zero."""
     claims = research_ledger.read_records(claims_text)
     headings = {research_ledger.heading_digest(claim.claim)[:8]: claim for claim in claims}
@@ -413,9 +432,10 @@ def protocol_coverage(claims_text: str, heading_text: str) -> str:
         for record in records for pair in record.pairs
         for parsed in (PAIR.fullmatch(pair),)
     )
-    lines = []
+    lines = [_format_other_files(_other_files(heading_text, set(artifacts)))] if report_other_files else []
     if not research_ledger.qualifiers_required(research_ledger.ledger_date(claims_text)):
-        lines.append(f"item-description comparisons: {run_grader.NOT_GRADED} - unread {len(records)} heading-read records")
+        bound_count = sum(record.artifact in artifacts for record in records)
+        lines.append(f"item-description comparisons: {run_grader.NOT_GRADED} - unread {bound_count} heading-read records")
     if unread_pairs:
         lines.append(f"qualifier pair counts: {run_grader.NOT_GRADED} - unread {unread_pairs}")
     return "\n".join(lines)

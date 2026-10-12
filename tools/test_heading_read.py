@@ -68,6 +68,27 @@ def scan(text: str) -> heading_read.Scan:
 
 
 class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
+    def test_legacy_item_comparisons_count_only_bound_records(self):
+        report = heading_read.protocol_coverage(
+            CLAIMS, record() + record().replace("draft.md", "other.md"), ("draft.md",)
+        )
+        self.assertIn("item-description comparisons: not graded - unread 1 heading-read records", report)
+        self.assertIn("heading-read records for other files: 1", report)
+
+    def test_names_that_do_not_identify_a_file_are_unread(self):
+        for heading in ("## HEADING-READ:", "## HEADING-READ: response-jane", "## HEADING-READ: response.", "## HEADING-READ"):
+            with self.subTest(heading=heading):
+                result = scan(record() + heading + "\n")
+                self.assertEqual((1, 1, ()), (result.records_read, result.unread, result.findings))
+                self.assertIn("heading-read records for other files: 0", heading_read.format_coverage(result))
+
+    def test_other_file_records_are_reported_without_entering_the_remainder(self):
+        for name in ("post.md", "paper.docx", "deck.pptx", "record.custom"):
+            with self.subTest(name=name):
+                result = scan(record() + record().replace("draft.md", name))
+                self.assertEqual((1, 0, ()), (result.records_read, result.unread, result.findings))
+                self.assertIn("heading-read records for other files: 1", heading_read.format_coverage(result))
+
     def test_malformed_clean_and_unknown_verdicts_are_format_findings_only(self):
         for verdict in ("clean - a reason", "cleaned", "clean-tail", "unknown", ""):
             with self.subTest(verdict=verdict):
@@ -150,7 +171,7 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
         self.assertEqual(1, result.unread)
         self.assertEqual((), result.findings)
         self.assertEqual(
-            "heading-read records: 1\nunread remainder 1",
+            "heading-read records: 1\nheading-read records for other files: 0\nunread remainder 1",
             heading_read.format_coverage(result),
         )
 

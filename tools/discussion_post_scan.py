@@ -1750,7 +1750,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             if source.refused_label is not None
             else ()
         ),
-        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.draft.name,)), aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")

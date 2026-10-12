@@ -1044,7 +1044,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             or any(state.unrecorded_reading for state in scanned.posted_reading_states)
         ),
         diagnostics=refused,
-        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, tuple(reply.path.name for reply in source.replies)), aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, submission if submissions else None

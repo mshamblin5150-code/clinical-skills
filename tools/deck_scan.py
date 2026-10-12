@@ -1339,7 +1339,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
             or scanned.slide_limit_unread > 0
         ),
         diagnostics=tuple(diagnostics),
-        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), rendered.report, gate_report, aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.deck.name,)), rendered.report, gate_report, aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")

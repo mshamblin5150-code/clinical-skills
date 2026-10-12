@@ -1151,7 +1151,7 @@ def _grade(
         coverage_failed=not source.records or bool(heading.unread) or bool(scan.reader_unread),
         diagnostics=tuple(diagnostics),
         reports=(
-            heading_read.protocol_coverage(source.claims_text, source.text),
+            heading_read.protocol_coverage(source.claims_text, source.text, (source.document.name,), report_other_files=False),
             heading_read.format_coverage(heading),
             rendered_report,
             reader_remarks.report(scan.reader_remarks),
