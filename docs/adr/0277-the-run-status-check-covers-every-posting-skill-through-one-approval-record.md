@@ -94,6 +94,8 @@ the line.
 
 *Superseded 2026-10-11.* The words "When one session touches several approved runs" are superseded by [ADR 0339](0339-a-run-is-touched-by-a-write-and-a-retried-status-line-is-graded-but-never-refused-twice.md) ruling 1. A run is touched only when the session named it in a command and changed a file under it; each touched run still gets its own keyed line.
 
+*Superseded 2026-10-12.* The words "`complete` requires every approved item's terminal grade to be clean" are superseded by [ADR 0346](0346-a-posted-item-s-clean-terminal-grade-is-frozen-and-a-later-check-starts-on-a-recorded-date.md) ruling 1. An item frozen at its first clean terminal grade counts by that stored grade and is not graded again; every other approved item must still grade clean, and the furthest-behind reporting stands.
+
 ## Ruling 5 — `awaiting posting` replaces `awaiting upload`, and the clinician's own route is a clinician posting
 
 The waiting status reads `awaiting posting` for every row, `course-assignment` included. The glossary
