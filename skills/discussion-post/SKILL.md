@@ -132,7 +132,7 @@ inventory of what that command cannot decide.
 
 ## 3. Outline blind, research the questions, then draft from records
 
-Before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
+Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in this run's input, exclude faculty, classmate, and source language, or record
 explicit `none`.

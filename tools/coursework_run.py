@@ -17,6 +17,7 @@ from repo_root import scratch_path, output_root, scratch_root
 
 
 TRAILING_DATE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
+RECORDS_DIRECTORY = "voice-reads"
 
 
 def key_of(stem: str) -> str:
@@ -82,10 +83,16 @@ def submission_keys(submission: str) -> tuple[str, ...]:
     return keys
 
 
+def voice_records_directory(run: Path, key: str) -> Path:
+    """Return the voice-read directory for one terminal submission key."""
+    stem = Path(key).stem if key.endswith((".md", ".pptx", ".docx")) else key
+    return run / RECORDS_DIRECTORY / stem
+
+
 def draft_files(run: Path, key: str, start: Path | None = None) -> tuple[Path, ...]:
     """Enumerate mapped prose and keyed staging in both relevant scratch roots."""
     submission_keys(key)
-    stem = Path(key).stem if key.endswith((".md", ".pptx", ".docx")) else key
+    stem = voice_records_directory(run, key).name
     if key == "critique.md":
         skill = "peer-critique"
     elif key.startswith("response-") and key.endswith(".md"):

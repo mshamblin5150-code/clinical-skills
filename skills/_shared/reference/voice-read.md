@@ -7,8 +7,8 @@ before asking for the go-ahead. The completion grader later enforces the records
 skill copies one of its rows.
 
 For submission key `<key>`, make `scratch/runs/<run-key>/voice-reads/<key-stem>/`. All files
-below belong there. The key stem is the terminal `--submission` value with its file extension
-removed. Discussion replies keep one directory per reply, so the terminal comma-separated run
+below belong there. The key stem is the terminal `--submission` value with a `.md`, `.pptx`, or
+`.docx` extension removed; any other key is used verbatim. Discussion replies keep one directory per reply, so the terminal comma-separated run
 grades both earlier reads instead of replacing the first with the second.
 
 ## 1. Capture the clinician's supplied voice before drafting
