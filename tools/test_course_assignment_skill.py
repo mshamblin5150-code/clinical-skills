@@ -86,7 +86,7 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
             "This vision-capable **Second reader**",
             "The adversarial investor reader",
             "this fresh **Second reader**",
-            "Rerun `deck_scan.py --pptx <deck>`",
+            "Rerun the signed artifact's `course_assignment_scan.py`",
         )
         positions = [inspection.index(item) for item in ordered]
         self.assertEqual(positions, sorted(positions))
