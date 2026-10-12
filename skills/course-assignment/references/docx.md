@@ -90,13 +90,24 @@ shapes are retained in [assignment-word-calibration.json](assignment-word-calibr
 Office. A changed shape requires a new Word measurement under ADR 0008. This calibration supports
 the producer's formatting, and the per-run visual reader still checks each supplied image.
 
-## Grade the DOCX package
+## Read headings before rendering
+
+After the producer writes the `.docx`, run the real, recorded
+[heading read for both artifacts](../SKILL.md#heading-read-for-both-artifacts) on that file.
+Repair each finding through the authoritative JSON specification, rebuild the `.docx`, and take
+a fresh complete read until `heading-read.md` is clean. Only then proceed to
+`assignment_docx_render.py`, `render_scan.py`, and the visual read below.
 
 This **Grader handoff** under standing rule 6 runs:
 
 ```bash
 python tools/assignment_docx_scan.py <run-directory> --docx <docx>
 ```
+
+Run this existing grader during the pre-render loop to report the heading-read rows on the current
+bytes. Its `rendered-record` row is expected to fire until the render and is not a stop there;
+repair the heading-read findings and re-read before rendering. The final pre-upload grade still
+requires every row to be clean.
 
 The grader reads these rows:
 
@@ -157,8 +168,10 @@ export stops; a generic office conversion or unbound PDF cannot be called verifi
 Run `render_scan.py` to grade readable pixel coverage. A vision-capable **Second reader** opens every
 PNG in the highest pass at 100% and compares it with the DOCX and signed bar. It reports clipping,
 overlap, broken tables, font substitution, stranded captions, missing content, page-number defects,
-and unreadable contrast. Preserve each original finding, repair through the authoring context, and
-repeat both the render and the independent read after every change.
+and unreadable contrast. Preserve each original finding and repair through the authoring context's
+JSON specification. If a visual repair changes the `.docx`, repeat the heading read on the new bytes
+before rendering, then repeat the render and the independent visual read. The voice read still
+runs after the artifact is final.
 
 The orchestrator writes one final record to `rendered.md`:
 

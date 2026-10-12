@@ -317,6 +317,35 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
 
 
 class TheSharedTemplateUsesFormsTheGraderUnderstands(unittest.TestCase):
+    def test_overstated_evidence_is_drift_in_the_shared_reader_brief(self):
+        root = Path(__file__).resolve().parents[1]
+        sourcing = (root / "skills/_shared/reference/sourcing.md").read_text(encoding="utf-8")
+        brief = sourcing.split("Before any go-ahead, a fresh context receives only", 1)[1]
+        definition = " ".join(brief.split("The clinician's own reasoning", 1)[0].split())
+        self.assertRegex(
+            definition,
+            r"one opinion as a general standard.*one source as several agreeing sources.*`drifted`",
+        )
+
+    def test_docx_heading_read_precedes_render_and_repeats_after_visual_repairs(self):
+        root = Path(__file__).resolve().parents[1]
+        branch = (root / "skills/course-assignment/references/docx.md").read_text(encoding="utf-8")
+        heading_step = branch.index("## Read headings before rendering")
+        render_step = branch.index("python tools/assignment_docx_render.py")
+        self.assertLess(branch.index("python tools/assignment_docx.py"), heading_step)
+        self.assertLess(heading_step, render_step)
+        loop = " ".join(branch[heading_step:render_step].split())
+        self.assertIn("heading-read.md` is clean", loop)
+        self.assertIn("assignment_docx_scan.py", loop)
+        self.assertIn("`rendered-record` row is expected to fire", loop)
+        self.assertIn("not a stop", loop)
+        visual = " ".join(branch[render_step:].split())
+        self.assertIn("repeat the heading read on the new bytes before rendering", visual)
+        self.assertIn("voice read", visual)
+        skill = (root / "skills/course-assignment/SKILL.md").read_text(encoding="utf-8")
+        shared = " ".join(skill.split("### Heading read for both artifacts", 1)[1].split("## 6.", 1)[0].split())
+        self.assertIn("before the Word render", shared)
+
     def test_every_documented_verdict_and_finding_has_its_intended_kind(self):
         root = Path(__file__).resolve().parents[1]
         sourcing = (root / "skills/_shared/reference/sourcing.md").read_text(encoding="utf-8")

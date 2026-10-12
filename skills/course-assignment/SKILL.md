@@ -390,6 +390,11 @@ enforces both the voice read and the model-owned profanity row. Its complete cei
 
 ### Heading read for both artifacts
 
+For a DOCX, take this read on the built `.docx` before the Word render, following the
+[DOCX branch's pre-render loop](references/docx.md#read-headings-before-rendering). Repair through
+the JSON specification and re-read until clean; a later visual repair that changes the file
+repeats the heading read on the new bytes. The voice read still runs after the artifact is final.
+
 Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only
 the final `.pptx` or `.docx`, `claims.md`, the printed heading digests, and every item pointer recorded
 in `project-context.md`. It opens those items itself. Do not give it research sources. It writes the
