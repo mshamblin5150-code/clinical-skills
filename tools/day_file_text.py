@@ -75,9 +75,9 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser().parse_args(argv)
     source = arguments.day_file.expanduser().resolve()
     scratch = repo_root.scratch_root()
-    day_directory = scratch / "runs" / f"shift-{arguments.date.isoformat()}" / "day-file"
+    day_directory = repo_root.scratch_path(scratch, "runs") / f"shift-{arguments.date.isoformat()}" / "day-file"
     hash_path = day_directory / "source.sha256"
-    target = scratch / "day-file-text" / f"{source.stem}.txt"
+    target = repo_root.scratch_path(scratch, "day-file-text") / f"{source.stem}.txt"
 
     try:
         source_hash = file_digest.sha256(source)

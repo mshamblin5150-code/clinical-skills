@@ -169,7 +169,7 @@ def _units(tests) -> tuple[Unit, ...]:
 def _weight_plan(
     units: tuple[Unit, ...], scratch: Path
 ) -> tuple[dict[str, float], str]:
-    path = scratch / "runs" / "suite-weights.json"
+    path = repo_root.scratch_path(scratch, "runs") / "suite-weights.json"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         recorded = {
@@ -200,7 +200,7 @@ def _pack(
 def _write_weights(scratch: Path, unit_times: dict[str, float]) -> None:
     if not scratch.is_dir():
         return
-    runs = scratch / "runs"
+    runs = repo_root.scratch_path(scratch, "runs")
     runs.mkdir(exist_ok=True)
     temporary: Path | None = None
     try:

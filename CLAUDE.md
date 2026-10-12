@@ -79,8 +79,9 @@ a new fire is unruled until a person classifies it.
 ### The scratch root
 
 Everything under `scratch/` is a patient record and none of it is recoverable. **A top-level entry
-there is accounted for iff some tracked file names it as `scratch/<name>`** — derived, never a
-hand-kept list — and a session's working material goes under `scratch/sessions/<key>/` rather than
+there is accounted for when a tracked file names it as `scratch/<name>` or the resolver's
+`repo_root.SCRATCH_NAMES` list registers it**. Code uses `repo_root.scratch_path(root, name)`;
+an unlisted name fails to resolve. A session's working material goes under `scratch/sessions/<key>/` rather than
 loose at the top. See `docs/agents/scratch.md`,
 [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
 and [ADR 0059](docs/adr/0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md),
@@ -92,8 +93,13 @@ lived in worktree roots rather than in the one `repo_root.scratch_root()` resolv
 above is maintained **per root, in every registered checkout**: the owning checkout keeps a
 grandfathered integer baseline, and every other checkout has a zero ratchet from day one. A commit
 grades only the owning root and the committing root; every peer root reports and is never graded.
-A failing gating root is **drained** under the owning checkout's Ticket directory — a move, never a
-delete.
+Before draining a failing gating root, bring the branch up to date with main and run again.
+Move a still-refused entry under the owning checkout's Ticket directory, never delete it.
+The census also parses the local `origin/main` resolver list without importing or fetching it:
+entries only main accounts for are exempt in both gating roots. Rebase; do not move those entries.
+An absent or unparseable list is reported and leaves branch accounting in force.
+[ADR 0338](docs/adr/0338-a-scratch-path-code-resolves-is-accounted-by-the-resolver-list-and-an-entry-main-accounts-is-never-drained.md)
+supersedes ADR 0033's document-only accounting rule.
 
 Before removing a worktree, run `python tools/scratch_census.py --worktrees` first and remove none
 it holds back.
@@ -3064,15 +3070,18 @@ committing checkout with its zero ratchet, and every peer checkout reports its f
 state and is never graded. The accounted-name vocabulary is applied to neither peer admission nor
 peer output.
 `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor of
-documented entries; neither is restated here.
+code-resolved and skill-documented entries; neither is restated here.
 
 **It never reads a scratch file's contents and never prints an unaccounted entry's name.** That is
 not tidiness: a `scratch/` filename may itself carry PHI and this repository is public, which is the
 whole reason [ADR 0033](docs/adr/0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)
 made the baseline an integer and refused a list.
 
-**Deletion is outside its authority.** A rise is moved under the owning checkout's Ticket directory,
-never deleted, and the command classifies nothing about what moves. Disposing of an unaccounted
+**Deletion is outside its authority.** First bring the branch up to date with main and run again;
+move a still-refused rise under the owning checkout's Ticket directory. The local `origin/main`
+resolver list exempts entries that main alone accounts for, reports that the branch is behind,
+and says to rebase without moving them. No fetch occurs; an absent or unparseable list is reported
+and leaves branch accounting in force. The command classifies nothing about what moves. Disposing of an unaccounted
 entry is the clinician's word, per file.
 
 **The mechanism's declared limits live in `scratch_census.DECLARED_LIMITS`.** This section points at
@@ -3085,7 +3094,7 @@ into the hook's, so nothing above it can suppress it.
 exit-2 contract lives in `scratch_census.EXIT_2_LIMBS`; this section copies no limb. A peer root
 never changes status.
 
-Covered by `tools/test_scratch_census.py`.
+Covered by `tools/test_scratch_census.py` and the root-shape mutant guard in `tools/test_scratch_paths.py`.
 
 ### Continuous integration
 

@@ -84,6 +84,48 @@ class ScratchRepository(unittest.TestCase):
 
 
 class ScratchCensusCommandTests(ScratchRepository):
+    def test_code_resolved_name_without_documentation_is_accounted(self):
+        (self.root / "scratch" / "project-registry.md").touch()
+        finished = self.run_census()
+        self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
+        self.assertIn("28 unaccounted, 0 above baseline", finished.stdout)
+
+    def test_main_list_protects_both_gating_roots_on_a_stale_branch(self):
+        branch = self.add_worktree()
+        source = self.root / "tools" / "repo_root.py"
+        source.parent.mkdir()
+        source.write_text('SCRATCH_NAMES = ("future-account.md",)\n', encoding="utf-8")
+        git(self.root, "add", "tools/repo_root.py")
+        git(self.root, "commit", "-m", "new resolver name")
+        git(self.root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        (self.root / "scratch" / "future-account.md").touch()
+        (branch / "scratch").mkdir()
+        (branch / "scratch" / "future-account.md").touch()
+        finished = self.run_census(cwd=branch)
+        self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
+        self.assertIn("main accounts for 2", finished.stdout)
+        self.assertIn("branch is behind", finished.stdout)
+        self.assertIn("rebase", finished.stdout)
+        self.assertIn("do not move", finished.stdout)
+        self.assertNotIn("future-account.md", finished.stdout)
+
+    def test_absent_or_unparseable_main_list_states_fallback(self):
+        source = self.root / "tools" / "repo_root.py"
+        source.parent.mkdir()
+        for contents in (None, 'SCRATCH_NAMES = dangerous()\n', 'SCRATCH_NAMES = ("../escape",)\n'):
+            with self.subTest(contents=contents):
+                if contents is None:
+                    git(self.root, "update-ref", "-d", "refs/remotes/origin/main")
+                else:
+                    source.write_text(contents, encoding="utf-8")
+                    git(self.root, "add", "tools/repo_root.py")
+                    git(self.root, "commit", "-m", "unparseable fixture")
+                    git(self.root, "update-ref", "refs/remotes/origin/main", "HEAD")
+                finished = self.run_census()
+                self.assertEqual(finished.returncode, 0, finished.stderr)
+                self.assertIn("origin/main list unavailable or unparseable", finished.stdout)
+                self.assertIn("branch accounting only", finished.stdout)
+
     def test_worktree_registry_reads_nul_delimited_paths_losslessly(self) -> None:
         unusual = self.root.parent / "line\nbreak"
         records = (
@@ -256,7 +298,7 @@ class ScratchCensusCommandTests(ScratchRepository):
             finished.stdout,
         )
         self.assertIn(
-            "REMEDY: move it under scratch/sessions/ticket-<n>/",
+            "move it under scratch/sessions/ticket-<n>/ only if it still refuses",
             finished.stdout,
         )
         self.assertIn(
@@ -466,7 +508,7 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         for unreadable, remedy in cases:
             with self.subTest(root=unreadable):
-                def count(root: Path, _accounted: frozenset[str]) -> census.RootCount:
+                def count(root: Path, _accounted: frozenset[str], _main_only=frozenset()) -> census.RootCount:
                     if root == unreadable:
                         raise FileNotFoundError(root / "scratch" / "vanished")
                     unaccounted = census.OWNING_BASELINE if root == owning else 0
@@ -512,7 +554,7 @@ class ScratchCensusCommandTests(ScratchRepository):
         unreadable = owning.parent / "unreadable-peer"
 
         def count_gating(
-            root: Path, _accounted: frozenset[str]
+            root: Path, _accounted: frozenset[str], _main_only=frozenset()
         ) -> census.RootCount:
             return census.RootCount(
                 root,
@@ -865,7 +907,7 @@ class AccountedSetTests(unittest.TestCase):
         gating_roots = {root, committing}
 
         def count_gating(
-            path: Path, _accounted: frozenset[str]
+            path: Path, _accounted: frozenset[str], _main_only=frozenset()
         ) -> census.RootCount:
             self.assertIn(path, gating_roots)
             unaccounted = census.OWNING_BASELINE if path == root else 0
@@ -1022,7 +1064,7 @@ class AccountedSetTests(unittest.TestCase):
 
         self.assertIn('scratch_census.py" >&2 || status=1', hook)
 
-    def test_the_ordinary_census_uses_one_registry_and_one_grep_process(self) -> None:
+    def test_the_ordinary_census_uses_one_registry_one_grep_and_one_ref_read(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
             scratch = root / "scratch"
@@ -1052,9 +1094,10 @@ class AccountedSetTests(unittest.TestCase):
         read_registry.assert_called_once_with(
             root, "worktree", "list", "--porcelain", "-z"
         )
-        run.assert_called_once_with(
-            root, "grep", "-h", "-I", "-e", "scratch/", "--", "."
-        )
+        self.assertEqual(run.call_args_list, [
+            mock.call(root, "grep", "-h", "-I", "-e", "scratch/", "--", "."),
+            mock.call(root, "show", "origin/main:tools/repo_root.py"),
+        ])
 
     def test_a_process_launch_failure_is_not_scanned_without_a_traceback(self) -> None:
         output = io.StringIO()

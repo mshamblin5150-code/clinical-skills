@@ -52,7 +52,7 @@ from procedure_codes_build import (
     descriptor_defects,
     read_cpt,
 )
-from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
+from repo_root import scratch_path, InsideCheckout, ensure_outside_checkout, scratch_root
 from run_grader import format_unread_remainder
 
 READINGS = {"reader_1": "reader-1.csv", "reader_2": "reader-2.csv"}
@@ -287,7 +287,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--root", type=Path, help="rebuild directory; defaults to the owning checkout's scratch/cpt-2026")
     parser.add_argument("--write", action="store_true", help="write agreed.csv and agreement.json when clean")
     args = parser.parse_args(argv)
-    root = (args.root or scratch_root() / "cpt-2026").resolve()
+    root = (args.root or scratch_path(scratch_root(), "cpt-2026")).resolve()
     try:
         # The readings are licensed text: inside a checkout they belong only under scratch/.
         ensure_outside_checkout(root, permitted=(scratch_root(),), detail="CPT readings are licensed text.")

@@ -563,7 +563,7 @@ def preserve_refused_outcomes(
 
 def refused_outcome_directory() -> Path:
     """Durable, accounted home for authored outcomes a write refused."""
-    return repo_root.scratch_root() / "runs" / "map-refusals"
+    return repo_root.scratch_path(repo_root.scratch_root(), "runs") / "map-refusals"
 
 
 def pending_outcome_records() -> tuple[Path, ...]:

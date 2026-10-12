@@ -37,7 +37,7 @@ from pathlib import Path
 from console_codec import require_python_floor, use_utf8
 from cpt_identity import CPT_CODE
 import cpt_population
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "procedure-codes-2026.sqlite"
@@ -604,7 +604,7 @@ def main(argv: list[str]) -> int:
         cpt_evidence = None
         descriptor_state = "unverified (no agreement record supplied)"
         if args.cpt_agreement:
-            root = scratch_root() / "cpt-2026"
+            root = scratch_path(scratch_root(), "cpt-2026")
             if not args.cpt_agreement.is_file():
                 raise ValueError(f"recorded CPT agreement absent: {args.cpt_agreement}")
             if args.cpt_agreement.resolve().parent != root.resolve():

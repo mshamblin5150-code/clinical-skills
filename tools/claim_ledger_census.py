@@ -23,6 +23,7 @@ from research_ledger import (
     has_substantive_refutation,
     read_records,
 )
+from repo_root import scratch_path
 import scratch_census
 
 
@@ -66,7 +67,7 @@ def read_root(root: Path) -> RootRead | None:
     # Probe the root even when it has no runs directory. An unreadable root is
     # still an incomplete registered population.
     next(root.iterdir(), None)
-    runs = root / "runs"
+    runs = scratch_path(root, "runs")
     if not runs.exists():
         return RootRead()
     if not runs.is_dir():

@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 from run_grader import format_unread_remainder
 
 
@@ -62,7 +62,7 @@ def saved_scheme(profile: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("notes", nargs="+", type=Path, help="every final note, supplied explicitly")
-    parser.add_argument("--profile", type=Path, default=scratch_root() / "medatrax-profile.md")
+    parser.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     args = parser.parse_args(argv)
     read = found = unread = violations = 0
     try:

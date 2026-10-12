@@ -13,9 +13,12 @@ each half is shaped the way it is; this file is the rule itself.
 
 ## The top level is closed
 
-**A top-level entry in the scratch root is accounted for iff some tracked file names it as
-`scratch/<name>`.** That is the whole rule, and it is *derived* — there is no hand-kept list to
-consult and none to keep in step.
+**A top-level entry is accounted for when a tracked file names it as `scratch/<name>` or
+`repo_root.SCRATCH_NAMES` registers it.** Every code-resolved top-level name passes through
+`repo_root.scratch_path(root, name)`; an unlisted name fails to resolve. Skill-only names stay
+accounted by their documented paths. This second source is
+[ADR 0338](../adr/0338-a-scratch-path-code-resolves-is-accounted-by-the-resolver-list-and-an-entry-main-accounts-is-never-drained.md),
+which supersedes ADR 0033 ruling 2's document-only accounting rule.
 
 Two consequences, and the second is the one sessions get wrong:
 
@@ -42,19 +45,10 @@ word as a name for *a sitting*, not as a name for a pass.
 
 ### The standing artifacts
 
-Nine names are documented and every one of them is a legitimate top-level entry:
-
-| | |
-| --- | --- |
-| `runs/`, `day-file-text/`, `writing-samples/` | directories a tool or skill writes at a named path |
-| `name-index.json`, `harvest-reviewed.json` | the PHI firewall's own corpus-layer inputs |
-| `medatrax-profile.md`, `identity-map.md`, `voice-model.md`, `shorthand.md` | `setup-clinical-skills` account artifacts |
-
-**They are asserted as a floor on the derived set, never as the set.** A rename that orphans one of
-them fails the suite rather than silently reclassifying a standing account file as litter. The
-declined alternative is recorded in ADR 0033 because it will be re-proposed: requiring the tuple to
-*equal* the derived set forbids exactly the divergence the floor exists to permit, and would go red
-the day a legitimate tenth artifact lands.
+`scratch_census.STANDING_ARTIFACTS` derives the code-resolved names from the resolver list
+and adds the skill-only `writing-samples`, `identity-map.md` and `shorthand.md`.
+**It is asserted as a floor on the derived set, never as the set.** Document citations can account
+for additional names without adding unused entries to the code resolver.
 
 ## The check ratchets on a count, and it walks every checkout
 
@@ -103,9 +97,16 @@ counts alone.
 **It runs on the hook and never in CI.** `.github/workflows/checks.yml` cannot run it — the scratch root is
 gitignored PHI and must never reach a runner — so this check is permanently dead there.
 
-### The remedy for a gating rise is relocation
+### Bring the branch up to date before relocating a gating rise
 
-**Move the rise under the owning checkout's Ticket directory.** `tools/scratch_work.py` resolves
+**Bring the branch up to date with main and run again.** The census parses the resolver list
+from the local `origin/main:tools/repo_root.py` as data, without importing it and without a fetch.
+An entry only main's list accounts for is exempt in both gating roots. The report says main
+accounts for it, the branch is behind, and to rebase; **do not move those entries**. An absent
+or unparseable list is reported and leaves branch accounting in force. Main's document-only
+citations are outside that exemption, as are names beyond the local ref's currency.
+
+**Move a still-refused rise under the owning checkout's Ticket directory.** `tools/scratch_work.py` resolves
 that child through `repo_root.scratch_root()`, so a committing worktree moves material out of a root
 that vanishes on `git worktree remove` and into the durable owning root without leaving it at the
 top level. The relocation reads nothing, classifies nothing, publishes nothing and deletes nothing.

@@ -175,6 +175,62 @@ class OnlyACompletedMainMergeCanProduceReceipts(unittest.TestCase):
 
 
 class CommandLineOutputIsMachineReadable(unittest.TestCase):
+    def test_declared_no_ticket_plan_publishes_cleanly_without_tracker_access(self):
+        document = merged_pr(
+            "Binds no ticket: documentation-only housekeeping.\n",
+            commits=[{
+                "messageHeadline": "Update documentation",
+                "messageBody": "Binds no ticket: documentation-only housekeeping.",
+            }],
+        )
+        output = io.StringIO()
+        with (
+            contextlib.redirect_stdout(output),
+            contextlib.redirect_stderr(io.StringIO()),
+            mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
+        ):
+            plan_status = receipt.main(["-"])
+
+        self.assertEqual(plan_status, 0)
+        self.assertEqual(output.getvalue(), "")
+        with tempfile.TemporaryDirectory() as raw:
+            plan = Path(raw) / "receipts.jsonl"
+            # Out-File may leave a BOM on the workflow's empty plan.
+            plan.write_text(output.getvalue(), encoding="utf-8-sig")
+            with (
+                contextlib.redirect_stderr(io.StringIO()),
+                mock.patch("subprocess.run") as tracker_access,
+            ):
+                publish_status = receipt.main(["--publish-plan", str(plan)])
+
+        self.assertEqual(publish_status, 0)
+        tracker_access.assert_not_called()
+
+    def test_undeclared_empty_plan_keeps_the_workflow_failure(self):
+        for body in ("No binding.\n", "Binds no ticket:\n"):
+            with self.subTest(body=body):
+                output = io.StringIO()
+                report = io.StringIO()
+                with (
+                    contextlib.redirect_stdout(output),
+                    contextlib.redirect_stderr(report),
+                    mock.patch("sys.stdin", io.StringIO(json.dumps(merged_pr(body)))),
+                ):
+                    plan_status = receipt.main(["-"])
+
+                self.assertEqual(plan_status, 1)
+                self.assertIn("finding: receipt plan is empty", report.getvalue())
+                self.assertEqual(output.getvalue(), "")
+                with (
+                    mock.patch("sys.stdin", io.StringIO(output.getvalue())),
+                    mock.patch("subprocess.run") as tracker_access,
+                ):
+                    publish_status = receipt.main(["--publish-plan", "-"])
+
+                # The workflow stops on the planner's status before publication.
+                self.assertEqual(plan_status or publish_status, 1)
+                tracker_access.assert_not_called()
+
     def test_one_authored_message_cannot_both_bind_and_declare_no_ticket(self):
         report = io.StringIO()
         document = merged_pr(
