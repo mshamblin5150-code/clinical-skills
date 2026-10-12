@@ -1225,7 +1225,10 @@ def survey(source: Source) -> Scan:
     )
     artifact_figures = set(traceable_numeric_values(artifact_text, citations=supported_citations))
     recorded_figures, mentioned_figures = _claim_figures(source.claims)
-    for figure in sorted(artifact_figures - recorded_figures):
+    own_figures = heading_read.own_figures(source.heading_read_text, source.deck.name)
+    for figure in sorted(own_figures - artifact_figures):
+        findings.append(Finding(heading_read.OWN_FIGURE_ABSENT, None, f"{figure} is absent from the artifact's traced numbers"))
+    for figure in sorted(artifact_figures - recorded_figures - own_figures):
         detail = (
             f"{figure} appears only in a disbelieved claim record"
             if figure in mentioned_figures
