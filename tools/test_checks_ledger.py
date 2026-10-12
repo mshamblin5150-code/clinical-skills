@@ -1469,6 +1469,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     ROW_PHRASES = {
         checks.heading_read.QUALIFIER_COUNT: "a heading-read-qualifier-count finding",
         checks.heading_read.ITEM_COUNT: "a heading-read-item-count finding",
+        checks.heading_read.OWN_FIGURE_ABSENT: "a `heading-read-own-figure-absent` finding",
         checks.heading_read.UNOPENED_ITEM: "a heading-read-unopened-item finding",
         checks.MISSING_CHECK: "a heading the table names that is not in the file",
         checks.DUPLICATE_CHECK: "two records under one check",
