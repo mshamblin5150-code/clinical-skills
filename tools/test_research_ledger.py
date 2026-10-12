@@ -1922,6 +1922,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "Invoked attributions",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
+                "Save and apply a refuter return",
                 "A heading read binds the final draft to the ledger",
                 "Reader remarks at the go-ahead",
             ],
@@ -2219,11 +2220,10 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertIn("claim records read", stdout.getvalue())
         self.assertIn("no claim records found", stderr.getvalue())
 
-    def test_a_ledger_with_no_date_header_exits_two(self):
-        """The limb that matters. Recency is graded against the day the paper is
-        written, so a ledger with no date was never measured by #215's rule at
-        all -- and every other row would print clean beside a rule that never ran."""
-        self.assertEqual(self._run(ledger_text(CLEAN, stamp="")), 2)
+    def test_missing_kept_return_outranks_a_missing_date_header(self):
+        """An undated ledger has no historical exemption from the kept-return row;
+        that finding outranks the unread recency coverage."""
+        self.assertEqual(self._run(ledger_text(CLEAN, stamp="")), 1)
 
     def test_a_finding_outranks_a_missing_date_header(self):
         """``differential_scan``'s ordering: returning 2 here would file the
@@ -2346,6 +2346,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     # the scanner knows. ``AGENTS.md`` classes this as a Required command because
     # the skill requires its clean exit before drafting.
     ROW_PHRASES = {
+        "refutation-without-kept-return": "refutation fields that match no kept return",
         "qualifier-field": "a `QUALIFIERS` field missing or outside its quoted-list or `none` form",
         "qualifier-passage-missing": "a named qualifier absent from `PASSAGE`",
         "qualifier-heading-missing": "a named qualifier absent from the heading",
@@ -5403,6 +5404,47 @@ class UpToDateCurrencyUsesTheSignedWindowAndAccountAnswer(unittest.TestCase):
             has_account=False,
         )
         self.assertEqual(found, [])
+
+class KeptRefuterReturns(unittest.TestCase):
+    def test_matching_return_and_each_changed_field(self):
+        records = ledger.read_records(CLEAN)
+        current = date(2026, 10, 12)
+        kind = "refutation-without-kept-return"
+        self.assertNotIn(kind, {f.kind for f in ledger.survey(records, current, kept_returns=tuple(records)).findings})
+        for name in ("REFUTATION", "TESTED-HEADING", "SECOND-ROUTE", "INSTRUMENTS"):
+            with self.subTest(field=name):
+                changed = ledger.read_records(replace_field(CLEAN, name, "changed") if name != "INSTRUMENTS"
+                                              else CLEAN + "INSTRUMENTS: changed\n")
+                self.assertIn(kind, {f.kind for f in ledger.survey(records, current, kept_returns=tuple(changed)).findings})
+
+    def test_heading_must_match_and_historical_records_are_exempt(self):
+        records = ledger.read_records(CLEAN)
+        changed = ledger.read_records(CLEAN.replace("## CLAIM:", "## CLAIM: Changed"))
+        kind = "refutation-without-kept-return"
+        self.assertIn(kind, {f.kind for f in ledger.survey(records, date(2026, 10, 12), kept_returns=tuple(changed)).findings})
+        self.assertNotIn(kind, {f.kind for f in ledger.survey(records, date(2026, 10, 11)).findings})
+
+    def test_command_reads_kept_return_and_refuses_malformed_block(self):
+        import refutation_apply
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "claims.md"
+            write_bar(root)
+            path.write_text(ledger_text(CLEAN, stamp="2026-10-12"), encoding="utf-8")
+            record = ledger.read_records(CLEAN)[0]
+            text = "## CLAIM: " + record.claim + "\n" + "\n".join(
+                name + ": " + record.value(name) for name in refutation_apply.FIELDS if name in record.fields)
+            (root / "refutations").mkdir()
+            kept = root / "refutations" / "group.md"
+            kept.write_text(text, encoding="utf-8")
+            parsed = run_grader.Parsed(str(path))
+            source = ledger._load(parsed)
+            self.assertNotIn("refutation-without-kept-return",
+                             {f.kind for f in ledger._grade(source, parsed).scan.findings})
+            kept.write_text(text + "\nunrecognized line", encoding="utf-8")
+            self.assertIn("refutation-without-kept-return", {f.kind for f in ledger._grade(source, parsed).scan.findings})
+            (kept.parent / "corrected.md").write_text(text, encoding="utf-8")
+            self.assertNotIn("refutation-without-kept-return", {f.kind for f in ledger._grade(source, parsed).scan.findings})
 
 if __name__ == "__main__":
     unittest.main()

@@ -125,6 +125,12 @@ against the clinician's model; without it the draft is not written against the m
 writes every reference URL as a link; a consumer that cannot run it types the reply, makes every
 reference URL a link with the editor's link control, and confirms the links in the posted reading.
 
+**`tools/refutation_apply.py` is a Required command for `course-assignment`, `discussion-post`,
+`discussion-reply`, `peer-critique`, and `practicum-case-study`.** Each follows the
+[shared save-and-apply step](skills/_shared/reference/sourcing.md#save-and-apply-a-refuter-return).
+After installation has been tried, a consumer without it can walk the written rules by eye,
+as for `research_ledger.py`, but cannot call the run mechanically verified.
+
 **`discussion-post` depends on committed graders.** It uses `tools/research_ledger.py` and
 `tools/reference_scan.py` unchanged, then `tools/discussion_post_scan.py` grades the signed word
 floor, reference minimum, body-number trace and citation-to-record trace while counting the ceiling,

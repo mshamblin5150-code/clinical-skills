@@ -158,7 +158,8 @@ before drafting. The refuter also returns
 normalization. Refuter independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<run-key>/claims.md --heading-digests`, name that claim's printed digest in the brief,
-and write it as `TESTED-HEADING` with the returned verdict and route.
+then [save and apply the refuter return](../_shared/reference/sourcing.md#save-and-apply-a-refuter-return)
+with the Required command `tools/refutation_apply.py`.
 
 Each record uses the full research-ledger shape:
 

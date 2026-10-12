@@ -159,7 +159,8 @@ For `refuted` records and clinician-supplied `unsourced` claims, apply the
 [shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim).
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<course>-<module>-course-assignment/claims.md --heading-digests`, name that claim's
-printed digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
+printed digest in the brief, then [save and apply the refuter return](../_shared/reference/sourcing.md#save-and-apply-a-refuter-return)
+with the Required command `tools/refutation_apply.py`.
 
 After those two passes, this **Grader handoff** under [standing rule 6](../../AGENTS.md) runs:
 

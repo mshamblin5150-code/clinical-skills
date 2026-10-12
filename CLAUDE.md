@@ -191,7 +191,15 @@ separate clone and material outside registered checkouts remain outside the popu
 
 `tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan`, `specificity_scan`, `refusal_scan`, and `differential_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes, entry classification, contiguous-indented pairing, and every `icd10-cpt` step-4 block phrase. New output puts `NOT FOR ENTRY` on the code's own physical line; classification still searches the bounded entry header so preserved worksheets whose official descriptor wrapped before that line-scoped marker remain readable. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. The shared block grammar reads bare delimited, Markdown-prefixed delimited, and plain Markdown headings in any case. The three worksheet graders print the keyword-heading candidate denominator, readable non-template block headings, generic Differential section labels, and unread remainder. The generic label has its own visible count because committed worksheets use `### Differential` immediately before the full block title; it does not claim to be the `icd10-cpt` step-4 block. The shared module has no command line; it therefore has no console-codec call.
 
+### Refutation apply
+
+`refutation_apply.py` applies saved refuter returns and retains the original ledger before a
+changing write. Its coverage boundary is `refutation_apply.DECLARED_LIMITS`.
+
 ### Console codec
+
+**Correction, 2026-10-12:** `refutation_apply.py` is a direct command whose command path calls
+`use_utf8()` then `require_python_floor()`.
 
 `tools/console_codec.py` holds two ordered lines of policy: **every command path puts stdin, stdout and stderr on UTF-8 with `errors="replace"`, then refuses an interpreter below the consumer floor before doing other work.** Ordinary tools import and call both directly; the grader family imports `run_grader`, whose `run()` owns both calls once for every member.
 
