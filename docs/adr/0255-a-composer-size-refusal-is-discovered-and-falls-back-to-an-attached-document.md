@@ -70,6 +70,12 @@ carries the file. **A written byte-size comparison was declined** because equal 
 equal bytes, and **a recorded digest was declined** because the grader would trust the agent's report
 instead of re-deriving it.
 
+*Superseded 2026-10-12.* The words "the agent downloads the attachment from the posted entry's own link into the
+run directory under `posted/`. The grader hashes that copy" and "a recorded digest was declined" are
+superseded by [ADR 0350](0350-a-posted-file-is-fingerprinted-in-the-page-and-never-downloaded.md) ruling 5. The page computes the posted
+fingerprint and the grader compares the recorded value; a `posted/` copy exists only when the
+clinician saves it. The equal-digest requirement and the general-files-area exclusion still stand.
+
 ### 5. The attached document is visually checked before its go-ahead
 
 `practicum-case-study` keeps rendering and visually checking its `.docx` before submission on every
@@ -90,6 +96,10 @@ written before `/AAR` extracts the block, like `SUBMISSION-SHA256`. **A separate
 was declined** because ruling 2 allows at most one refusal before stopping, and **inferring the outcome
 from a `posted/` file was declined** because a missing download would pass as inline.
 
+*Superseded 2026-10-12.* The words "`ATTACHMENT:` naming the retained `posted/` copy" are superseded by
+[ADR 0350](0350-a-posted-file-is-fingerprinted-in-the-page-and-never-downloaded.md) ruling 4. The record carries a `POSTED-FILE:` line
+instead; the outcome field and its branching still stand.
+
 This does not reopen ADR 0221 ruling 2. `SUBMISSION-SHA256` stays the output Markdown's fingerprint on
 both outcomes. That ruling declined a route field that would choose which file is fingerprinted; this
 field chooses which rows are graded.
@@ -104,6 +114,10 @@ would no longer be a Reply. `course-assignment` states that it already attaches 
 takes no fallback. **Inheriting the fallback in every Composer skill was declined** because whether an
 artifact may be graded as an attachment is each calling skill's decision, which the sheet already
 leaves to the caller.
+
+*Superseded 2026-10-12.* The words "and the posted-attachment download" are superseded by
+[ADR 0350](0350-a-posted-file-is-fingerprinted-in-the-page-and-never-downloaded.md) ruling 2. The sheet points to the posted file rule in
+`lms-attachments.md`; the rest of its mechanics and the opt-in split still stand.
 
 ### 8. The pointer body is a fixed template, and a bar needing body text stops
 
