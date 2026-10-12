@@ -91,7 +91,7 @@ EOF
         fi
 
         # **The fifth refusing check.** #466. It cannot run in CI because scratch roots
-        # are gitignored patient records. The ordinary command stays at two Git
+        # are gitignored patient records. The ordinary command stays at three Git
         # subprocesses; the slower removability measurement is opt-in.
         "$python" "$repo_root/tools/scratch_census.py" >&2 || status=1
 

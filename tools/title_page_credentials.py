@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 
 FIELD = "TITLE-PAGE-CREDENTIALS"
@@ -46,7 +46,7 @@ def record(profile: Path, credentials: str) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", type=Path, default=scratch_root() / "medatrax-profile.md")
+    parser.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     parser.add_argument("--record", metavar="LINE", help="clinician's answer; none omits credentials")
     args = parser.parse_args(argv)
     try:

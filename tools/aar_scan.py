@@ -2304,7 +2304,7 @@ def _same_path(left: Path, right: Path) -> bool:
 
 
 def is_live_run(run: Path) -> bool:
-    root = (repo_root.scratch_root() / "runs").resolve()
+    root = (repo_root.scratch_path(repo_root.scratch_root(), "runs")).resolve()
     return _same_path(run.parent, root)
 
 
@@ -2335,7 +2335,7 @@ def _strings(value: Any) -> Iterable[str]:
 
 
 def discover_run_directories(rows: Iterable[dict[str, Any]]) -> tuple[Path, ...]:
-    root = repo_root.scratch_root() / "runs"
+    root = repo_root.scratch_path(repo_root.scratch_root(), "runs")
     found: set[Path] = set()
     for row in rows:
         inputs: list[Any] = []

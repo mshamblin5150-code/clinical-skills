@@ -69,6 +69,8 @@ from __future__ import annotations
 
 import json
 import sys
+import repo_root
+
 from typing import NamedTuple, Sequence
 
 import name_index
@@ -205,7 +207,7 @@ def main(argv: list[str]) -> int:
         )
         return 0
 
-    entries, refusal = name_index.load_index(phi_scan.SCRATCH / "name-index.json")
+    entries, refusal = name_index.load_index(repo_root.scratch_path(phi_scan.SCRATCH, "name-index.json"))
     if refusal:
         print(
             "harvest review: scratch/name-index.json is unreadable -- did not scan.",

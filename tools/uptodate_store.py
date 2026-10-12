@@ -42,7 +42,7 @@ from typing import Iterable
 
 import docx_read
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 SCHEMA_VERSION = 1
 STORE_DIRECTORY = "uptodate"
@@ -131,7 +131,7 @@ class SweepReport:
 def default_store() -> Path:
     """The one store in the checkout that owns account state."""
     override = os.environ.get("CLINICAL_UPTODATE_STORE")
-    return Path(override).expanduser() if override else scratch_root() / STORE_DIRECTORY
+    return Path(override).expanduser() if override else scratch_path(scratch_root(), STORE_DIRECTORY)
 
 
 def _parse_month(value: re.Match[str]) -> str:
