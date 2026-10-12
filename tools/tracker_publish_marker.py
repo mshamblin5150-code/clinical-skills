@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 
 SCHEMA_VERSION = 2
@@ -33,7 +33,7 @@ def marker_path(
     """Locate this checkout's record below the owning ``scratch/runs``."""
     source = _module_file(module_file)
     runs = (
-        scratch_root(source.parent) / "runs"
+        scratch_path(scratch_root(source.parent), "runs")
         if runs_root is None
         else Path(runs_root)
     )

@@ -17,7 +17,7 @@ from console_codec import require_python_floor, use_utf8
 
 def _create(child: str) -> Path:
     scratch = repo_root.scratch_root().resolve()
-    sessions = scratch / "sessions"
+    sessions = repo_root.scratch_path(scratch, "sessions")
     target = (sessions / child).resolve()
     if target.parent != sessions or sessions.parent != scratch:
         raise ValueError("refusing to create a path at the scratch top level")

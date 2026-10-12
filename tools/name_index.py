@@ -157,7 +157,7 @@ from typing import Iterable, Sequence
 
 import corpus_census as cc
 from console_codec import require_python_floor, use_utf8
-from repo_root import enclosing_checkout, scratch_root
+from repo_root import scratch_path, enclosing_checkout, scratch_root
 
 # `guidelines_search.py`'s convention, already in `specificity_scan`,
 # `differential_scan`, `anchor_scan`, `block_scan` and `phi_scan`: a status that
@@ -566,7 +566,7 @@ def main(argv: list) -> int:
     # ``Path`` back to what was typed. ``Path("./x")`` and ``"./x"`` do not
     # compare equal, so a relative ``--index`` would have fallen through and been
     # read as the corpus directory instead.
-    index = scratch_root() / "name-index.json"
+    index = scratch_path(scratch_root(), "name-index.json")
     positional: list[str] = []
     rest = list(argv)
     while rest:
@@ -579,7 +579,7 @@ def main(argv: list) -> int:
             index = Path(rest.pop(0))
         elif not argument.startswith("--"):
             positional.append(argument)
-    directory = Path(positional[0]) if positional else scratch_root() / "day-file-text"
+    directory = Path(positional[0]) if positional else scratch_path(scratch_root(), "day-file-text")
 
     if not directory.is_dir():
         print(f"no corpus at {directory}", file=sys.stderr)

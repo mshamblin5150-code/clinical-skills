@@ -229,7 +229,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 # A note opens with "Note 1" at the start of a line. Case-insensitive: the corpus
 # contains "NOte 3", and fixtures/day-a/shorthand/case-03.md preserves it.
@@ -2476,7 +2476,7 @@ def main(argv: list[str]) -> int:
     # This tool degraded *loudly* -- it named the path it looked at and stopped
     # -- which is why it cost a ticket rather than a firewall. `phi_scan` shared
     # the line and degraded silently. One resolution now, in `repo_root`.
-    directory = Path(argv[1]) if len(argv) > 1 else scratch_root() / "day-file-text"
+    directory = Path(argv[1]) if len(argv) > 1 else scratch_path(scratch_root(), "day-file-text")
     if not directory.is_dir():
         print(f"no corpus at {directory}", file=sys.stderr)
         return 1

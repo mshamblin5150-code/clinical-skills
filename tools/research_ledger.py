@@ -37,7 +37,7 @@ from run_grader import NOT_GRADED
 import coursework_run
 import uptodate_store
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 from run_grader import EvidenceDisposition
 from docx_write import markdown_tables, split_row
 
@@ -2194,7 +2194,7 @@ UPTODATE_ACCOUNT = re.compile(
 
 def clinician_has_uptodate_account(profile: Path | None = None) -> bool:
     """The explicit setup answer; absence does not manufacture a waiver."""
-    path = profile or scratch_root() / "medatrax-profile.md"
+    path = profile or scratch_path(scratch_root(), "medatrax-profile.md")
     if not path.is_file():
         return True
     match = UPTODATE_ACCOUNT.search(path.read_text(encoding="utf-8", errors="replace"))

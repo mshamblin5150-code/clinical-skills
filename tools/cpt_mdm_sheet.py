@@ -9,6 +9,8 @@ import re
 import sqlite3
 import subprocess
 import sys
+import repo_root
+
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -263,7 +265,7 @@ def main(argv: list[str]) -> int:
             if args.sheet or args.output or args.agreement_date or args.append_to:
                 raise ValueError("receipt mode takes only --write-receipt and --database")
             destination = args.write_receipt.resolve()
-            sessions = (ROOT / "scratch" / "sessions").resolve()
+            sessions = (repo_root.scratch_path(ROOT / "scratch", "sessions")).resolve()
             if not destination.is_relative_to(sessions) or len(destination.relative_to(sessions).parts) < 2:
                 raise ValueError("private CPT receipt must be inside this checkout's scratch/sessions/<key>/")
             import json

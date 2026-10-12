@@ -10,6 +10,7 @@ to the owning checkout without classifying or deleting what moves.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import stat
@@ -47,19 +48,10 @@ EXIT_2_LIMBS = (
     COMMITTING_SCRATCH_UNREADABLE,
 )
 
-STANDING_ARTIFACTS = frozenset(
-    {
-        "runs",
-        "day-file-text",
-        "writing-samples",
-        "name-index.json",
-        "harvest-reviewed.json",
-        "medatrax-profile.md",
-        "identity-map.md",
-        repo_root.VOICE_MODEL_NAME,
-        "shorthand.md",
-    }
-)
+STANDING_ARTIFACTS = frozenset(repo_root.SCRATCH_NAMES) | {
+    "writing-samples", "identity-map.md", "shorthand.md",
+}
+
 
 OWNING_SWAP_LIMIT = "the owning-checkout integer baseline has a one-entry swap hole"
 OUTSIDE_CHECKOUT_LIMIT = (
@@ -111,6 +103,14 @@ DECLARED_LIMITS = (
     RUNNING_SESSION_LIMIT,
     UNLOCKED_UNMOUNTED_WORKTREE_LIMIT,
     PEER_DIRECTORY_LINK_LIMIT,
+    "the scratch-join guard recognizes resolver calls and scratch joins, module "
+    "constants, cross-module attributes, local aliases, and loops over roots; "
+    "this is a floor, not every spelling",
+    "parameter-rooted joins and paths assembled at run time are outside the guard",
+    "origin/main is a local ref read without a fetch; unfetched or unpushed names "
+    "are outside its currency",
+    "a branch predating this build runs the old census and cannot read main's list",
+    "a document-only name added on main is outside the origin/main list exemption",
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -132,6 +132,7 @@ class RootCount:
     root: Path
     unaccounted: int
     files: int
+    main_accounted: int = 0
 
 
 @dataclass(frozen=True)
@@ -354,7 +355,33 @@ def accounted_names(checkout: Path) -> frozenset[str]:
     finished = run_git(checkout, "grep", "-h", "-I", "-e", "scratch/", "--", ".")
     if finished.returncode not in (0, 1):
         raise CensusNotRun(finished.stderr.strip() or "git grep failed")
-    return scratch_names(finished.stdout)
+    return scratch_names(finished.stdout) | frozenset(repo_root.SCRATCH_NAMES)
+
+
+def main_scratch_names(checkout: Path) -> frozenset[str] | None:
+    """Read the local remote-tracking list as data, never execute its module."""
+    try:
+        finished = run_git(checkout, "show", "origin/main:tools/repo_root.py")
+        if finished.returncode != 0:
+            return None
+        tree = ast.parse(finished.stdout)
+        values = [
+            node.value for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "SCRATCH_NAMES"
+                    for target in node.targets)
+        ]
+        if len(values) != 1:
+            return None
+        names = ast.literal_eval(values[0])
+        if not isinstance(names, (tuple, list)) or not all(
+            isinstance(name, str) and name not in ("", ".", "..")
+            and "/" not in name and "\\" not in name for name in names
+        ):
+            return None
+        return frozenset(names)
+    except (CensusNotRun, SyntaxError, ValueError, TypeError, RecursionError):
+        return None
 
 
 def scratch_names(text: str) -> frozenset[str]:
@@ -388,7 +415,9 @@ def count_files(root: Path) -> int:
     return total
 
 
-def count_root(root: Path, accounted: frozenset[str]) -> RootCount | None:
+def count_root(
+    root: Path, accounted: frozenset[str], main_only: frozenset[str] = frozenset()
+) -> RootCount | None:
     root_mode = root.stat().st_mode
     if not stat.S_ISDIR(root_mode):
         raise OSError(f"not a directory: {root}")
@@ -404,6 +433,7 @@ def count_root(root: Path, accounted: frozenset[str]) -> RootCount | None:
         root=root,
         unaccounted=sum(entry.name not in accounted for entry in entries),
         files=count_files(scratch),
+        main_accounted=sum(entry.name in main_only for entry in entries),
     )
 
 
@@ -526,6 +556,14 @@ def main(argv: list[str]) -> int:
         accounted = frozenset()
         accounted_error = error
 
+    main_names = main_scratch_names(checkout)
+    main_only = (main_names or frozenset()) - accounted
+    if main_names is None:
+        print("origin/main list unavailable or unparseable; branch accounting only")
+    else:
+        print("origin/main list read locally without a fetch")
+    accounted |= main_only
+
     gating_counts: list[RootCount] = []
     peer_counts: list[PeerRootCount] = []
     absent: list[Path] = []
@@ -533,7 +571,7 @@ def main(argv: list[str]) -> int:
     for root in roots:
         try:
             if root in gating_roots:
-                counted = count_root(root, accounted)
+                counted = count_root(root, accounted, main_only)
                 if counted is not None:
                     gating_counts.append(counted)
                 else:
@@ -656,6 +694,12 @@ def main(argv: list[str]) -> int:
         peers,
         show_all=argv == ["--worktrees"],
     )
+    main_accounted = sum(item.main_accounted for item in gating_counts)
+    if main_accounted:
+        print(
+            f"main accounts for {main_accounted} top-level entries in the gating roots; "
+            "the branch is behind: rebase onto main; do not move these entries"
+        )
     if owning_count is not None:
         print(
             f"GATING: {owning_count.root / 'scratch'}: "
@@ -688,7 +732,8 @@ def main(argv: list[str]) -> int:
             "the committing checkout's ratchet"
         )
     if finding:
-        print("REMEDY: move it under scratch/sessions/ticket-<n>/")
+        print("REMEDY: bring the branch up to date with main and run again")
+        print("        move it under scratch/sessions/ticket-<n>/ only if it still refuses")
         print(
             "        do not raise OWNING_BASELINE -- the ratchet's only value "
             "is that it cannot be moved to meet the disk"

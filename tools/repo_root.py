@@ -75,8 +75,21 @@ from hashlib import sha256
 from pathlib import Path
 
 
-VOICE_MODEL_NAME = "voice-model.md"
-PROJECT_REGISTRY_NAME = "project-registry.md"
+# Code resolution and census accounting share this literal, parseable list.
+SCRATCH_NAMES = (
+    "runs", "day-file-text", "medatrax-profile.md", "name-index.json",
+    "harvest-reviewed.json", "voice-model.md", "project-registry.md",
+    "attributions.md", "cpt-2026", "sessions", "uptodate",
+)
+VOICE_MODEL_NAME = SCRATCH_NAMES[5]
+PROJECT_REGISTRY_NAME = SCRATCH_NAMES[6]
+
+
+def scratch_path(root: Path, name: str) -> Path:
+    """Join a registered top-level name to the caller's chosen scratch root."""
+    if name not in SCRATCH_NAMES:
+        raise ValueError("unregistered top-level scratch name")
+    return root / name
 
 
 @dataclass(frozen=True)
@@ -134,7 +147,7 @@ def canonical_voice_model(start: Path | None = None) -> VoiceModelResolution:
     linked worktree. Absence is returned explicitly; a present but unreadable
     model raises rather than being relabeled absent.
     """
-    path = scratch_root(start) / VOICE_MODEL_NAME
+    path = scratch_path(scratch_root(start), VOICE_MODEL_NAME)
     if not path.exists():
         return VoiceModelResolution(path=path, sha256=None, exists=False)
     return VoiceModelResolution(
@@ -146,12 +159,12 @@ def canonical_voice_model(start: Path | None = None) -> VoiceModelResolution:
 
 def project_registry(start: Path | None = None) -> Path:
     """Resolve the one account-owned project registry. #1395."""
-    return scratch_root(start) / PROJECT_REGISTRY_NAME
+    return scratch_path(scratch_root(start), PROJECT_REGISTRY_NAME)
 
 
 def attribution_library(start: Path | None = None) -> Path:
     """Resolve the account's ungraded pointer library, present or absent. #1497."""
-    return scratch_root(start) / "attributions.md"
+    return scratch_path(scratch_root(start), "attributions.md")
 
 
 def output_root(start: Path | None = None) -> Path:

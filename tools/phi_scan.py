@@ -112,7 +112,7 @@ from typing import NamedTuple, Sequence
 from console_codec import require_python_floor, use_utf8
 import git_paths
 from name_index import coverage as index_coverage, looks_like_a_name
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 import tracker_publish_marker
 
 # The tree being committed from -- this worktree. `_git` runs here and `scan_all`
@@ -136,7 +136,7 @@ PHI_DIRECTORIES = ("scratch/", "output/", "cases/", "patients/")
 
 # Harvested strings a human has ruled on and judged to be real names. Under
 # scratch/ because that is what it holds -- see `reviewed_names`.
-REVIEWED_LEDGER = SCRATCH / "harvest-reviewed.json"
+REVIEWED_LEDGER = scratch_path(SCRATCH, "harvest-reviewed.json")
 
 # **Exit 2 is "did not scan", and it is this repo's own convention rather than a
 # new one** -- `guidelines_search.py` reserves it for every way of not having
@@ -549,7 +549,7 @@ def harvest_entries() -> list[dict]:
     direction here. ``name_index.load_index`` refuses that same file instead,
     because writing over an index whose contents are unknown is not.
     """
-    return _load_json(SCRATCH / "name-index.json", [])
+    return _load_json(scratch_path(SCRATCH, "name-index.json"), [])
 
 
 def reviewed_names() -> set[str]:
@@ -628,7 +628,7 @@ def corpus_identifiers() -> tuple[set[str], set[str]]:
     dates: set[str] = set()
     names = harvested_names(harvest_entries())
 
-    corpus = SCRATCH / "day-file-text"
+    corpus = scratch_path(SCRATCH, "day-file-text")
     if corpus.is_dir():
         for path in corpus.glob("*.txt"):
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -661,9 +661,9 @@ def missing_corpus_sources() -> list[str]:
     no date literal is present rather than missing.
     """
     absent = []
-    if not (SCRATCH / "name-index.json").is_file():
+    if not (scratch_path(SCRATCH, "name-index.json")).is_file():
         absent.append("name-index.json")
-    if not (SCRATCH / "day-file-text").is_dir():
+    if not (scratch_path(SCRATCH, "day-file-text")).is_dir():
         absent.append("day-file-text")
     return absent
 
@@ -701,7 +701,7 @@ def corpus_coverage():
     ``corpus_identifiers`` -- would widen a two-value return that
     ``tracker_scan`` also calls.
     """
-    day_files = SCRATCH / "day-file-text"
+    day_files = scratch_path(SCRATCH, "day-file-text")
     if not day_files.is_dir():
         return None
     return index_coverage(harvest_entries(), day_files)

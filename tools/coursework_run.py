@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from pathlib import Path
 
-from repo_root import output_root, scratch_root
+from repo_root import scratch_path, output_root, scratch_root
 
 
 TRAILING_DATE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
@@ -31,7 +31,7 @@ def key_of(stem: str) -> str:
 
 def runs_root(start: Path | None = None) -> Path:
     """The canonical container for assignment-owned provenance records."""
-    return scratch_root(start) / "runs"
+    return scratch_path(scratch_root(start), "runs")
 
 
 def run_for_submission(path: Path | str, start: Path | None = None) -> Path:
@@ -108,7 +108,7 @@ def draft_files(run: Path, key: str, start: Path | None = None) -> tuple[Path, .
         found.update(path.resolve() for path in candidates if path.is_file())
     committing = (start or Path(__file__).resolve().parent).resolve().parent / "scratch"
     for root in {committing, scratch_root(start)}:
-        for folder in (root / "sessions").glob("*/" + key):
+        for folder in (scratch_path(root, "sessions")).glob("*/" + key):
             found.update(path.resolve() for path in folder.rglob("*") if path.is_file())
     return tuple(sorted(found))
 
