@@ -50,6 +50,19 @@ clinician says no, the install fails, or the second check exits 1, say that `bat
 or by-eye fallback. Exit 2 from either check means it could not determine whether the engine is
 installed; say so, do not treat it as an absent engine, and stop for investigation.
 
+**Check Claude Code file upload access (Claude Code only):**
+
+```bash
+python tools/claude_output_access.py
+```
+
+Exit 0 means the owning checkout's `output/` entry is present in user-level settings. On exit 1,
+show the printed JSON line and ask the clinician to add it by hand, preserving existing settings,
+then rerun the check. The agent never writes this setting: the auto-mode classifier refused that
+write as self-modification in the 2026-10-11 measurement on #1500. On exit 2, report the unreadable
+or invalid settings and stop for investigation. This check reads Claude Code settings only;
+Codex uses its own permission model.
+
 **Create the two gitignored directories and confirm both are ignored:**
 
 ```bash

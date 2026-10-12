@@ -49,6 +49,7 @@ SECTION = re.compile(r"(?m)^### (.+)$")
 # A module described inside a section that also documents its artifact keeps that
 # section's name; the row is the ruling that the arrangement is deliberate.
 DECLARED_SECTIONS = {
+    "claude_output_access": "Claude output access",
     "refutation_apply": "Refutation apply",
     "frozen_grade": "Approved run status guard",
     "clinical_credentials": "Clinical credential settings",

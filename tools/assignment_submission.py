@@ -259,7 +259,7 @@ def project_context_posting(run: Path, submission: str):
 
 
 def upload_is_allowed(staged: StagedUpload, candidate: Path) -> bool:
-    """Whether one candidate's name and bytes belong to the approved carrier set."""
+    """Whether one candidate's path, name and bytes are an approved carrier."""
 
     path = Path(candidate).resolve()
     if assignment_bar.completion_gate(staged.run)[0]:
@@ -267,7 +267,11 @@ def upload_is_allowed(staged: StagedUpload, candidate: Path) -> bool:
     if not path.is_file():
         return False
     match = next((item for item in staged.carriers if item.name == path.name), None)
-    return bool(match is not None and file_digest.sha256(path) == match.sha256)
+    return bool(
+        match is not None
+        and path == match.path.resolve()
+        and file_digest.sha256(path) == match.sha256
+    )
 
 
 def confirm(

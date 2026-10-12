@@ -438,7 +438,7 @@ and `deck_scan.py --pptx <deck>`.
 
 Branch on the signed `SUBMISSION-TYPE` before preparing the LMS carrier:
 
-- For `file-upload`, the carrier is the finished `.pptx`; the shared Canvas sheet does not trigger.
+- For `file-upload`, the carrier is the finished `.pptx`; the shared Canvas Composer load route does not trigger.
 - For `canvas-composer`, write the exact deck-accompanying text to `submission.md`, render it to
   `submission.html` with `python tools/post_html.py <submission.md> <submission.html>`, read
   [canvas-editor.md](../_shared/reference/canvas-editor.md), and select its first supported **Load
@@ -494,7 +494,8 @@ its keyed `Run status:` line.
 
 Before each file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true. A false result refuses
-that file; never widen the approved set during upload. For `file-upload`, upload the approved files
+that file. Apply [File upload access](../_shared/reference/canvas-editor.md#file-upload-access).
+Never widen the approved set during upload. For `file-upload`, upload the approved files
 and inspect the LMS submission page before committing the action. For `canvas-composer`, load `submission.html` through the declared route, attach the `.pptx`
 when the live assignment requires it, and serialize the Composer HTML to
 `submission-readback.html`. Compare the built and serialized HTML as the shared sheet requires. A

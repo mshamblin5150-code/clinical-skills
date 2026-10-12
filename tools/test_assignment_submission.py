@@ -16,6 +16,23 @@ from project_context_test_support import write_none_context
 
 
 class TwoGateUpload(unittest.TestCase):
+    def test_a_same_name_identical_copy_in_another_folder_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"approved synthetic deck")
+            staged = self.stage(root, deck, artifact_approved=True)
+            copy = root / "elsewhere" / deck.name
+            copy.parent.mkdir()
+            copy.write_bytes(deck.read_bytes())
+
+            self.assertTrue(assignment_submission.upload_is_allowed(staged, deck))
+            self.assertFalse(assignment_submission.upload_is_allowed(staged, copy))
+            with self.assertRaises(assignment_submission.GateError):
+                assignment_submission.confirm(
+                    staged, uploaded_carriers=(copy,), final_confirmation=True
+                )
+
     def stage(self, run, artifact, **kwargs):
         if not (run / "bar.md").exists():
             from test_assignment_bar import DOCX_BAR
