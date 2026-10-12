@@ -29,6 +29,62 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReferenceLanguage(unittest.TestCase):
+    def test_split_italic_reference_runs_preserve_identifier_detection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "split.docx"
+            entry = "Example Group. (2026). *Work (Report No. 12345)*. https://example.org/work"
+            assignment_docx.build(replace(assignment_docx.fixture_spec(), references=(entry,)), artifact)
+            with zipfile.ZipFile(artifact) as archive:
+                document = ElementTree.fromstring(archive.read("word/document.xml"))
+            paragraph = next(p for p in document.iter(scan.W + "p")
+                             if p.find(f"{scan.W}pPr/{scan.W}pStyle") is not None
+                             and p.find(f"{scan.W}pPr/{scan.W}pStyle").get(scan.W + "val") == "Reference")
+            run = next(r for r in paragraph.iter(scan.W + "r") if r.find(f"{scan.W}rPr/{scan.W}i") is not None)
+            text = run.find(scan.W + "t")
+            text.text = "Work "
+            extra = ElementTree.fromstring(ElementTree.tostring(run))
+            extra.find(scan.W + "t").text = "(Report No. 12345)"
+            paragraph.insert(list(paragraph).index(run) + 1, extra)
+            markdown, references = scan._document_parts(scan._paragraphs(document))
+            self.assertIn("*Work (Report No. 12345)*", references[0])
+            result = scan.reference_scan.survey(scan.reference_scan.read_document(markdown), scan.date(2026, 10, 12), "en")
+            self.assertIn(scan.reference_scan.ITALIC_IDENTIFIER, [f.kind for f in result.findings])
+
+    def test_bare_number_candidate_count_reaches_word_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case = empty_population_input(Path(directory))
+            artifact = Path(case.argv[2])
+            spec = replace(assignment_docx.fixture_spec(), references=(
+                "Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10.1000/example",
+            ))
+            assignment_docx.build(spec, artifact, force=True)
+            source = scan.load(run_grader.Parsed(source=case.argv[0], values={"--docx": str(artifact)}))
+            result = scan.survey(source)
+            self.assertEqual(result.bare_number_candidates, 1)
+            self.assertIn("bare-number candidates   1", scan.format_report(result, "synthetic"))
+
+    def test_reference_italics_reach_shared_reader_and_body_stays_plain(self):
+        entry = (
+            "Smith, A. (2026). Example topic. In J. Doe (Ed.), *UpToDate*. "
+            "Retrieved October 12, 2026, from https://www.uptodate.com/contents/example"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            case = empty_population_input(Path(directory))
+            artifact = Path(case.argv[2])
+            spec = replace(
+                assignment_docx.fixture_spec(),
+                sections=(assignment_docx.Section("Purpose", ("*Evidence* (Smith, 2026).",)),),
+                references=(entry,),
+            )
+            assignment_docx.build(spec, artifact, force=True)
+            source = scan.load(run_grader.Parsed(source=case.argv[0], values={"--docx": str(artifact)}))
+            markdown, references = scan._document_parts(source.paragraphs)
+            self.assertIn("*UpToDate*", references[0])
+            self.assertIn("Evidence (Smith, 2026)", markdown)
+            self.assertNotIn("*Evidence*", markdown)
+            result = scan.reference_scan.survey(scan.reference_scan.read_document(markdown), scan.date(2026, 10, 12), "en")
+            self.assertNotIn(scan.reference_scan.UPTODATE_ITALICS, [f.kind for f in result.findings])
+
     def test_assignment_override_reaches_the_shared_reference_grader(self):
         with tempfile.TemporaryDirectory() as directory:
             case = empty_population_input(Path(directory))

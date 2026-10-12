@@ -354,6 +354,12 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| all-digit journal number absent from its DOI | A bare number can be a one-page article's page; report it as a reader candidate rather than a finding. |
+| file-format word outside the closed list | Only the closed format words in FORMAT_WORDS are mechanically refused by this row. |
+| short bare identifier code | A parenthetical such as (CMS-1807-F) has neither an identifier word nor five consecutive digits. |
+| title wording ending in an identifier-word parenthetical | The string predicate cannot distinguish a title's own wording from publication identification; a reader must settle it. |
+| abbreviation-only site name | WHO does not equal World Health Organization under the exact group-name comparison. |
+| personal-author site name | The repeated-site row is scoped to authors with no personal initials. |
 | **whether an opted-in bold reference label marks the real list boundary** | The switch opens the list at that line; a reader checks whether the label was placed correctly |
 | **whether a shortened title resolves against more than one reference entry** | A citation ending before two title proper keys diverge can resolve against both; the prefix relation has no ambiguity threshold |
 | **whether a citation naming part of a group author's name resolves** | Group authors share the no-surname branch with titles, so a partial organization name can satisfy the prefix relation |
@@ -1082,7 +1088,11 @@ never dates the entry because review does not establish a content change.
 
 Use sentence case for work titles and title case for periodical titles. Italic treatment depends on
 whether the work stands alone or sits inside a larger work. Bracket a nonroutine work description
-after the title. The source element can be a periodical, publisher, database required for recovery,
+after the title. Under §§9.1 and 9.21, a file format such as PDF is not a description of the kind
+of work and does not belong in that bracket; a description such as `[PowerPoint slides]` does.
+Under §9.19, publication identifiers follow the title in nonitalic parentheses, even when the
+title itself is italicized. Under §§9.24 and 9.33, omit the site name when it equals the group author.
+The source element can be a periodical, publisher, database required for recovery,
 social platform, website, event location, DOI, or URL. Include a DOI when one exists, in resolver
 form; otherwise include a URL only when the category and access route call for it. Do not prefix an
 ordinary locator with “Retrieved from,” and do not add terminal punctuation to a DOI or URL.
