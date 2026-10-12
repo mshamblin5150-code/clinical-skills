@@ -943,6 +943,7 @@ and a case study is usually being written against a deadline. Declare it and nam
 Reuse a recorded image whole where it fits. Where none fits, follow
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
 domain may be proposed, and one that works never licenses a second instance.
+Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 Two things every MDM entry carries: **the discriminator** — what in this case puts the diagnosis in
 or out, not a textbook summary of the disease — and **a citation**. Ruled-out entries end on the
@@ -1680,6 +1681,8 @@ route. If the run proposed imagery, also show this table from `imagery-proposals
 Ask the proposed-image question separately from whether the artifact's substance is right. Apply
 each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
 checks grader.
+
+At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 

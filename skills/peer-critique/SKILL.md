@@ -250,6 +250,7 @@ Read only the canonical path the identity command reports.
 Reuse a recorded image whole where it fits. Where none fits, follow
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
 domain may be proposed, and one that works never licenses a second instance.
+Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 Exit 0 is required to draft against the model. Exit 2 refuses drafting unless the banner explicitly
 says the model is absent; only that limb opens
@@ -372,6 +373,8 @@ proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit content go-ahead authorizes loading.
 Before each draft showing at the go-ahead, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
+At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
+
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
 Before asking for the go-ahead, run `python tools/project_context.py <run-directory>

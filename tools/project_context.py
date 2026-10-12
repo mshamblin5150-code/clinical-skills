@@ -54,6 +54,8 @@ DECLARED_LIMITS = (
     ("other-record-damage-unchecked", "The write preflight checks only project-context.md and the account registry, not other hand-written run records."),
     ("heredoc-route-ungraded", "The write preflight checks file contents, not whether a heredoc was used to write them."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
+    ("course-history-completeness-unverified", "The gate cannot tell whether the declared course history is complete, because course codes in names are unreliable."),
+    ("date-only-confirmation-granularity", "A date-only confirmation compares as midnight UTC; the gate cannot place it before or after an intraday start on that date."),
     ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
     ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
     ("pre-check-approvals", "Posted approvals predating the go-ahead check are named and counted, and pass without a recorded check."),
@@ -108,7 +110,7 @@ _OPENED = re.compile(
 )
 _HEADER_FIELDS = frozenset(
     {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
-) | frozenset(CLASSMATE_FIELDS) | {"ASSET"}
+) | frozenset(CLASSMATE_FIELDS) | {"ASSET", "COURSE-HISTORY"}
 _ENTRY_FIELDS = frozenset(
     {
         "STATE",
@@ -123,7 +125,7 @@ _ENTRY_FIELDS = frozenset(
         "MEMORY-LINES",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", "ASSET", *CLASSMATE_FIELDS})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", "ASSET", "COURSE-HISTORY", *CLASSMATE_FIELDS})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -337,10 +339,8 @@ def _duplicates(record: Record) -> list[str]:
 
 
 def _confirmation_error(value: str) -> str | None:
-    try:
-        date.fromisoformat(value)
-    except ValueError:
-        return "CONFIRMED needs an ISO date"
+    if completion_checks.instant(value) is None:
+        return "CONFIRMED needs an ISO date or timestamp"
     return None
 
 
@@ -389,6 +389,39 @@ def _opened_file_error(record: Record, name: str, value: str) -> str | None:
     return f"{name} path is not OPENED in a read PLACE"
 
 
+def _course_history_gate(record: Record) -> tuple[list[str], str]:
+    """Grade declared reads, leaving the course's complete population to its reader."""
+    confirmed = completion_checks.instant(record.value("CONFIRMED"))
+    if confirmed is None:
+        return [], ""  # The confirmation shape check owns this refusal.
+    if not completion_checks.active("project_context:course-history", confirmed):
+        return [], "course history: not graded; pre-cutoff records: 1"
+    values = record.values("COURSE-HISTORY")
+    errors = []
+    if not values:
+        errors.append("COURSE-HISTORY is missing")
+    none = tuple(value for value in values if value.casefold().startswith("none"))
+    if none:
+        if len(values) != 1:
+            errors.append("COURSE-HISTORY cannot put none beside another declaration")
+        if any(not re.fullmatch(r"(?i)none - \S.*", value) for value in none):
+            errors.append("COURSE-HISTORY none needs a reason")
+    paths = [Path(value).expanduser().resolve() for value in values if value not in none]
+    if len(set(paths)) != len(paths):
+        errors.append("duplicate COURSE-HISTORY path")
+    for value in values:
+        if value not in none:
+            if error := _opened_file_error(record, "COURSE-HISTORY", value):
+                errors.append(error)
+    return errors, "course history: " + ("finding - " + "; ".join(errors) if errors else "clean")
+
+
+def _has_declared_retrieval(record: Record) -> bool:
+    return any(record.values(name) for name in CLASSMATE_FIELDS) or any(
+        not value.casefold().startswith("none") for value in record.values("COURSE-HISTORY")
+    )
+
+
 def _classmate_lines(record: Record, name: str) -> tuple[tuple[str, str], ...]:
     rows = []
     for value in record.values(name):
@@ -402,11 +435,10 @@ def _classmate_lines(record: Record, name: str) -> tuple[tuple[str, str], ...]:
 def _classmate_gate(record: Record, submission: str | None) -> tuple[list[str], str]:
     if submission is None or not any(pattern.fullmatch(submission) for pattern in CLASSMATE_SKILLS.values()):
         return [], ""
-    try:
-        confirmed = date.fromisoformat(record.value("CONFIRMED"))
-    except ValueError:
+    confirmed = completion_checks.instant(record.value("CONFIRMED"))
+    if confirmed is None:
         return [], ""  # The confirmation shape check owns this refusal.
-    if confirmed < CLASSMATE_CUTOFF:
+    if confirmed.date() < CLASSMATE_CUTOFF:
         return [], "classmate declarations: not graded; pre-cutoff records: 1"
     errors = []
     for name in CLASSMATE_FIELDS:
@@ -697,7 +729,7 @@ def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
     payload = "".join(name + "\0" + record.value(name) + "\n"
                       for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     payload += "".join(name + "\0" + value + "\n"
-                       for name in (*CLASSMATE_FIELDS, "ASSET") for value in record.values(name))
+                       for name in (*CLASSMATE_FIELDS, "ASSET", "COURSE-HISTORY") for value in record.values(name))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -712,6 +744,7 @@ def _render(
     lines.extend(f"{name}: {record.value(name)}"
                  for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     lines.extend(f"{name}: {value}" for name in CLASSMATE_FIELDS for value in record.values(name))
+    lines.extend(f"COURSE-HISTORY: {value}" for value in record.values("COURSE-HISTORY"))
     lines.extend(f"ASSET: {value}" for value in record.values("ASSET"))
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
@@ -762,6 +795,9 @@ def _write_context_record(
     errors.extend(_context_declaration_errors(record))
     classmate_errors, classmate_report = _classmate_gate(record, submission)
     errors.extend(classmate_errors)
+    history_errors, history_report = _course_history_gate(record)
+    errors.extend(history_errors)
+    retrieval_report = "; ".join(filter(None, (classmate_report, history_report)))
     project_name, declaration_error = _declaration(record)
     if declaration_error:
         errors.append(declaration_error)
@@ -777,12 +813,12 @@ def _write_context_record(
     if errors:
         return GateResult(1, "project context: finding - " + "; ".join(errors))
     assert project_name is not None
-    if project_name == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
+    if project_name == "none" and not _has_declared_retrieval(record):
         if searches or waivers or record.entries:
             return GateResult(1, "project context: finding - a none run cannot owe places")
         digest = _context_digest([], record)
         record_path.write_text(_render(record, (), {}, digest), encoding="utf-8")
-        return GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", classmate_report))), digest=digest)
+        return GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", retrieval_report))), digest=digest)
 
     registry_path = repo_root.project_registry()
     if project_name != "none" and not registry_path.is_file():
@@ -876,7 +912,7 @@ def _write_context_record(
     record_path.write_text(_render(record, tuple(entries), hashed, digest), encoding="utf-8")
     return GateResult(
         0,
-        "; ".join(filter(None, (f"project context: clean; owed places: {len(owed)}; waived places: {waived}", classmate_report))),
+        "; ".join(filter(None, (f"project context: clean; owed places: {len(owed)}; waived places: {waived}", retrieval_report))),
         waived=waived,
         digest=digest,
     )
@@ -1058,7 +1094,7 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             retain_heading_context(run)
         previous = read_record(path.read_text(encoding="utf-8"))
         current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
-        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET")
+        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", "COURSE-HISTORY")
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
         if any(previous.values(name) != current.values(name) for name in names):
@@ -1109,6 +1145,9 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     shape_errors.extend(_context_declaration_errors(record, recheck_files=recheck_files))
     classmate_errors, classmate_report = _classmate_gate(record, submission)
     shape_errors.extend(classmate_errors)
+    history_errors, history_report = _course_history_gate(record)
+    shape_errors.extend(history_errors)
+    retrieval_report = "; ".join(filter(None, (classmate_report, history_report)))
     confirmed = record.values("CONFIRMED")
     if error:
         shape_errors.append(error)
@@ -1121,13 +1160,13 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     shape_errors.extend(search_errors)
     shape_errors.extend(waiver_errors)
     if shape_errors:
-        return CompletionGate(True, False, "; ".join(filter(None, (f"{EXPECTED_ROW}: finding - record shape is invalid", classmate_report))))
-    if declaration == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
+        return CompletionGate(True, False, "; ".join(filter(None, (f"{EXPECTED_ROW}: finding - record shape is invalid", retrieval_report))))
+    if declaration == "none" and not _has_declared_retrieval(record):
         clean = digest == _context_digest([], record) and not record.entries
         return CompletionGate(
             not clean,
             False,
-            "; ".join(filter(None, (f"{EXPECTED_ROW}: {'clean' if clean else 'finding - record fingerprint is invalid'}", classmate_report))),
+            "; ".join(filter(None, (f"{EXPECTED_ROW}: {'clean' if clean else 'finding - record fingerprint is invalid'}", retrieval_report))),
         )
     assert declaration is not None
     registry_path = repo_root.project_registry()
@@ -1244,7 +1283,7 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
         f"{EXPECTED_ROW}: "
         + ("; ".join(states) if states else "clean")
         + f"; owed places: {len(owed)}; waived places: {len(waivers & failed_places)}"
-        + (f"; {classmate_report}" if classmate_report else ""),
+        + (f"; {retrieval_report}" if retrieval_report else ""),
         tuple(moved_places),
         tuple(added_lines),
     )

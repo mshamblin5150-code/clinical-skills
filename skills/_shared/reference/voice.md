@@ -23,6 +23,28 @@ step further out.
 
 ---
 
+## Course history
+
+Before drafting, read the whole **Course history**: every earlier submission in the same
+course, of every type of work, including initial posts, replies, assignments, case studies
+and critiques. Declare every opened earlier paper through `COURSE-HISTORY` in the confirmed
+[project context](sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger). When there are no earlier papers, declare
+`COURSE-HISTORY: none - <reason>`.
+
+Judge reuse by fit, never by repetition. A reused quotation must fit this piece: frame it
+for the work at hand rather than carrying the earlier paper's framing, or use a different
+quotation from the same source that fits better. The clinician's recorded images take the
+same test: use each whole, making this piece's point. A quotation or image present because
+it was used before rather than because it fits fails that test. Fit remains a reader's judgment.
+
+At the go-ahead, show a reuse list. For each quotation or image also in an earlier course
+paper, name that paper, give one line on its earlier framing, and one line on its framing
+now. When there is none, show one line saying so. The clinician judges fit from the two
+framings. The drafting run builds this list; no grader checks its contents or completeness.
+The Voice reader keeps its existing blind inputs and receives no earlier course papers.
+[ADR 0360](../../../docs/adr/0360-a-reused-quotation-must-fit-the-piece-and-a-run-declares-the-earlier-course-papers-it-read.md)
+records these rulings.
+
 ## 1. Why [style.md](style.md) §11 was not enough
 
 §11 is real and it is not sufficient. **A run satisfied every bullet in it and still read as a
