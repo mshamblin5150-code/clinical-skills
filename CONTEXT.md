@@ -145,6 +145,18 @@ _Avoid_: conditional order, agreement, ordered, deferred treatment
 A place where a run's draft narrows or departs from something the clinician instructed — a stated duration shortened, an instruction applied in fewer places than it names. It is listed for his reading before the go-ahead, and the go-ahead after that reading is his ruling on it. Distinct from a claim the run contributed, which is proposed for verification rather than ruled on, and from a defect, which is repaired without asking.
 _Avoid_: deviation, override, change, narrowing
 
+**Ruled out**:
+A diagnosis's standing on a case-study differential when a test, imaging, or every observation its criterion requires excludes it. A criterion defined by change over time requires two observations, so one examination never rules a diagnosis out on that criterion. A ruled-out entry stays listed, ranks below every diagnosis not ruled out, and ends on its verdict.
+_Avoid_: excluded, negative, eliminated
+
+**Argued down**:
+A diagnosis's standing on a case-study differential when history or reasoning lowers its likelihood and nothing has ruled it out. It stays ranked and carries, in its own MDM entry, the trigger that would promote it.
+_Avoid_: unlikely, deprioritized, excluded
+
+**Impossible on the history**:
+A diagnosis the documented history makes anatomically impossible, such as one in an organ the surgical history records as removed. It takes no differential entry; one Assessment sentence names the history line that excludes it.
+_Avoid_: ruled out, excluded, contraindicated
+
 **Graded artifact**:
 One thing a course marks on its own — a board, a case study, a quiz. What identifies it is the artifact, not the module it sits in: a module normally holds several, so a module number names where something is rather than what it is.
 _Avoid_: assignment, deliverable, submission
