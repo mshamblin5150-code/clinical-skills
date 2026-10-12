@@ -113,6 +113,8 @@ DECLARED_LIMITS = (
     DeclaredLimit("uptodate-degree-shaped-name-absorbed", "A stored masthead author whose every name word is degree-shaped, such as an all-capital name following another author's degree, is read as that author's degrees.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("non-uptodate-author-year-unchecked", "Authors and years of sources other than a stored UpToDate topic are not checked by this command; the refutation agent verifies them.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("review-footer-other-wording-unseen", "A review footer named without the word reviewed, such as content checked or verified, passes the page-year review-footer row.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("update-date-content-belonging-unverified", "Whether a last-updated stamp belongs to the cited content remains the refuter's reading; the grader does not check it.", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 RESEARCHER_RETURN_UNCOMPARED = DECLARED_LIMITS[0]
@@ -330,6 +332,9 @@ PAGE_YEAR_UNSTATED = "page-year-unstated"
 BARE_PAGE_YEAR = "bare-page-year"
 PAGE_YEAR_DISAGREES = "page-year-disagrees"
 PAGE_YEAR_FORM = "page-year-form"
+PAGE_YEAR_REVIEW_FOOTER = "page-year-review-footer"
+REVIEWED_WORD = re.compile(r"\breviewed\b", re.IGNORECASE)
+PEER_REVIEW_PREFIX = re.compile(r"\bpeer[\s\-\u2010-\u2015]+$", re.IGNORECASE)
 UNKNOWN_REFUTATION = "unknown-refutation"
 BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
@@ -396,6 +401,7 @@ ROWS = {
     BARE_PAGE_YEAR: "#231",
     PAGE_YEAR_DISAGREES: "#231",
     PAGE_YEAR_FORM: "#1480",
+    PAGE_YEAR_REVIEW_FOOTER: "#1566",
     UNKNOWN_REFUTATION: "#231",
     BARE_REFUTATION: "#231",
     REFUTED_CITATION: "#231",
@@ -1241,6 +1247,18 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
             if year_source is None or not SUBSTANCE.search(year_source.group(2)):
                 found.append(Finding(PAGE_YEAR_FORM, claim, stated))
         page_year = record.page_year
+        review_footer = page_year is not None and any(
+            not PEER_REVIEW_PREFIX.search(stated[:match.start()])
+            for match in REVIEWED_WORD.finditer(stated)
+        )
+        if review_footer:
+            found.append(Finding(
+                PAGE_YEAR_REVIEW_FOOTER, claim,
+                "A review footer never dates a reference. Use the content's own publication "
+                "or revision date, or record a no-year PAGE-YEAR and n.d. in REFERENCE, "
+                "with a retrieval date where APA section 4 requires one and a reasoned "
+                "RECENCY excuse under sourcing.md's undated-source section.",
+            ))
         entry_year = record.reference_year
         cited = bool(SUBSTANCE.search(record.value("REFERENCE")))
         years = [
@@ -1262,7 +1280,7 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
             # reader can go and look.
             if not SUBSTANCE.search(BARE_YEAR.sub(" ", stated, count=1)):
                 found.append(Finding(BARE_PAGE_YEAR, claim, stated))
-            if cited and page_year != entry_year:
+            if cited and page_year != entry_year and not review_footer:
                 entry = entry_year if entry_year is not None else "no year"
                 found.append(
                     Finding(PAGE_YEAR_DISAGREES, claim, f"{page_year} on the page, {entry} in REFERENCE")
