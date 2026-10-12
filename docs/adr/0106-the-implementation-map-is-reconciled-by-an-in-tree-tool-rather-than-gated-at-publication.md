@@ -1,5 +1,11 @@
 # The implementation map is reconciled by an in-tree tool rather than gated at publication
 
+*Superseded 2026-10-11.* Every ruling in this record, "The implementation map is reconciled by an
+in-tree tool rather than gated at publication", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#756](https://github.com/mshamblin5150-code/clinical-skills/issues/756) was grilled after the
 clinician reported two things in one sentence: the map's Mermaid graph no longer times out, and a
 ticket that gains `ready-for-agent` does not reach the map without him editing its state block by

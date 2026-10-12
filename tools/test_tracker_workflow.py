@@ -61,13 +61,12 @@ class EveryTrackerGateHasASection(unittest.TestCase):
 
         #743: this normalized a section's **title** into a module name, which is
         right for the eighteen sections titled after their module and wrong for
-        the house's dominant style. `map_scan` owns *Implementation map
-        disagreement scan* and normalizes to nothing, so it passed here only
-        because no source reached it -- a false alarm waiting for the day
-        `tools/map_scan.py` is named in `docs/agents/issue-tracker.md` or in
-        `tracker.yml`. The declared map in `test_module_sections` is the
-        authority; the title fallback stays so a gate that is not a command
-        module is still reachable.
+        the house's dominant style. A module whose section carries a prose
+        title normalizes to nothing, so it passes here only while no source
+        reaches it -- a false alarm waiting for the day such a module is named
+        in `docs/agents/issue-tracker.md` or in `tracker.yml`. The declared map
+        in `test_module_sections` is the authority; the title fallback stays so
+        a gate that is not a command module is still reachable.
         """
 
         source = CLAUDE_MD.read_text(encoding="utf-8") if text is None else text
@@ -290,7 +289,6 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
             "tracker_coordinates.py --github-event",
             "tracker_measurements.py --github-event",
             "tracker_filed_from.py --github-event",
-            "map_scan.py --github-event",
         ):
             self.assertNotIn(old_command, job)
 

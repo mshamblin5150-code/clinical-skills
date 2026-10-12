@@ -33,7 +33,6 @@ import tracker_event_checks
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
 TRACKER_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
-MAP_REFRESH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "implementation-map-refresh.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The one command CLAUDE.md tells a maintainer to run. If CI runs a different
@@ -41,8 +40,6 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 SUITE_COMMAND = "python tools/suite.py"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
-MAP_COMMAND = "python tools/map_scan.py $harvest --population $population"
-MAP_STEP_NAME = "Implementation map disagreement"
 
 RUNNER = "windows-latest"
 PYTHON_VERSION = "3.14"
@@ -55,44 +52,6 @@ def workflow_text():
 
 def tracker_workflow_text():
     return TRACKER_WORKFLOW.read_text(encoding="utf-8")
-
-
-def map_refresh_workflow_text():
-    return MAP_REFRESH_WORKFLOW.read_text(encoding="utf-8")
-
-
-class TheImplementationMapRefreshWorkflow(unittest.TestCase):
-    def test_the_hourly_publisher_has_the_ruled_triggers_permissions_and_command(self):
-        text = map_refresh_workflow_text()
-
-        self.assertRegex(text, r"(?m)^\s{2}schedule:\s*$")
-        self.assertRegex(text, r"cron:\s*['\"]?[1-5]?\d \* \* \* \*['\"]?")
-        self.assertNotRegex(text, r"cron:\s*['\"]?0 \* \* \* \*['\"]?")
-        self.assertRegex(text, r"(?m)^\s{2}workflow_dispatch:\s*$")
-        self.assertNotRegex(text, r"(?m)^\s{2}(?:push|issues):\s*$")
-        self.assertRegex(text, r"(?m)^\s{2}contents:\s*read\s*$")
-        self.assertRegex(text, r"(?m)^\s{2}issues:\s*write\s*$")
-        self.assertRegex(text, r"(?m)^\s{2}pull-requests:\s*read\s*$")
-        self.assertIn("cancel-in-progress: false", text)
-        self.assertIn("GH_TOKEN: ${{ github.token }}", text)
-        self.assertIn("python tools/implementation_map.py publish --scheduled", text)
-        self.assertIn("dependencies/blocked_by?per_page=1", text)
-        self.assertRegex(
-            text,
-            r"dependencies/blocked_by\?per_page=1[^\n]*\n\s*if \(\$LASTEXITCODE -ne 0\)",
-        )
-        self.assertIn("gh api rate_limit", text)
-        self.assertIn("2>&1", text)
-        self.assertNotIn("apply-delta", text)
-        self.assertNotIn("reconciled_through", text)
-
-    def test_the_workflow_is_valid_yaml_when_the_optional_parser_is_available(self):
-        try:
-            import yaml
-        except ImportError:
-            self.skipTest("PyYAML is optional; the text-level workflow tests still ran")
-
-        self.assertIsInstance(yaml.safe_load(map_refresh_workflow_text()), dict)
 
 
 TRACKER_EVENTS = {
@@ -238,82 +197,6 @@ class BothMergeRoutesAreCovered(unittest.TestCase):
         """A merge that has already landed is the one moment somebody wants to
         re-run the check against a tree neither parent had."""
         self.assertRegex(workflow_text(), r"(?m)^\s*workflow_dispatch:")
-
-
-class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
-    def map_step(self):
-        text = workflow_text()
-        return text.partition(f"- name: {MAP_STEP_NAME}")[2].partition(
-            "\n      - name:"
-        )[0]
-
-    def test_the_step_is_pinned_to_push_and_manual_runs(self):
-        step = self.map_step()
-        self.assertTrue(step, "implementation-map step is absent")
-        self.assertIn(
-            "if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'",
-            step,
-        )
-        self.assertNotIn("pull_request", step.partition("run:")[0])
-
-    def test_it_harvests_the_whole_issue_surface_into_runner_temp(self):
-        step = self.map_step()
-        self.assertIn("RUNNER_TEMP", step)
-        self.assertIn("issues?state=all&per_page=100", step)
-        self.assertIn("gh api --paginate", step)
-
-    def test_the_probe_precedes_the_harvest_and_builds_the_shared_manifest(self):
-        step = self.map_step()
-        probe = step.index("gh api graphql")
-        harvest = step.index("gh api --paginate")
-
-        self.assertLess(probe, harvest)
-        self.assertIn("tracker_population.py", step)
-        self.assertIn("tracker-issues-population.json", step)
-        self.assertIn("tracker-comments-population.http", step)
-        self.assertIn("tracker-reviews-population.http", step)
-        self.assertIn("--population $population", step)
-
-    def test_findings_fail_without_an_advisory_conversion(self):
-        step = self.map_step()
-        self.assertIn(MAP_COMMAND, step)
-        self.assertNotIn("--advisory", step)
-        self.assertNotIn("continue-on-error", step)
-
-    def test_the_report_reaches_the_step_summary(self):
-        self.assertIn("GITHUB_STEP_SUMMARY", self.map_step())
-
-    def test_only_push_supplies_the_landing_range(self):
-        step = self.map_step()
-        self.assertIn("BEFORE_SHA: ${{ github.event.before }}", step)
-        self.assertIn("$rangeArgs = @()", step)
-        self.assertIn("if ($env:GITHUB_EVENT_NAME -eq 'push')", step)
-        self.assertIn("@('--pushed-range', \"$env:BEFORE_SHA..$env:GITHUB_SHA\")", step)
-        self.assertIn("--population $population @rangeArgs 2>&1", step)
-
-    def test_suite_and_phi_disclosure_run_after_a_map_failure(self):
-        for name in ("Test suite", "What this job can and cannot check for PHI"):
-            step = workflow_text().partition(f"- name: {name}\n")[2].partition("\n      - ")[0]
-            self.assertIn("if: always()", step)
-
-    def test_did_not_scan_heading_is_derived_from_the_scanner_status(self):
-        step = self.map_step()
-
-        self.assertIn("$status -eq 2", step)
-        self.assertIn("### Implementation map: DID NOT SCAN", step)
-        self.assertIn("$heading", step)
-
-    def test_the_job_can_read_issues(self):
-        self.assertRegex(workflow_text(), r"(?m)^\s*issues:\s*read\s*$")
-
-    def test_claude_documents_the_same_command(self):
-        self.assertIn(MAP_COMMAND, CLAUDE_MD.read_text(encoding="utf-8"))
-
-    def test_the_continuous_integration_inventory_names_the_gate(self):
-        section = CLAUDE_MD.read_text(encoding="utf-8").partition(
-            "### Continuous integration"
-        )[2].partition("\n### ")[0]
-        self.assertIn("map_scan.py", section)
 
 
 class ClosingKeywordSurfacesAreCovered(unittest.TestCase):

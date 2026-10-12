@@ -202,6 +202,12 @@ stamp `tools/map_scan.py` already grades, is a coordination artifact with no des
 stamp already says what made it. The hook, the workflow and the sweep skip such a body, and ruling 5's
 reconstruction never reaches #596.
 
+*Superseded 2026-10-11.* The ruling "A body carrying the map's producer stamp is outside these
+rules" is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map, so no body carries that stamp. The Filed-from rule
+stands for every ticket.
+
 ## Rejected options
 
 - **A new fixed wording in place of the filed sentence.** Refused under ruling 1: it trades the filing

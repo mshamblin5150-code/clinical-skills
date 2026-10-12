@@ -9,7 +9,6 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
 import tracker_filed_from as filed_from
@@ -18,17 +17,6 @@ import tracker_filed_from as filed_from
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ISSUE_TRACKER = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
 AAR_SKILL = REPO_ROOT / "skills" / "aar" / "SKILL.md"
-MAP_COMMIT = "a" * 40
-MAP_PRODUCER = "b" * 64
-
-
-def map_body() -> str:
-    return (
-        "<!-- implementation-map:v1:state:end -->\n\n"
-        "## Snapshot\n"
-        f"- producer: `tools/implementation_map.py sha256:{MAP_PRODUCER}`\n"
-        f"- default-branch commit: `{MAP_COMMIT}`\n"
-    )
 
 
 def opened_event(body: str, *, created_at: str) -> dict:
@@ -153,33 +141,6 @@ class GithubIssueEventsAreReported(unittest.TestCase):
         scan = filed_from.grade_event(event, "issues")
 
         self.assertEqual(scan.findings, ())
-
-    def test_a_map_stamped_body_is_not_reported(self) -> None:
-        event = opened_event(
-            map_body(),
-            created_at=filed_from.FILED_FROM_CUTOFF.isoformat().replace("+00:00", "Z"),
-        )
-
-        with mock.patch(
-            "implementation_map.producer_identity", return_value=MAP_PRODUCER
-        ):
-            scan = filed_from.grade_event(event, "issues")
-
-        self.assertEqual(scan.findings, ())
-        self.assertIn("implementation map not graded", scan.report)
-
-    def test_a_producer_looking_bullet_alone_does_not_exempt_a_body(self) -> None:
-        body = (
-            f"- producer: `tools/implementation_map.py sha256:{MAP_PRODUCER}`"
-        )
-        event = opened_event(
-            body,
-            created_at=filed_from.FILED_FROM_CUTOFF.isoformat().replace("+00:00", "Z"),
-        )
-
-        scan = filed_from.grade_event(event, "issues")
-
-        self.assertEqual([row.rule for row in scan.findings], ["filed-from:opened"])
 
 
 class TheFixedPositionFollowsRecordScope(unittest.TestCase):

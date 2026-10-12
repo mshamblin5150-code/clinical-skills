@@ -207,22 +207,20 @@ class ProjectRegistration(unittest.TestCase):
             (), bind(roster.DECLARED_LIMITS, roster.__doc__ or "", mode=NAMING)
         )
 
-    def test_the_roster_and_both_command_hooks_name_the_same_tools(self) -> None:
+    def test_the_roster_and_the_command_hook_name_the_same_tools(self) -> None:
         root = Path(__file__).resolve().parents[1]
         settings = json.loads(
             (root / ".claude" / "settings.json").read_text(encoding="utf-8")
         )
 
-        for event in ("PreToolUse", "PostToolUse"):
-            with self.subTest(event=event):
-                self.assertEqual(
-                    {
-                        row["matcher"]
-                        for row in settings["hooks"][event]
-                        if row["matcher"] in roster.command_reader.COMMAND_TOOLS
-                    },
-                    set(roster.command_reader.COMMAND_TOOLS),
-                )
+        self.assertEqual(
+            {
+                row["matcher"]
+                for row in settings["hooks"]["PreToolUse"]
+                if row["matcher"] in roster.command_reader.COMMAND_TOOLS
+            },
+            set(roster.command_reader.COMMAND_TOOLS),
+        )
 
     def test_roster_detection_is_the_only_session_end_module(self) -> None:
         root = Path(__file__).resolve().parents[1]

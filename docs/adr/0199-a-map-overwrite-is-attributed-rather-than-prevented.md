@@ -1,5 +1,11 @@
 # A map overwrite is attributed rather than prevented
 
+*Superseded 2026-10-11.* Every ruling in this record, "A map overwrite is attributed rather than
+prevented", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 Out of [#966](https://github.com/mshamblin5150-code/clinical-skills/issues/966), grilled on
 2026-09-12. Nothing is built here; this is the record the build reads.
 

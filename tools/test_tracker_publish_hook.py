@@ -181,137 +181,19 @@ class RefreshDefaultBranchNamesTheRefItReads(unittest.TestCase):
         )
 
 
-class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
-    BODY_BY_KIND = {
-        tracker_bodies.LOST_AT_DASH: "@-",
-        tracker_bodies.EMPTY_BODY: " \n\t ",
-        tracker_bodies.LITERAL_AT_PATH: "@body.md",
-        tracker_bodies.DOUBLE_ENCODED: "before \u00e2\u20ac\u201d after",
-        tracker_bodies.C0_CONTROL_CHARACTER: "word\bword",
-        tracker_bodies.CARRIAGE_RETURN_FLANKED: "before\rafter",
-        tracker_bodies.LITERAL_NEWLINE_ESCAPE: r"before\nafter",
-        tracker_bodies.DOUBLED_PATH_SEPARATOR: r"open D:\\folder",
-    }
+BODY_BY_KIND = {
+    tracker_bodies.LOST_AT_DASH: "@-",
+    tracker_bodies.EMPTY_BODY: " \n\t ",
+    tracker_bodies.LITERAL_AT_PATH: "@body.md",
+    tracker_bodies.DOUBLE_ENCODED: "before \u00e2\u20ac\u201d after",
+    tracker_bodies.C0_CONTROL_CHARACTER: "word\bword",
+    tracker_bodies.CARRIAGE_RETURN_FLANKED: "before\rafter",
+    tracker_bodies.LITERAL_NEWLINE_ESCAPE: r"before\nafter",
+    tracker_bodies.DOUBLED_PATH_SEPARATOR: r"open D:\\folder",
+}
 
-    def test_every_declared_body_shape_is_refused(self) -> None:
-        self.assertEqual(set(self.BODY_BY_KIND), set(tracker_bodies.KINDS))
-        for kind, body in self.BODY_BY_KIND.items():
-            with self.subTest(kind=kind):
-                with self.assertRaisesRegex(ValueError, kind):
-                    hook.authorize_issue_body(body, "issue #596", issue_number=595)
 
-    def test_a_map_body_without_a_producer_stamp_is_refused(self) -> None:
-        with self.assertRaisesRegex(ValueError, "producer stamp"):
-            hook.authorize_issue_body(
-                "A complete tracker body.", "map", issue_number=596
-            )
-
-    def test_an_ordinary_non_map_body_is_accepted(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        with (
-            mock.patch.object(hook, "current_index", return_value=(index, ())),
-            mock.patch.object(hook, "refresh_default_branch", return_value=True),
-        ):
-            hook.authorize_issue_body(
-                "A complete tracker body.", "issue #596", issue_number=595
-            )
-
-    def test_the_direct_writer_delegates_grading_only_to_analyze(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        analysis = hook.Analysis((), "scanned body: 0 findings")
-        with (
-            mock.patch.object(hook, "current_index", return_value=(index, ())),
-            mock.patch.object(hook, "refresh_default_branch", return_value=True),
-            mock.patch.object(hook, "analyze", return_value=analysis) as analyze,
-            mock.patch.object(
-                hook.tracker_bodies, "grade", side_effect=AssertionError("direct call")
-            ),
-            mock.patch.object(
-                hook.tracker_coordinates, "grade", side_effect=AssertionError("direct call")
-            ),
-            mock.patch.object(
-                hook.tracker_measurements,
-                "grade_current",
-                side_effect=AssertionError("direct call"),
-            ),
-        ):
-            report = hook.authorize_issue_body(
-                "A complete tracker body.", "issue #595", issue_number=595
-            )
-
-        self.assertEqual(report, analysis.report)
-        analyze.assert_called_once()
-        publication = analyze.call_args.args[0]
-        self.assertEqual((publication.field, publication.text), (
-            "body", "A complete tracker body."
-        ))
-
-    def test_advice_is_returned_and_denial_refuses(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        advised = hook.Analysis(
-            (hook.Finding("phi:ssn", 1, "body", "advise"),),
-            "advise: phi:ssn: 1 finding(s) in body",
-        )
-        denied = hook.Analysis(
-            (hook.Finding("branch:repo-relative-link", 1, "body", "deny"),),
-            "deny: branch:repo-relative-link: 1 finding(s) in body",
-        )
-        with (
-            mock.patch.object(hook, "current_index", return_value=(index, ())),
-            mock.patch.object(hook, "refresh_default_branch", return_value=True),
-            mock.patch.object(hook, "analyze", side_effect=(advised, denied)),
-        ):
-            report = hook.authorize_issue_body("safe", "issue #595")
-            with self.assertRaisesRegex(ValueError, "branch:repo-relative-link"):
-                hook.authorize_issue_body("unsafe", "issue #595")
-
-        self.assertIn("advise: phi:ssn", report)
-
-    def test_an_absent_corpus_is_reported_without_refusing(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        with (
-            mock.patch.object(
-                hook, "current_index", return_value=(index, ("patient names",))
-            ),
-            mock.patch.object(hook, "refresh_default_branch", return_value=True),
-            mock.patch.object(
-                hook,
-                "analyze",
-                return_value=hook.Analysis((), "scanned body: 0 findings"),
-            ),
-        ):
-            report = hook.authorize_issue_body("safe", "issue #595")
-
-        self.assertIn("PHI corpus layer incomplete", report)
-        self.assertIn("patient names not available", report)
-
-    def test_new_issue_title_and_body_are_both_graded_by_analyze(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        with (
-            mock.patch.object(hook, "current_index", return_value=(index, ())),
-            mock.patch.object(hook, "refresh_default_branch", return_value=True),
-            mock.patch.object(
-                hook,
-                "analyze",
-                return_value=hook.Analysis((), "scanned field: 0 findings"),
-            ) as analyze,
-        ):
-            hook.authorize_issue_body("body", "new issue", title="Map title")
-
-        self.assertEqual(
-            [call.args[0].field for call in analyze.call_args_list],
-            ["body", "title"],
-        )
-
-    def test_issue_number_must_agree_with_the_record_context(self) -> None:
-        with self.assertRaisesRegex(ValueError, "issue number and context disagree"):
-            hook.authorize_issue_body(
-                "body",
-                "issue #595",
-                issue_number=595,
-                issue={"number": 596, "labels": []},
-            )
-
+class CanonicalDocsPointAtTheCorrespondenceObjects(unittest.TestCase):
     def test_canonical_docs_point_at_the_correspondence_objects(self) -> None:
         root = Path(__file__).resolve().parent.parent
         surfaces = (
@@ -1644,14 +1526,8 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn(tracker_coordinates.UNANCHORED, specific["additionalContext"])
         self.assertIn("anchor", specific["additionalContext"])
 
-    def test_an_unanchored_coordinate_is_denied_to_the_direct_writer(self) -> None:
-        with self.assertRaisesRegex(ValueError, tracker_coordinates.UNANCHORED):
-            hook.authorize_issue_body(
-                "Moved to tools/example.py:12", "implementation map"
-            )
-
     def test_every_declared_body_row_denies_every_body_bearing_route(self) -> None:
-        bodies = DirectTrackerWritersCrossTheBodyGate.BODY_BY_KIND
+        bodies = BODY_BY_KIND
         self.assertEqual(set(bodies), set(tracker_bodies.KINDS))
         index = phi_scan.build_index(set(), set())
         for kind, body in bodies.items():
@@ -1680,7 +1556,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 self.assertIn(f"body:{kind}", specific["additionalContext"])
 
     def test_each_body_refusal_reports_its_remedy(self) -> None:
-        bodies = DirectTrackerWritersCrossTheBodyGate.BODY_BY_KIND
+        bodies = BODY_BY_KIND
         self.assertEqual(set(hook.BODY_REMEDIES), set(tracker_bodies.KINDS))
         for kind, body in bodies.items():
             with self.subTest(kind=kind):
@@ -2177,42 +2053,6 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         specific = response["hookSpecificOutput"]
         self.assertNotIn("permissionDecision", specific)
         self.assertIn("filed-from: NOT GRADED", specific["additionalContext"])
-
-    def test_a_map_stamped_issue_body_is_not_graded_for_the_line(self) -> None:
-        index = phi_scan.build_index(set(), set())
-        commit = "a" * 40
-        producer = "b" * 64
-        body = (
-            "<!-- implementation-map:v1:state:end -->\n\n"
-            "## Snapshot\n"
-            f"- producer: `tools/implementation_map.py sha256:{producer}`\n"
-            f"- default-branch commit: `{commit}`\n"
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            body_file = root / "map.md"
-            body_file.write_text(body, encoding="utf-8")
-            with (
-                mock.patch.object(hook, "current_index", return_value=(index, ())),
-                mock.patch.object(
-                    hook, "refresh_default_branch", return_value=True
-                ),
-                mock.patch.object(hook, "fetch_readback"),
-                mock.patch.object(hook, "record_run"),
-                mock.patch(
-                    "implementation_map.producer_identity", return_value=producer
-                ),
-            ):
-                response = hook.handle(
-                    self.payload(
-                        f"cd \"{root}\" && gh issue create --title 'Map' "
-                        f'--body-file "{body_file.name}"'
-                    )
-                )
-
-        specific = response["hookSpecificOutput"]
-        self.assertNotIn("permissionDecision", specific)
-        self.assertIn("implementation map producer stamp", specific["additionalContext"])
 
     def test_an_api_issue_create_without_the_line_is_denied(self) -> None:
         index = phi_scan.build_index(set(), set())

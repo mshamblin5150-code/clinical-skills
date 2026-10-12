@@ -1,5 +1,11 @@
 # A collision kind is unordered or sequence and is demanded when two members are live
 
+*Superseded 2026-10-11.* Every ruling in this record, "A collision kind is unordered or sequence and
+is demanded when two members are live", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [ADR 0107](0107-a-collision-group-is-a-sequence-or-an-exclusion-and-an-unclassified-one-over-constrains.md)
 ruled that a collision group carries a kind and that
 [#809](https://github.com/mshamblin5150-code/clinical-skills/issues/809) would classify all 21 of

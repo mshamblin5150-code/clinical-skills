@@ -149,13 +149,19 @@ class ThePublicTextGrade(unittest.TestCase):
 
 
 class TrackerPublicationsUseTheSharedGrade(unittest.TestCase):
-    def test_direct_writer_refuses_a_declaration_directly_under_a_quote(self):
+    def test_command_analysis_denies_a_declaration_directly_under_a_quote(self):
         body = f"> quoted claim\n**Measured at:** {CURRENT}"
-        with (
-            mock.patch.object(measurements, "current_head", return_value=CURRENT),
-            self.assertRaisesRegex(ValueError, measurements.INSIDE_QUOTE),
-        ):
-            publish_hook.authorize_issue_body(body, "comment")
+        with mock.patch.object(measurements, "current_head", return_value=CURRENT):
+            result = publish_hook.analyze(
+                publish_hook.Publication("body", body),
+                index=phi_scan.build_index(set(), set()),
+                issue=None,
+                remote_fresh=True,
+            )
+
+        rows = [row for row in result.findings if row.rule == measurements.INSIDE_QUOTE]
+        self.assertEqual(1, len(rows))
+        self.assertEqual("deny", rows[0].posture)
 
     def test_command_analysis_denies_a_stale_declared_base(self):
         body = f"A load-bearing figure.\n\n**Measured at:** {STALE}"
@@ -170,14 +176,6 @@ class TrackerPublicationsUseTheSharedGrade(unittest.TestCase):
         rows = [row for row in result.findings if row.rule == measurements.STALE_BASE]
         self.assertEqual(1, len(rows))
         self.assertEqual("deny", rows[0].posture)
-
-    def test_direct_writer_refuses_the_same_stale_declared_base(self):
-        body = f"A load-bearing figure.\n\n**Measured at:** {STALE}"
-        with (
-            mock.patch.object(measurements, "current_head", return_value=CURRENT),
-            self.assertRaisesRegex(ValueError, measurements.STALE_BASE),
-        ):
-            publish_hook.authorize_issue_body(body, "issue #961")
 
 
 class StagedAdrsUseTheCheckoutHead(unittest.TestCase):

@@ -1,5 +1,11 @@
 # The map's direct writer grades through analyze and runs no readback
 
+*Superseded 2026-10-11.* Every ruling in this record, "The map's direct writer grades through
+analyze and runs no readback", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 3, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#1148](https://github.com/mshamblin5150-code/clinical-skills/issues/1148) was split out of #1124's
 grilling by [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md)
 ruling 5. `tools/implementation_map.py` publishes by calling `gh` from inside the process, so no

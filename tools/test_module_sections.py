@@ -107,12 +107,9 @@ DECLARED_SECTIONS = {
     "heredoc_write_hook": "Heredoc write guard",
     "icd10_build": "ICD-10-CM code set",
     "icd10_lookup": "ICD-10-CM code set",
-    "implementation_map": "Implementation map helper",
-    "implementation_map_post_hook": "Implementation map helper",
     "install_grilling_guard": "Grilling guard",
     "install_compaction_reminder": "Compaction reminder",
     "install_run_status_guard": "Approved run status guard",
-    "map_scan": "Implementation map disagreement scan",
     "name_index": "PHI pre-commit hook",
     "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
@@ -227,10 +224,8 @@ class TheDerivationIsNotSatisfiedByAMention(unittest.TestCase):
     """The three shapes that defeat a derived answer, pinned as cases."""
 
     def test_a_prose_titled_section_still_owns_its_module(self):
-        self.assertEqual(
-            DECLARED_SECTIONS["map_scan"], "Implementation map disagreement scan"
-        )
-        self.assertNotIn("map_scan", section_titles())
+        self.assertEqual(DECLARED_SECTIONS["python_floor"], "Continuous integration")
+        self.assertNotIn("python_floor", section_titles())
 
     def test_a_section_that_merely_shows_an_invocation_does_not_own_the_module(self):
         text = CLAUDE_MD.read_text(encoding="utf-8")

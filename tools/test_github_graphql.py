@@ -295,9 +295,8 @@ class EveryLiteralGraphqlConsumerUsesTheReader(unittest.TestCase):
     def test_every_literal_graphql_command_routes_stdout_through_the_reader(self):
         self.assertEqual(graphql_consumer_failures(self.trees()), ())
 
-    def test_all_three_ruled_consumers_import_and_call_the_reader(self):
+    def test_both_ruled_consumers_import_and_call_the_reader(self):
         expected = {
-            "implementation_map.py",
             "tracker_publish_hook.py",
             "tracker_population.py",
         }
@@ -435,7 +434,6 @@ class RepositoryProseNamesTheSharedVerdict(unittest.TestCase):
         headings = (
             "### Tracker population",
             "### Tracker publish hook",
-            "### Implementation map helper",
         )
         for heading in headings:
             start = claude.index(heading)

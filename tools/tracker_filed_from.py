@@ -86,19 +86,6 @@ class Scan(NamedTuple):
 class OpenedBodyGrade(NamedTuple):
     eligible: bool
     missing: bool
-    map_body: bool
-
-
-def has_map_producer_stamp(body: str) -> bool:
-    """Return whether the implementation map's existing predicate accepts the body."""
-    # Lazy import avoids implementation_map's existing import of the publish
-    # hook, which imports this module.
-    from implementation_map import MapError, producer_stamp_problem
-
-    try:
-        return producer_stamp_problem(body) is None
-    except MapError as error:
-        raise ValueError("implementation map producer could not be graded") from error
 
 
 def fixed_position_line(body: str) -> str | None:
@@ -168,8 +155,6 @@ def grade_publication(
         ("issue", "edit"),
     ):
         return Grade(None, "not-graded", "filed-from: NOT GRADED; not an issue body write")
-    if has_map_producer_stamp(body):
-        return Grade(None, "not-graded", "filed-from: NOT GRADED; implementation map producer stamp")
     if route == ("issue", "create") and fixed_position_line(body) is None:
         return Grade(
             CREATE_RULE,
@@ -248,10 +233,8 @@ def _format_scan(
 def grade_opened_body(created_at: object, body: str) -> OpenedBodyGrade:
     """Classify one issue body independently of an event or harvest."""
     if _utc_timestamp(created_at, "issue creation timestamp") < FILED_FROM_CUTOFF:
-        return OpenedBodyGrade(False, False, False)
-    if has_map_producer_stamp(body):
-        return OpenedBodyGrade(False, False, True)
-    return OpenedBodyGrade(True, fixed_position_line(body) is None, False)
+        return OpenedBodyGrade(False, False)
+    return OpenedBodyGrade(True, fixed_position_line(body) is None)
 
 
 def grade_event(document: object, event_name: str) -> Scan:
@@ -272,10 +255,6 @@ def grade_event(document: object, event_name: str) -> Scan:
     eligible = 0
     if action == "opened":
         opened = grade_opened_body(issue.get("created_at"), body)
-        if opened.map_body:
-            return _format_scan(
-                (), "issues event (implementation map not graded)", eligible=0
-            )
         eligible = int(opened.eligible)
         if opened.missing:
             findings = (Finding(OPENED_RULE, url),)

@@ -1,5 +1,11 @@
 # A collision group is a sequence or an exclusion, and an unclassified one over-constrains
 
+*Superseded 2026-10-11.* Every ruling in this record, "A collision group is a sequence or an
+exclusion, and an unclassified one over-constrains", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 The implementation map's `collision_groups` entries carry a name, an **ordered** list of packets and
 a prose `why`. Reading the `why` fields during [#756](https://github.com/mshamblin5150-code/clinical-skills/issues/756)'s
 grilling showed that one name is doing two jobs, and that the derived graph asserts an order most of

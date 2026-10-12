@@ -166,12 +166,10 @@ class TheDeclaredRowsCoverTheDerivedRulePopulation(unittest.TestCase):
 
 
 class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
-    def test_behavior_rows_are_the_four_driven_writer_host_pairs(self) -> None:
+    def test_behavior_rows_are_the_two_driven_writer_host_pairs(self) -> None:
         expected = {
             (correspondence.Writer.PUBLISHER_COMMAND, correspondence.Host.HOOK_COMMAND),
-            (correspondence.Writer.MAP_SESSION, correspondence.Host.DIRECT_WRITER),
             (correspondence.Writer.MERGE_RECEIPT, correspondence.Host.RECEIPT_PREPUBLICATION),
-            (correspondence.Writer.HOURLY_MAP_REFRESH, correspondence.Host.DIRECT_WRITER),
         }
         declared = {
             (row.writer, row.host)
@@ -190,18 +188,6 @@ class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
             hook = tracker_publish_hook.handle(
                 hook_payload("gh issue comment 1149 --body 'Ordinary comment.'")
             )
-            direct_issue = {
-                "number": 1149,
-                "body": "Ordinary body.",
-                "labels": [],
-                "url": "https://example.invalid/issues/1149",
-            }
-            map_session = tracker_publish_hook.authorize_issue_body(
-                "Ordinary body.", "map session writer", issue=direct_issue
-            )
-            hourly = tracker_publish_hook.authorize_issue_body(
-                "Ordinary body.", "hourly map refresh writer", issue=direct_issue
-            )
         receipt_status, receipt = run_event(
             {
                 **issue_event("created", "Ordinary body."),
@@ -214,8 +200,6 @@ class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
         )
 
         self.assertTrue(hook)
-        self.assertIn("scanned body", map_session)
-        self.assertIn("scanned body", hourly)
         self.assertEqual(0, receipt_status)
         self.assertIn("Tracker PHI shape layer", receipt)
 
@@ -510,7 +494,6 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             "tracker_coordinates": (correspondence.tracker_coordinates.UNANCHORED,),
             "tracker_measurements": correspondence.tracker_measurements.RULES,
             "tracker_filed_from": correspondence.tracker_filed_from.EVENT_RULES,
-            "map_scan": correspondence.map_scan.EVENT_RULES,
         }
         owners = {
             rule: module
@@ -519,9 +502,6 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         }
         for row in correspondence.POSTURE_ROWS:
             document, event_name = event_inputs[row.trigger]
-            if row.predicate == "implementation-map-producer-stamp":
-                document = json.loads(json.dumps(document))
-                document["issue"]["number"] = 596
             selected = {
                 check.module
                 for check in tracker_event_checks.select_checks(document, event_name)
@@ -590,22 +570,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         ):
             return tracker_publish_hook.handle(hook_payload(command))
 
-    def direct(self, body: str, *, fetch_fresh: bool = True, current: str = "Ordinary body.") -> str:
-        issue = {
-            "number": 1149,
-            "body": current,
-            "labels": [],
-            "state": "OPEN",
-            "html_url": "https://example.invalid/issues/1149",
-        }
-        with (
-            mock.patch.object(tracker_publish_hook, "current_index", return_value=(self.index, ())),
-            mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=fetch_fresh),
-        ):
-            return tracker_publish_hook.authorize_issue_body(
-                body, "synthetic direct writer", issue=issue
-            )
-
     def test_a_synthetic_declaration_does_not_suppress_shape_grading(self) -> None:
         body = (
             "phi-scan: synthetic\n"
@@ -613,7 +577,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             "555-555-1212\n1/2/2026"
         )
         hook = self.hook(f"gh issue edit 1149 --body '{body}'")
-        direct = self.direct(body)
         event = {
             **issue_event("edited", body),
             "changes": {"body": {"from": "Old body."}},
@@ -635,7 +598,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         for rule in rules:
             with self.subTest(rule=rule):
                 self.assertIn(f"advise: phi:{rule}", str(hook))
-                self.assertIn(f"advise: phi:{rule}", direct)
                 self.assertIn(rule, changed)
                 self.assertIn(rule, receipt)
                 row = correspondence.posture_row(
@@ -650,7 +612,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
                 )
                 for cell in (
                     row.hook_command,
-                    row.direct_writer,
                     row.changed_record,
                     receipt_row.receipt_prepublication,
                 ):
@@ -668,7 +629,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         )
         body = f"See [missing]({missing})."
         hook = self.hook(f"gh issue edit 1149 --body '{body}'", fetch_fresh=False)
-        direct = self.direct(body, fetch_fresh=False)
         event = {
             **issue_event("edited", body),
             "changes": {"body": {"from": "Old body."}},
@@ -696,7 +656,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         )
 
         self.assertIn("advise: branch:unresolved-path", str(hook))
-        self.assertIn("advise: branch:unresolved-path", direct)
         self.assertIn("branch:unresolved-path", changed)
         self.assertIn("branch:unresolved-path", receipt)
         self.assertEqual(
@@ -726,9 +685,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             hook = tracker_publish_hook.handle(
                 hook_payload(f"gh issue edit 1149 --body '{proposed}'")
             )
-        with self.assertRaisesRegex(ValueError, "filed-from:edit") as refused:
-            self.direct(proposed, current=current)
-        direct = str(refused.exception)
         event = {
             **issue_event("edited", proposed),
             "changes": {"body": {"from": current}},
@@ -756,7 +712,6 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         )
 
         self.assertNotIn("filed-from:edit", str(hook))
-        self.assertIn("filed-from:edit", direct)
         self.assertIn("filed-from:edited", changed)
         self.assertNotIn("filed-from:", receipt)
         self.assertEqual(

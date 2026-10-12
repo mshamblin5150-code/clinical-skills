@@ -1,5 +1,11 @@
 # The readiness refusal lands at the claim rather than at the push and startability and readiness stay two derived properties
 
+*Superseded 2026-10-11.* Every ruling in this record, "The readiness refusal lands at the claim
+rather than at the push and startability and readiness stay two derived properties", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 [#726](https://github.com/mshamblin5150-code/clinical-skills/issues/726) was split from
 [#679](https://github.com/mshamblin5150-code/clinical-skills/issues/679) as ruling 6 of
 [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md),

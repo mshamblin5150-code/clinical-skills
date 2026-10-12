@@ -1,5 +1,11 @@
 # The map check fails only on new debt and the debt it inherited is frozen and drained
 
+*Superseded 2026-10-11.* Every ruling in this record, "The map check fails only on new debt and the
+debt it inherited is frozen and drained", is withdrawn by
+[ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
+ruling 1, which retires the implementation map. Nothing in it still stands; it remains the record of
+what was decided while the map existed.
+
 **Measured at:** 2030e75d4e7c1341dbfe4470480ecbafbcdd70f2
 
 The run figures below were read at `36d6029b25913c4ec8590e568aa38197a0dc3313`; the declaration moved

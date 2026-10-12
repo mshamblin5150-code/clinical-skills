@@ -8,6 +8,12 @@ recognized ruling heading or numbered ruling item using ``adr_read``'s grammar.
 It contains a quoted span, the same relative ADR link
 followed by ``ruling N``, and an account of what survives. The account's truth
 is read at review, not inferred from supersession verbs.
+
+A wholly withdrawn record takes ADR 0343's whole-record form instead: the
+bullet reads ``every ruling,`` (optionally ``every ruling except ruling N,``)
+in place of ``ruling N,``, and its one marker is a paragraph above the record's
+first ``##`` heading that says the same ``every ruling`` phrase, including any
+exception, with the same quoted span and link requirements.
 """
 
 from __future__ import annotations
@@ -49,6 +55,22 @@ DECLARED_LIMITS = (
 )
 LINK = r"\[ADR (\d{4})\]\((\d{4}-[^()\s]+\.md)\)"
 DECLARATION = re.compile(r"^- " + LINK + r"\s+ruling (\d+),\s+(.+)$")
+EVERY = r"every ruling(?: except rulings? (\d+(?:(?:, | and |, and )\d+)*))?"
+WHOLE_DECLARATION = re.compile(r"^- " + LINK + r"\s+" + EVERY + r",\s+(.+)$")
+WHOLE_PHRASE = re.compile(r"\b" + EVERY + r"\b", re.IGNORECASE)
+
+
+def whole_record(exceptions: str | None) -> tuple[str, frozenset[int]]:
+    """The ruling key of ADR 0343's whole-record form, exceptions included."""
+    return ("every", frozenset(int(n) for n in re.findall(r"\d+", exceptions or "")))
+
+
+def shown(ruling) -> str:
+    """Name a declaration key the way its finding should read."""
+    if isinstance(ruling, int):
+        return f"ruling {ruling}"
+    kept = sorted(ruling[1])
+    return "every ruling" + (f" except ruling {', '.join(map(str, kept))}" if kept else "")
 MARKER_LINK = re.compile(LINK + r"\s+ruling (\d+)\b")
 OPENING = re.compile(r"^\*Superseded (\d{4}-\d{2}-\d{2})\.\*\s+(.+)$")
 
@@ -60,8 +82,8 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
     owe a marker for a new declaration. This seam writes nothing.
     """
     findings, unresolved = legacy_marker_findings(report or {}, records, root=root)
-    declarations: set[tuple[str, str, int]] = set()
-    markers: set[tuple[str, str, int]] = set()
+    declarations: set[tuple[str, str, object]] = set()
+    markers: set[tuple[str, str, object]] = set()
     for name, text in sorted(records.items()):
         text = "\n".join(unfenced_lines(text))
         if int(name[:4]) < CUTOFF:
@@ -73,16 +95,32 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
         for bullet in bullets:
             joined = " ".join(line.strip() for line in bullet.splitlines())
             parsed = DECLARATION.fullmatch(joined)
-            if parsed is None or parsed.group(1) != parsed.group(2)[:4]:
+            whole = None if parsed else WHOLE_DECLARATION.fullmatch(joined)
+            found = parsed or whole
+            if found is None or found.group(1) != found.group(2)[:4]:
                 findings.append(f"{name}: unread Supersedes declaration")
                 continue
-            declarations.add((name, parsed.group(2), int(parsed.group(3))))
+            if whole:
+                key = whole_record(whole.group(3))
+                if key[1] - set(ruling_ordinals(records.get(whole.group(2), ""))):
+                    findings.append(f"{name}: {whole.group(2)} excepts an absent ruling")
+                declarations.add((name, whole.group(2), key))
+            else:
+                declarations.add((name, parsed.group(2), int(parsed.group(3))))
 
     for name, text in sorted(records.items()):
         text = "\n".join(unfenced_lines(text))
         contexts = {row.line: row.number for row in ruling_attributions(text)}
+        first_section = next(
+            (index for index, line in enumerate(text.splitlines(), 1) if line.startswith("## ")),
+            None,
+        )
         for line_number, paragraph in paragraphs(text):
             ruling = contexts.get(line_number)
+            if first_section is None or line_number < first_section:
+                phrase = WHOLE_PHRASE.search(" ".join(paragraph.splitlines()))
+                if phrase:
+                    ruling = whole_record(phrase.group(1))
             if not paragraph.startswith("*Superseded"):
                 continue
             if (name, paragraph) in unresolved:
@@ -112,10 +150,10 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
                     findings.append(f"{name}: marker links an absent overturning ruling")
                 markers.add((link.group(2), name, ruling))
 
-    for declaring, target, ruling in sorted(declarations - markers):
-        findings.append(f"{declaring}: {target} ruling {ruling} has no matching marker")
-    for declaring, target, ruling in sorted(markers - declarations):
-        findings.append(f"{target}: {declaring} does not declare ruling {ruling}")
+    for declaring, target, ruling in sorted(declarations - markers, key=str):
+        findings.append(f"{declaring}: {target} {shown(ruling)} has no matching marker")
+    for declaring, target, ruling in sorted(markers - declarations, key=str):
+        findings.append(f"{target}: {declaring} does not declare {shown(ruling)}")
     return tuple(findings)
 
 
@@ -270,6 +308,41 @@ class SupersessionBindingTests(unittest.TestCase):
         self.assertTrue(
             any("unread supersession marker" in row for row in supersession_findings(records))
         )
+
+    def whole_records(self) -> dict[str, str]:
+        return {
+            "0343-new.md": '## Ruling 1 \u2014 retired\n\nRetired.\n\n## Supersedes\n\n- [ADR 0106](0106-old.md)\n  every ruling except ruling 2, the record "Old title". Ruling 2 stands.\n',
+            "0106-old.md": '# Old title\n\n*Superseded 2026-10-11.* Every ruling except ruling 2 in "Old title" is withdrawn by [ADR 0343](0343-new.md) ruling 1, so every ruling except ruling 2 is history. Ruling 2 stands.\n\n## Ruled\n\n### 1. First\n\nWords.\n\n### 2. Second\n\nMore words.\n',
+        }
+
+    def test_a_whole_record_banner_and_declaration_pair_is_green(self) -> None:
+        self.assertEqual(supersession_findings(self.whole_records()), ())
+
+    def test_a_whole_record_declaration_without_its_banner_is_red(self) -> None:
+        records = self.whole_records()
+        title, _banner, rest = records["0106-old.md"].split("\n\n", 2)
+        records["0106-old.md"] = title + "\n\n" + rest
+        self.assertTrue(any("every ruling except ruling 2 has no matching marker" in row for row in supersession_findings(records)))
+
+    def test_a_banner_and_declaration_disagreeing_on_exceptions_is_red_both_ways(self) -> None:
+        records = self.whole_records()
+        records["0106-old.md"] = records["0106-old.md"].replace(
+            "Every ruling except ruling 2 in \"Old title\" is withdrawn", "Every ruling in \"Old title\" is withdrawn"
+        ).replace("so every ruling except ruling 2 is history", "so it is history")
+        rows = supersession_findings(records)
+        self.assertTrue(any("except ruling 2 has no matching marker" in row for row in rows))
+        self.assertTrue(any(row.endswith("does not declare every ruling") for row in rows))
+
+    def test_a_banner_below_the_first_section_is_not_whole_record(self) -> None:
+        records = self.whole_records()
+        title, banner, rest = records["0106-old.md"].split("\n\n", 2)
+        records["0106-old.md"] = title + "\n\n## Context\n\n" + banner + "\n\n" + rest
+        self.assertTrue(any("unread supersession marker" in row for row in supersession_findings(records)))
+
+    def test_an_exception_naming_an_absent_ruling_is_red(self) -> None:
+        records = self.whole_records()
+        records["0343-new.md"] = records["0343-new.md"].replace("except ruling 2,", "except ruling 7,")
+        self.assertTrue(any("excepts an absent ruling" in row for row in supersession_findings(records)))
 
     def test_an_unread_declaration_is_a_finding(self) -> None:
         records = self.paired_records()
