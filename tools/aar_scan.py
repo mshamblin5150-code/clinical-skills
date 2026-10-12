@@ -56,6 +56,7 @@ POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
 UNREAD_REMAINDER_CUTOFF = datetime(2026, 10, 3, 17, 57, tzinfo=timezone.utc)
 LANDING_OUTPUT_CUTOFF = datetime(2026, 10, 8, tzinfo=timezone.utc)
 MEMORY_MEASUREMENT_CUTOFF = datetime(2026, 10, 11, 20, 16, 17, tzinfo=timezone.utc)
+SYSTEM_SUBTYPE_CUTOFF = datetime(2026, 10, 12, 14, 12, 31, tzinfo=timezone.utc)
 MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
 # ECMAScript WhiteSpace and LineTerminator characters used by String.trim().
 JS_TRIM_WHITESPACE = (
@@ -124,7 +125,7 @@ ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
         "subagent-result": "subagent return body",
         "task-notification": "task notification envelope",
         "skill-prompt": "flagged skill prompt injection",
-        "harness-meta": "flagged harness row with no recognized envelope",
+        "harness-meta": "flagged user or read system harness row with no recognized envelope",
         "compaction-summary": "harness compaction summary",
         "inter-agent-metadata": "Codex inter-agent communication marker",
         "system-reminder": "system reminder envelope",
@@ -222,7 +223,6 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
         "artifact-comment-monitor": "Artifact bookkeeping.",
         "file-history-snapshot": "File bookkeeping.",
         "progress": "Harness progress.",
-        "system": "System rows remain outside reduction; #1535 owns the population ruling.",
         "event_msg": "Harness event state; tool success is read separately for landing evidence.",
         "turn_context": "Session and harness state.",
         "token_usage_record": "Harness usage state.",
@@ -237,8 +237,19 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
     }
 )
 
+READ_SYSTEM_SUBTYPES = frozenset({"local_command", "model_refusal_fallback", "informational"})
+NAMED_UNREAD_SYSTEM_SUBTYPES: Mapping[str, str] = MappingProxyType(
+    {
+        "stop_hook_summary": "Hook bookkeeping; any hook feedback the session saw is read where it was delivered.",
+        "api_error": "A failed request and its retry; nothing said was reversed.",
+        "compact_boundary": "Compaction marker; the summary it bounds is read.",
+        "turn_duration": "Timing.",
+    }
+)
+
 ROWS: Mapping[str, str] = MappingProxyType(
     {
+        "coverage-mismatch": "The unread remainder differs from its recorded components.",
         "missing-review": "the submission has no review record",
         "memory-index-measurement": "the round has no valid memory-index measurement",
         "memory-index-overflow": "the recorded memory index exceeds its load limits",
@@ -275,6 +286,14 @@ ROWS: Mapping[str, str] = MappingProxyType(
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    (
+        "withdrawn reply text",
+        "A refusal-fallback notice is read, but withdrawn replies not stored by the harness cannot enter the population.",
+    ),
+    (
+        "system subtype meaning",
+        "Only the subtype key identifies a system row; changed meaning under the same subtype is not detected.",
+    ),
     (
         "memory index outside the sitting",
         "Only the recorded Claude Code index measurement is graded; later growth, other memory mechanisms, and limit changes without a release change are outside this row.",
@@ -439,10 +458,11 @@ class ExtractDiagnostics:
     unjoined_launches: int
     notifications_without_join_key: int
     browser: BrowserDiagnostics
+    undeclared_system_subtypes: int = 0
 
     @property
     def unread_remainder(self) -> int:
-        return self.undeclared_row_types + self.undeclared_codex_payload_types
+        return self.undeclared_row_types + self.undeclared_codex_payload_types + self.undeclared_system_subtypes
 
 
 @dataclass(frozen=True)
@@ -483,6 +503,7 @@ class Scan:
     unread_remainder: int | None = None
     unmeasured_rounds: int = 0
     memory_reports: tuple[str, ...] = ()
+    system_reports: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -744,6 +765,12 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                         "tool-status",
                         f"{tool}: {_result_status(block)}",
                     )
+                )
+        elif row.get("type") == "system" and _text(row.get("subtype")) in READ_SYSTEM_SUBTYPES:
+            body = _text(row.get("content")).strip()
+            if body:
+                candidates.append(
+                    _human_candidate(uuid, transcript_id, body, default_kind="harness-meta")
                 )
         elif row.get("type") == "assistant":
             for index, block in enumerate(_content_blocks(row.get("message")), 1):
@@ -1363,6 +1390,11 @@ def extract_diagnostics(
         if row.get("type") == "response_item"
         and _text(_codex_payload(row).get("type")) not in CODEX_RESPONSE_TYPES | NAMED_UNREAD_TYPES.keys()
     )
+    undeclared_system_subtypes = sum(
+        1 for row in rows
+        if row.get("type") == "system"
+        and _text(row.get("subtype")) not in READ_SYSTEM_SUBTYPES | NAMED_UNREAD_SYSTEM_SUBTYPES.keys()
+    )
     undeclared_envelopes = sum(
         1
         for candidate in candidates
@@ -1391,6 +1423,7 @@ def extract_diagnostics(
         undeclared_envelopes=undeclared_envelopes,
         undeclared_row_types=undeclared_rows,
         undeclared_codex_payload_types=undeclared_payloads,
+        undeclared_system_subtypes=undeclared_system_subtypes,
         subagent_launches=len(launches),
         joined_results=joined,
         unjoined_launches=len(launches) - joined,
@@ -1516,6 +1549,7 @@ def write_extract(
         f"UNREAD-REMAINDER: {diagnostics.unread_remainder}",
         f"UNDECLARED-ROW-TYPES: {diagnostics.undeclared_row_types}",
         f"UNDECLARED-CODEX-PAYLOAD-TYPES: {diagnostics.undeclared_codex_payload_types}",
+        f"UNDECLARED-SYSTEM-SUBTYPES: {diagnostics.undeclared_system_subtypes}",
         f"SUBAGENT-LAUNCHES: {diagnostics.subagent_launches}",
         f"SUBAGENT-JOINED-RESULTS: {diagnostics.joined_results}",
         f"SUBAGENT-UNJOINED: {diagnostics.unjoined_launches}",
@@ -2021,6 +2055,22 @@ def _survey_round(
             unread_remainder = count
         except (KeyError, ValueError):
             findings.append(Finding("non-numeric-coverage", "UNREAD-REMAINDER"))
+    system_reports = ()
+    if extracted_at and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= SYSTEM_SUBTYPE_CUTOFF:
+        try:
+            system_count = int(extract_fields["UNDECLARED-SYSTEM-SUBTYPES"])
+            components = tuple(int(extract_fields[field]) for field in (
+                "UNDECLARED-ROW-TYPES", "UNDECLARED-CODEX-PAYLOAD-TYPES",
+            ))
+            if system_count < 0 or any(count < 0 for count in components):
+                raise ValueError("negative remainder component")
+            if unread_remainder != system_count + sum(components):
+                findings.append(Finding("coverage-mismatch", "UNREAD-REMAINDER"))
+            system_reports = (f"undeclared system subtypes {system_count}",)
+        except (KeyError, ValueError):
+            findings.append(Finding("non-numeric-coverage", "UNDECLARED-SYSTEM-SUBTYPES"))
+    elif extracted_at:
+        system_reports = ("system-subtype count: not measured (extract predates the count)",)
     if fingerprint_cutoff and newest_round:
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
@@ -2174,6 +2224,7 @@ def _survey_round(
         unread_remainder=unread_remainder,
         unmeasured_rounds=int(not remainder_cutoff),
         memory_reports=memory_reports,
+        system_reports=system_reports,
         **diagnostic_counts,
     )
 
@@ -2237,6 +2288,7 @@ def survey(run: Path, submission: str) -> Scan:
         ),
         unmeasured_rounds=sum(scan.unmeasured_rounds for scan in scans),
         memory_reports=tuple(dict.fromkeys(report for scan in scans for report in scan.memory_reports)),
+        system_reports=tuple(dict.fromkeys(report for scan in scans for report in scan.system_reports)),
     )
 
 
@@ -2263,6 +2315,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     if scan.unread_remainder is not None:
         lines.append(run_grader.format_unread_remainder(scan.unread_remainder))
     lines.extend(scan.memory_reports)
+    lines.extend(scan.system_reports)
     if scan.unmeasured_rounds:
         lines.append("unread remainder: not measured (extract predates the count)")
     elif scan.unread_remainder is None:

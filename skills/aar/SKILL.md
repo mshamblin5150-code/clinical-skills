@@ -31,6 +31,15 @@ Pass `--transcript <path>` only when the harness exposed the exact current trans
 
 The extract keeps every human turn, assistant text block, subagent result, and tool name and status since the prior watermark. It drops ordinary tool-result bodies. Do not delete, reorder, or narrow its entries. The population is not the orchestrator's to edit. Read the generated `ENTRY-KINDS` legend in the extract; `aar_scan.ENTRY_KINDS` owns that vocabulary and this skill copies none of it. The first round uses `<submission-key>.extract.md`; each later invocation writes a new numbered extract and baseline and never overwrites an earlier round.
 
+Claude system rows are handled by subtype: `aar_scan.READ_SYSTEM_SUBTYPES` owns the read
+population and `aar_scan.NAMED_UNREAD_SYSTEM_SUBTYPES` owns the unread reasons. Read rows take
+their text from `content` and their label from the same envelope matching as user rows; without
+an envelope they are harness notices. A system row never carries the clinician label. Withdrawn
+replies that the harness did not store remain outside the reading. `aar_scan.NAMED_UNREAD_TYPES`
+owns the other deliberately unread types. An unnamed system subtype, including a missing subtype,
+adds to the shared unread remainder and exits 2; a finding still exits 1. `HARNESS-VERSIONS`
+continues to read the version on every row, including unread rows.
+
 ## 2. Classify adversarially
 
 This **Second reader** under [standing rule 6](../../AGENTS.md) first reads and applies
@@ -133,6 +142,10 @@ its own baseline, and the newest round's Posted-reading fingerprint remains curr
 Exit 1 is a finding in any round. Exit 2 means the population was not scanned. The report prints
 each round's correction and unlanded counts on every run. `--show` names private findings and must
 not be pasted.
+
+Extracts before `aar_scan.SYSTEM_SUBTYPE_CUTOFF` retain their historical grade and report the
+system-subtype count as not measured, never as zero. Newer extracts include that count in the
+shared unread remainder; exit 0 requires it to be drained.
 
 The memory-index row reads only each round's recorded measurement, never the live index.
 It prints lines and characters against the limits in `aar_scan.MEMORY_INDEX_LIMITS` on every grade.

@@ -132,7 +132,7 @@ UnreadRemainderConformance = grader_conformance.unread_remainder_conformance(aar
 
 
 class DeclaredLimitsAreBound(unittest.TestCase):
-    def test_transcript_derived_committed_types_have_no_unread_remainder(self):
+    def test_transcript_derived_types_leave_only_discarded_system_subtypes_unread(self):
         root = Path(__file__).resolve().parents[1] / "fixtures" / "aar-row-types"
         for name in ("claude.jsonl", "codex.jsonl"):
             with self.subTest(name=name):
@@ -146,7 +146,8 @@ class DeclaredLimitsAreBound(unittest.TestCase):
                     else:
                         self.assertEqual(set(row), {"type"})
                 diagnostics = aar_scan.extract_diagnostics((path,), ())
-                self.assertEqual(diagnostics.unread_remainder, 0)
+                # The type-only census deliberately discarded system subtypes.
+                self.assertEqual(diagnostics.unread_remainder, sum(row["type"] == "system" for row in rows))
 
     def test_the_test_suite_names_the_declared_limits_object(self):
         self.assertTrue(aar_scan.DECLARED_LIMITS)
@@ -411,6 +412,8 @@ class CommandModes(SyntheticSnapshotCase):
             "  findings                        1\n"
             "unread remainder: not measured (extract unavailable or invalid)\n\n"
             "  declared limits:\n"
+            "    withdrawn reply text\n"
+            "    system subtype meaning\n"
             "    memory index outside the sitting\n"
             "    reasoning-only correction\n"
             "    last-prompt-only text\n"
@@ -1294,6 +1297,101 @@ class SubmissionRecord(SyntheticSnapshotCase):
             status, stdout, stderr = invoke_main(argv)
         self.assertEqual((status, stderr), (0, ""), stdout)
         self.assertIn("unread remainder 0", stdout.splitlines())
+
+    def test_read_system_subtypes_use_content_and_envelopes(self) -> None:
+        cases = (
+            ("local_command", "<local-command-stdout>Done.</local-command-stdout>", "local-command-stdout"),
+            ("local_command", "<command-name>/review</command-name>", "command-name"),
+            ("local_command", "Command finished.", "harness-meta"),
+            ("model_refusal_fallback", "Reply withdrawn.", "harness-meta"),
+            ("informational", "Harness notice.", "harness-meta"),
+        )
+        for flagged in (True, False):
+            for subtype, content, kind in cases:
+                with self.subTest(subtype=subtype, content=content, flagged=flagged):
+                    self.transcript.write_text(json.dumps({
+                        "type": "system", "subtype": subtype, "uuid": "system-notice",
+                        "isMeta": flagged, "content": content, "version": "system-only-release",
+                        "commandRun": {"args": "not additional content"},
+                    }) + "\n", encoding="utf-8")
+                    candidates = aar_scan.reduce_transcript(self.transcript)
+                    self.assertEqual([(item.identifier, item.kind, item.text) for item in candidates],
+                                     [("system-notice", kind, content)])
+                    diagnostics = aar_scan.extract_diagnostics((self.transcript,), candidates)
+                    self.assertEqual(diagnostics.harness_versions, ("system-only-release",))
+                    self.assertEqual(diagnostics.unread_remainder, 0)
+
+    def test_named_system_subtypes_are_unread_with_exact_reasons(self) -> None:
+        reasons = {
+            "stop_hook_summary": "Hook bookkeeping; any hook feedback the session saw is read where it was delivered.",
+            "api_error": "A failed request and its retry; nothing said was reversed.",
+            "compact_boundary": "Compaction marker; the summary it bounds is read.",
+            "turn_duration": "Timing.",
+        }
+        self.assertEqual(dict(aar_scan.NAMED_UNREAD_SYSTEM_SUBTYPES), reasons)
+        self.assertNotIn("system", aar_scan.NAMED_UNREAD_TYPES)
+        for subtype in reasons:
+            with self.subTest(subtype=subtype):
+                self.transcript.write_text(json.dumps({"type": "system", "subtype": subtype,
+                                                       "content": "Bookkeeping."}) + "\n", encoding="utf-8")
+                self.assertEqual(aar_scan.reduce_transcript(self.transcript), [])
+                self.assertEqual(aar_scan.extract_diagnostics((self.transcript,), ()).unread_remainder, 0)
+
+    def test_unknown_and_missing_system_subtypes_refuse_extract_and_grade(self) -> None:
+        reread = (self.run / "reread.md").read_text(encoding="utf-8")
+        for subtype in ("new-system-kind", None):
+            with self.subTest(subtype=subtype):
+                self.run = self.root / f"system-{subtype}"
+                self.run.mkdir()
+                (self.run / "reread.md").write_text(reread, encoding="utf-8")
+                write_transcript(self.transcript)
+                item = {"type": "system", "content": "Unclassified notice."}
+                if subtype is not None:
+                    item["subtype"] = subtype
+                with self.transcript.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(item) + "\n")
+                self.assertEqual(aar_scan.extract_diagnostics((self.transcript,), ()).unread_remainder, 1)
+                argv = [str(self.run), "--submission", self.submission, "--transcript", str(self.transcript),
+                        "--memory-index", str(self.memory), "--extract"]
+                status, stdout, stderr = invoke_main(argv)
+                self.assertEqual((status, stderr), (2, ""), stdout)
+                self.assertIn("unread remainder 1", stdout.splitlines())
+                round_number = aar_scan._next_review_round(self.run, self.submission) - 1
+                self.write_clean(round_number, extract=False)
+                status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+                self.assertEqual((status, stderr), (2, ""), stdout)
+                self.assertIsNotNone(aar_scan.completion_finding(self.run, (self.submission,)))
+                review = aar_scan.review_path(self.run, self.submission, round_number)
+                review.write_text(review.read_text(encoding="utf-8").replace("UNREAD: 0", "UNREAD: 1"), encoding="utf-8")
+                status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+                self.assertEqual((status, stderr), (1, ""), stdout)
+
+    def test_pre_system_cutoff_reports_count_not_measured(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        text = path.read_text(encoding="utf-8")
+        text = "\n".join(
+            "EXTRACTED-AT: 2026-10-11T23:59:59Z" if line.startswith("EXTRACTED-AT:") else line
+            for line in text.splitlines() if not line.startswith("UNDECLARED-SYSTEM-SUBTYPES:")
+        )
+        path.write_text(text, encoding="utf-8")
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission, "--measure-memory"])
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("system-subtype count: not measured (extract predates the count)", stdout)
+        self.assertNotIn("undeclared system subtypes 0", stdout)
+
+    def test_current_system_count_is_required_and_bound_to_remainder(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        original = path.read_text(encoding="utf-8")
+        for replacement in ("", "UNDECLARED-SYSTEM-SUBTYPES: -1", "UNDECLARED-SYSTEM-SUBTYPES: unknown",
+                            "UNDECLARED-SYSTEM-SUBTYPES: 1"):
+            with self.subTest(replacement=replacement):
+                path.write_text(original.replace("UNDECLARED-SYSTEM-SUBTYPES: 0", replacement), encoding="utf-8")
+                status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+                self.assertEqual((status, stderr), (1, ""), stdout)
 
     def test_a_real_finding_outranks_an_unread_remainder_and_blocks_completion(self) -> None:
         with self.transcript.open("a", encoding="utf-8") as stream:
