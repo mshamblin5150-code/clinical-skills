@@ -91,6 +91,8 @@ class RunStatusContract(unittest.TestCase):
         )
 
     def test_command_decodes_raw_utf8_even_with_cp1252_stdin(self) -> None:
+        # #1520: the shared command-path codec must preserve the required em dash.
+        # Removing stdin from use_utf8's defaults makes the allowed case block.
         for separator, allowed in ((" — ", True), (" - ", False)):
             with self.subTest(separator=separator):
                 line = f"Run status: {self.run.name}{separator}awaiting posting"

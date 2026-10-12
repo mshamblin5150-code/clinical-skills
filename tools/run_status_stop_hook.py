@@ -437,7 +437,7 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
 
 def main() -> int:
     try:
-        payload = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+        payload = json.load(sys.stdin)
     except (UnicodeError, json.JSONDecodeError, OSError):
         payload = {}
     response = handle(payload if isinstance(payload, dict) else {})

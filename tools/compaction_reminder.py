@@ -29,9 +29,7 @@ REMINDER = (
 
 def main() -> int:
     try:
-        # #1520's shared stdin helper has not landed. Decode the wire bytes,
-        # rather than the Windows locale's text wrapper.
-        payload = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+        payload = json.load(sys.stdin)
     except (ValueError, UnicodeError):
         return 0
     if not isinstance(payload, dict) or payload.get("source") != "compact":
