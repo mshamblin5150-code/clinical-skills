@@ -250,6 +250,7 @@ message openings. Where the model says invoked sources intensify in citation-bea
 preserve that option. Reuse a recorded image whole where it fits. Where none fits, follow
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
 domain may be proposed, and one that works never licenses a second instance.
+Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
 repaired. Exit 2 refuses drafting unless the banner explicitly says `voice model: NOT RUN -- no
@@ -381,6 +382,8 @@ before loading, and tell the clinician which route will be used and what that ro
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit content go-ahead for this reply authorizes loading.
 Before each draft showing, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
+At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
+
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
 Before asking for each reply's go-ahead, run `python tools/project_context.py <run-directory>

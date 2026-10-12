@@ -125,6 +125,130 @@ class ProjectContextFixture(unittest.TestCase):
             return context.completion_gate(self.run, submission)
 
 
+class CourseHistory(ProjectContextFixture):
+    def prepare(self, *history, confirmed="2026-10-12T20:34:01Z"):
+        self.record(self.memory_entry(), self.service_entry(),
+                    self.plan_entry().replace("STATE: searched", "STATE: read"),
+                    header=tuple(f"COURSE-HISTORY: {value}" for value in history))
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "CONFIRMED: 2001-01-01", f"CONFIRMED: {confirmed}"), encoding="utf-8")
+
+    def command(self, *arguments):
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(self.service_payloads))), \
+                redirect_stdout(output), redirect_stderr(output):
+            options = arguments or ("--write", "--submission", "submission", "--service-payloads", "-")
+            code = context.main([str(self.run), *options])
+        return code, output.getvalue()
+
+    def test_missing_course_history_refuses(self):
+        self.prepare()
+        code, output = self.command()
+        self.assertEqual(1, code, output)
+        self.assertIn("COURSE-HISTORY is missing", output)
+
+    def test_malformed_or_unopened_history_refuses(self):
+        for values, message in (
+            (("none",), "none needs a reason"),
+            (("none - first module", str(self.plan)), "cannot put none beside"),
+            ((str(self.plan), str(self.plan.parent / "." / self.plan.name)), "duplicate COURSE-HISTORY path"),
+            ((str(self.memory.parent / "unopened.md"),), "not OPENED in a read PLACE"),
+            (("relative.md",), "absolute file path"),
+        ):
+            with self.subTest(values=values):
+                self.prepare(*values)
+                code, output = self.command()
+                self.assertEqual(1, code, output)
+                self.assertIn(message, output)
+
+    def test_path_and_reasoned_none_pass_and_survive_the_go_ahead(self):
+        for value in (str(self.plan), "none - first module"):
+            with self.subTest(value=value):
+                self.prepare(value)
+                code, output = self.command()
+                self.assertEqual(0, code, output)
+                self.assertIn(f"COURSE-HISTORY: {value}",
+                              (self.run / context.RECORD_NAME).read_text(encoding="utf-8"))
+                code, output = self.command("--go-ahead", "submission")
+                self.assertEqual(0, code, output)
+                self.assertIn("course history: clean", output)
+
+    def test_pre_build_record_is_not_graded_or_backfilled(self):
+        for confirmed in ("2026-10-11", "2026-10-12", "2026-10-12T20:34:00Z"):
+            with self.subTest(confirmed=confirmed):
+                self.prepare(confirmed=confirmed)
+                code, output = self.command()
+                self.assertEqual(0, code, output)
+                self.assertIn("course history: not graded; pre-cutoff records: 1", output)
+                self.assertNotIn("COURSE-HISTORY:", (self.run / context.RECORD_NAME).read_text(encoding="utf-8"))
+                code, output = self.command("--go-ahead", "submission")
+                self.assertEqual(0, code, output)
+                self.assertIn("course history: not graded", output)
+
+    def test_each_declared_paper_must_be_opened_in_a_read_place(self):
+        self.prepare(str(self.plan), str(self.memory))
+        code, output = self.command()
+        self.assertEqual(0, code, output)
+        text = (self.run / context.RECORD_NAME).read_text(encoding="utf-8")
+        self.assertEqual(2, text.count("COURSE-HISTORY:"))
+        self.prepare(str(self.plan))
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            f"## PLACE: {self.location}\nSTATE: read", f"## PLACE: {self.location}\nSTATE: searched"),
+            encoding="utf-8")
+        code, output = self.command()
+        self.assertEqual(1, code, output)
+        self.assertIn("not OPENED in a read PLACE", output)
+
+    def test_changed_history_declaration_breaks_the_digest_at_go_ahead(self):
+        self.prepare(str(self.plan))
+        self.assertEqual(0, self.command()[0])
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            f"COURSE-HISTORY: {self.plan}", "COURSE-HISTORY: none - first module"), encoding="utf-8")
+        code, output = self.command("--go-ahead", "submission")
+        self.assertEqual(1, code, output)
+        self.assertIn("record fingerprint is invalid", output)
+
+    def test_course_history_without_a_project_still_owes_its_opened_file(self):
+        self.prepare(str(self.plan))
+        path = self.run / context.RECORD_NAME
+        path.write_text(
+            "PROJECT-CONTEXT: none - no project\n"
+            "OWN-SUBMISSION: none - no submission\n"
+            "CASE-MATERIAL: none - no case\nCASE-RESEARCH: none - no research\n"
+            f"COURSE-HISTORY: {self.plan}\n"
+            f'PROJECT-SEARCH: {self.location} - "earlier papers"\n'
+            "CONFIRMED: 2026-10-12T20:34:01Z\n" + self.plan_entry().replace("STATE: searched", "STATE: read"),
+            encoding="utf-8")
+        self.assertEqual(0, self.command()[0])
+        self.plan.write_text("changed course paper", encoding="utf-8")
+        code, output = self.command("--go-ahead", "submission")
+        self.assertEqual(2, code, output)
+        self.assertIn("file item moved", output)
+
+    def test_shared_rule_and_all_five_drafting_and_go_ahead_pointers(self):
+        root = Path(__file__).resolve().parents[1]
+        voice = (root / "skills/_shared/reference/voice.md").read_text(encoding="utf-8")
+        section = voice.split("## Course history\n", 1)[1].split("\n## ", 1)[0]
+        for rule in ("every earlier submission in the same", "replies", "critiques",
+                     "Judge reuse by fit, never by repetition", "one line on its earlier framing",
+                     "one line on its framing", "When there is none", "no grader checks",
+                     "COURSE-HISTORY"):
+            self.assertIn(rule, section)
+        for skill in ("course-assignment", "discussion-post", "discussion-reply",
+                      "peer-critique", "practicum-case-study"):
+            text = (root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            with self.subTest(skill=skill):
+                pointer = "Before drafting, follow [Course history](../_shared/reference/voice.md#course-history)."
+                self.assertIn(pointer, text)
+                image_end = text.index("\n\n", text.index("Reuse a recorded image whole where it fits."))
+                self.assertLess(text.index(pointer), image_end)
+                self.assertIn("At the go-ahead, show the reuse list required by [Course history]", text)
+
+
 class OwnedAssets(ProjectContextFixture):
     def command(self):
         output = io.StringIO()

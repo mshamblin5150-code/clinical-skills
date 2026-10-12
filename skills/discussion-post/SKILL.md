@@ -168,6 +168,7 @@ lowercase message openings. An invoked source already present in the clinician's
 stay. Reuse a recorded image whole where it fits. Where none fits, follow
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
 domain may be proposed, and one that works never licenses a second instance.
+Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 If the identity command reports the existing absent-model banner, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
@@ -465,6 +466,8 @@ Exit 1 stops the load; exit 2 is disclosed as incomplete coverage and does not b
 loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
+
+At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 

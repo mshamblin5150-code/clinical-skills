@@ -316,6 +316,7 @@ Each project may also carry `ASSET: <description>` lines, added only on the clin
 ```text
 PROJECT-CONTEXT: <project> | none - <reason>
 OWN-SUBMISSION: <path> | none - <reason>
+COURSE-HISTORY: <absolute path to one earlier submission in this course; repeat for each> | none - <reason>
 CASE-MATERIAL: <path> | none - <reason>
 CASE-RESEARCH: <dump id> | none - <reason>
 ASSET: <one registered asset of the declared project; repeat for each>
@@ -324,7 +325,7 @@ CLASSMATE-BOARD: <submission key> -> <absolute path to the board snapshot>
 CLASSMATE-ATTACHMENT: <submission key> -> <absolute path to a retained attachment copy> | <submission key> -> none - <reason>
 PROJECT-SEARCH: <location or service> - "<terms>"
 PROJECT-WAIVE: <location or service> - <what failed and when>; proceed without, per the clinician
-CONFIRMED: <ISO date>
+CONFIRMED: <ISO timestamp with timezone>
 
 ## PLACE: <owed location or service>
 STATE: read | searched | unreadable | absent
@@ -350,6 +351,18 @@ capture of the posted entry. Open it as an item in a `read` place; add its locat
 `PROJECT-SEARCH` if needed. Confirm this line with the rest of the header. The gate refuses
 a missing or duplicated line, reasonless `none`, or a path not opened in a read place.
 
+`COURSE-HISTORY` declares the whole [Course history](voice.md#course-history) read before drafting.
+Repeat the line once per earlier paper opened, or write one `COURSE-HISTORY: none - <reason>`.
+Open every declared absolute path as an item of a `read` place, adding its location through
+`PROJECT-SEARCH` when needed. Confirm these lines with the rest of the header. The gate refuses
+a missing line, reasonless `none`, `none` beside a path, a duplicated path, or an unopened path.
+The lines join the context digest and the go-ahead recheck beside the other declarations.
+Records confirmed before 2026-10-12T20:34:01Z report this check as `not graded`; no backfill is required.
+New confirmations record an ISO timestamp with timezone. Legacy date-only confirmations remain
+readable and compare as midnight UTC, preserving earlier same-day records.
+The gate cannot establish completeness from unreliable course codes in names; its complete
+ceiling belongs to `project_context.DECLARED_LIMITS`.
+
 `CASE-MATERIAL` declares the case-material file, or `none` with a reason. Open its absolute path
 as an item of a `read` place, adding its location through `PROJECT-SEARCH` when needed.
 `CASE-RESEARCH` declares the dump id of the clinician's case research in the Evidence store,
@@ -374,7 +387,7 @@ A sentence stating what the classmate wrote, found, or planned is an **Item desc
 **Draft order**. Its `ITEM:` may name its own key's classmate files or other opened items;
 naming a classmate file declared only under another submission key is a finding, on the
 heading read's existing Item-description cutoff.
-When `PROJECT-CONTEXT` is `none`, these declarations still owe their opened files: add
+When `PROJECT-CONTEXT` is `none`, the classmate and course-history declarations still owe their opened files: add
 their read locations through `PROJECT-SEARCH`. No registered project places are owed in
 that branch; file hashing and the go-ahead recheck apply to the declared retrieval.
 
@@ -389,7 +402,7 @@ Run `python tools/project_context.py <run-directory> --write --submission <submi
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and a context digest binding the
-`OWN-SUBMISSION`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
+`OWN-SUBMISSION`, `COURSE-HISTORY`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
 and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader

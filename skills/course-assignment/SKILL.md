@@ -231,6 +231,7 @@ Reuse a recorded image whole where it fits. Where none fits, follow
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
 domain may be proposed, and one that works never licenses a second instance. This concerns the
 authored comparison or metaphor, not the visual asset rule below.
+Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 A generated image may depict a concept, and a visible caption must call that space conceptual. A
 generated image must never stand in for the actual site. Use a real site photograph where the
@@ -473,6 +474,8 @@ Every revision writes its retained render passes and review records to the run d
 the run key. A per-context scratch path holds work in progress only and never supplies approval
 evidence. Run `python tools/course_assignment_scan.py <run-directory> --artifact <deck>` before
 approval and require its pre-upload grade to exit 0 against that run directory.
+
+At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
