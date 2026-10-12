@@ -1421,6 +1421,15 @@ Tests in `tools/test_clinical_credentials.py` exercise silence, persistence, and
 
 ### Course assignment artifact grading
 
+`assignment_bar.py` signs a deck or DOCX bar after clinician confirmation:
+`python tools/assignment_bar.py <run-directory> --reply "<whole confirming reply>"`.
+It writes `SIGNED:`, retains every signed version, and binds the signed bytes and reply in
+`bar-signatures.json`. It uses `approval_record`'s whole-message verification; matching words
+does not prove their subject. An unreadable transcript is recorded as `not verified`.
+Exit 0 means the bar was signed; exit 2 refuses an unreadable bar or an absent reply.
+The dispatcher and submission gates refuse changed signatures and missing current signatures;
+the completion-check registry supplies the legacy boundary.
+
 `title_page_credentials.py` reads or records the account's `TITLE-PAGE-CREDENTIALS` choice in the
 owning checkout's profile. Run `python tools/title_page_credentials.py` to read it or
 `python tools/title_page_credentials.py --record "<answer>"` after the clinician answers; `none`

@@ -889,6 +889,8 @@ class GoAheadRechecks(ProjectContextFixture):
         self.assertFalse((self.run / approval_record.RECORD).exists())
 
     def test_assignment_approval_and_upload_carry_forward_the_same_check(self):
+        from test_assignment_bar import DECK_BAR
+        (self.run / "bar.md").write_text(DECK_BAR, encoding="utf-8")
         artifact = self.run / "submission.pptx"
         artifact.write_bytes(b"synthetic deck")
         self.plan.write_bytes(b"changed plan\n")

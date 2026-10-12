@@ -62,6 +62,7 @@ DECLARED_SECTIONS = {
     "anchor_scan": "Anchor scan",
     "artifact_repairs": "Artifact repair chain",
     "assignment_docx": "Course assignment artifact grading",
+    "assignment_bar": "Course assignment artifact grading",
     "assignment_docx_render": "Course assignment artifact grading",
     "assignment_docx_scan": "Course assignment artifact grading",
     "course_assignment_scan": "Course assignment artifact grading",

@@ -165,6 +165,10 @@ the current dump to that accumulated manifest population and applies the signed 
 window, waived only by the account answer in the profile.
 
 **`course-assignment` depends on committed artifact adapters and graders.**
+`tools/assignment_bar.py` is a Required command for signing its deck and DOCX bars. It binds
+the signed bytes to the whole clinician reply and retains each signed version; the bar-only grade,
+completion grade, and both submission gates refuse a changed or unrecorded current bar.
+The completion-check registry exempts bars signed before this command existed as `not graded`.
 `tools/title_page_credentials.py` is a Named command for the shared account title-page choice:
 it reads the saved line or records the clinician's answer; the skill owns asking when the profile
 is silent. `tools/docx_word_probe.py` is a Named maintainer-only calibration command, never a
