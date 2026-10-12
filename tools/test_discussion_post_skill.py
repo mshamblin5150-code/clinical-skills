@@ -502,7 +502,7 @@ class TheCanvasComposerRoute(unittest.TestCase):
             with self.subTest(skill=skill.parent.name):
                 self.assertEqual(
                     1,
-                    read(skill).count("../_shared/reference/canvas-editor.md"),
+                    read(skill).count("../_shared/reference/canvas-editor.md)"),
                 )
 
 
