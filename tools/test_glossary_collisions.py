@@ -174,6 +174,13 @@ DECLARED_CANDIDATES = (
         "An Own submission is a submission the clinician already handed in on the same "
         "board or case as the work being drafted. Ruled with ADR 0325.",
     ),
+    Candidate(
+        "Bar",
+        Verdict.NARROWING,
+        "A Bar signature is the record of the clinician confirming one transcribed bar; "
+        "the compound names a record of a bar in the bare term's own sense, on the "
+        "Recommendation precedent. Ruled with ADR 0355.",
+    ),
 )
 
 PROSE_CLAUSES = {
