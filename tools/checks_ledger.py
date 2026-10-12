@@ -1246,7 +1246,7 @@ def _grade(
             rendered_report,
             "the pre-review walks: shape only" if completion_checks.active(
                 "checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(source.text)
-            ) else "the pre-review walks: not graded - first draft predates the check",
+            ) else f"the pre-review walks: {NOT_GRADED} - first draft predates the check",
             reader_remarks.report(scan.reader_remarks),
             run_grader.format_unread_remainder(scan.reader_unread),
             *(f"unread reader record: CHECK: {name}" for name in scan.unread_records),
