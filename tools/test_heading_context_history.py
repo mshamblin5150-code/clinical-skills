@@ -1,5 +1,4 @@
 """Unposted reads retain their opened population, ADR 0346. Synthetic."""
-from pathlib import Path
 import unittest
 
 import heading_read

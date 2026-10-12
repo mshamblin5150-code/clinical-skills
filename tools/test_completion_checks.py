@@ -1,13 +1,10 @@
 """ADR 0346 dated-check contracts through public grading seams. Synthetic."""
-import contextlib
-from datetime import date
-import io
+from datetime import date, datetime, timezone
 from pathlib import Path
 import tempfile
 import unittest
 
 import completion_checks as checks
-import discussion_artifact
 import research_ledger
 import medatrax_posting
 import coursework_run
@@ -17,6 +14,11 @@ from prose_bind import bind, NAMING
 
 
 class CompletionRegistry(unittest.TestCase):
+    def test_offset_start_is_compared_as_an_instant(self):
+        key = "project_context:completion_gate"
+        self.assertEqual(datetime(2026, 9, 23, 21, 7, 49, tzinfo=timezone.utc), checks.registry()[key][0])
+        self.assertFalse(checks.active(key, "2026-09-23T19:00:00Z"))
+        self.assertTrue(checks.active(key, "2026-09-23T21:07:49Z"))
     def test_derivation_boundary_is_named_without_copying_it(self):
         self.assertEqual((), bind(checks.DECLARED_LIMITS,
             (checks.ROOT.parent / "AGENTS.md").read_text(encoding="utf-8"), mode=NAMING))
@@ -39,6 +41,14 @@ class CompletionRegistry(unittest.TestCase):
 
 
 class CheckLandingBetweenPostingAndGrade(FrozenFixture):
+    def test_qualifiers_keep_the_ledger_moment_under_an_earlier_approval(self):
+        from test_research_ledger import CLEAN, replace_field
+        self.item["recorded_at"] = 1791590400  # before qualifier adoption
+        self.save()
+        records = research_ledger.read_records(replace_field(CLEAN, "QUALIFIERS", None))
+        with checks.grading(self.run, "post"):
+            result = research_ledger.survey(records, date(2026, 10, 12))
+        self.assertIn("qualifier-field", {f.kind for f in result.findings})
     def test_time_log_is_required_only_after_its_start(self):
         self.item["skill"] = "clinical-note"
         self.item["recorded_at"] = 1790812800  # 2026-10-01 UTC

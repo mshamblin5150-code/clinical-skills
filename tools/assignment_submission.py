@@ -375,12 +375,9 @@ def completion_gate(
     run: Path, artifact: Path, submission: str | None = None
 ) -> tuple[bool, str]:
     """Grade approvals and the terminal canonical and posted artifact joins."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "assignment_submission", "assignment submission")
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("assignment_submission:completion_gate"):
-        return False, "assignment submission: not graded - approval predates the check"
 
     root = Path(run).resolve()
     path = Path(artifact).resolve()

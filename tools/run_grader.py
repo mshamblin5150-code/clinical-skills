@@ -690,6 +690,8 @@ def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
 
 
 def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
+    use_utf8()
+    require_python_floor()
     import completion_checks
     # Parsing still belongs to the ordinary runner; invalid invocations retain
     # its existing exit contract.
@@ -711,8 +713,6 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
 def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
     """Run one grader with source failures before output and status at the tail."""
 
-    use_utf8()
-    require_python_floor()
     try:
         parsed = parse(command, argv)
     except ParseError as failure:

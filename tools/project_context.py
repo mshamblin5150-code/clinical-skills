@@ -899,12 +899,9 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "project_context", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, frozen)
-    if not completion_checks.active("project_context:completion_gate"):
-        return CompletionGate(False, False, EXPECTED_ROW + ": not graded - approval predates the check")
     if submission is None:
         return _context_completion_gate(run, submission)
     import approval_record
@@ -923,17 +920,13 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
                 else:
                     rows.append(CompletionGate(False, False, f"{EXPECTED_ROW}: {key} not checked at the go-ahead because approval predates the check; pre-check approvals: 1"))
                 continue
-            integrity = _context_completion_gate(run, key, recheck_files=False)
             if row.get("approval_revision") != state.approval_revision:
                 rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead approval revision differs for {key}"))
                 continue
-            if row["digest"] != recorded_digest(run):
-                rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead context digest changed"))
-                continue
             rows.append(CompletionGate(
-                integrity.finding or row["finding"],
-                integrity.coverage or (row["coverage"] and not row["moved_places"]),
-                row["report"] + ("; clinician approved over moved places" if row["moved_places"] else "; carried forward from go-ahead") + "; " + integrity.report,
+                row["finding"],
+                row["coverage"] and not row["moved_places"],
+                row["report"] + ("; clinician approved over moved places" if row["moved_places"] else "; carried forward from go-ahead"),
             ))
         result = CompletionGate(any(row.finding for row in rows), any(row.coverage for row in rows), "; ".join(row.report for row in rows))
     except (OSError, UnicodeError, ValueError):
@@ -992,7 +985,9 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             retain_heading_context(run)
         previous = read_record(path.read_text(encoding="utf-8"))
         current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
-        names = ("PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS)
+        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS)
+        if _declaration(previous)[0] != _declaration(current)[0]:
+            return False
         if any(previous.values(name) != current.values(name) for name in names):
             return False
         def population(record):

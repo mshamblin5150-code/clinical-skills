@@ -628,12 +628,9 @@ def completion_gate(
     run: Path, skill: str, submission: str | None
 ) -> tuple[bool, str] | CompletionResult:
     """Join approved bytes to the posted reading for every requested item."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "approval_record", "the approval record")
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("approval_record:completion_gate"):
-        return False, "the approval record: not graded - approval predates the check"
 
     label = "the approval record"
     if submission is None:

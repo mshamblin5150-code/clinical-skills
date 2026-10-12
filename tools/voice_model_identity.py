@@ -160,12 +160,9 @@ def _identity_completion_gate(run: Path, submission: str | None) -> CompletionGa
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "voice_model_identity", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, frozen)
-    if not completion_checks.active("voice_model_identity:completion_gate"):
-        return CompletionGate(False, False, EXPECTED_ROW + ": not graded - approval predates the check")
     result = _identity_completion_gate(run, submission)
     if submission is None:
         return result

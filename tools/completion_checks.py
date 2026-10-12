@@ -117,7 +117,9 @@ def registry() -> dict[str, tuple[datetime, str]]:
         key, start, moment = line.split("\t")
         if key in result or moment not in {"approval", "extraction", "confirmation", "ledger"}:
             raise ValueError("invalid completion-check start row: " + key)
-        result[key] = (datetime.fromisoformat(start.replace("Z", "+00:00")).replace(tzinfo=timezone.utc), moment)
+        parsed = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        timestamp = parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+        result[key] = (timestamp, moment)
     return result
 
 
@@ -130,7 +132,7 @@ def instant(value) -> datetime | None:
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return datetime.fromtimestamp(value, timezone.utc)
         if isinstance(value, str):
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+            return instant(datetime.fromisoformat(value.replace("Z", "+00:00")))
     except (ValueError, OverflowError, OSError):
         pass
     return None
@@ -188,11 +190,13 @@ def grading(run: Path, submission: str | None):
         SKIPPED.reset(skipped)
 
 
-def filter_findings(module: str, findings, *, moment=None):
+def filter_findings(module: str, findings, *, moment=None, ledger_date=None):
     selected = []
     for finding in findings:
         key = module + ":" + finding.kind
         observed = moment
+        if registry()[key][1] == "ledger":
+            observed = ledger_date
         if observed is None and registry()[key][1] == "approval":
             artifact = getattr(finding, "artifact", getattr(finding, "response", ""))
             observed = ITEM_MOMENTS.get().get(artifact)
@@ -203,7 +207,7 @@ def filter_findings(module: str, findings, *, moment=None):
 
 def filter_scan(module: str, scan):
     original = scan.findings
-    findings = filter_findings(module, original)
+    findings = filter_findings(module, original, ledger_date=getattr(scan, "as_of", None))
     values = {"findings": findings} if len(findings) != len(original) else {}
     names = {f.name for f in fields(scan)}
     if values and "counts" in names:
@@ -252,3 +256,14 @@ def dated_posted_reading(function):
         with grading(run, submission):
             return function(run, submission, *args, **kwargs)
     return check
+
+
+def exemption(run: Path, submission: str | None, module: str, label: str) -> str | None:
+    """Frozen evidence precedes the start-date comparison at every shared gate."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return frozen
+    if not active(module + ":completion_gate"):
+        return label + ": not graded - approval predates the check"
+    return None

@@ -195,12 +195,9 @@ def completion_gate(
     known_artifacts: set[str] | frozenset[str] | None = None,
 ) -> CompletionGate:
     """Grade proposal records against terminal artifact text and the canonical model."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, ",".join(artifacts) if artifacts is not None else None)
+    frozen = completion_checks.exemption(run, ",".join(artifacts) if artifacts is not None else None, "imagery_proposals", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, frozen)
-    if not completion_checks.active("imagery_proposals:completion_gate"):
-        return CompletionGate(False, False, EXPECTED_ROW + ": not graded - approval predates the check")
     if artifacts is None:
         return CompletionGate(
             False,

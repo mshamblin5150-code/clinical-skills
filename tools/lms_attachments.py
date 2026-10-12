@@ -76,12 +76,9 @@ def _records(path: Path) -> list[dict]:
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     """Re-fingerprint each selected sitting appendix without a page request."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "lms_attachments", "LMS attachments")
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("lms_attachments:completion_gate"):
-        return False, "LMS attachments: not graded - approval predates the check"
     if submission is None:
         return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied"
     findings = []

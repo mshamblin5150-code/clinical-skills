@@ -2371,12 +2371,9 @@ def is_live_run(run: Path) -> bool:
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     """Grade the shared expected row only for an explicitly terminal submission."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "aar_scan", EXPECTED_ROW)
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("aar_scan:completion_gate"):
-        return False, EXPECTED_ROW + ": not graded - approval predates the check"
     if submission is None:
         return False, f"{EXPECTED_ROW}: {NOT_GRADED} - --submission was not supplied"
     finding = completion_finding(run, (submission,))

@@ -50,7 +50,7 @@ class FrozenGrade(FrozenFixture):
         self.assertIsNone(frozen_grade.report(self.run, "post"))
 
     def test_adoption_requires_posting_readback_and_review(self):
-        (self.run / "reread.md").write_text("## REREAD: post\n", encoding="utf-8")
+        (self.run / "reread.md").write_text("## REREAD: post\nPOSTED: 2026-10-01T12:00:00Z\n", encoding="utf-8")
         self.assertEqual(0, frozen_grade.adopt(self.run).adopted)
         review = self.run / "aar" / "post.md"
         review.parent.mkdir(parents=True)
@@ -60,6 +60,16 @@ class FrozenGrade(FrozenFixture):
         self.assertEqual(1, result.adopted)
         self.assertIn("never graded clean", frozen_grade.report(self.run, "post"))
         self.assertEqual(0, frozen_grade.adopt(self.run).adopted)
+
+    def test_a_prebuild_approval_posted_after_landing_is_not_adopted(self):
+        from datetime import datetime, timezone, timedelta
+        future = datetime.fromtimestamp(frozen_grade.landing_time(), timezone.utc) + timedelta(hours=1)
+        (self.run / "reread.md").write_text(f"## REREAD: post\nPOSTED: {future.isoformat()}\n", encoding="utf-8")
+        review = self.run / "aar" / "post.md"
+        review.parent.mkdir(parents=True)
+        review.write_text("Retained review", encoding="utf-8")
+        self.assertEqual(0, frozen_grade.adopt(self.run).adopted)
+        self.assertIsNone(frozen_grade.report(self.run, "post"))
 
     def test_stored_complete_adopts_only_covered_revisions(self):
         (self.run / hook.STATE_RECORD).write_text(json.dumps(dict(status="complete",

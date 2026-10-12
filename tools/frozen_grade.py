@@ -6,7 +6,7 @@ never regraded. Adoption reads retained evidence without asserting its quality.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import os
 from pathlib import Path
@@ -17,6 +17,7 @@ RECORD = "frozen-grades.json"
 DECLARED_LIMITS = (
     "A freeze records a successful public terminal command; it cannot establish the truth of reader judgments.",
     "Adoption checks retained readback and review existence, not their quality, and labels that exemption.",
+    "Offset-free posting times are compared at their latest possible UTC instant; ambiguous same-day postings remain unfrozen.",
     "Source comparisons cannot detect a change subsequently reverted to identical bytes.",
 )
 
@@ -114,7 +115,7 @@ def landing_time() -> float:
         result = subprocess.run(["git", "log", "--first-parent", "--diff-filter=A", "--format=%ct",
                                  "--", "tools/frozen_grade.py"],
                                 cwd=Path(__file__).resolve().parent.parent,
-                                capture_output=True, text=True, check=True, timeout=10)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=10)
         return float(result.stdout.splitlines()[0] if result.stdout.strip() else "")
     except (OSError, ValueError, subprocess.SubprocessError):
         # Before the build's first commit there is no historical adoption date.
@@ -145,10 +146,10 @@ def adopt(run: Path) -> Adoption:
     except (TypeError, ValueError):
         covered = []
     try:
-        readings = {reading.artifact for reading in read_posted_readings(
+        readings = {reading.artifact: reading for reading in read_posted_readings(
             (run / "reread.md").read_text(encoding="utf-8"))}
     except (OSError, UnicodeError, ValueError):
-        readings = set()
+        readings = {}
     clean = adopted = 0
     lines = []
     for spec, item in population:
@@ -161,7 +162,8 @@ def adopt(run: Path) -> Adoption:
         graded = [spec.skill, key, revision] in covered
         posted = item.get("posting_route") in {"agent", "clinician"} or item.get("upload_route") in {"agent", "clinician"}
         retained = key in readings and review_path(run, key).is_file()
-        if graded or posted and retained:
+        posted_before = key in readings and _posted_before(readings[key].posted, boundary)
+        if graded or posted and retained and posted_before:
             freeze(run, spec.skill, item, adoption=not graded)
             clean += graded
             adopted += not graded
@@ -171,6 +173,27 @@ def adopt(run: Path) -> Adoption:
     payload["adoption_counts"] = dict(graded_clean=clean, never_graded_clean=adopted)
     _write(run, payload)
     return Adoption(clean, adopted, tuple(lines))
+
+
+def _posted_before(value: str, boundary: float) -> bool:
+    """Only historical posting evidence can receive the adoption exemption.
+
+    A portal time without an offset is compared at its latest possible UTC
+    instant (UTC-12); a date-only value includes the whole day. This avoids
+    assuming the machine's current zone after an account moves.
+    """
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if len(value.strip()) == 10:
+            timestamp += timedelta(days=1)
+    except ValueError:
+        try:
+            timestamp = datetime.strptime(value, "%m/%d/%Y %H:%M")
+        except ValueError:
+            return False
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc) + timedelta(hours=12)
+    return timestamp.timestamp() < boundary
 
 
 def command_result(run: Path, submission: str, status: int) -> None:

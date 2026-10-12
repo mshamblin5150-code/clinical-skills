@@ -134,12 +134,9 @@ def completion_gate(
     run: Path, submission: str | None, *, batch: bool
 ) -> tuple[bool, str]:
     """Return the terminal fingerprint verdict for one clinical submission."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "medatrax_posting", "the Medatrax posted reading")
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("medatrax_posting:completion_gate"):
-        return False, "the Medatrax posted reading: not graded - approval predates the check"
 
     if submission is None:
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"

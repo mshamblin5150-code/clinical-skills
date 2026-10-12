@@ -138,12 +138,9 @@ def completion_gate(
     run: Path, submission: str | None, root: Path | None = None
 ) -> tuple[bool, str]:
     """Grade the run's delegated-answer record at an explicit terminal submission."""
-    import frozen_grade
-    frozen = frozen_grade.all_reports(run, submission)
+    frozen = completion_checks.exemption(run, submission, "delegated_answers", "delegated answers")
     if frozen is not None:
         return False, frozen
-    if not completion_checks.active("delegated_answers:completion_gate"):
-        return False, "delegated answers: not graded - approval predates the check"
     if submission is None:
         return False, f"{EXPECTED_ROW}: {run_grader.NOT_GRADED} - --submission was not supplied"
     path = run / RECORD
