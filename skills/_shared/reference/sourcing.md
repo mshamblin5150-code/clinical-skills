@@ -423,13 +423,15 @@ For every pair whose claim carries `QUALIFIERS`, the reader counts the named qua
 in the sentence as `qualifiers N of M`. The total equals the record's list length, including
 `0 of 0` for `none`. A shortfall has a `FINDINGS: drifted - <same location>, <difference>` line;
 that finding does not count as a second sentence. The count records coverage, not correctness.
-A harness without a second context performs the same written walk and records `ROUTE:
-orchestrator walk`.
+This is a **Second reader** under [standing rule 6](../../../AGENTS.md). With no second context,
+the read does not complete: write no record, give no go-ahead, and submit no artifact.
+The reader writes each problem outside its assigned question on a `REMARK: <problem>` line,
+repeated for each remark, and nowhere else in the record.
 
 ```text
 ## HEADING-READ: <draft file>
 DRAFT: <SHA-256 of the draft's raw bytes>
-ROUTE: separate context | orchestrator walk
+ROUTE: separate context
 SENTENCES: <n> factual, <n> clinician's own, <n> item
 PAIR: <location> -> <first 8 hex of the heading digest> | qualifiers <n> of <total>
 ITEM: <location> -> <opened item identifier>

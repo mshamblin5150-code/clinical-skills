@@ -340,8 +340,10 @@ Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../
 heading digests, and every item pointer recorded in `project-context.md`. It opens those items
 itself. Do not give it research sources. It writes the shared `## HEADING-READ: critique.md` record
 from [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`. Repair
-every `unrecorded` or `drifted` finding and repeat the read after any repair; with no second context,
-write `ROUTE: orchestrator walk`. Rerun `peer_critique_scan.py`, which refuses a missing or stale
+every `unrecorded` or `drifted` finding and repeat the read after any repair. The reader writes each
+problem outside its assigned question on a `REMARK: <problem>` line, repeated for each remark,
+and nowhere else in the record. With no second context, the read does not complete: write no record,
+give no go-ahead, and submit no artifact. Rerun `peer_critique_scan.py`, which refuses a missing or stale
 record before the go-ahead.
 
 ## 6. Show, then post to the peer-review comment

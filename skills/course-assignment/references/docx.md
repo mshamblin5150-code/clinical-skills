@@ -113,7 +113,8 @@ The grader reads these rows:
 - `rendered-record`: the final visual record, retained export, page images, highest pass, and raw
   DOCX fingerprint do not form one complete join.
 - `narrative-body`: the shared house-style body row is clean.
-- Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
+- Follow the shared [heading-read brief for both artifacts](../SKILL.md#heading-read-for-both-artifacts).
+  Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
   `unknown-heading-read-route`, `heading-read-sentence-count`,
   `heading-read-unknown-heading`, `heading-read-dropped-heading`,
   `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`

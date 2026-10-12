@@ -81,7 +81,7 @@ SENTENCES = re.compile(
 )
 PAIR = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<prefix>[0-9a-fA-F]{8})(?:[ \t]+\|[ \t]+qualifiers (?P<read>[0-9]+) of (?P<total>[0-9]+))?$", re.ASCII)
 ITEM = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+)$")
-ROUTES = frozenset(("separate context", "orchestrator walk"))
+ROUTES = frozenset(("separate context",))
 
 MISSING_RECORD = "missing-heading-read"
 DUPLICATE_RECORD = "duplicate-heading-read"
