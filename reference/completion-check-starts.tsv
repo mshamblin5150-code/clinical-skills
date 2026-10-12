@@ -467,3 +467,4 @@ voice_model_scan:whole-writer-record-without-quote	2026-09-26T10:13:00-04:00	app
 voice_read:completion_gate	2026-09-26T05:16:26-04:00	approval
 voice_read:the coursework voice read	2026-09-26T05:16:26-04:00	approval
 outbound_search:completion_gate	2026-10-12T11:44:15-04:00	approval
+research_ledger:refutation-without-kept-return	2026-10-12T00:00:00Z	ledger

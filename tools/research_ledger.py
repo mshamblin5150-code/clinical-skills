@@ -82,6 +82,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("kept-return-authorship-unverified", "A matching kept return never proves a separate refuter wrote it.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("tested-heading-does-not-prove-refutation", "TESTED-HEADING proves only that the recorded fingerprint matches the current heading; it cannot prove that the refuter actually tested that heading.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("research-authenticated-route-unverified", "Nothing can see whether the browser was opened, and nothing can see whether the profile's answer was consulted.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("stated-expiry-transcription-unverified", "The grader cannot prove that a STATED-EXPIRY value was transcribed from the cited document rather than inferred.", EvidenceDisposition.DECLARED_READING),
@@ -365,6 +366,7 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROWS = {
+    "refutation-without-kept-return": "#1564",
     **{kind: "#1494" for kind in QUALIFIER_KINDS},
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
     UPTODATE_REREAD_DUE: "#901",
@@ -1888,6 +1890,7 @@ def survey(
     uptodate_recency_window_years: int = 2,
     uptodate_has_account: bool = True,
     evidence_ungraded_reason: str | None = None,
+    kept_returns: tuple[Record, ...] = (),
 ) -> Scan:
     """Count across one ledger.
 
@@ -1912,6 +1915,14 @@ def survey(
         for record in records
     ]
     sourced = [record for record in records if record.status == SOURCED]
+    if completion_checks.active("research_ledger:refutation-without-kept-return", as_of):
+        from refutation_apply import FIELDS, refutation_values
+
+        kept = {(record.claim, refutation_values(record)) for record in kept_returns}
+        for record, findings in graded:
+            if any(name in record.fields for name in FIELDS) and (record.claim, refutation_values(record)) not in kept:
+                findings.append(Finding("refutation-without-kept-return", record.claim,
+                                        "refutation fields match no kept return"))
     stated_expiry_unscanned = completion_checks.active("research_ledger:stated-expiry", as_of) and _stated_expiry_unscanned(sourced)
     if stated_expiry_unscanned:
         # The whole-ledger retired shape is coverage failure, not one repeated
@@ -2307,6 +2318,22 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    from refutation_apply import read_blocks
+
+    kept_returns = []
+    if completion_checks.active("research_ledger:refutation-without-kept-return", source.as_of):
+        try:
+            directory = source.path.parent / "refutations"
+            paths = tuple(directory.iterdir()) if directory.exists() else ()
+            for path in paths:
+                if path.is_file():
+                    try:
+                        blocks, _outside = read_blocks(path.read_text(encoding="utf-8"))
+                        kept_returns.extend(block.record for block in blocks if not block.unread)
+                    except (OSError, UnicodeError):
+                        pass  # An unread return cannot supply a matching block.
+        except OSError:
+            pass  # Records carrying refutation fields still fail the missing match.
     scan = survey(
         list(source.records),
         source.as_of,
@@ -2325,6 +2352,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             if source.evidence_not_filed
             else None
         ),
+        kept_returns=tuple(kept_returns),
     )
     diagnostics: list[str] = []
     if scan.local_documents_unread:

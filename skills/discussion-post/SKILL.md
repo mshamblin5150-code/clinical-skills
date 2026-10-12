@@ -249,7 +249,8 @@ must differ after normalization. Refuter independence remains orchestrator-owned
 
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<course>-<module>-discussion/claims.md --heading-digests`, name that claim's printed
-digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
+digest in the brief, then [save and apply the refuter return](../_shared/reference/sourcing.md#save-and-apply-a-refuter-return)
+with the Required command `tools/refutation_apply.py`.
 
 A source already verified elsewhere in this board's ledger may discharge a second page-level
 read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only

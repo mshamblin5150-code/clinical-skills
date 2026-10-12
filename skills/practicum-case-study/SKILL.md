@@ -664,8 +664,9 @@ volume, the numbering and the pages, and reads whether the source says what the 
 restatement say it says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
 separator and both substantive halves are required, and the two normalized halves must differ.
 Immediately before dispatch, the parent runs `python tools/research_ledger.py <claims-ledger>
---heading-digests`, names that claim's printed digest in the brief, and writes it as
-`TESTED-HEADING` with the returned verdict and route.
+--heading-digests`, names that claim's printed digest in the brief, then
+[saves and applies the refuter return](../_shared/reference/sourcing.md#save-and-apply-a-refuter-return)
+with the Required command `tools/refutation_apply.py`.
 Refuter independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the
 mechanical boundary.
 
@@ -728,6 +729,7 @@ can be several of them at once:
 | a `PAGE-YEAR` outside its field form | a year in 1900–2099 must open the field with no second, different year; locators after `p.`, `pp.` or `page` are exempt, and a field stating none carries no year |
 | a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
 | a `REFUTATION` outside the four | it gates the row below, so a fifth word is a record the refutation never read |
+| refutation fields that match no kept return | the record disagrees with the saved refuter return; applies from its ledger-date start in `reference/completion-check-starts.tsv` |
 | a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |
 | a `REFUTATION` reading `refuted` | a false citation is sitting in the ledger: rewrite the record or write `unsourced` |
 | a `REFUTATION` that is the restatement pasted back | the first agent re-asserting rather than a second one checking |

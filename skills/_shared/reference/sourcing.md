@@ -276,10 +276,22 @@ A heading changed after its refutation is a new claim. `TESTED-HEADING` is the l
 the `## CLAIM:` heading text after runs of whitespace collapse to one space and the ends are
 trimmed; case and punctuation remain significant. Before every refutation dispatch, the parent runs
 `python tools/research_ledger.py <claims.md> --heading-digests`, copies the printed digest for that
-heading into the refuter's brief, and writes it beside the returned `REFUTATION` and `SECOND-ROUTE`.
+heading into the refuter's brief, and applies the [saved refuter return](#save-and-apply-a-refuter-return).
 The command reads the file and never accepts heading text as an argument. A changed heading needs a
 fresh refutation and a newly printed `TESTED-HEADING` before anything cites it or takes a number
 from it.
+
+## Save and apply a refuter return
+
+Save each refuter return verbatim with the Write tool as a separate file; one file is one group.
+Run the Required command `python tools/refutation_apply.py <claims.md> <return-file> [<return-file> ...]`
+and resolve every refusal before running `research_ledger.py`. Save a corrected return under a new
+name. The helper keeps the inputs under the run's `refutations/`, copies the returned fields and
+remarks, and leaves a numbered Ledger snapshot when the ledger changes. Its default report gives
+positions and counts; `--show` adds private heading text. A clean helper exit means all blocks were
+applied or already applied; the ledger grader still decides whether each record is complete.
+After installation has been tried, a consumer unable to run the command walks the written rules
+by eye and reports that the run is not mechanically verified, as for `research_ledger.py`.
 
 ## A heading read binds the final draft to the ledger
 

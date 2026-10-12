@@ -159,7 +159,8 @@ Every research and refutation brief first reads
 [sourcing.md](../_shared/reference/sourcing.md) and applies it to every returned claim or negative.
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<run-key>/claims.md --heading-digests`, name that claim's printed digest in the brief,
-and write it as `TESTED-HEADING` with the returned verdict and route.
+then [save and apply the refuter return](../_shared/reference/sourcing.md#save-and-apply-a-refuter-return)
+with the Required command `tools/refutation_apply.py`.
 
 Each record uses the full research-ledger shape:
 
