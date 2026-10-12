@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
-from repo_root import scratch_root
+from repo_root import scratch_path, scratch_root
 
 
 FIELDS = ("SIGNATURE-CREDENTIALS", "PRESCRIBING-CREDENTIALS")
@@ -48,7 +48,7 @@ def record(profile: Path, signature: str, prescribing: str) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", type=Path, default=scratch_root() / "medatrax-profile.md")
+    parser.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     parser.add_argument("--signature", help="clinician's exact signature credential answer")
     parser.add_argument("--prescribing", help="clinician's exact prescribing-role credential answer")
     args = parser.parse_args(argv)
