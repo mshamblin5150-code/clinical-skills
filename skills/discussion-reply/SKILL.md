@@ -385,11 +385,13 @@ Set `clinician_reply` to the clinician's whole approval message, including any c
 At that go-ahead call `approval_record.approve(run, skill="discussion-reply",
 submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
 content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask; incomplete coverage does not block, while a
-finding refuses the record. Each reply gets its own item. From this record onward every reply
-touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
+finding refuses the record. Each reply gets its own item. From the sitting's first write into a
+run folder holding an approval not recorded complete, every reply touching the run ends with
+`Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. The run reports the approved reply furthest
 behind, reaches `complete` only when all approved replies grade clean, and never puts a classmate
-name in the line.
+name in the line. An open approval already in the folder, such as the board's initial post,
+starts this obligation before the reply's own approval record.
 Build the posting HTML from the approved response:
 
 ```bash

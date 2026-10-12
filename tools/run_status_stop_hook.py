@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 import re
 import subprocess
@@ -49,7 +50,7 @@ RUN_KIND_BY_SKILL = {item.skill: item for item in RUN_KINDS}
 MODULE_ROOT = Path(__file__).resolve().parent.parent
 STATE_RECORD = "run-status.json"
 RUN_PATH = re.compile(
-    r"(?i)(?:[A-Z]:[\\/]|/)?[^\r\n\"'`<>|]*?scratch[\\/]runs[\\/]"
+    r"(?i)(?:(?:[A-Z]:[\\/]|/)[^\r\n\"'`<>|]*?)?scratch[\\/]runs[\\/]"
     r"[^\\/\s\"'`<>|]+"
 )
 STATUS_LINE = re.compile(
@@ -60,11 +61,15 @@ ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
-    "A run is in scope only after its path appears in the session transcript and a readable durable approval record names an approved item.",
+    "A run is in scope when a tool-call input names its directory and a file beneath it changed after the transcript's session start, excluding run-status.json, and a readable durable approval record names an approved item.",
+    "When no session start can be read, the session falls back to the transcript mention rule.",
+    "A reply stating the status of a run this session only read is not checked.",
+    "A write by another session into a directory this session named counts as touching it.",
     "Every touched open run needs one keyed status line; a current completed approval revision is not reopened by an unrelated later reply.",
     "Waiting-status truth beyond complete and the presence of a stopped reason remains a clinician reading.",
     "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
     "Malformed transcript rows and unreadable approval records cannot establish an open approved run.",
+    "An unreadable hook payload or a missing transcript path allows the stop without grading.",
 )
 
 
@@ -112,17 +117,73 @@ def _records(transcript: Path) -> tuple[dict[str, object], ...]:
     return tuple(records)
 
 
+def _session_start(records: tuple[dict[str, object], ...]) -> float | None:
+    for record in records:
+        timestamp = record.get("timestamp")
+        if not isinstance(timestamp, str):
+            continue
+        try:
+            started = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            if started.tzinfo is not None:
+                return started.timestamp()
+        except (ValueError, OverflowError):
+            continue
+    return None
+
+
+def _tool_inputs(record: Mapping[str, object]) -> tuple[str, ...]:
+    """Read Claude tool uses and Codex calls, never their results or prose."""
+    message = record.get("message")
+    if isinstance(message, dict) and message.get("role") == "assistant":
+        content = message.get("content")
+        if isinstance(content, list):
+            return tuple(
+                value for item in content
+                if isinstance(item, dict) and item.get("type") == "tool_use"
+                for value in _string_values(item.get("input"))
+            )
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        return ()
+    if record.get("type") == "response_item" and payload.get("type") in {
+        "function_call", "custom_tool_call",
+    }:
+        value = payload.get("arguments", payload.get("input"))
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        return _string_values(value)
+    item = payload.get("item")
+    if record.get("type") == "event_msg" and isinstance(item, dict) and item.get("type") == "CommandExecution":
+        return _string_values(item.get("command"))
+    return ()
+
+
+def _changed_after(run: Path, started: float) -> bool:
+    try:
+        return any(
+            path.is_file() and path.name != STATE_RECORD
+            and path.stat().st_mtime > started
+            for path in run.rglob("*")
+        )
+    except OSError:
+        return False
+
+
 def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
-    """Return transcript-mentioned run directories in last-mentioned order."""
+    """Return named, changed run directories in last-mentioned order."""
 
     found: dict[Path, None] = {}
+    started = _session_start(records)
     for record in records:
-        for value in _string_values(record):
+        for value in (_string_values(record) if started is None else _tool_inputs(record)):
             for match in RUN_PATH.finditer(value):
                 path = Path(match.group(0).strip()).resolve()
                 found.pop(path, None)
                 found[path] = None
-    return tuple(found)
+    return tuple(run for run in found if started is None or _changed_after(run, started))
 
 
 def _read_object(path: Path) -> dict[str, object] | None:
@@ -298,7 +359,12 @@ def _last_assistant_message(records: tuple[dict[str, object], ...]) -> str:
     )
 
 
-def _blocked(reason: str, expected_keys: set[str]) -> dict[str, object]:
+def _blocked(reason: str, expected_keys: set[str], message: str, retry: bool) -> dict[str, object]:
+    if retry:
+        lines = [match.group(0) for match in ANY_STATUS_LINE.finditer(message)]
+        return {"systemMessage": "Run status warning: " + reason
+                + " Status lines: " + ("; ".join(repr(line) for line in lines) or "<missing>")
+                + " Expected run keys: " + ", ".join(sorted(expected_keys)) + "."}
     return {
         "decision": "block",
         "reason": "Retract the reply and end its replacement with the required keyed Run status: line block. "
@@ -306,7 +372,7 @@ def _blocked(reason: str, expected_keys: set[str]) -> dict[str, object]:
         + " Expected run keys: "
         + ", ".join(sorted(expected_keys))
         + ". "
-        + "A run is touched once its path appears in the session transcript; "
+        + "A run is touched when a tool-call input names its directory and a file beneath it changed after session start (excluding run-status.json); without a readable start the transcript mention rule applies; "
         + "a readable approval record opens it, and a completed approval revision stays closed.",
     }
 
@@ -335,8 +401,7 @@ def _malformed_line_reason(line: str) -> str:
 def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     """Return one Codex/Claude Stop-hook decision for an approved run."""
 
-    if payload.get("stop_hook_active") is True:
-        return {}
+    retry = payload.get("stop_hook_active") is True
     transcript_path = payload.get("transcript_path")
     if not isinstance(transcript_path, str):
         return {}
@@ -361,11 +426,13 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     if not open_runs:
         return {}
     expected_keys = {run.name for run, _approved, _revision in open_runs}
+    def refuse(reason: str) -> dict[str, object]:
+        return _blocked(reason, expected_keys, message, retry)
+
     lines = tuple(ANY_STATUS_LINE.finditer(message))
     if len(lines) != len(open_runs):
-        return _blocked(
+        return refuse(
             "Each touched approved run needs exactly one keyed Run status: line.",
-            expected_keys,
         )
     matches = tuple(STATUS_LINE.fullmatch(match.group(0)) for match in lines)
     if any(match is None for match in matches):
@@ -376,25 +443,23 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             reason = "Run status: stopped needs a substantive reason after the hyphen."
         else:
             reason = "A Run status: line is malformed."
-        return _blocked(
+        return refuse(
             reason + " Failing lines: " + "; ".join(
                 f"{line!r}: {_malformed_line_reason(line)}" for line in malformed
             ),
-            expected_keys,
         )
     first = lines[0].start()
     tail = message[first:].splitlines()
     if len(tail) != len(lines) or not all(STATUS_LINE.fullmatch(line) for line in tail):
-        return _blocked(
+        return refuse(
             "The keyed Run status: lines must be the reply's final contiguous block.",
-            expected_keys,
         )
     by_key = {match.group("run_key"): match for match in matches if match is not None}
     if len(by_key) != len(matches) or set(by_key) != expected_keys:
-        return _blocked(
+        return refuse(
             "The keyed Run status: lines must name every touched run key once.",
-            expected_keys,
         )
+    failures: list[str] = []
     for run, approved, revision in open_runs:
         match = by_key[run.name]
         status = match.group("status")
@@ -404,17 +469,17 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             and state.get("approval_revision") == revision
         )
         if stopped_here and not status.startswith("stopped") and status != "complete":
-            return _blocked(
-                f"Run {run.name} stays stopped until it completes or another approval is recorded.",
-                expected_keys,
+            failures.append(
+                f"{match.group(0)!r}: Run {run.name} stays stopped until it completes or another approval is recorded."
             )
         if status == "complete" and not all(
             completion_is_clean(run, spec, approval) for spec, approval in approved
         ):
-            return _blocked(
-                f"Run status: {run.name} — complete requires a clean terminal grade for every approved item.",
-                expected_keys,
+            failures.append(
+                f"{match.group(0)!r}: complete requires a clean terminal grade for every approved item."
             )
+    if failures:
+        return refuse(" ".join(failures))
     for run, _approved, revision in open_runs:
         match = by_key[run.name]
         status = match.group("status")
