@@ -246,14 +246,20 @@ def _paragraphs(root: ElementTree.Element) -> tuple[Paragraph, ...]:
         style = style_node.get(W + "val", "") if style_node is not None else ""
         # #1570: only reference runs carry emphasis into the Markdown reader.
         if style == "Reference":
-            pieces = []
+            pieces: list[tuple[str, bool]] = []
             for run in paragraph.iter(W + "r"):
                 value = "".join(node.text or "" for node in run.iter(W + "t"))
+                if not value:
+                    continue
                 italic = run.find(f"{W}rPr/{W}i")
-                if value and italic is not None and italic.get(W + "val", "true").lower() not in {"0", "false", "off"}:
-                    value = f"*{value}*"
-                pieces.append(value)
-            text = "".join(pieces).strip()
+                emphasized = italic is not None and italic.get(W + "val", "true").lower() not in {"0", "false", "off"}
+                # Word may split one italic span across multiple edited runs.
+                if pieces and pieces[-1][1] == emphasized:
+                    pieces[-1] = (pieces[-1][0] + value, emphasized)
+                else:
+                    pieces.append((value, emphasized))
+            text = "".join(f"*{value}*" if emphasized else value
+                           for value, emphasized in pieces).strip()
         found.append(
             Paragraph(text, style)
         )

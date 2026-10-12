@@ -1931,13 +1931,23 @@ def _heading_findings(document: Document) -> list[Finding]:
 
 def _bare_locator(entry: Entry) -> tuple[str, bool] | None:
     """Return a bare journal locator and whether #1570 makes it refusing."""
-    plain = entry.text.replace("*", "").replace("_", "")
+    year = entry._year_match
+    if year is None:
+        return None
+    rest = entry.text[year.end():]
+    # Keep punctuation inside italic titles from becoming a source boundary.
+    masked = ITALIC_SPAN.sub(lambda span: " " * len(span.group()), rest)
+    title_end = re.search(r"\.\s+", masked)
+    if title_end is None:
+        return None
+    plain = rest[title_end.end():].replace("*", "").replace("_", "")
     match = BARE_JOURNAL_LOCATOR.search(plain)
     if match is None:
         return None
     number = match.group("number")
     doi = DOI.search(entry.text)
-    doi_text = re.search(r"10\.\S+", entry.text[doi.start():]).group() if doi else ""
+    doi_match = re.search(r"10\.\S+", entry.text[doi.start():]) if doi else None
+    doi_text = doi_match.group() if doi_match else ""
     in_doi = bool(re.search(r"(?<![A-Za-z0-9])" + re.escape(number) + r"(?![A-Za-z0-9])", doi_text))
     return number, number[0].isalpha() or in_doi
 
@@ -1954,8 +1964,12 @@ def _site_repeats_author(entry: Entry) -> bool:
     # Mask emphasis so a title ending in its author never becomes a site element.
     tail = ITALIC_SPAN.sub("TITLE", entry.text[year.end():locator.start()])
     tail = re.sub(r"\bRetrieved\s+.*?\s+from\s*$", "", tail, flags=re.I).rstrip(". ")
-    site = tail.rsplit(". ", 1)[-1]
-    return bool(author) and re.sub(r"\s+", "", site).casefold() == re.sub(r"\s+", "", author).casefold()
+    compact_tail = re.sub(r"\s+", "", tail).casefold()
+    compact_author = re.sub(r"\s+", "", author).casefold()
+    if not compact_author or not compact_tail.endswith(compact_author):
+        return False
+    # The complete author may itself contain periods (e.g., U.S. Department).
+    return compact_tail[:-len(compact_author)].endswith(".")
 
 
 def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:

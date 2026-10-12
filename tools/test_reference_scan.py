@@ -3202,12 +3202,36 @@ class MechanicalReferenceElements(unittest.TestCase):
                 self.assertEqual(status, 0, report)
 
     def test_one_page_number_is_named_only_as_candidate(self):
-        for doi in ("example", "x245y"):
+        for doi in ("example", "x245y", ""):
             entry = f"Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10.1000/{doi}"
             status, report = self.command(entry)
             self.assertEqual(status, 0, report)
             self.assertIn("bare-number candidates           1", report)
             self.assertIn(entry, report)
+
+    def test_truncated_doi_does_not_crash_candidate_reader(self):
+        entry = "Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10."
+        status, report = self.command(entry)
+        self.assertEqual(status, 0, report)
+        self.assertIn("bare-number candidates           1", report)
+
+    def test_title_numbers_are_not_journal_locators(self):
+        for title in ("Annual report, 17, e12345", "Annual report. Findings, 17, e12345"):
+            entry = f"Example Group. (2026). *{title}*. https://example.org/work"
+            status, report = self.command(entry)
+            self.assertEqual(status, 0, report)
+            self.assertIn("bare-number candidates           0", report)
+
+    def test_repeated_group_site_with_internal_periods_refuses(self):
+        entry = "U.S. Department of Health and Human Services. (2026). *Work*. U.S. Department of Health and Human Services. https://example.org/work"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic.md"
+            path.write_text(draft(entry, body="# Case\n\n(U.S. Department of Health and Human Services, 2026).\n"), encoding="utf-8")
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                status = scan.main([str(path), "--as-of", "2026-10-12", "--paper-language", "English", "--show"])
+            self.assertEqual(status, 1, output.getvalue())
+            self.assertRegex(output.getvalue(), r"site-repeats-author\s+1")
 
     def test_all_closed_format_words_refuse_case_insensitively(self):
         for value in scan.FORMAT_WORDS:
