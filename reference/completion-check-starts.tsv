@@ -196,6 +196,9 @@ discussion_artifact:portal-fields	2026-10-03T15:57:28-04:00	approval
 discussion_artifact:post-link	2026-10-08T18:24:20-04:00	approval
 discussion_artifact:post-metadata	2026-10-08T18:24:20-04:00	approval
 discussion_artifact:posted-fields	2026-10-03T15:57:28-04:00	approval
+discussion_artifact:posted-file-malformed	2026-10-12T12:00:00-04:00	approval
+discussion_artifact:posted-file-duplicate	2026-10-12T12:00:00-04:00	approval
+discussion_artifact:posted-file-population	2026-10-12T12:00:00-04:00	approval
 discussion_artifact:read-count	2026-10-03T15:57:28-04:00	approval
 discussion_artifact:refusal	2026-09-17T10:14:51-04:00	approval
 discussion_artifact:submitted-files	2026-10-08T18:24:20-04:00	approval

@@ -364,12 +364,13 @@ class Run:
             "READ: 2026-09-13\n"
             "ATTACHMENT-COUNT: 1\n"
             f"SUBMITTED-FILE: {self.deck.name}\n"
+            f"POSTED-FILE: {self.deck.name} | sha256={file_digest.sha256(self.deck)} | route=page\n"
             f"SUBMISSION-SHA256: {digest}\n"
             "VERDICT: matches - the submitted deck was read back from the LMS\n",
             encoding="utf-8",
         )
 
-    def terminal(self, *, bind: bool = True) -> tuple[int, str, str]:
+    def terminal(self, *, bind: bool = True, carriers: tuple[Path, ...] | None = None) -> tuple[int, str, str]:
         if bind and not (self.root / "reread.md").is_file():
             self.write_reread()
         if bind:
@@ -380,11 +381,11 @@ class Run:
             ):
                 with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic reply", 4102444800)), mock.patch.object(scan.assignment_submission.reader_remarks, "verify", return_value=[]):
                     staged = scan.assignment_submission.stage(
-                        self.root, self.deck, artifact_approved=True, clinician_reply="Approve the synthetic artifact."
+                        self.root, self.deck, artifact_approved=True, clinician_reply="Approve the synthetic artifact.", approved_carriers=carriers
                     )
             scan.assignment_submission.confirm(
                 staged,
-                uploaded_carriers=(self.deck,),
+                uploaded_carriers=(self.deck,) if carriers is None else carriers,
                 final_confirmation=True,
             )
         scan.voice_model_identity.write_record(self.root)
@@ -1572,6 +1573,44 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual("", stderr)
         self.assertIn("submission-fingerprint: 0", stdout)
+
+    def test_submission_posted_file_routes_through_the_public_command(self):
+        for mutation, expected in (("page", 0), ("supplied", 0), ("mismatch", 1), ("missing", 1), ("changed-copy", 1)):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                run = self.a_run(Path(temp))
+                run.write_reread()
+                reread = run.root / "reread.md"
+                digest = file_digest.sha256(run.deck)
+                page = f"POSTED-FILE: {run.deck.name} | sha256={digest} | route=page"
+                replacement = page
+                if mutation in {"supplied", "changed-copy"}:
+                    (run.root / "posted").mkdir()
+                    copy = run.root / "posted" / run.deck.name
+                    copy.write_bytes(run.deck.read_bytes() if mutation == "supplied" else b"changed deck")
+                    replacement = page.replace("route=page", f"route=clinician-supplied | path=posted/{run.deck.name}")
+                elif mutation == "mismatch":
+                    replacement = page.replace(digest, "f" * 64)
+                elif mutation == "missing":
+                    replacement = ""
+                reread.write_text(reread.read_text(encoding="utf-8").replace(page, replacement), encoding="utf-8")
+                status, stdout, stderr = run.terminal()
+                self.assertEqual(expected, status, stdout + stderr)
+
+    def test_submission_public_command_binds_the_companion_carrier_fingerprint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            companion = run.root / "companion.pdf"
+            companion.write_bytes(b"synthetic companion")
+            run.write_reread()
+            reread = run.root / "reread.md"
+            companion_line = f"POSTED-FILE: companion.pdf | sha256={file_digest.sha256(companion)} | route=page\n"
+            baseline = reread.read_text(encoding="utf-8").replace("ATTACHMENT-COUNT: 1", "ATTACHMENT-COUNT: 2").replace(
+                "VERDICT:", "SUBMITTED-FILE: companion.pdf\n" + companion_line + "VERDICT:")
+            for text, expected in ((baseline, 0), (baseline.replace(companion_line, ""), 1), (baseline.replace(file_digest.sha256(companion), "f" * 64), 1)):
+                with self.subTest(expected=expected, text=text):
+                    reread.write_text(text, encoding="utf-8")
+                    status, stdout, stderr = run.terminal(carriers=(run.deck, companion))
+                    self.assertEqual(expected, status, stdout + stderr)
 
     def test_submission_refuses_a_missing_deck_fingerprint(self):
         with tempfile.TemporaryDirectory() as temp:

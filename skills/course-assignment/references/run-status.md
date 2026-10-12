@@ -14,7 +14,8 @@ Run status: <run-key> — complete
 ```
 
 Use `awaiting posting` from approval until either posting route is recorded, `awaiting posted
-reading` until the downloaded posted artifact has been read, and `awaiting AAR` until the
+reading` until the artifact identified under [Posted files](../../_shared/reference/lms-attachments.md#posted-files)
+has been read, and `awaiting AAR` until the
 after-action review and terminal grade are clean. A posted-reading divergence, Composer refusal,
 or clinician decision not to submit this version uses `stopped - <reason>`. That run stays stopped
 until it completes or another approval is recorded; there is no separate close action.
