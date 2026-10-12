@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -50,7 +51,7 @@ RUN_KIND_BY_SKILL = {item.skill: item for item in RUN_KINDS}
 MODULE_ROOT = Path(__file__).resolve().parent.parent
 STATE_RECORD = "run-status.json"
 RUN_PATH = re.compile(
-    r"(?i)(?:(?:[A-Z]:[\\/]|/)[^\r\n\"'`<>|]*?)?scratch[\\/]runs[\\/]"
+    r"(?i)(?<![\w./\\:-])(?:(?:[A-Z]:[\\/]|/|(?:\.\.?[\\/])+)[^\r\n\"'`<>|]*?)?scratch[\\/]runs[\\/]"
     r"[^\\/\s\"'`<>|]+"
 )
 STATUS_LINE = re.compile(
@@ -164,12 +165,25 @@ def _tool_inputs(record: Mapping[str, object]) -> tuple[str, ...]:
 def _changed_after(run: Path, started: float) -> bool:
     try:
         return any(
-            path.is_file() and path.name != STATE_RECORD
+            path.is_file() and path != run / STATE_RECORD
             and path.stat().st_mtime > started
             for path in run.rglob("*")
         )
     except OSError:
         return False
+
+
+def _run_mentions(value: str) -> tuple[Path, ...]:
+    # A structured path can contain spaces; shell arguments must also be read
+    # separately so an executable or script prefix cannot swallow a run path.
+    try:
+        values = (value, *shlex.split(value, posix=False))
+    except ValueError:
+        values = (value,)
+    return tuple(
+        Path(match.group(0).strip()).resolve()
+        for part in values for match in RUN_PATH.finditer(part)
+    )
 
 
 def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
@@ -179,8 +193,7 @@ def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
     started = _session_start(records)
     for record in records:
         for value in (_string_values(record) if started is None else _tool_inputs(record)):
-            for match in RUN_PATH.finditer(value):
-                path = Path(match.group(0).strip()).resolve()
+            for path in _run_mentions(value):
                 found.pop(path, None)
                 found[path] = None
     return tuple(run for run in found if started is None or _changed_after(run, started))
@@ -430,10 +443,9 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
         return _blocked(reason, expected_keys, message, retry)
 
     lines = tuple(ANY_STATUS_LINE.finditer(message))
+    failures: list[str] = []
     if len(lines) != len(open_runs):
-        return refuse(
-            "Each touched approved run needs exactly one keyed Run status: line.",
-        )
+        failures.append("Each touched approved run needs exactly one keyed Run status: line.")
     matches = tuple(STATUS_LINE.fullmatch(match.group(0)) for match in lines)
     if any(match is None for match in matches):
         malformed = [
@@ -443,25 +455,26 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             reason = "Run status: stopped needs a substantive reason after the hyphen."
         else:
             reason = "A Run status: line is malformed."
-        return refuse(
+        failures.append(
             reason + " Failing lines: " + "; ".join(
                 f"{line!r}: {_malformed_line_reason(line)}" for line in malformed
             ),
         )
-    first = lines[0].start()
-    tail = message[first:].splitlines()
-    if len(tail) != len(lines) or not all(STATUS_LINE.fullmatch(line) for line in tail):
-        return refuse(
+    tail = message[lines[0].start():].splitlines() if lines else []
+    if len(tail) != len(lines) or any(ANY_STATUS_LINE.fullmatch(line) is None for line in tail):
+        failures.append(
             "The keyed Run status: lines must be the reply's final contiguous block.",
         )
     by_key = {match.group("run_key"): match for match in matches if match is not None}
     if len(by_key) != len(matches) or set(by_key) != expected_keys:
-        return refuse(
+        failures.append(
             "The keyed Run status: lines must name every touched run key once.",
         )
-    failures: list[str] = []
     for run, approved, revision in open_runs:
-        match = by_key[run.name]
+        keyed = [match for match in matches if match is not None and match.group("run_key") == run.name]
+        if len(keyed) != 1:
+            continue
+        match = keyed[0]
         status = match.group("status")
         state = _state(run)
         stopped_here = (
