@@ -509,6 +509,10 @@ _Avoid_: snapshot, locked grade, sealed result, final grade
 The durable record written at the clinician's go-ahead on a graded contribution's content, carrying a fingerprint of exactly what its **Posted reading** will later fingerprint, so what was posted can be shown to be what he approved. It is evidence of his word rather than an agent's report of it, so it is to carry his reply whole. It opens the run's **Run status**, one per contribution posted, and a conversational go-ahead that wrote none opens nothing. For a clinical shift it fingerprints the finished notes that are entered, not the review document he reads.
 _Avoid_: go-ahead record, sign-off, gate record, approval
 
+**Bar signature**:
+The record that the clinician confirmed a transcribed **Bar** as it stands, carrying a fingerprint of the bar's exact text and his reply that confirmed it. A bar that no longer matches its latest signature is unsigned, so an amendment is a new signature on a new reply after he has seen the changed lines, never a new date written by an agent. Distinct from an **Approval record**, which is his go-ahead on the finished contribution rather than on the bar it was written to.
+_Avoid_: signed date, SIGNED line, bar approval, sign-off
+
 **Posting go-ahead**:
 The clinician's word, given after he has looked at a contribution loaded and unsubmitted on its Canvas surface, that authorizes the one click posting it. It is a second reply on the contribution's **Approval record**, after the go-ahead on its content, and the content go-ahead never stands in for it. A contribution the clinician posts himself owes none, because it exists for the run's own click.
 _Avoid_: Gate 2, submit gate, in-box approval, second approval, click approval
