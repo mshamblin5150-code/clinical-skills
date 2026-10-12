@@ -70,6 +70,7 @@ from discussion_artifact import (
 import reader_remarks
 import run_grader
 import render_pass
+import canvas_readback
 import page_image
 import pdf_engine
 from run_grader import NOT_GRADED
@@ -113,6 +114,7 @@ BOLD_HEADINGS = "bold-headings"
 RENDERED_COMMENTS = "rendered-comments"
 SUBMISSION_TEXT = "submission-text"
 RENDERED_TEXT = "rendered-text"
+EDITOR_READBACK = "editor-readback"
 RENDERED_PAGES = "rendered-pages"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
 MISSING_POSTED_READING = "missing-posted-reading"
@@ -123,6 +125,7 @@ BORROWED_LOCATOR = "borrowed-locator"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 POSTED_ATTACHMENT = "posted-attachment"
 ROWS = {
+    EDITOR_READBACK: "the loaded-box readback is formatted and matches the built post HTML",
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
     NARRATIVE_BODY: "the graded body uses narrative prose rather than lists or tables",
@@ -158,6 +161,7 @@ POSTED_READING_ROWS = (
 )
 
 GATED_ROW_SETS = {
+    "editor_readback_graded": ((EDITOR_READBACK,), ()),
     "submission_fingerprint_graded": ((SUBMISSION_FINGERPRINT,), ()),
     "posted_reading_graded": (POSTED_READING_ROWS, ()),
     "html_graded": (
@@ -260,9 +264,14 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "whether each reference URL was submitted as a link",
-        "The submission-text row compares visible text, so a reference URL left unlinked in the submitted HTML reads the same as its anchor; whether the board shows a link remains the posted reading.",
+        "whether the board preserved each reference URL as a link",
+        "The editor-readback row checks pre-posting anchor destinations and count; the command never reads the posted entry's DOM, so surviving board links remain the posted reading.",
         EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether the posting click happened in the formatted Composer view",
+        "The retained script output reads the view at the loaded-box stop; it cannot prove that the Composer remained unchanged through the eventual click.",
+        EvidenceDisposition.DECLARED_READING,
     ),
     (
         "whether archival text parity was reported when --docx was omitted",
@@ -378,6 +387,8 @@ class RunSource:
     docx_matches_rebuild: bool | None
     rendered_readings: tuple[RenderedReading, ...]
     render_passes: tuple[tuple[int, RenderPass], ...]
+    editor_readback: str | None
+    built_html: str | None
     missing_pass_numbers: int
     refused_label: str | None
     post_url: str | None
@@ -448,6 +459,9 @@ class Scan:
     rendered_text_mismatches: int | None
     missing_pass_numbers: int
     html_graded: bool
+    editor_readback_graded: bool
+    editor_units_read: int
+    editor_units_total: int
     render_route: str
     rendered_pages_graded: bool
     docx_graded: bool
@@ -952,6 +966,18 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         submitted_blocks,
     ) = _html_properties(html, draft_text) if html is not None else (0, 0, None, None)
     render_passes, missing_pass_numbers = _render_passes(root)
+    try:
+        readback_path = (
+            root / "render" / f"pass-{render_passes[-1][0]}" / "editor-readback.json"
+            if render_passes else None
+        )
+        editor_readback = (
+            readback_path.read_text(encoding="utf-8")
+            if readback_path is not None and readback_path.is_file() else None
+        )
+        built_html = html.read_text(encoding="utf-8") if html is not None else None
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read the Composer readback: {failure}") from failure
     return RunSource(
         path=root,
         draft=draft,
@@ -980,6 +1006,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         ),
         rendered_readings=_rendered_readings(post_text) if html is not None else (),
         render_passes=render_passes,
+        editor_readback=editor_readback,
+        built_html=built_html,
         missing_pass_numbers=missing_pass_numbers,
         refused_label=section.refused_label,
         post_url=post_fields.get("POST-URL"),
@@ -1306,7 +1334,30 @@ def _attachment_page_findings(source: RunSource) -> RenderedPageSurvey:
     )
 
 
+def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int, int]:
+    # Gate 1 precedes the load. Once a pass exists, only its newest readback counts.
+    if not source.render_passes:
+        return (), 0, 0
+    number = source.render_passes[-1][0]
+    path = source.path / "render" / f"pass-{number}" / "editor-readback.json"
+    retained = source.editor_readback
+    built = source.built_html
+    if (source.rendered_readings and source.rendered_readings[-1].measure == "PAGES") or any(
+        item.composer_outcome == "attachment" and item.artifact == source.draft.stem
+        for item in source.readings
+    ):
+        title = next((block.text for block in docx_write.blocks(source.draft_text)
+                      if block.kind == "heading"), source.draft.stem)
+        pointer = (f"{title}\n\nCanvas refused the full text inline for message size. "
+                   f"The complete submission is attached as {source.docx.name if source.docx else ''}.")
+        built = post_html.render(pointer)
+    detail, read, total = canvas_readback.compare(built, retained, surface="initial")
+    findings = (Finding(EDITOR_READBACK, str(path.relative_to(source.path)), detail),) if detail else ()
+    return findings, read, total
+
+
 def survey(source: RunSource) -> Scan:
+    editor_findings, editor_units_read, editor_units_total = _editor_readback_result(source)
     initial_reading = next(
         (item for item in source.readings if item.artifact == source.draft.stem), None
     )
@@ -1341,7 +1392,7 @@ def survey(source: RunSource) -> Scan:
         if finding.kind == kind
     )
     if source.refused_label is not None:
-        findings = _submission_findings(source) + rendered_pages.findings + heading_findings
+        findings = _submission_findings(source) + rendered_pages.findings + heading_findings + editor_findings
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -1361,6 +1412,9 @@ def survey(source: RunSource) -> Scan:
             ),
             missing_pass_numbers=source.missing_pass_numbers,
             html_graded=source.html is not None and not attachment,
+            editor_readback_graded=bool(source.render_passes),
+            editor_units_read=editor_units_read,
+            editor_units_total=editor_units_total,
             render_route="attachment" if attachment else "inline",
             rendered_pages_graded=rendered_pages.engine_available,
             rendered_pages_state="waiting" if rendered_pages.waiting_for_load else "graded",
@@ -1379,7 +1433,7 @@ def survey(source: RunSource) -> Scan:
     listed_references = ReferenceKeySet.from_references(source.references)
     body_citations, citations, coverage = _citation_keys(source.body, reference_key_set)
     numbers = traceable_numeric_values(source.body, body_citations)
-    findings: list[Finding] = list(_posted_reading_findings(source) + heading_findings)
+    findings: list[Finding] = list(_posted_reading_findings(source) + heading_findings + editor_findings)
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
         if reference is not None and legal_reference_lacks_name(
@@ -1508,6 +1562,9 @@ def survey(source: RunSource) -> Scan:
         ),
         missing_pass_numbers=source.missing_pass_numbers,
         html_graded=source.html is not None and not attachment,
+        editor_readback_graded=bool(source.render_passes),
+        editor_units_read=editor_units_read,
+        editor_units_total=editor_units_total,
         render_route="attachment" if attachment else "inline",
         rendered_pages_graded=rendered_pages.engine_available,
         rendered_pages_state="waiting" if rendered_pages.waiting_for_load else "graded",
@@ -1592,15 +1649,19 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             else f"{RENDERED_TEXT}: {NOT_GRADED}"
         ),
         f"missing pass numbers: {scan.missing_pass_numbers} (counted, {NOT_GRADED})",
+        f"editor HTML units read: {scan.editor_units_read} of {scan.editor_units_total}; unread {scan.editor_units_total - scan.editor_units_read}",
         legal_reader_covered(),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind == SUBMISSION_FINGERPRINT and not scan.submission_fingerprint_graded:
+        if kind == EDITOR_READBACK and not scan.editor_readback_graded:
+            lines.append(f"{kind}: {NOT_GRADED} - awaiting a Canvas-box load")
+        elif kind == SUBMISSION_FINGERPRINT and not scan.submission_fingerprint_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind in POSTED_READING_ROWS and not scan.posted_reading_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind not in {
+            EDITOR_READBACK,
             BOLD_HEADINGS,
             RENDERED_COMMENTS,
             SUBMISSION_TEXT,

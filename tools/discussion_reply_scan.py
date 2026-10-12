@@ -24,7 +24,7 @@ import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from html.parser import HTMLParser
+import canvas_readback
 from pathlib import Path
 
 from discussion_artifact import (
@@ -119,7 +119,7 @@ ROWS = {
     BARE_VERDICT: "every posted reading says what it found",
     UNLOCATED_READING: "every posted reply reading carries its board entry id",
     BORROWED_LOCATOR: "every posted reply reading carries its own locator",
-    EDITOR_READBACK: "every retained editor readback matches the built reply HTML",
+    EDITOR_READBACK: "every retained editor readback is formatted and matches the built reply HTML",
     SUBMISSION_FINGERPRINT: "every posted reading is bound to its current reply Markdown",
 }
 ROWS.update({kind: "the heading read agrees with each final reply and its scoped claim headings" for kind in heading_read.KINDS})
@@ -345,59 +345,6 @@ def _split_reply(path: Path) -> Reply:
     )
 
 
-@dataclass(frozen=True)
-class _EditorShape:
-    units: tuple[tuple[str, str], ...]
-    anchors: tuple[str, ...]
-    read: int
-    total: int
-
-
-class _EditorHTML(HTMLParser):
-    UNIT_TAGS = frozenset(("p", "li", "th", "td", "blockquote"))
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._unit_stack: list[tuple[str, list[str]]] = []
-        self.units: list[tuple[str, str]] = []
-        self.anchors: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        tag = tag.casefold()
-        if tag == "a":
-            href = next((value for name, value in attrs if name == "href"), None)
-            if href is not None:
-                self.anchors.append(href)
-        if tag in self.UNIT_TAGS:
-            self._unit_stack.append((tag, []))
-
-    def handle_endtag(self, tag: str) -> None:
-        tag = tag.casefold()
-        if self._unit_stack and tag == self._unit_stack[-1][0]:
-            unit_tag, unit_text = self._unit_stack.pop()
-            self.units.append(
-                (unit_tag, " ".join("".join(unit_text).split()))
-            )
-
-    def handle_data(self, data: str) -> None:
-        for _tag, unit_text in self._unit_stack:
-            unit_text.append(data)
-
-
-EDITOR_UNIT = re.compile(r"(?i)<(?:p|li|th|td|blockquote)(?=[\s>/])")
-
-
-def _editor_shape(markup: str) -> _EditorShape:
-    parser = _EditorHTML()
-    parser.feed(markup)
-    parser.close()
-    return _EditorShape(
-        units=tuple(parser.units),
-        anchors=tuple(parser.anchors),
-        read=len(parser.units),
-        total=len(EDITOR_UNIT.findall(markup)),
-    )
-
 
 def _editor_readback_result(
     source: RunSource,
@@ -406,38 +353,11 @@ def _editor_readback_result(
     units_read = 0
     units_total = 0
     for pair in source.editor_pairs:
-        built = _editor_shape(pair.built) if pair.built is not None else None
-        readback = (
-            _editor_shape(pair.readback) if pair.readback is not None else None
-        )
-        for shape in (built, readback):
-            if shape is not None:
-                units_read += shape.read
-                units_total += shape.total
-        if pair.built is None:
-            detail = "editor readback exists without the built HTML"
-        elif pair.readback is None:
-            detail = "built HTML has no editor readback"
-        else:
-            assert built is not None and readback is not None
-            differences: list[str] = []
-            if built.read != built.total:
-                differences.append(f"built HTML units read {built.read} of {built.total}")
-            if readback.read != readback.total:
-                differences.append(
-                    f"editor readback units read {readback.read} of {readback.total}"
-                )
-            if readback.units != built.units:
-                differences.append("visible block text differs")
-            if len(readback.anchors) != len(built.anchors):
-                differences.append(
-                    f"anchor count is {len(readback.anchors)}, expected {len(built.anchors)}"
-                )
-            elif readback.anchors != built.anchors:
-                differences.append("anchor destinations differ")
-            if not differences:
-                continue
-            detail = "; ".join(differences)
+        detail, read, total = canvas_readback.compare(pair.built, pair.readback, surface="reply")
+        units_read += read
+        units_total += total
+        if not detail:
+            continue
         findings.append(Finding(EDITOR_READBACK, pair.response, detail))
     return tuple(findings), units_read, units_total
 
@@ -729,16 +649,16 @@ def load(parsed: run_grader.Parsed) -> RunSource:
                     else None
                 ),
                 readback=(
-                    path.with_name(f"{path.stem}-readback.html").read_text(
+                    path.with_name(f"{path.stem}-readback.json").read_text(
                         encoding="utf-8"
                     )
-                    if path.with_name(f"{path.stem}-readback.html").exists()
+                    if path.with_name(f"{path.stem}-readback.json").exists()
                     else None
                 ),
             )
             for path in response_paths
             if path.with_suffix(".html").exists()
-            or path.with_name(f"{path.stem}-readback.html").exists()
+            or path.with_name(f"{path.stem}-readback.json").exists()
         )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure

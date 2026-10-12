@@ -43,6 +43,7 @@ NO_LIMITS = {
     "assertion_record": "shared assertion-record data structures with no independent coverage claim",
     "case_study_render": "the renderer produces retained evidence and does not grade its coverage",
     "cdc_percentile": "a deterministic table lookup whose source and fallback disclosures are explicit outputs",
+    "canvas_readback": "shared Composer readback comparison; the calling discussion graders own its coverage conclusions and limits",
     "console_codec": "a narrow console-encoding adapter with no asserted population walk",
     "code_set_database_test_support": "test support for Code-set database digest pins, not a public checker",
     "corpus_census": "a corpus counter whose reported population is named by its command output",

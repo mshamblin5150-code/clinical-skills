@@ -43,7 +43,7 @@ scratch/runs/<course>-<module>-discussion/
     post.md
     response-<name>.md
     response-<name>.html
-    response-<name>-readback.html
+    response-<name>-readback.json
     reread.md
     voice-status.md
 ```
@@ -324,8 +324,10 @@ Leave the historical runs filed in #1495 as they stand. When touching one that p
 an approval record, report `stopped - posted before the approval recorder could record it (#1495)`.
 
 The `editor-readback` row has no candidate before a posting HTML file exists. Once
-`response-<name>.html` exists, the row requires its `response-<name>-readback.html` pair and grades
-the two files' paragraph text, anchor destinations, and anchor count.
+`response-<name>.html` exists, the row requires its `response-<name>-readback.json` pair and grades
+the fixed page-script output from `canvas-editor.md`: a formatted Composer view and matching
+paragraph text, anchor destinations, and anchor count. A missing or unidentified view or either
+code view refuses even when the HTML matches.
 
 Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single inventory of what the
 command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
@@ -403,8 +405,8 @@ python tools/post_html.py scratch/runs/<run-key>/response-<name>.md scratch/runs
 The builder keeps the authored paragraphs, renders the bold `References` label, and writes every URL
 as a link whose text is the URL itself, so each reference can be followed from the board; the
 result is the reply omitting the `INVOKED` comments. Load it by the route already declared under
-`canvas-editor.md`, then write the Composer's serialized HTML to
-`response-<name>-readback.html`. Rerun `discussion_reply_scan.py` before posting. A non-clean
+`canvas-editor.md`, then run its fixed page script and retain its unedited JSON output in
+`response-<name>-readback.json`. Rerun `discussion_reply_scan.py` before posting. A non-clean
 `editor-readback` comparison stops and returns to the clinician; do not switch routes or retry the
 load. Follow the loaded-box stop in `canvas-editor.md`. Record the **Posting go-ahead** before Submit
 with a second `approval_record.approve(run, skill="discussion-reply",

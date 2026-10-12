@@ -11,6 +11,7 @@ import io
 import json
 import hashlib
 import re
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -428,6 +429,56 @@ class DatedReferenceEntriesAreReferences(unittest.TestCase):
 
 
 class ACompleteRunPasses(unittest.TestCase):
+    def test_formatted_readbacks_refuse_extra_visible_text_and_duplicate_fields(self):
+        markup = "<p>Approved.</p>"
+        records = [json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": markup + extra})
+                   for extra in ("<div>Extra text</div>", "Extra text", "<h2>Extra heading</h2>")]
+        records.append('{"editor_id":"message-body-31","view":"raw","view":"formatted","html":"<p>Approved.</p>"}')
+        for record in records:
+            with self.subTest(record=record), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "response-maren.html").write_text(markup, encoding="utf-8")
+                (run.root / "response-maren-readback.json").write_text(record, encoding="utf-8")
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+                self.assertEqual(1, status)
+                self.assertIn("editor-readback: 1", stdout.getvalue())
+
+    def test_matching_html_in_a_code_view_is_refused(self):
+        for view in ("raw", "pretty", "unidentified"):
+            with self.subTest(view=view), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                markup = "<p>The approved paragraph.</p>"
+                (run.root / "response-maren.html").write_text(markup, encoding="utf-8")
+                (run.root / "response-maren-readback.json").write_text(
+                    json.dumps({"editor_id": "message-body-31", "view": view, "html": markup}),
+                    encoding="utf-8",
+                )
+                # The old HTML-only reading cannot certify the Composer view.
+                (run.root / "response-maren-readback.html").write_text(markup, encoding="utf-8")
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+                self.assertEqual(1, status)
+                self.assertIn("editor-readback: 1", stdout.getvalue())
+
+    def test_a_missing_or_malformed_view_is_refused(self):
+        records = ({"editor_id": "message-body-31", "html": "<p>Approved.</p>"},
+                   {"editor_id": "message-body-31", "view": "formatted", "html": []},
+                   {"editor_id": "message-body-root", "view": "formatted", "html": "<p>Approved.</p>"},
+                   "<p>Approved.</p>")
+        for record in records:
+            with self.subTest(record=record), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "response-maren.html").write_text("<p>Approved.</p>", encoding="utf-8")
+                (run.root / "response-maren-readback.json").write_text(json.dumps(record), encoding="utf-8")
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+                self.assertEqual(1, status)
+                self.assertIn("editor-readback: 1", stdout.getvalue())
+
     def test_an_editor_readback_that_loses_an_anchor_fails(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -441,8 +492,8 @@ class ACompleteRunPasses(unittest.TestCase):
                 "<p>https://example.org/reference</p>\n"
             )
             (run.root / "response-maren.html").write_text(built, encoding="utf-8")
-            (run.root / "response-maren-readback.html").write_text(
-                readback, encoding="utf-8"
+            (run.root / "response-maren-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": readback}), encoding="utf-8"
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
@@ -457,8 +508,8 @@ class ACompleteRunPasses(unittest.TestCase):
             (run.root / "response-maren.html").write_text(
                 "<p>Maren, this is the approved paragraph.</p>\n", encoding="utf-8"
             )
-            (run.root / "response-maren-readback.html").write_text(
-                "<p>Maren, this is a changed paragraph.</p>\n", encoding="utf-8"
+            (run.root / "response-maren-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": "<p>Maren, this is a changed paragraph.</p>\n"}), encoding="utf-8"
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
@@ -475,9 +526,10 @@ class ACompleteRunPasses(unittest.TestCase):
                 "Reference</a></p>\n",
                 encoding="utf-8",
             )
-            (run.root / "response-maren-readback.html").write_text(
+            (run.root / "response-maren-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-31", "view": "formatted", "html":
                 '<p> Maren,\n one line. </p>\n<p><a target="_blank" '
-                'href="https://example.org/a?x=1&amp;y=2">Reference</a></p>\n',
+                'href="https://example.org/a?x=1&amp;y=2">Reference</a></p>\n'}),
                 encoding="utf-8",
             )
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -505,8 +557,8 @@ class ACompleteRunPasses(unittest.TestCase):
             (run.root / "response-maren.html").write_text(
                 "<blockquote>The approved quotation.</blockquote>\n", encoding="utf-8"
             )
-            (run.root / "response-maren-readback.html").write_text(
-                "<blockquote>A changed quotation.</blockquote>\n", encoding="utf-8"
+            (run.root / "response-maren-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": "<blockquote>A changed quotation.</blockquote>\n"}), encoding="utf-8"
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
@@ -519,8 +571,8 @@ class ACompleteRunPasses(unittest.TestCase):
     def test_a_partial_html_read_cannot_report_a_clean_whole(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
-            for name in ("response-maren.html", "response-maren-readback.html"):
-                (run.root / name).write_text("<p>Unclosed", encoding="utf-8")
+            for name in ("response-maren.html", "response-maren-readback.json"):
+                (run.root / name).write_text(json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": "<p>Unclosed"}) if name.endswith(".json") else "<p>Unclosed", encoding="utf-8")
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -533,8 +585,8 @@ class ACompleteRunPasses(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             markup = "<blockquote><p>The approved quotation.</p></blockquote>\n"
-            for name in ("response-maren.html", "response-maren-readback.html"):
-                (run.root / name).write_text(markup, encoding="utf-8")
+            for name in ("response-maren.html", "response-maren-readback.json"):
+                (run.root / name).write_text(json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": markup}) if name.endswith(".json") else markup, encoding="utf-8")
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -555,8 +607,8 @@ class ACompleteRunPasses(unittest.TestCase):
             (run.root / "response-maren.html").write_text(
                 "<p>The approved paragraph.</p>\n", encoding="utf-8"
             )
-            (run.root / "response-maren-readback.html").write_text(
-                "<p>A changed paragraph.</p>\n", encoding="utf-8"
+            (run.root / "response-maren-readback.json").write_text(
+                json.dumps({"editor_id": "message-body-31", "view": "formatted", "html": "<p>A changed paragraph.</p>\n"}), encoding="utf-8"
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
