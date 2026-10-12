@@ -59,6 +59,12 @@ DECLARED_CANDIDATES = (
         "value in a note.",
     ),
     Candidate(
+        "Composer",
+        Verdict.COLLISION,
+        "The bare term is the editor a contribution is written into; a Composer view is the "
+        "face that editor is showing, not a kind of Composer. Ruled with ADR 0344.",
+    ),
+    Candidate(
         "Drift",
         Verdict.COLLISION,
         "The bare term is a clinical finding lost across note sections; Corpus drift is divergence between the corpus and tree.",

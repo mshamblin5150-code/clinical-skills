@@ -171,6 +171,14 @@ editor does not register the change without a keystroke, and that keystroke auto
 front of it, which `:269-270` steers around by rule. #1039's surviving board entry is that
 workaround's recorded cost.
 
+*Superseded 2026-10-11.* The words "so it carries no parser and nothing live between the bytes and
+the box" are narrowed by
+[ADR 0344](0344-a-contribution-is-posted-from-the-formatted-composer-view-and-the-readback-records-the-view.md)
+ruling 2: they remain true of the load, but route 1 now ends in the formatted view, so the Composer
+at the stop and at the click holds the rich editor's parse of those bytes. The route order, the
+confirmation of the landed editor by reading it, and the rule against switching routes after a bad
+comparison stand.
+
 **Three rungs is not the third rung ADR 0147 ruling 7 refused.** That refusal was aimed at the Word
 paste, which produces a *visibly wrong* post. All three of these produce a correct one.
 
