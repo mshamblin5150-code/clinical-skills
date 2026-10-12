@@ -272,8 +272,7 @@ made.** So:
 comes next, by what would kill or maim first even where the history argues it down; the other
 diagnoses not ruled out follow by likelihood; ruled-out entries come last.**
 
-**Where the patient meets most of the published criteria for a diagnosis, that diagnosis leads.**
-It is number one on the differential and it is the most likely clinical diagnosis. **Ruled
+**Ruled
 2026-08-18, against a run that did the opposite** — a patient meeting two of three minimum criteria
 and four of five additional criteria for pelvic inflammatory disease was written up with cervicitis
 ranked first, on the strength of an anatomic argument that the pregnancy made ascending infection
