@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import sys
+from contextlib import closing
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -47,8 +48,16 @@ MISSING_BLOCK = "missing refusal block"
 PROPOSED_AND_REFUSED = "proposed and refused"
 MALFORMED_MARK = "malformed NOT CODED mark"
 UNOFFICIAL_DESCRIPTOR = "unofficial refusal descriptor"
+NON_BILLABLE_CODE = "non-billable refusal code"
 
 DECLARED_LIMITS = (
+    (
+        "whether a refused code is billable in the service-date release",
+        "Billability is read against the committed ICD-10-CM release, not the "
+        "service-date release, so a run graded after a code-set rebuild may "
+        "read differently than when it was written.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
     (
         "whether a code that should have been refused was refused at all",
         "The scanner reads only the refusal block, so a code carried in the coded "
@@ -88,6 +97,7 @@ ROWS = {
     PROPOSED_AND_REFUSED: "icd10-cpt step 4 - proposal/refusal separation",
     MALFORMED_MARK: "icd10-cpt step 4 - NOT CODED record",
     UNOFFICIAL_DESCRIPTOR: "icd10-cpt step 4 - official refusal descriptor",
+    NON_BILLABLE_CODE: "icd10-cpt step 4 - billable refusal code",
 }
 KINDS = tuple(ROWS)
 
@@ -248,6 +258,10 @@ def worksheet_findings(sheet: Worksheet) -> list[Finding]:
     for refusal in sheet.refusals:
         if not icd10_lookup.refusal_descriptor_matches(refusal.code, refusal.descriptor):
             findings.append(Finding(UNOFFICIAL_DESCRIPTOR, refusal.code))
+        with closing(icd10_lookup.open_database()) as connection:
+            entry = icd10_lookup.describe(connection, refusal.code)
+        if entry is not None and not entry.billable:
+            findings.append(Finding(NON_BILLABLE_CODE, refusal.code))
         if not refusal.has_needs:
             findings.append(Finding(MISSING_NEEDS, refusal.code))
         if not refusal.has_substitute:
