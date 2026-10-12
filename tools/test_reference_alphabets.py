@@ -55,6 +55,27 @@ class PaperLanguage(unittest.TestCase):
                 self.assertEqual(scan.main(base), 2)
             self.assertIn("not graded", output.getvalue())
 
+    def test_ungraded_order_does_not_hide_other_findings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "profile.md"
+            profile.write_text("PAPER-LANGUAGE: English\nPAPER-LANGUAGE: Spanish\n", encoding="utf-8")
+            self.assertIsNone(alphabets.paper_language(profile=profile))
+            draft = Path(directory) / "draft.md"
+            draft.write_text("A claim (Absent, 2025).\n\n## References\n\nSmith, J. (2025). Topic. Publisher.\n", encoding="utf-8")
+            with redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()):
+                self.assertEqual(scan.main([str(draft), "--profile", str(profile), "--as-of", "2026-10-12"]), 1)
+            self.assertIn("not graded", output.getvalue())
+            self.assertIn("unlisted-citation", output.getvalue())
+
+    def test_full_group_spelling_is_checked_but_abbreviations_are_preserved(self):
+        for cited, expected in [("Oresund Institute", [scan.CITATION_AUTHOR_SPELLING]),
+                                ("Oresund-Institute", [scan.CITATION_AUTHOR_SPELLING]),
+                                ("Øresund Institute", [])]:
+            text = f"A claim ({cited}, 2025).\n\n## References\n\nØresund Institute. (2025). Topic. Publisher.\n"
+            self.assertEqual([f.kind for f in scan.survey(scan.read_document(text), date(2026, 10, 12), "en").findings], expected)
+        text = "A claim (Øresund Institute [OI], 2025). A claim (OI, 2025).\n\n## References\n\nØresund Institute. (2025). Topic. Publisher.\n"
+        self.assertNotIn(scan.CITATION_AUTHOR_SPELLING, [f.kind for f in scan.survey(scan.read_document(text), date(2026, 10, 12), "en").findings])
+
 
 if __name__ == "__main__":
     unittest.main()

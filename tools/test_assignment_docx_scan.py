@@ -28,6 +28,26 @@ GraderConformance = for_module(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+class ReferenceLanguage(unittest.TestCase):
+    def test_assignment_override_reaches_the_shared_reference_grader(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case = empty_population_input(Path(directory))
+            root = Path(case.argv[0])
+            bar = root / "bar.md"
+            bar.write_text(bar.read_text(encoding="utf-8") + "PAPER-LANGUAGE: Norwegian Bokmål\n", encoding="utf-8")
+            profile = Path(directory) / "profile.md"
+            profile.write_text("PAPER-LANGUAGE: Spanish\n", encoding="utf-8")
+            for extra, expected in [([], "nb"), (["--paper-language", "English"], "en"), (["--paper-language", "German"], "german")]:
+                parsed = run_grader.parse(scan.GRADER, [*case.argv, "--profile", str(profile), *extra])
+                source = scan.load(parsed)
+                self.assertEqual(scan.survey(source).paper_language, expected)
+            bar.write_text(bar.read_text(encoding="utf-8").replace("PAPER-LANGUAGE: Norwegian Bokmål\n", ""), encoding="utf-8")
+            source = scan.load(run_grader.parse(scan.GRADER, [*case.argv, "--profile", str(profile)]))
+            self.assertEqual(scan.survey(source).paper_language, "es")
+            profile.write_text("No language answer\n", encoding="utf-8")
+            self.assertIsNone(scan.load(run_grader.parse(scan.GRADER, [*case.argv, "--profile", str(profile)])).paper_language)
+
+
 class PackageTest(unittest.TestCase):
     def test_the_old_single_line_caption_is_a_finding(self) -> None:
         package = assignment_docx.parts(assignment_docx.fixture_spec())

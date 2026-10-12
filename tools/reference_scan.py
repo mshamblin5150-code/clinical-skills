@@ -2061,7 +2061,7 @@ def _citation_findings(document: Document) -> list[Finding]:
         if normalize(bare_surname).replace(" ", "") in ambiguous:
             found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
         matched = tuple(entry for entry in document.entries if matches(citation, entry))
-        # Read only corresponding personal surnames, never the surrounding prose.
+        # Read only corresponding surnames or full group names, never body prose.
         # Abbreviated groups and shortened titles are not spelling differences.
         cited_names = re.split(r"\s+(?:&|and)\s+|\s+et\s+al\.", phrase, flags=re.I)
         for entry in matched:
@@ -2069,13 +2069,18 @@ def _citation_findings(document: Document) -> list[Finding]:
                 continue
             match = entry._year_match
             listed_names = personal_authors(entry.text[:match.start()] if match else entry.text)
-            for cited, (listed, _initials) in zip(cited_names, listed_names):
+            compared_citations = cited_names
+            if not listed_names and normalize(phrase) == normalize(entry.citation_author):
+                listed_names = ((entry.citation_author, ""),)
+                compared_citations = [phrase]
+            for cited, (listed, _initials) in zip(compared_citations, listed_names):
                 if citation.first_name is not None:
                     cited = re.sub(r"^(?:[^\W\d_]\.\s*)+", "", cited)
-                for cited_word, listed_word in zip(cited.split(), listed.split()):
+                cited_words = re.findall(r"[^\W\d_]+", unicodedata.normalize("NFC", cited))
+                listed_words = re.findall(r"[^\W\d_]+", unicodedata.normalize("NFC", listed))
+                for cited_word, listed_word in zip(cited_words, listed_words):
                     if (normalize(cited_word) == normalize(listed_word)
-                            and unicodedata.normalize("NFC", cited_word).lower()
-                            != unicodedata.normalize("NFC", listed_word).lower()):
+                            and cited_word.lower() != listed_word.lower()):
                         found.append(Finding(CITATION_AUTHOR_SPELLING, "body",
                                              f"{cited_word} / {listed_word} {citation.year}"))
         listed_years = {

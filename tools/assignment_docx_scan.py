@@ -367,7 +367,8 @@ def load(
         heading_read_text,
         document,
         reference_alphabets.paper_language(
-            parsed.value("--paper-language") or (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
+            parsed.value("--paper-language") if parsed.value("--paper-language") is not None
+            else (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
             Path(parsed.value("--profile")) if parsed.value("--profile") else None,
         ),
     )
