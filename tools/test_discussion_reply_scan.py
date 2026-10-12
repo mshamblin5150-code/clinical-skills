@@ -147,6 +147,18 @@ class Run:
 
 
 class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
+    def test_nameless_heading_reads_stop_a_clean_reply_grade(self):
+        for heading in ("## HEADING-READ:", "## HEADING-READ: response-typo", "## HEADING-READ"):
+            with self.subTest(heading=heading), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                path = run.root / "heading-read.md"
+                path.write_text(path.read_text(encoding="utf-8") + heading + "\n", encoding="utf-8")
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                    status = scan.main([temp])
+                self.assertEqual(2, status)
+                self.assertIn("unread remainder 1", stdout.getvalue())
+
     def test_a_shared_initial_post_record_is_reported_without_blocking_the_reply(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

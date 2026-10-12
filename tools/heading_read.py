@@ -409,7 +409,9 @@ def format_coverage(result: Scan) -> str:
     )
 
 
-def protocol_coverage(claims_text: str, heading_text: str, artifacts: tuple[str, ...]) -> str:
+def protocol_coverage(
+    claims_text: str, heading_text: str, artifacts: tuple[str, ...], *, report_other_files: bool = True
+) -> str:
     """Report the ungraded legacy populations without implying a clean zero."""
     claims = research_ledger.read_records(claims_text)
     headings = {research_ledger.heading_digest(claim.claim)[:8]: claim for claim in claims}
@@ -422,7 +424,7 @@ def protocol_coverage(claims_text: str, heading_text: str, artifacts: tuple[str,
         for record in records for pair in record.pairs
         for parsed in (PAIR.fullmatch(pair),)
     )
-    lines = [_format_other_files(_other_files(heading_text, set(artifacts)))]
+    lines = [_format_other_files(_other_files(heading_text, set(artifacts)))] if report_other_files else []
     if not research_ledger.qualifiers_required(research_ledger.ledger_date(claims_text)):
         bound_count = sum(record.artifact in artifacts for record in records)
         lines.append(f"item-description comparisons: {run_grader.NOT_GRADED} - unread {bound_count} heading-read records")
