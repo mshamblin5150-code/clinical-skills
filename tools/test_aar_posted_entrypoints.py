@@ -89,14 +89,18 @@ class PostedReadingSnapshot(unittest.TestCase):
             run = Path(temporary)
             artifact = run / "synthetic.docx"
             artifact.write_bytes(b"synthetic artifact bytes")
+            artifact_digest = sha256(artifact.read_bytes()).hexdigest()
+            supplement_digest = sha256(b"synthetic supplement bytes").hexdigest()
             (run / "submission-gates.json").write_text(json.dumps({
-                "approved_carriers": [{"filename": "synthetic.docx"}, {"filename": "supplement.pdf"}],
+                "approved_carriers": [{"filename": "synthetic.docx", "sha256": artifact_digest}, {"filename": "supplement.pdf", "sha256": supplement_digest}],
             }), encoding="utf-8")
             record = (
                 "## REREAD: synthetic\n"
                 f"SUBMISSION-SHA256: {sha256(artifact.read_bytes()).hexdigest()}\n"
                 "VERDICT: matches - Both uploaded files were read.\n"
                 "ATTACHMENT-COUNT: 2\nSUBMITTED-FILE: synthetic.docx\nSUBMITTED-FILE: supplement.pdf\n"
+                f"POSTED-FILE: synthetic.docx | sha256={artifact_digest} | route=page\n"
+                f"POSTED-FILE: supplement.pdf | sha256={supplement_digest} | route=page\n"
             )
             reread = run / "reread.md"
             args = (str(run), "--artifact", str(artifact))

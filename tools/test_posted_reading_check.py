@@ -45,7 +45,8 @@ class PostedReadingCheck(unittest.TestCase):
                 'LEGACY-DISPLAY: expected - observed display\n'
                 'COMPOSER-OUTCOME: attachment\nHTML-BYTES: 42\n'
                 'ATTACHMENT-COUNT: 1\nSUBMITTED-FILE: example.docx\n'
-                'REFUSAL: 2026-10-03 - observed refusal\nATTACHMENT: posted/example.docx\n'
+                'REFUSAL: 2026-10-03 - observed refusal\n'
+                f'POSTED-FILE: example.docx | sha256={artifact.file_digest.sha256(docx)} | route=clinician-supplied | path=posted/example.docx\n'
                 'VISIT: 1 | patient 1 | reference matched P-1 | patient-detail=/1 | '
                 'note-view=/view?resultid=1 | visit-date=today | finished=today | matches\n'
             )[0]
@@ -64,8 +65,10 @@ class PostedReadingCheck(unittest.TestCase):
                 'composer-outcome': dict(composer_outcome='maybe'),
                 'html-bytes': dict(html_bytes='41'),
                 'refusal': dict(refusal='undated refusal'),
-                'attachment-field': dict(attachment=''),
-                'attachment-copy': dict(attachment='../example.docx'),
+                'attachment-field': dict(posted_files=()),
+                'posted-file-malformed': dict(posted_files=('invalid',)),
+                'posted-file-duplicate': dict(posted_files=reading.posted_files * 2),
+                'posted-file-population': dict(posted_files=(reading.posted_files[0].replace('example.docx', 'other.docx'),)),
                 'portal-fields': dict(missing_fields=('POST-URL',)),
                 'read-count': dict(read='1 of 2 read'),
                 'visit-count': dict(visits=()),
@@ -95,6 +98,9 @@ class PostedReadingCheck(unittest.TestCase):
             copy.write_bytes(b'changed posted copy')
             self.assertEqual(['attachment-digest'], [item.code for item in artifact.check_posted_reading(reading, 'a' * 64, **options)])
             observed.add('attachment-digest')
+            copy.unlink()
+            self.assertEqual(['attachment-copy'], [item.code for item in artifact.check_posted_reading(reading, 'a' * 64, **options)])
+            observed.add('attachment-copy')
             self.assertEqual(set(artifact.POSTED_READING_MESSAGES), observed)
 
     def test_members_never_compare_the_posted_fingerprint_themselves(self):

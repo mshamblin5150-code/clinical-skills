@@ -41,6 +41,49 @@ records the ruling; [CONTEXT.md](../../../CONTEXT.md) defines both file populati
    fingerprint also freezes a size-fallback copy for the later completion check. Read every
    matched file; unresolved files stop the live-source step.
 
+## Posted files
+
+After submission, identify each posted attachment from that entry's own course-site file record.
+Follow [ADR 0350](../../../docs/adr/0350-a-posted-file-is-fingerprinted-in-the-page-and-never-downloaded.md):
+fetch the record's `url` with credentials and compute its SHA-256 in the page with the script above,
+returning only the digest and byte count. Compare the digest with the approved file: each filename's
+Gate 1 fingerprint on `course-assignment`, or the local checked `.docx` on an attachment fallback.
+On equality, read the local approved file; identical bytes are the same document. The run never
+clicks a posted entry's Download link and never searches a download folder.
+
+**Measured 2026-10-12, read-only in the clinician's signed-in Chrome:** the assignment route read
+`/api/v1/courses/<course-id>/assignments/<assignment-id>/submissions/self` and its `attachments`;
+the discussion route read `/api/v1/courses/<course-id>/discussion_topics/<topic-id>/view` and the
+posted entry's `attachment` in `view` (including nested `replies`). Each attachment's
+`/api/v1/files/<file-id>` record returned HTTP 200. Fetching each record's `url` with
+`credentials: "include"` failed with `TypeError: Failed to fetch`, so neither page digest nor
+comparison with the local posted file was available. No download or submission occurred. The
+single-entry `/entries/<entry-id>` request returned HTML rather than a JSON record; use the
+discussion `view` route. On these measured assignment and discussion surfaces, the
+clinician-supplied route below is the only route. ADR 0324's successful faculty-file measurement
+does not establish a posted-file route. A later successful measurement must record its date and
+API paths here before enabling the page route for that surface.
+
+When the page cannot read the file, ask the clinician once to save it from the posted entry's own
+attachment link and say where. Copy that supplied file into `<run>/posted/<submitted basename>`
+and compute its raw-byte SHA-256 with `python tools/file_digest.py "<run>/posted/<basename>"`.
+Require equality with the approved fingerprint before reading it. A copy from the general files
+area does not establish what the entry carries. There is no size fallback.
+
+Before `/AAR` extracts the posted reading, write one line per submitted file using exactly one
+of these forms:
+
+```text
+POSTED-FILE: <submitted basename> | sha256=<64 lowercase hex> | route=page
+POSTED-FILE: <submitted basename> | sha256=<64 lowercase hex> | route=clinician-supplied | path=posted/<basename>
+```
+
+The completion grader compares each line with its approved fingerprint and re-hashes each
+clinician-supplied copy. A missing, malformed, or unequal line, or an absent or changed supplied
+copy, is a finding. The reader still records a substantive verdict about the document's content.
+The grader cannot prove a `page` fingerprint came from the page: a digest copied from the approved
+record passes, as declared beside the implementation.
+
 ## Attachment appendix of the sitting snapshot
 
 The assignment or board snapshot links its attachment appendix at

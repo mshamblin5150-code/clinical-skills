@@ -1,4 +1,8 @@
-"""Durable authorization state for course-assignment upload carriers."""
+"""Durable authorization state for course-assignment upload carriers.
+
+The posted-fingerprint coverage boundary belongs to
+``assignment_submission.DECLARED_LIMITS``; this docstring copies no row.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +22,16 @@ import file_digest
 import repo_root
 import project_context
 from discussion_artifact import read_posted_readings
+from run_grader import EvidenceDisposition
+
+
+DECLARED_LIMITS = (
+    (
+        "page-fingerprint-origin",
+        "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+)
 
 
 class GateError(ValueError):
@@ -362,12 +376,14 @@ def posted_reading_check(
     if not isinstance(approved, list) or not all(isinstance(item, dict) for item in approved):
         raise GateError("approved carrier population cannot be read")
     filenames = tuple(item.get("filename", "") for item in approved)
+    posted_files = tuple((item.get("filename", ""), item.get("sha256", "")) for item in approved)
     reread = run / "reread.md"
     readings = read_posted_readings(reread.read_text(encoding="utf-8")) if reread.is_file() else ()
     reading = next((item for item in readings if item.artifact == submission), None)
     return check_posted_reading(
         reading, file_digest.sha256(artifact), matches_only=True,
         expected_submitted_files=filenames,
+        expected_posted_files=posted_files, run=run,
     )
 
 

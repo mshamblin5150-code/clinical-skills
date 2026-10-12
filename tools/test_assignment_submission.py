@@ -57,6 +57,7 @@ class TwoGateUpload(unittest.TestCase):
             "READ: 2026-09-23\n"
             "ATTACHMENT-COUNT: 1\n"
             f"SUBMITTED-FILE: {artifact.name}\n"
+            f"POSTED-FILE: {artifact.name} | sha256={file_digest.sha256(artifact)} | route=page\n"
             f"SUBMISSION-SHA256: {file_digest.sha256(artifact)}\n"
             "VERDICT: matches - the posted artifact matches the reviewed file\n",
             encoding="utf-8",
@@ -314,6 +315,7 @@ class TwoGateUpload(unittest.TestCase):
                 "READ: 2026-09-23\n"
                 "ATTACHMENT-COUNT: 1\n"
                 "SUBMITTED-FILE: assignment.pptx\n"
+                f"POSTED-FILE: assignment.pptx | sha256={file_digest.sha256(deck)} | route=page\n"
                 "SUBMISSION-SHA256: " + assignment_submission.file_digest.sha256(deck) + "\n"
                 "VERDICT: matches - the posted file population and artifact match\n",
                 encoding="utf-8",
@@ -364,6 +366,7 @@ class TwoGateUpload(unittest.TestCase):
                 "ATTACHMENT-COUNT: 1\n"
                 "SUBMITTED-FILE: assignment.pptx\n"
                 f"SUBMISSION-SHA256: {file_digest.sha256(deck)}\n"
+                f"POSTED-FILE: assignment.pptx | sha256={file_digest.sha256(deck)} | route=page\n"
                 "VERDICT: matches - the clinician-uploaded deck matches the approved artifact\n",
                 encoding="utf-8",
             )
@@ -374,6 +377,46 @@ class TwoGateUpload(unittest.TestCase):
                 )
 
         self.assertFalse(failed, report)
+
+    def test_posted_fingerprints_bind_every_approved_carrier(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            companion = root / "notes.docx"
+            deck.write_bytes(b"approved deck")
+            companion.write_bytes(b"approved notes")
+            staged = self.stage(root, deck, artifact_approved=True, approved_carriers=(deck, companion))
+            assignment_submission.confirm(staged, uploaded_carriers=(deck, companion), final_confirmation=True)
+            baseline = (
+                "## REREAD: assignment\nPOST-URL: https://example.test/submission\n"
+                "POSTED: 2026-10-12\nREAD: 2026-10-12\nATTACHMENT-COUNT: 2\n"
+                "SUBMITTED-FILE: assignment.pptx\nSUBMITTED-FILE: notes.docx\n"
+                f"SUBMISSION-SHA256: {file_digest.sha256(deck)}\n"
+                f"POSTED-FILE: assignment.pptx | sha256={file_digest.sha256(deck)} | route=page\n"
+                f"POSTED-FILE: notes.docx | sha256={file_digest.sha256(companion)} | route=page\n"
+                "VERDICT: matches - both approved attachments were read\n"
+            )
+            note_line = f"POSTED-FILE: notes.docx | sha256={file_digest.sha256(companion)} | route=page\n"
+            (root / "posted").mkdir()
+            supplied = root / "posted" / companion.name
+            supplied.write_bytes(companion.read_bytes())
+            supplied_line = note_line.replace("route=page", "route=clinician-supplied | path=posted/notes.docx")
+            cases = (
+                (baseline, False),
+                (baseline.replace(note_line, ""), True),
+                (baseline.replace(note_line, note_line * 2), True),
+                (baseline.replace(file_digest.sha256(companion), "f" * 64), True),
+                (baseline.replace(note_line, supplied_line), False),
+            )
+            with self._canonical_copy(root / "canonical-output", deck):
+                for text, expected in cases:
+                    with self.subTest(text=text):
+                        (root / "reread.md").write_text(text, encoding="utf-8")
+                        failed, report = assignment_submission.completion_gate(root, deck, submission="assignment")
+                        self.assertEqual(expected, failed, report)
+                supplied.write_bytes(b"changed notes")
+                (root / "reread.md").write_text(baseline.replace(note_line, supplied_line), encoding="utf-8")
+                self.assertTrue(assignment_submission.completion_gate(root, deck, submission="assignment")[0])
 
     def test_a_clinician_upload_without_recorded_approval_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -420,6 +463,7 @@ class TwoGateUpload(unittest.TestCase):
                     "READ: 2026-09-23\n"
                     "ATTACHMENT-COUNT: 1\n"
                     "SUBMITTED-FILE: assignment.docx\n"
+                    "POSTED-FILE: assignment.docx | sha256={digest} | route=page\n"
                     "SUBMISSION-SHA256: {digest}\n"
                     "VERDICT: matches - the posted file population and artifact match\n"
                 ).format(digest=digest)

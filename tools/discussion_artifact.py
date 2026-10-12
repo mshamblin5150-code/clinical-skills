@@ -259,7 +259,7 @@ REREAD_FIELDS = REREAD_REQUIRED_FIELDS + (
     "COMPOSER-OUTCOME",
     "HTML-BYTES",
     "REFUSAL",
-    "ATTACHMENT",
+    "POSTED-FILE",
     "ATTACHMENT-COUNT",
     "SUBMITTED-FILE",
 )
@@ -347,7 +347,7 @@ class PostedReading:
     composer_outcome: str = ""
     html_bytes: str = ""
     refusal: str = ""
-    attachment: str = ""
+    posted_files: tuple[str, ...] = ()
     attachment_count: str = ""
     submitted_files: tuple[str, ...] = ()
     legacy_display: str = ""
@@ -374,22 +374,6 @@ class PostedReading:
     @property
     def entry_id(self) -> str | None:
         return discussion_entry_id(self.post_url)
-
-    def posted_attachment(self, run: Path) -> Path | None:
-        """Accept only a named copy immediately inside this run's posted directory."""
-        name = self.attachment
-        relative = Path(name)
-        if (
-            not name.startswith("posted/")
-            or len(relative.parts) != 2
-            or relative.parts[0] != "posted"
-            or relative.name in {"", ".", ".."}
-            or relative.suffix.casefold() != ".docx"
-            or "\\" in name
-        ):
-            return None
-        candidate = run / relative
-        return candidate if candidate.resolve().parent == (run / "posted").resolve() else None
 
     @property
     def refusal_is_dated(self) -> bool:
@@ -426,6 +410,7 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
         fields: dict[str, str] = {}
         visits: list[str] = []
         submitted_files: list[str] = []
+        posted_files: list[str] = []
         for match in matches:
             name = match.group("name").upper()
             if name == "VISIT":
@@ -433,6 +418,9 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 continue
             if name == "SUBMITTED-FILE":
                 submitted_files.append(match.group("value").strip())
+                continue
+            if name == "POSTED-FILE":
+                posted_files.append(match.group("value").strip())
                 continue
             if name in fields:
                 raise ValueError(f"reread.md has a duplicate {name} field for {artifact}")
@@ -460,7 +448,7 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 composer_outcome=fields.get("COMPOSER-OUTCOME", ""),
                 html_bytes=fields.get("HTML-BYTES", ""),
                 refusal=fields.get("REFUSAL", ""),
-                attachment=fields.get("ATTACHMENT", ""),
+                posted_files=tuple(posted_files),
                 attachment_count=fields.get("ATTACHMENT-COUNT", ""),
                 submitted_files=tuple(submitted_files),
                 legacy_display=fields.get("LEGACY-DISPLAY", ""),
@@ -482,9 +470,12 @@ POSTED_READING_MESSAGES = {
     "composer-outcome": "COMPOSER-OUTCOME must be inline or attachment",
     "html-bytes": "HTML-BYTES is missing or differs from the built HTML",
     "refusal": "REFUSAL needs its date and observed wording",
-    "attachment-field": "ATTACHMENT is missing",
-    "attachment-copy": "ATTACHMENT must name an existing posted/ Word copy and a local Word document is required",
-    "attachment-digest": "posted attachment filename or SHA-256 differs from the local Word document",
+    "attachment-field": "POSTED-FILE is missing",
+    "attachment-copy": "clinician-supplied POSTED-FILE copy is missing or unreadable, or the local Word document cannot be read",
+    "attachment-digest": "POSTED-FILE filename or SHA-256 differs from the approved file or supplied copy",
+    "posted-file-malformed": "POSTED-FILE must name a basename, lowercase SHA-256, and page or clinician-supplied route with its exact posted/ path",
+    "posted-file-duplicate": "POSTED-FILE repeats a filename",
+    "posted-file-population": "POSTED-FILE filenames differ from the required file population",
     "portal-fields": "a required Medatrax posted-reading field is missing",
     "read-count": "READ must state N of N read matching the note population",
     "visit-count": "VISIT line count differs from the note population",
@@ -525,6 +516,7 @@ def check_posted_reading(
     expected_patients: tuple[str, ...] | None = None,
     legacy_display: bool = False,
     expected_submitted_files: tuple[str, ...] | None = None,
+    expected_posted_files: tuple[tuple[str, str], ...] | None = None,
     saved_post_url: str | None = None,
     saved_posted: str | None = None,
 ) -> tuple[PostedReadingOutcome, ...]:
@@ -562,13 +554,15 @@ def check_posted_reading(
         if reading.composer_outcome == "attachment":
             if not reading.refusal_is_dated:
                 codes.append("refusal")
-            if not reading.attachment:
-                codes.append("attachment-field")
-            retained = reading.posted_attachment(run) if run is not None else None
-            if docx is None or not docx.is_file() or retained is None or not retained.is_file():
+            try:
+                if docx is None:
+                    raise OSError("local Word document is missing")
+                expected_posted_files = ((docx.name, file_digest.sha256(docx)),)
+            except (OSError, ValueError):
                 codes.append("attachment-copy")
-            elif retained.name != docx.name or file_digest.sha256(retained) != file_digest.sha256(docx):
-                codes.append("attachment-digest")
+                expected_posted_files = ()
+    if expected_posted_files is not None:
+        codes.extend(_posted_file_codes(reading.posted_files, expected_posted_files, run))
     if expected_visits is not None:
         import completion_checks
         if completion_checks.active("discussion_artifact:time-log") and reading.time_log != "not requested" and re.fullmatch(
@@ -622,6 +616,52 @@ def check_posted_reading(
         if reading.entry_id is not None and reading.post_url != saved_post_url:
             codes.append('post-link')
     return tuple(PostedReadingOutcome(code) for code in codes)
+
+
+POSTED_FILE = re.compile(
+    r"(?P<name>[^/\\|\r\n]+) \| sha256=(?P<digest>[0-9a-f]{64}) \| "
+    r"(?:route=page|route=clinician-supplied \| path=posted/(?P<copy>[^/\\|\r\n]+))",
+    re.ASCII,
+)
+
+
+def _posted_file_codes(
+    lines: tuple[str, ...], expected: tuple[tuple[str, str], ...], run: Path | None,
+) -> tuple[str, ...]:
+    """Compare the complete recorded population and rehash supplied copies."""
+    codes: list[str] = []
+    if not lines:
+        return ("attachment-field",)
+    approved = dict(expected)
+    names: list[str] = []
+    for line in lines:
+        match = POSTED_FILE.fullmatch(line)
+        if match is None:
+            codes.append("posted-file-malformed")
+            continue
+        name, digest, copy = match.group("name", "digest", "copy")
+        if name.strip() != name or name in {".", ".."} or ":" in name or (copy is not None and copy != name):
+            codes.append("posted-file-malformed")
+            continue
+        names.append(name)
+        if approved.get(name) != digest:
+            codes.append("attachment-digest")
+        if copy is not None:
+            try:
+                if run is None:
+                    raise OSError("run directory is missing")
+                candidate = run / "posted" / copy
+                if candidate.resolve().parent != (run / "posted").resolve():
+                    raise OSError("supplied copy is outside posted/")
+                if file_digest.sha256(candidate) != digest:
+                    codes.append("attachment-digest")
+            except (OSError, ValueError, RuntimeError):
+                codes.append("attachment-copy")
+    if len({name.casefold() for name in names}) != len(names):
+        codes.append("posted-file-duplicate")
+    if sorted(names) != sorted(approved):
+        codes.append("posted-file-population")
+    return tuple(dict.fromkeys(codes))
 
 
 def discussion_entry_id(url: str) -> str | None:

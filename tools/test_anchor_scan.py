@@ -2172,6 +2172,10 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
             self.assertTrue(procedure_codes_lookup.complete(connection, "CPT"))
 
     def setUp(self):
+        # A previous suite may have cached the owning database's descriptor.
+        # This fixture changes the database, so neither database may reuse it.
+        scan._database_descriptor.cache_clear()
+        self.addCleanup(scan._database_descriptor.cache_clear)
         self.raw = tempfile.TemporaryDirectory()
         self.addCleanup(self.raw.cleanup)
         root = Path(self.raw.name)
