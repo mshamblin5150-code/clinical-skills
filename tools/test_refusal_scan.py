@@ -234,6 +234,32 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
             1,
         )
 
+    def test_a_non_billable_refusal_exits_one(self):
+        status, report = self.run_over(
+            {"case-01.md": worksheet(refusal(code="J45", descriptor="Asthma"))},
+            "--show",
+        )
+        self.assertEqual(status, 1)
+        self.assertIn("non-billable refusal code: J45", report)
+
+    def test_a_billable_child_refusal_exits_zero(self):
+        status, report = self.run_over(
+            {"case-01.md": worksheet(refusal(
+                code="J45.20", descriptor="Mild intermittent asthma, uncomplicated",
+            ))}, "--show",
+        )
+        self.assertEqual(status, 0)
+        self.assertNotIn("non-billable refusal code", report)
+
+    def test_an_absent_refusal_code_reports_only_the_descriptor_finding(self):
+        text = worksheet(refusal(code="J45.999", descriptor="Asthma"))
+        findings = scan.worksheet_findings(scan.read_worksheet(text))
+        self.assertEqual([finding.kind for finding in findings], [scan.UNOFFICIAL_DESCRIPTOR])
+        status, report = self.run_over({"case-01.md": text}, "--show")
+        self.assertEqual(status, 1)
+        self.assertIn("unofficial refusal descriptor: J45.999", report)
+        self.assertNotIn("non-billable refusal code", report)
+
     def test_a_second_refusal_block_is_a_reported_remainder(self):
         second = (
             worksheet(refusal())
@@ -470,6 +496,8 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
     )
 
     CASES = {
+        "whether a refused code is billable in the service-date release":
+            "Service date: 2014-09-30\n" + BLOCK,
         "whether a code that should have been refused was refused at all": BLOCK,
         "whether a needs clause names something that would establish the code":
             BLOCK.replace("a documented wheeze or a prior diagnosis", "more"),
@@ -507,6 +535,9 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
 
         self.assertIn("refusal_scan.DECLARED_LIMITS", prose)
         self.assertEqual((), bind(scan.DECLARED_LIMITS, prose, mode=NAMING))
+        skill_prose = SKILL.read_text(encoding="utf-8")
+        self.assertIn("refusal_scan.DECLARED_LIMITS", skill_prose)
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, skill_prose, mode=NAMING))
         subject, reason, _disposition = scan.DECLARED_LIMITS[0]
         self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {subject}", mode=NAMING))
         self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {reason}", mode=NAMING))
