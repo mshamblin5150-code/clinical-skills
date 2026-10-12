@@ -7,6 +7,7 @@ The posted-fingerprint coverage boundary belongs to
 from __future__ import annotations
 
 import completion_checks
+import assignment_bar
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
@@ -36,6 +37,12 @@ DECLARED_LIMITS = (
 
 class GateError(ValueError):
     pass
+
+
+def _require_signed_bar(run: Path) -> None:
+    failed, report = assignment_bar.completion_gate(run)
+    if failed:
+        raise GateError(report)
 
 
 RECORD = "submission-gates.json"
@@ -142,6 +149,7 @@ def _upload_route(payload: dict[str, object]) -> UploadRoute | None:
 def prepare(run: Path, artifact: Path) -> reader_remarks.Prepared:
     """Grade Gate 1 before asking for the artifact go-ahead."""
     root, path = Path(run).resolve(), Path(artifact).resolve()
+    _require_signed_bar(root)
     clean, report = _pre_upload_grade(root, path)
     if not clean:
         raise GateError("the run-directory pre-upload grade is not clean: " + report)
@@ -174,6 +182,7 @@ def stage(
     grade_clean, grade_report = _pre_upload_grade(root, path)
     if not grade_clean:
         raise GateError(f"the run-directory pre-upload grade is not clean: {grade_report}")
+    _require_signed_bar(root)
     carrier_inputs = (path,) if approved_carriers is None else approved_carriers
     carriers = tuple(_carrier(item) for item in carrier_inputs)
     names = tuple(item.name for item in carriers)
@@ -253,6 +262,8 @@ def upload_is_allowed(staged: StagedUpload, candidate: Path) -> bool:
     """Whether one candidate's name and bytes belong to the approved carrier set."""
 
     path = Path(candidate).resolve()
+    if assignment_bar.completion_gate(staged.run)[0]:
+        return False
     if not path.is_file():
         return False
     match = next((item for item in staged.carriers if item.name == path.name), None)
@@ -269,6 +280,7 @@ def confirm(
 
     if not final_confirmation:
         raise GateError("final confirmation is required for Gate 2")
+    _require_signed_bar(staged.run)
     uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
     approved_names = tuple(item.name for item in staged.carriers)
     uploaded_names = tuple(item.name for item in uploaded)
@@ -309,6 +321,7 @@ def record_clinician_upload(
         raise GateError("a clinician posting needs recorded approval") from failure
     if payload.get("gate1_approved") is not True:
         raise GateError("a clinician posting needs recorded approval")
+    _require_signed_bar(root)
     approved = payload.get("approved_carriers")
     if not isinstance(approved, list) or not all(
         isinstance(item, dict) for item in approved
@@ -346,6 +359,7 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
     """Whether durable Gate 2 permits the Submit Assignment click right now."""
 
     try:
+        _require_signed_bar(staged.run)
         payload = _read(staged.run)
         return bool(
             payload.get("gate1_approved") is True
@@ -394,6 +408,10 @@ def completion_gate(
     frozen = completion_checks.exemption(run, submission, "assignment_submission", "assignment submission")
     if frozen is not None:
         return False, frozen
+
+    failed, report = assignment_bar.completion_gate(run)
+    if failed:
+        return True, report
 
     root = Path(run).resolve()
     path = Path(artifact).resolve()

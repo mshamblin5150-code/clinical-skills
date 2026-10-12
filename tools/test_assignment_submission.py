@@ -17,6 +17,9 @@ from project_context_test_support import write_none_context
 
 class TwoGateUpload(unittest.TestCase):
     def stage(self, run, artifact, **kwargs):
+        if not (run / "bar.md").exists():
+            from test_assignment_bar import DOCX_BAR
+            (run / "bar.md").write_text(DOCX_BAR, encoding="utf-8")
         if not (run / "project-context.md").exists():
             write_none_context(run)
         with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic reply", 4102444800)), mock.patch.object(assignment_submission.reader_remarks, "verify", return_value=[]):

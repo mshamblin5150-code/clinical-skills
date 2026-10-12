@@ -83,6 +83,10 @@ def main(argv: list[str]) -> int:
                 print(frozen)
                 return 0
         envelope = assignment_bar.parse((run / "bar.md").read_text(encoding="utf-8"))
+        failed, report = assignment_bar.completion_gate(run)
+        print(report)
+        if failed:
+            return 2
         adapter = _import_adapter(assignment_bar.adapter_name(envelope))
         if "--bar-only" in argv:
             if argv != [argv[0], "--bar-only"]:
