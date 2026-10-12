@@ -40,7 +40,9 @@ def site_strings(profile: Path) -> tuple[str, ...]:
 
 
 def _contains(query: str, literal: str) -> bool:
-    return bool(re.search(r"(?<!\w)" + re.escape(literal.strip()) + r"(?!\w)", query, re.I))
+    query = " ".join(query.split())
+    literal = " ".join(literal.split())
+    return bool(re.search(r"(?<!\w)" + re.escape(literal) + r"(?!\w)", query, re.I))
 
 
 def refusal(query: str, profile: Path) -> str | None:

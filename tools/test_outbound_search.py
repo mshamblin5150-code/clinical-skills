@@ -70,6 +70,10 @@ class OutboundSearchCommand(unittest.TestCase):
         self.assertEqual(2, self.invoke("pneumonia Synthetic Clinic"))
         self.assertEqual(0, self.invoke("pneumonia adult"))
 
+    def test_identifier_spacing_cannot_bypass_the_check(self):
+        self.assertEqual(2, self.invoke("pneumonia Fictional   Person"))
+        self.assertEqual(2, self.invoke("pneumonia Synthetic\tClinic"))
+
     def test_both_submission_commands_report_an_unmatched_live_pull(self):
         (self.run / "note.md").write_text("A:\nDifferential:\n1. Cough - R05.9: Documented symptom. Most likely.\n\nFILLED:\nFILLED·asserted Height 66 in for a 40-year-old female.\n", encoding="utf-8")
         (self.run / command.PULLS).write_text(json.dumps({"search_id": "missing", "dump_id": "live-a"}) + "\n", encoding="utf-8")

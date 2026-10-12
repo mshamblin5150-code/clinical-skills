@@ -11,7 +11,7 @@ an invented Assessment heading.
 
 **Drift row 24's mechanical floor** reads every physical ``FILLED·proposed``
 opener, including an unnumbered one, and checks same-line guideline tails against
-the shipped USPSTF and threshold sheets wherever a direct join is mechanical. A
+the shipped USPSTF and threshold sheets or filed UpToDate topics wherever a direct join is mechanical. A
 ``recalled, no shipped sheet`` verdict is a finding when the subject joins a topic
 registered with an artifact; an undecidable join stays a candidate. A known
 screening, counseling, immunization, vaccination, target, cutoff or threshold
@@ -1496,7 +1496,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  declared floor: clinical likelihood order still needs a reader.",
         "",
         f"  FILLED proposed items read                 {scan.proposed_items}",
-        "  guideline tails checked against shipped sheets  "
+        "  guideline tails checked against source evidence  "
         f"{scan.guideline_tails_checked}",
         f"  row 24 - guideline tail violations  {row_24}{scan.attribution.suffix('guideline_findings')}",
         "  row 24 candidates - dependency needs a reader  "
