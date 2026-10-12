@@ -6,6 +6,7 @@ The complete boundary of this helper's clean result is declared in
 
 from __future__ import annotations
 
+import completion_checks
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
@@ -110,10 +111,14 @@ def portal_record_problem(
     return outcomes[0].message if outcomes else None
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, *, batch: bool
 ) -> tuple[PostedReadingOutcome, ...]:
     """Apply the terminal portal grammar to the current note population."""
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     paths = note_paths(run, batch=batch)
     if not paths:
         unit = "numbered note files" if batch else "one standalone note file"
@@ -129,6 +134,12 @@ def completion_gate(
     run: Path, submission: str | None, *, batch: bool
 ) -> tuple[bool, str]:
     """Return the terminal fingerprint verdict for one clinical submission."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return False, frozen
+    if not completion_checks.active("medatrax_posting:completion_gate"):
+        return False, "the Medatrax posted reading: not graded - approval predates the check"
 
     if submission is None:
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"

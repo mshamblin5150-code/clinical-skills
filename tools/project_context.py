@@ -7,6 +7,7 @@ Scoped graders and ``CLAUDE.md`` name this object and copy no row.
 
 from __future__ import annotations
 
+import completion_checks
 import json
 from collections import Counter
 import re
@@ -40,7 +41,7 @@ SCOPED_SKILLS = frozenset(
 COMPLETION_GRADERS = MappingProxyType(
     {skill: aar_scan.COMPLETION_GRADERS[skill] for skill in SCOPED_SKILLS}
 )
-CLASSMATE_CUTOFF = date(2026, 10, 11)
+CLASSMATE_CUTOFF = completion_checks.registry()["project_context:classmate"][0].date()
 CLASSMATE_SKILLS = MappingProxyType({
     "discussion-reply": re.compile(r"response-.+\.md"),
     "peer-critique": re.compile(r"critique\.md"),
@@ -718,6 +719,7 @@ def _write_context_record(
     submission: str | None = None,
 ) -> GateResult:
     """Validate retrieval, write hashes and the context digest, and report the gate."""
+    retain_heading_context(run)
     record_path = run / RECORD_NAME
     if not record_path.is_file():
         return GateResult(1, "project context: finding - record is missing")
@@ -888,6 +890,8 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
         lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     result = _write_context_record(run, service_payloads=service_payloads, submission=submission)
+    if result.exit_code == 0:
+        retain_heading_context(run)
     if submission is None:
         return result
     order = coursework_run.grade_order(order_observations(run), submission, lambda key, path: order_waived(run, key, path))
@@ -895,6 +899,12 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return CompletionGate(False, False, frozen)
+    if not completion_checks.active("project_context:completion_gate"):
+        return CompletionGate(False, False, EXPECTED_ROW + ": not graded - approval predates the check")
     if submission is None:
         return _context_completion_gate(run, submission)
     import approval_record
@@ -934,7 +944,7 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
         observations = order_observations(run)
     except (OSError, UnicodeError, ValueError):
         observations = None
-    order = coursework_run.grade_order(observations, submission, lambda key, path: order_waived(run, key, path))
+    order = coursework_run.grade_order(observations, submission, lambda key, path: order_waived(run, key, path), run=run)
     return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
 
 
@@ -946,6 +956,68 @@ def recorded_digest(run: Path) -> str:
         )
     except (OSError, UnicodeError, ValueError):
         return ""
+
+
+def retain_heading_context(run: Path) -> None:
+    """Keep each context the heading reader can name, before a later refresh."""
+    try:
+        text = (run / RECORD_NAME).read_text(encoding="utf-8")
+        digest = read_record(text).value("CONTEXT-DIGEST")
+    except (OSError, UnicodeError, ValueError):
+        return
+    if _SHA256.fullmatch(digest):
+        directory = run / "private" / "heading-contexts"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / (digest + ".md")
+        if not path.exists():
+            path.write_text(text, encoding="utf-8")
+
+
+def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
+    """Compare the read's items; memory additions leave old line hashes intact."""
+    import frozen_grade
+    approval = frozen_grade.approved(run, artifact) or frozen_grade.approved(run, Path(artifact).stem)
+    if approval is not None:
+        _skill, item = approval
+        if item.get("posting_route", item.get("upload_route")) in {"agent", "clinician"}:
+            return True
+    if digest == "none":
+        return recorded_digest(run) == "none"
+    if not _SHA256.fullmatch(digest):
+        return False
+    try:
+        path = run / "private" / "heading-contexts" / (digest + ".md")
+        # An unchanged legacy record can supply its own retained population.
+        if not path.is_file() and digest == recorded_digest(run):
+            retain_heading_context(run)
+        previous = read_record(path.read_text(encoding="utf-8"))
+        current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        names = ("PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS)
+        if any(previous.values(name) != current.values(name) for name in names):
+            return False
+        def population(record):
+            return {(entry.place, opened.item): (entry, opened)
+                    for entry in record.entries for value in entry.values("OPENED")
+                    for opened in (_opened(value),) if opened.item != "none"}
+        before, after = population(previous), population(current)
+        if before.keys() != after.keys() or {e.place for e in previous.entries} != {e.place for e in current.entries}:
+            return False
+        for key, (entry, opened) in before.items():
+            new_entry, new_opened = after[key]
+            stored_lines = entry.value("MEMORY-LINES")
+            if stored_lines:
+                stored = json.loads(stored_lines)
+                hashes = [sha256(line.encode("utf-8")).hexdigest() for line in _memory_lines(entry, opened)]
+                if Counter(stored) - Counter(hashes):
+                    return False
+            elif opened.digest != new_opened.digest:
+                return False
+            elif entry.value("ROOT") or Path(entry.place).exists():
+                if sha256(_file_path(entry, opened).read_bytes()).hexdigest() != opened.digest:
+                    return False
+        return True
+    except (OSError, UnicodeError, ValueError, TypeError):
+        return False
 
 
 def _context_completion_gate(run: Path, submission: str | None, *, recheck_files: bool = True, compare_memory_lines: bool = False) -> CompletionGate:

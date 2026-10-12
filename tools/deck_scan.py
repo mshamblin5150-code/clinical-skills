@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from discussion_artifact import check_posted_reading
 
+import completion_checks
 import re
 import sys
 import zipfile
@@ -1127,6 +1128,7 @@ def _claim_figures(text: str) -> tuple[set[str], set[str]]:
     return traced, mentioned
 
 
+@completion_checks.dated_scan
 def survey(source: Source) -> Scan:
     heading = heading_read.scan(
         source.heading_read_text,
@@ -1136,6 +1138,7 @@ def survey(source: Source) -> Scan:
                 source.deck_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.root),
+                context_run=source.root,
                 as_of=research_ledger.ledger_date(source.claims),
                 opened_items=project_context.recorded_opened_items(source.root),
             ),

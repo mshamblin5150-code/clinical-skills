@@ -435,7 +435,7 @@ ROUTE: separate context
 SENTENCES: <n> factual, <n> clinician's own, <n> item
 PAIR: <location> -> <first 8 hex of the heading digest> | qualifiers <n> of <total>
 ITEM: <location> -> <opened item identifier>
-CONTEXT-DIGEST: <the project-context record's digest>
+CONTEXT-DIGEST: <the project-context digest when this read was taken>
 CONTEXT-VERDICT: agrees
 CONTEXT-VERDICT: none
 CONTEXT-VERDICT: narrows - <location>, <what differs>
@@ -447,6 +447,13 @@ FINDINGS: unrecorded - <location>, <what differs>
 FINDINGS: drifted - <location>, <what differs>
 REMARK: <problem outside the assigned question; repeat as needed>
 ```
+
+Keep the digest from the read's sitting. `project_context` retains that context
+under the run's `private/heading-contexts/`. A later grade compares the items it
+held: edits, removals, or an added place or opened item break the read. Appended
+memory-index lines preserve it under ADR 0328's line comparison. A posted item's
+read is not rebound. ADR 0346 governs its frozen terminal grade, and
+`completion_checks.DECLARED_LIMITS` owns the dated-check derivation boundary.
 
 Choose exactly one `CONTEXT-VERDICT` line and one `VERDICT` line from these forms.
 `VERDICT: clean` is legal only beside `CONTEXT-VERDICT: agrees`, or beside `none` on a legacy `none` run.
@@ -461,7 +468,7 @@ ledgers report item comparisons as `not graded` with unread heading-read records
 the qualifier suffix whenever its record carries the field, including on earlier ledgers.
 Pairs plus findings at unpaired locations equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
-context digest matches the machine-written project-context digest and only `agrees` is
+context digest names the retained project context from the read, and only `agrees` is
 clean. Even a run declaring no project binds all three declaration reasons in that digest. `narrows`, `contradicts`, and
 `sources-conflict` are findings; the last names both sources and only the clinician resolves it,
 with that ruling written to memory. A finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its

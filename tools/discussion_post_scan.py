@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
+import completion_checks
 import re
 import sys
 import zipfile
@@ -1035,9 +1036,13 @@ POSTED_READING_KINDS = {
 }
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     try:
         parsed = run_grader.parse(GRADER, list(grader_args))
         draft_value = parsed.value('--draft')
@@ -1356,6 +1361,7 @@ def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int
     return findings, read, total
 
 
+@completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
     editor_findings, editor_units_read, editor_units_total = _editor_readback_result(source)
     initial_reading = next(
@@ -1380,6 +1386,7 @@ def survey(source: RunSource) -> Scan:
                 source.draft_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.path),
+                context_run=source.path,
                 as_of=research_ledger.ledger_date(source.claims),
                 opened_items=project_context.recorded_opened_items(source.path),
             ),

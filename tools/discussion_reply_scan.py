@@ -20,10 +20,11 @@ from __future__ import annotations
 
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
+import completion_checks
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import canvas_readback
 from pathlib import Path
 
@@ -693,9 +694,13 @@ POSTED_READING_KINDS = {
 }
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     try:
         if Path(submission).name != submission or not submission.startswith('response-') or not submission.endswith('.md'):
             raise run_grader.SourceError('posted reading names another reply')
@@ -749,6 +754,7 @@ def _posted_reading_findings(
     )
 
 
+@completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
     posted_reading_states = _posted_reading_states(source)
     claim_records = tuple(research_ledger.read_records(source.claims))
@@ -765,6 +771,7 @@ def survey(source: RunSource) -> Scan:
                 == reply.path.stem.removeprefix("response-")
             ),
             project_context.recorded_digest(source.path),
+            context_run=source.path,
             as_of=research_ledger.ledger_date(source.claims),
             opened_items=project_context.recorded_opened_items(source.path),
             other_classmate_items=project_context.other_classmate_items(source.path, reply.path.name),
@@ -995,6 +1002,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    if _parsed.value("--submission"):
+        import frozen_grade
+        replies = tuple(reply for reply in source.replies
+                        if frozen_grade.report(source.path, reply.path.name) is None)
+        active_names = {reply.path.name for reply in replies}
+        source = replace(source, replies=replies,
+                         editor_pairs=tuple(pair for pair in source.editor_pairs if pair.response in active_names))
     scanned = survey(source)
     refused = tuple(
         f"refused reference label in {reply.path.name}: {reply.refused_label}"

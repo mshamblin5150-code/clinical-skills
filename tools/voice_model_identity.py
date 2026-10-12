@@ -7,6 +7,7 @@ establish. Scoped graders and ``CLAUDE.md`` point here and copy no row.
 
 from __future__ import annotations
 
+import completion_checks
 import json
 import re
 import sys
@@ -159,6 +160,12 @@ def _identity_completion_gate(run: Path, submission: str | None) -> CompletionGa
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return CompletionGate(False, False, frozen)
+    if not completion_checks.active("voice_model_identity:completion_gate"):
+        return CompletionGate(False, False, EXPECTED_ROW + ": not graded - approval predates the check")
     result = _identity_completion_gate(run, submission)
     if submission is None:
         return result
@@ -167,7 +174,7 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
         observations = payload.get("observations") if isinstance(payload, dict) else None
     except (OSError, UnicodeError, ValueError):
         observations = None
-    order = coursework_run.grade_order(observations, submission, lambda key, path: project_context.order_waived(run, key, path))
+    order = coursework_run.grade_order(observations, submission, lambda key, path: project_context.order_waived(run, key, path), run=run)
     return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
 
 

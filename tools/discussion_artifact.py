@@ -569,7 +569,8 @@ def check_posted_reading(
             elif retained.name != docx.name or file_digest.sha256(retained) != file_digest.sha256(docx):
                 codes.append("attachment-digest")
     if expected_visits is not None:
-        if reading.time_log != "not requested" and re.fullmatch(
+        import completion_checks
+        if completion_checks.active("discussion_artifact:time-log") and reading.time_log != "not requested" and re.fullmatch(
             r"date=[^\s|]+\s*\|\s*duration=\d+ hours [0-5]?\d minutes\s*\|\s*(?:entered|matched)",
             reading.time_log,
         ) is None:

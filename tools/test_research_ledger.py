@@ -930,7 +930,7 @@ class ARequiredFieldIsPresentAndCarriesSomething(unittest.TestCase):
     def test_every_sourced_field_is_required(self):
         for name in ledger.REQUIRED_WHEN_SOURCED:
             with self.subTest(field=name):
-                self.assertIn(ledger.MISSING_FIELD, kinds(ledger_text(replace_field(CLEAN, name, None))))
+                self.assertIn(ledger.MISSING_FIELD, kinds(ledger_text(replace_field(CLEAN, name, None)), date(2026, 9, 30)))
 
     def test_a_field_present_but_empty_is_the_same_defect(self):
         record = replace_field(CLEAN, "RESTATEMENT", "")
@@ -1717,6 +1717,14 @@ class AnUnreadableRefutationCannotDeleteAClaim(unittest.TestCase):
         self.assertIn("unreadable refutations", ledger.format_report(scan, source="x.md"))
 
 
+def expiry_ledger_text(*records, stamp="2026-09-30"):
+    return ledger_text(*records, stamp=stamp)
+
+
+def expiry_kinds(text, as_of=date(2026, 9, 30)):
+    return kinds(text, as_of)
+
+
 class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
     """#498's field at the record, report, and command seams."""
 
@@ -1726,10 +1734,10 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
             "STATED-EXPIRY",
             "2034-08-01 - termination date on the rule's cover sheet",
         )
-        self.assertEqual(kinds(ledger_text(record)), [])
+        self.assertEqual(expiry_kinds(expiry_ledger_text(record)), [])
 
     def test_none_stated_passes(self):
-        self.assertEqual(kinds(ledger_text(CLEAN)), [])
+        self.assertEqual(expiry_kinds(expiry_ledger_text(CLEAN)), [])
 
     def test_a_stated_expiry_at_or_before_the_ledger_date_fires(self):
         for expiry in ("2026-08-18", "2026-08-19"):
@@ -1740,7 +1748,7 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
                     f"{expiry} - termination date on the rule's cover sheet",
                 )
                 self.assertEqual(
-                    kinds(ledger_text(record)),
+                    expiry_kinds(expiry_ledger_text(record)),
                     [ledger.STATED_EXPIRY_REACHED],
                 )
 
@@ -1750,11 +1758,11 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
             "STATED-EXPIRY",
             "2024-05-02, superseded cited deliberately - the claim traces policy history",
         )
-        self.assertEqual(kinds(ledger_text(record)), [])
+        self.assertEqual(expiry_kinds(expiry_ledger_text(record)), [])
 
     def test_an_unrecognized_disposition_is_a_finding(self):
         record = replace_field(CLEAN, "STATED-EXPIRY", "current")
-        self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATED_EXPIRY])
+        self.assertEqual(expiry_kinds(expiry_ledger_text(record)), [ledger.UNKNOWN_STATED_EXPIRY])
 
     def test_a_dateless_ledger_loses_the_expiry_comparison(self):
         record = replace_field(
@@ -1764,7 +1772,7 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
         )
         self.assertNotIn(
             ledger.STATED_EXPIRY_REACHED,
-            kinds(ledger_text(record, stamp=""), None),
+            expiry_kinds(expiry_ledger_text(record, stamp=""), None),
         )
 
     def test_the_report_prints_both_counts_on_every_run(self):
@@ -1779,7 +1787,7 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
             "2024-05-02, superseded cited deliberately - the claim traces policy history",
         )
         scan = ledger.survey(
-            ledger.read_records(ledger_text(CLEAN, dated, superseded)),
+            ledger.read_records(expiry_ledger_text(CLEAN, dated, superseded)),
             AS_OF,
         )
         report = ledger.format_report(scan, source="claims.md")
@@ -1790,7 +1798,7 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             path = root / "claims.md"
-            path.write_text(ledger_text(*records), encoding="utf-8")
+            path.write_text(expiry_ledger_text(*records), encoding="utf-8")
             write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
@@ -2639,8 +2647,8 @@ class ExactlyThreeRowsAreMeasuredAgainstTheDate(unittest.TestCase):
     """
 
     def _both_ways(self, record: str) -> tuple[set[str], set[str]]:
-        text = ledger_text(record)
-        dated = set(kinds(text, AS_OF))
+        text = ledger_text(record, stamp="2026-09-30")
+        dated = set(kinds(text, date(2026, 9, 30)))
         undated = set(kinds(ledger_text(record, stamp=""), None))
         return dated, undated
 

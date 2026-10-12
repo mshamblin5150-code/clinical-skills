@@ -7,6 +7,7 @@ retained sitting record, never the live course page.
 
 from __future__ import annotations
 
+import completion_checks
 import json
 import re
 import sys
@@ -75,6 +76,12 @@ def _records(path: Path) -> list[dict]:
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     """Re-fingerprint each selected sitting appendix without a page request."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return False, frozen
+    if not completion_checks.active("lms_attachments:completion_gate"):
+        return False, "LMS attachments: not graded - approval predates the check"
     if submission is None:
         return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied"
     findings = []

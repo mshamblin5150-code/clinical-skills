@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from datetime import datetime, timezone
 from hashlib import sha256
+import completion_checks
 import importlib
 import json
 import os
@@ -46,7 +47,7 @@ SKILLS = frozenset(
 
 REPLY_UNREADABLE = "approval reply transcript unreadable"
 # UTC build boundary; legacy records use the matched content reply time.
-POSTING_GO_AHEAD_CUTOFF = datetime(2026, 10, 11, 18, 33, 40, tzinfo=timezone.utc).timestamp()
+POSTING_GO_AHEAD_CUTOFF = completion_checks.registry()["approval_record:posting-go-ahead"][0].timestamp()
 POSTING_GO_AHEAD_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
 
 SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique"})
@@ -627,6 +628,12 @@ def completion_gate(
     run: Path, skill: str, submission: str | None
 ) -> tuple[bool, str] | CompletionResult:
     """Join approved bytes to the posted reading for every requested item."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, submission)
+    if frozen is not None:
+        return False, frozen
+    if not completion_checks.active("approval_record:completion_gate"):
+        return False, "the approval record: not graded - approval predates the check"
 
     label = "the approval record"
     if submission is None:

@@ -9,9 +9,11 @@ pairing boundary; the project-context row's ceiling belongs to
 
 from __future__ import annotations
 
+import completion_checks
 import re
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import NamedTuple
 
 import reader_remarks
@@ -142,6 +144,7 @@ class Binding:
     as_of: date | None = None
     opened_items: tuple[str, ...] = ()
     other_classmate_items: tuple[str, ...] = ()
+    context_run: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -291,7 +294,12 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
 
     recorded_context = record.value("CONTEXT-DIGEST").casefold()
     expected_context = binding.context_digest.casefold()
-    if recorded_context != expected_context:
+    if binding.context_run is not None:
+        import project_context
+        context_matches = project_context.heading_context_matches(binding.context_run, recorded_context, artifact)
+    else:
+        context_matches = recorded_context == expected_context
+    if completion_checks.active("heading_read:heading-read-context-digest") and not context_matches:
         found.append(
             Finding(
                 CONTEXT_DIGEST_MISMATCH,
@@ -355,6 +363,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
     return found
 
 
+@completion_checks.dated_scan
 def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     """Grade records for the caller's expected drafts and claim scopes."""
     records = read_records(text)

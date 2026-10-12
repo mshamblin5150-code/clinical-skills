@@ -169,6 +169,7 @@ from __future__ import annotations
 
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
+import completion_checks
 import re
 import sys
 from dataclasses import dataclass, field, replace
@@ -761,6 +762,7 @@ def set_findings(records: list[Record]) -> list[Finding]:
     return found
 
 
+@completion_checks.dated_scan
 def survey(records: list[Record]) -> Scan:
     """Count across one checks file.
 
@@ -873,9 +875,13 @@ def _submission_document(submission: str) -> Path:
     return matches[0]
 
 
+@completion_checks.dated_posted_reading
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
+    import frozen_grade
+    if frozen_grade.report(run, submission) is not None:
+        return ()
     document = _submission_document(submission)
     bar = run / 'bar.md'
     composer = bar.is_file() and re.search(
@@ -1008,6 +1014,7 @@ def _grade(
                     source.document_bytes,
                     source.claims,
                     project_context.recorded_digest(source.path.parent),
+                    context_run=source.path.parent,
                     as_of=research_ledger.ledger_date(source.claims_text),
                     opened_items=project_context.recorded_opened_items(source.path.parent),
                 ),
