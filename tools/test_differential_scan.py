@@ -970,7 +970,7 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertIn("row 24 - guideline tail violations  0", report)
-        self.assertIn("guideline tails checked against shipped sheets  2", report)
+        self.assertIn("guideline tails checked against source evidence  2", report)
 
     def test_every_shipped_threshold_row_can_be_cited_and_unknown_classes_fail(self):
         root = REPO_ROOT / "reference" / "thresholds"

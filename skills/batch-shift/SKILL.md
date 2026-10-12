@@ -168,6 +168,13 @@ Resume only on the clinician's confirmation or correction.
 
 ### 5. Process each encounter
 
+Follow [clinical-note's UpToDate route](../clinical-note/SKILL.md#uptodate-at-the-gaps)
+for each routed Plan decision. Live pulls run **one at a time** through the signed-in browser
+across the shift. Each Outbound search passes `tools/outbound_search.py` before typing; store
+the passed searches and live-pull lines in the shift's owning run directory, with unique ids
+across all encounters. Every live topic is ingested into the Evidence store, and a fresh pull
+settling a conflict supersedes its stale topic copy. A failed pull does not stop the shift.
+
 Before the first note pass, read the profile's `Normal examination` block. If it is missing,
 stop and collect it once through [setup's normal-examination step](../setup-clinical-skills/SKILL.md#normal-examination),
 showing its suggestions and saving the clinician's answers and explicit abdominal scheme into the
@@ -314,6 +321,12 @@ Its vital rows count declared-filled values only. Its BMI row computes every not
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding — offer to add them, and the next shift needs less input than this one. **They go to `scratch/shorthand.md`, not to [GLOSSARY.md](../clinical-note/GLOSSARY.md)**, unless the token is one the whole field writes: a form harvested from one clinician's day file is that clinician's until something says otherwise. [GLOSSARY.md](../clinical-note/GLOSSARY.md)'s *Two glossaries* section is the rule, and this roll-up is the instrument [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 points back at for growing the per-account file.
 
 ### 7. Build the Review sheet
+
+The go-ahead Review sheet carries `UPTODATE CONFLICTS` and `UPTODATE FAILED PULLS` lines,
+including `none` for each empty population. Roll up the per-note conflicts (sheet, row, topic,
+update date, what differs) and failures (decision and instrument tried). The shift's after-action
+review follows the shared sheet-row ticket route once per conflict, searching for an open
+ticket first and carrying no encounter details into tracker content.
 
 Before building the Review sheet, run `python tools/exam_scheme.py <every final note-N.md>` and
 require exit 0. This Required command checks only the physical examinations against the profile's
