@@ -157,6 +157,10 @@ _Avoid_: unlikely, deprioritized, excluded
 A diagnosis the documented history makes anatomically impossible, such as one in an organ the surgical history records as removed. It takes no differential entry; one Assessment sentence names the history line that excludes it.
 _Avoid_: ruled out, excluded, contraindicated
 
+**Receiving item**:
+The item in a case study's Plan that a warning sign, a promotion trigger, an ordered test's abnormal result, or a deferred action sends the patient or the work to: an emergency instruction, a named referral, or a visit or call the Plan schedules with that action on its agenda. A general instruction to seek care is not one, and neither is a visit the Plan never books. A warning sign the Patient Education also states has the same Receiving item in both sections.
+_Avoid_: destination, disposition, route, follow-up
+
 **Uncertain hit**:
 A place in a coursework body where an APA mechanics rule probably applies but a checker cannot settle it: a hyphen after a listed prefix that the dictionary may keep, or a digit under ten that may be a measurement or a count. It blocks until the run writes down what it is, either that the text was changed or the dictionary entry or APA exception that keeps it. Distinct from a certain hit, which a committed list already settles and which is simply repaired, and from a **Departure**, which the clinician rules on. What the run writes is not a review's **Disposition**; that word is already carried in two senses.
 _Avoid_: wider hit, suspect, warning, soft finding
