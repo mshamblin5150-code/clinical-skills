@@ -245,6 +245,10 @@ recorded submission fingerprint read by the completion graders.
 
 **PDF engine prerequisites.** The consumer floor is Python 3.10. The `batch-shift`, `practicum-case-study`, `discussion-post`, and `course-assignment` skills need the PDF engine, PyMuPDF, on the machine that runs them; no other skill needs a Python package. Run `python tools/pdf_engine.py` to check whether it is present and to print the install line when it is not. `setup-clinical-skills` step 0 runs that check and asks before installing, and each of the four skills runs it again before the step that needs the engine. `batch-shift` step 2 then runs `python tools/day_file_text.py`; skipping that command costs the shift's text reaching the PHI name check. Its step 3 runs `python tools/name_index.py --write`; skipping that command leaves the shift's patient names out of the PHI name check, and the skill's exit rules remain unchanged. When the engine cannot be installed, the coursework skills walk their documented rows by eye and report that the run is not mechanically verified; `batch-shift` instead reads every page with the agent's own PDF reader. On Windows, `practicum-case-study` and `course-assignment` use Microsoft Word or PowerPoint for automatic page export; without the applicable application the clinician exports by hand, and a submission with no page-faithful export stops.
 
+**`tools/claude_output_access.py` is a Required command for Claude Code setup.** It reads user-level
+settings for the owning checkout's `output/` grant and never writes them. Without its clean exit,
+setup cannot claim the saved upload-access entry is present; it does not verify browser access.
+
 ## Standing rules
 
 These bind every skill in this repo.

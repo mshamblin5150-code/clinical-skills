@@ -4,6 +4,13 @@ Read this sheet before every Canvas save, submit, or reply click, including a pl
 comment and a file-upload submission. The calling skill owns the artifact and surface; this sheet
 owns the loaded-box stop and the Composer load route when that surface is a Composer.
 
+## File upload access
+
+A worktree session can read only folders it has been granted. If the browser upload tool refuses
+the approved file's folder (the owning checkout's `output/`), ask the clinician to run
+`/add-dir <that folder>`, then retry the approved path. Never copy the approved file anywhere else
+to upload it.
+
 ## Stop at the loaded box
 
 Load the contribution, read it back, and leave it loaded and unsubmitted. Name the Chrome tab,

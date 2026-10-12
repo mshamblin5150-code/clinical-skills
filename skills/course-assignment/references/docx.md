@@ -238,7 +238,8 @@ records every approved filename and SHA-256 plus the attachment count in the run
 Show `assignment_submission.approval_surface(staged)` and return to Gate 1
 if it differs from the approved surface. Before every file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true; a false result refuses the
-file. Inspect the staged
+file. Apply [File upload access](../../_shared/reference/canvas-editor.md#file-upload-access).
+Inspect the staged
 filename and Canvas assignment page, then stop again. Gate 1 never authorizes the **Submit
 Assignment** click. Per-context scratch paths may be removed after approval is recorded.
 
