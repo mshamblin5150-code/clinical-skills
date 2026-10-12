@@ -257,7 +257,9 @@ Rules the corpus follows without exception:
 - **Warning signs are concrete and actionable.** Never "seek care if symptoms worsen."
 - Ends on the follow-up interval.
 - Where knowledge is genuinely absent it is admitted to the patient rather than papered over.
-- **No abbreviations at all**, though they are used freely in the Plan and MDM.
+- **No abbreviations at all** in the patient-facing script; in the Plan and MDM,
+  nonstandard abbreviations are defined once at first use. The house exemptions in
+  `coursework_mechanics.ABBREVIATION_EXEMPTIONS` can remain undefined.
 
 ## 8. Rx — a fixed six-row table, three columns wide
 

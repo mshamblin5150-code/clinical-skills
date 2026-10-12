@@ -601,7 +601,7 @@ def para(
     ``first_line`` is APA 7 section 2.24's 0.5 inch body indent, and it is a parameter
     rather than a default on ``Normal`` because the rule has carve-outs: a heading, a
     list item and a reference entry all take none, and the last of those would have its
-    hanging indent cancelled by one. ``body_xml`` sets it on the plain-paragraph branch
+    hanging indent canceled by one. ``body_xml`` sets it on the plain-paragraph branch
     and nowhere else.
     """
     props = []

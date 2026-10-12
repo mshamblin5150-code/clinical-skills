@@ -38,7 +38,7 @@ class PrepostingApproval(unittest.TestCase):
     def approve(self, run, skill, artifact):
         return approval_record.approve(
             run, skill=skill, submission=artifact.name, sources=(artifact,),
-            grader_args=(str(run),), content_approved=True,
+            grader_args=(str(run), "--paper-language", "en"), content_approved=True,
             clinician_reply="Approve this entire synthetic artifact.",
         )
 
@@ -109,7 +109,7 @@ class PrepostingApproval(unittest.TestCase):
         self.assertEqual("awaiting-posting", approval_record.posting_route(
             run, skill="peer-critique", submission=artifact.name))
         (run / "reread.md").unlink()
-        status, report = approval_record._pre_post_grade("peer-critique", (str(run),))
+        status, report = approval_record._pre_post_grade("peer-critique", (str(run), "--paper-language", "en"))
         self.assertEqual(0, status, report)
 
     def test_terminal_completion_still_refuses_an_approved_unposted_item(self):

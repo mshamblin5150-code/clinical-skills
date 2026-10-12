@@ -360,6 +360,10 @@ python tools/reference_scan.py output/discussions/<course>-<module>-discussion-<
 python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md
 ```
 
+Before accepting the body grade, resolve its blocking mechanics rows and record every uncertain
+prefix or digit under [Mechanics of scholarly prose](../_shared/reference/apa7.md#34-mechanics-of-scholarly-prose).
+That shared step specifies the run's `coursework-mechanics.json`, digest, and allowed handling.
+
 `reference_scan.py` walks the APA list and citation resolution. Its exit must be 0.
 For an individual-paper override, add `--paper-language "<language>"` to its command
 as described in [Paper language](../_shared/reference/paper-language.md).

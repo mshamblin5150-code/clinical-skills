@@ -486,7 +486,8 @@ def main() -> int:
         result = patch_file(bundle)
         print(f"{result.status}: {result.bundle_path}")
         print(f"backup: {result.backup_path}")
-    print("Restart Codex before opening a VitalSource reader tab.")
+    print("Refresh this chat's browser-tool session and verify a fresh rendered reader page. "
+          "If that fails, restart Codex and verify again.")
     return 0
 
 

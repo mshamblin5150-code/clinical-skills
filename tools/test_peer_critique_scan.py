@@ -8,6 +8,11 @@ material, never a real roster, and no run under ``scratch/`` is read.
 
 from __future__ import annotations
 
+import mechanics_test_support
+
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
+
 import io
 import json
 import hashlib
@@ -236,7 +241,7 @@ class TheCleanRunPasses(unittest.TestCase):
         ):
             with self.subTest(status=status, detail=detail):
                 record.write_text(text, encoding="utf-8")
-                result = subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "peer_critique_scan.py"), str(directory), "--show"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+                result = subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "peer_critique_scan.py"), str(directory), "--show", "--paper-language", "en"], capture_output=True, text=True, encoding="utf-8", errors="replace")
                 self.assertEqual(status, result.returncode, result.stdout + result.stderr)
                 if detail:
                     self.assertIn(detail, result.stdout + result.stderr)
@@ -746,7 +751,7 @@ class TheCommandLineIsLive(unittest.TestCase):
 
     def test_a_clean_run_exits_zero_through_the_command_path(self):
         result = subprocess.run(
-            [sys.executable, str(Path(__file__).with_name("peer_critique_scan.py")), str(build_run())],
+            [sys.executable, str(Path(__file__).with_name("peer_critique_scan.py")), str(build_run()), "--paper-language", "en"],
             capture_output=True,
             text=True,
             encoding="utf-8",

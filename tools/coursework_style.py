@@ -104,3 +104,23 @@ def docx_narrative_blocks(document: ElementTree.Element) -> tuple[docx_write.Blo
     """Return prohibited blocks from the graded DOCX body."""
 
     return narrative_blocks(docx_body_markdown(document))
+
+
+def docx_mechanics_markdown(document: ElementTree.Element) -> str:
+    """Project the prose body, its own title, and reference context for mechanics."""
+    body = docx_body_markdown(document)
+    titles = tuple(dict.fromkeys(
+        _paragraph_text(paragraph)
+        for paragraph in document.iter(W + "p")
+        if _paragraph_style(paragraph) == "Title"
+    ))
+    body = "\n".join("# " + title for title in titles) + "\n" + body
+    references = []
+    reading = False
+    for paragraph in document.iter(W + "p"):
+        text = _paragraph_text(paragraph)
+        if text.casefold() == "references":
+            reading = True
+        elif reading:
+            references.append(text)
+    return body + "\n# References\n" + "\n\n".join(references)

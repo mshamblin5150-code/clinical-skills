@@ -1261,6 +1261,7 @@ def survey(source: Source) -> Scan:
 def format_report(scan: Scan, _source: str, show: bool = False) -> str:
     lines = [
         "deck scan",
+        "coursework mechanics: not read - deck text is outside the prose rules",
         "",
         f"  slides read       {scan.slides_read}",
         f"  slide-limit scope {scan.slide_limit_scope}",

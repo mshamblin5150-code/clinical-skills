@@ -1157,6 +1157,7 @@ It binds both branches, which is why it lives here rather than in either templat
 | `labelled`, `programme`, `licence` | `labeled`, `program`, `license` |
 | `neighbour`, `judgement`, `manoeuvre` | `neighbor`, `judgment`, `maneuver` |
 | `counselling`, `millimetre`, `hypoxaemia`, `immobilisation` | `counseling`, `millimeter`, `hypoxemia`, `immobilization` |
+| `cancelled` | `canceled` |
 
 **Drug names take the United States generic**, which is the same rule where it costs the most to get wrong: `acetaminophen` not `paracetamol`, `epinephrine` not `adrenaline`, `albuterol` not `salbutamol`, `ferrous sulfate` not `ferrous sulphate`. A clinician reading the other name has to translate it before they can check the dose.
 

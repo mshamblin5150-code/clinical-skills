@@ -297,6 +297,10 @@ After the drafting context returns the response, this **Grader handoff** under
 python tools/discussion_reply_scan.py scratch/runs/<run-key>
 ```
 
+Before accepting the body grade, resolve its blocking mechanics rows and record every uncertain
+prefix or digit under [Mechanics of scholarly prose](../_shared/reference/apa7.md#34-mechanics-of-scholarly-prose).
+That shared step specifies the run's `coursework-mechanics.json`, digest, and allowed handling.
+
 The default report is counts only. It reports how many `posts/*.md` files supplied an `AUTHOR:` and
 refuses partial roster coverage, then verifies the response filename and addressed first name
 against that roster, the 150-word floor, one APA author-year reference backed by the corresponding

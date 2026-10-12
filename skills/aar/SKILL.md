@@ -64,6 +64,12 @@ The orchestrator verifies the return. It may overrule a classification, but writ
 
 ## 3. Land every correction
 
+For coursework mechanics corrections, inspect the run's `coursework-mechanics.json`.
+Propose confirmed dictionary-hyphenated words for `coursework_mechanics.DICTIONARY_HYPHENATED`
+and newly observed variant pairs for its `VARIANTS` table, with the dictionary entry or
+Manual section and the observed correction. File the evidence under the landing rules
+below; a well-shaped retained handling record alone does not establish the dictionary fact.
+
 `Nothing durable` is not a disposition.
 
 - `memory-write`: update the project memory for a fact about the clinician.

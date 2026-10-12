@@ -475,6 +475,11 @@ the run key. A per-context scratch path holds work in progress only and never su
 evidence. Run `python tools/course_assignment_scan.py <run-directory> --artifact <deck>` before
 approval and require its pre-upload grade to exit 0 against that run directory.
 
+For a Word assignment, resolve the blocking body-mechanics rows and record every uncertain
+prefix or digit under [Mechanics of scholarly prose](../_shared/reference/apa7.md#34-mechanics-of-scholarly-prose)
+before accepting its grade. That shared step specifies the run's `coursework-mechanics.json`,
+projected-prose digest, and allowed handling. Decks declare those prose mechanics not read.
+
 At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.

@@ -889,6 +889,48 @@ community's stated preference controls when it is known.
 
 *Publication Manual* §§6.1–6.52 and Tables 6.1–6.5.
 
+**Enforced body mechanics.** The five prose coursework graders call
+`coursework_mechanics`: `undefined-abbreviation`, `spelling-variant`, `closed-prefix`,
+`uncertain-prefix`, `small-count`, `uncertain-digit`, `large-number-word`,
+`numeral-opening`, and `british-body-form` are blocking rows. The committed evidence lists
+live in that module; `spelling_scan.TABLE` is imported rather than copied. The bounded
+[Manual read](../../../reference/coursework-mechanics-read-20261012.md) supplies the variant
+and prefix provenance. Quotations, references, and parsed cited-work titles are excluded.
+Only the variant row exempts a group-author name from the paper's own reference list.
+Decks report mechanics `not read`. An English override or the profile's `PAPER-LANGUAGE`
+answer selects the rules through `reference_alphabets.paper_language`; another language or
+an unread answer makes every mechanics row `not graded` and takes exit 2 unless an
+established finding on the same run takes exit 1.
+
+**Uncertain-hit record.** Run the artifact's existing grader with `--show` before the
+go-ahead; its private mechanics report prints the `SURFACE-SHA256` and each unresolved `HIT`
+identity. Keep one `coursework-mechanics.json` in the run directory (beside a standalone
+case-study draft). Use one artifact entry per draft, its basename, the printed surface
+digest, and a `hits` object keyed by those identities:
+
+```json
+{"artifacts": [{"artifact": "draft.md", "sha256": "<SURFACE-SHA256>", "hits": {
+  "<uncertain-prefix HIT>": {"action": "retained", "entry": "https://www.merriam-webster.com/dictionary/<word>"},
+  "<uncertain-digit HIT>": {"action": "retained", "exception": "measurement"}
+}}]}
+```
+
+For a changed hit write `{"action": "changed"}`. For a retained prefix name the
+Merriam-Webster entry; for a retained digit choose exactly one of `measurement`, `statistic`,
+`percentage`, `ratio`, `date`, `age`, `time`, `score`, `money`, or `series position`.
+Re-run after edits and update the current surface digest: a stale record is a
+`mechanics-record` finding. The Word digest binds the grader's projected prose including
+its own title and references, not the binary package. A closed-prefix table hit or a
+listed small count always requires an edit; the handling record does not waive those rows.
+Keep the report private, since `--show` can include patient text in other rows.
+
+The complete ceiling belongs to `coursework_mechanics.DECLARED_LIMITS`: lowercase and
+mixed-case abbreviations, unlisted mixed terms, unlisted dedicated count nouns, the truth
+of a handling record, the unestablished country noun rule, punctuation sentence boundaries,
+the cited-title and group-author recognizers, and the inherited Word projection limits.
+No completion grade from before the registered start is backfilled; frozen posted grades
+remain unchanged.
+
 Use one space after ordinary sentence and reference-element punctuation (§6.1). Apply periods,
 commas, semicolons, colons, quotation marks, parentheses, brackets, slashes, and unspaced em and en
 dashes according to the relation they express (§§6.2–6.10); a DOI or URL takes no terminal period,

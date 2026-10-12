@@ -140,7 +140,7 @@ RUN_RECORDS = (
 
 # *Conventions > Spelling* in skills/clinical-note/SKILL.md, transcribed. Parity
 # is asserted rather than trusted; see `parse_skill_table`.
-# spelling-scan: mentions 30
+# spelling-scan: mentions 31
 TABLE = {
     "dyspnoea": "dyspnea",
     "apnoea": "apnea",
@@ -172,6 +172,7 @@ TABLE = {
     "millimetre": "millimeter",
     "hypoxaemia": "hypoxemia",
     "immobilisation": "immobilization",
+    "cancelled": "canceled",
 }
 
 # Inflections whose stem changes, so the suffix rule below cannot reach them from

@@ -83,6 +83,7 @@ import project_context
 import lms_attachments
 import approval_record
 import coursework_style
+import coursework_mechanics
 import heading_read
 import research_ledger
 
@@ -1785,8 +1786,11 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, _parsed.value("--submission"))
     grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.draft.name,), source.rendered_readings)
-    return approval_record.apply_completion_gate(
+    grade = approval_record.apply_completion_gate(
         grade, source.path, "discussion-post", _parsed.value("--submission")
+    )
+    return coursework_mechanics.apply_grade(
+        grade, source.path, ((source.draft.name, source.draft_text),), _parsed,
     )
 
 
@@ -1799,6 +1803,8 @@ GRADER = run_grader.Grader(
     grade=grade,
     format_report=format_report,
     options=(
+        run_grader.Option("--paper-language", takes_value=True, repeatable=False),
+        run_grader.Option("--profile", takes_value=True, repeatable=False),
         run_grader.Option("--draft", takes_value=True, missing_value="--draft needs a Markdown file", repeatable=False),
         run_grader.Option("--html", takes_value=True, missing_value="--html needs an HTML file", repeatable=False),
         run_grader.Option("--docx", takes_value=True, missing_value="--docx needs a Word file", repeatable=False),

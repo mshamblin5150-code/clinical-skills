@@ -1392,6 +1392,11 @@ renders it and repeats after every repair:**
 python tools/case_study_scan.py output/case-studies/<course>-<module>-case-study-<date>.md
 ```
 
+Before accepting the body grade, resolve its blocking mechanics rows and record every uncertain
+prefix or digit under [Mechanics of scholarly prose](../_shared/reference/apa7.md#34-mechanics-of-scholarly-prose).
+That shared step specifies `coursework-mechanics.json` beside the standalone draft, its digest,
+and allowed handling.
+
 Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file; no section
 it recognizes in the document; a missing Review of Systems, Physical Examination, Differential
 Diagnoses, MDM, Plan, or Patient Education section; a skeleton that disagrees with the one this file

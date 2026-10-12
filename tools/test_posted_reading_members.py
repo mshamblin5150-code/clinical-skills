@@ -1,5 +1,11 @@
 """Pin each member's public missing/stale/clean contract with synthetic runs."""
 
+
+
+import mechanics_test_support
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
+
 import re
 import tempfile
 import unittest
