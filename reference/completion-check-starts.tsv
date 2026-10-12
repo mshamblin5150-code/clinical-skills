@@ -53,7 +53,7 @@ artifact_repairs:completion_gate	2026-10-08T09:05:48-04:00	approval
 assignment_docx_scan:claim-ledger	2026-09-13T17:49:06-04:00	approval
 assignment_docx_scan:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 assignment_docx_scan:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-assignment_docx_scan:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+assignment_docx_scan:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 assignment_docx_scan:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 assignment_docx_scan:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 assignment_docx_scan:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
@@ -95,7 +95,7 @@ checks_ledger:duplicate-check	2026-08-19T14:32:25-04:00	approval
 checks_ledger:duplicate-field	2026-09-10T13:28:58-04:00	approval
 checks_ledger:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 checks_ledger:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-checks_ledger:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+checks_ledger:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 checks_ledger:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 checks_ledger:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 checks_ledger:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
@@ -137,13 +137,13 @@ checks_ledger:the threshold sheets against this patient	2026-08-30T11:07:36-04:0
 checks_ledger:unexpected-field	2026-09-10T13:28:58-04:00	approval
 checks_ledger:unknown-heading-read-route	2026-09-13T14:50:02+00:00	approval
 checks_ledger:unknown-verdict	2026-08-19T14:32:25-04:00	approval
-coursework_run:draft-order	2026-10-03T00:00:00Z	approval
+coursework_run:draft-order	2026-10-03T21:09:39-04:00	approval
 deck_scan:adversarial-record	2026-09-18T08:40:14-04:00	approval
 deck_scan:bullets-per-slide	2026-09-02T17:05:14-04:00	approval
 deck_scan:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 deck_scan:font-points	2026-09-02T17:05:14-04:00	approval
 deck_scan:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-deck_scan:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+deck_scan:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 deck_scan:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 deck_scan:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 deck_scan:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
@@ -199,7 +199,7 @@ discussion_artifact:posted-fields	2026-10-03T15:57:28-04:00	approval
 discussion_artifact:read-count	2026-10-03T15:57:28-04:00	approval
 discussion_artifact:refusal	2026-09-17T10:14:51-04:00	approval
 discussion_artifact:submitted-files	2026-10-08T18:24:20-04:00	approval
-discussion_artifact:time-log	2026-10-08T00:00:00Z	approval
+discussion_artifact:time-log	2026-10-08T15:47:36-04:00	approval
 discussion_artifact:unknown-verdict	2026-10-03T15:57:28-04:00	approval
 discussion_artifact:unlocated	2026-08-28T17:14:07-04:00	approval
 discussion_artifact:visit-count	2026-10-03T15:57:28-04:00	approval
@@ -211,7 +211,7 @@ discussion_post_scan:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 discussion_post_scan:editor-readback	2026-10-12T10:22:30-04:00	approval
 discussion_post_scan:empty-body	2026-09-11T00:13:21-04:00	approval
 discussion_post_scan:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-discussion_post_scan:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+discussion_post_scan:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 discussion_post_scan:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 discussion_post_scan:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 discussion_post_scan:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
@@ -253,7 +253,7 @@ discussion_reply_scan:borrowed-locator	2026-08-28T17:14:07-04:00	approval
 discussion_reply_scan:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 discussion_reply_scan:editor-readback	2026-09-12T08:36:42-04:00	approval
 discussion_reply_scan:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-discussion_reply_scan:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+discussion_reply_scan:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 discussion_reply_scan:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 discussion_reply_scan:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 discussion_reply_scan:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
@@ -302,7 +302,7 @@ filled_vitals_census:scan:repeated_bodies	2026-08-12T19:45:38-04:00	approval
 filled_vitals_census:scan:unread_remainder	2026-09-14T21:40:02-04:00	approval
 heading_read:duplicate-heading-read	2026-09-13T14:50:02-04:00	approval
 heading_read:heading-read-context-defect	2026-09-23T17:07:49-04:00	approval
-heading_read:heading-read-context-digest	2026-09-23T00:00:00Z	approval
+heading_read:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 heading_read:heading-read-context-verdict-shape	2026-09-23T17:07:49-04:00	approval
 heading_read:heading-read-defect	2026-09-13T14:50:02-04:00	approval
 heading_read:heading-read-draft-mismatch	2026-09-13T14:50:02-04:00	approval
@@ -327,7 +327,7 @@ peer_critique_scan:duplicate-heading-read	2026-09-13T14:50:02+00:00	approval
 peer_critique_scan:empty-heading	2026-09-10T10:40:49-04:00	approval
 peer_critique_scan:heading-order	2026-09-10T10:40:49-04:00	approval
 peer_critique_scan:heading-read-context-defect	2026-09-23T17:07:49+00:00	approval
-peer_critique_scan:heading-read-context-digest	2026-09-23T00:00:00+00:00	approval
+peer_critique_scan:heading-read-context-digest	2026-09-23T17:07:49-04:00	approval
 peer_critique_scan:heading-read-context-verdict-shape	2026-09-23T17:07:49+00:00	approval
 peer_critique_scan:heading-read-defect	2026-09-13T14:50:02+00:00	approval
 peer_critique_scan:heading-read-draft-mismatch	2026-09-13T14:50:02+00:00	approval
