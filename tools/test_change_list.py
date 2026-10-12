@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import io
+import runpy
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import tempfile
@@ -17,6 +18,7 @@ import coursework_run
 import discussion_post_scan
 import discussion_reply_scan
 import peer_critique_scan
+import prose_bind
 import run_grader
 
 
@@ -78,6 +80,11 @@ class SentenceChanges(unittest.TestCase):
         self.assertIn("positional", text)
         self.assertIn("heuristic", text)
 
+    def test_shared_procedure_names_limits_without_copying_them(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "skills" / "_shared" / "reference" / "revisions.md").read_text(encoding="utf-8")
+        self.assertEqual((), prose_bind.bind(change_list.DECLARED_LIMITS, text, mode=prose_bind.NAMING))
+
 
 class CommandContract(unittest.TestCase):
     def invoke(self, arguments: list[str]) -> tuple[int, str, str]:
@@ -92,11 +99,13 @@ class CommandContract(unittest.TestCase):
             before, after = root / "before.md", root / "after.md"
             before.write_text("Opening. Closing.", encoding="utf-8")
             after.write_text("Opening.", encoding="utf-8")
-            with mock.patch.object(change_list, "use_utf8") as codec, mock.patch.object(
-                change_list, "require_python_floor"
-            ) as floor:
-                status, stdout, stderr = self.invoke([str(before), str(after)])
-            self.assertEqual((status, stdout, stderr), (0, "Removed: Closing.\n", ""))
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with mock.patch("console_codec.use_utf8") as codec, mock.patch(
+                "console_codec.require_python_floor"
+            ) as floor, mock.patch("sys.argv", ["change_list.py", str(before), str(after)]):
+                with redirect_stdout(stdout), redirect_stderr(stderr), self.assertRaises(SystemExit) as stopped:
+                    runpy.run_path(change_list.__file__, run_name="__main__")
+            self.assertEqual((stopped.exception.code, stdout.getvalue(), stderr.getvalue()), (0, "Removed: Closing.\n", ""))
             codec.assert_called_once()
             floor.assert_called_once()
 

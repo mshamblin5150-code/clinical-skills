@@ -69,6 +69,7 @@ DECLARED_SECTIONS = {
     "browser_tab_hook": "Browser tab hook",
     "case_study_render": "Render scan",
     "case_study_scan": "Case study house style",
+    "change_list": "Draft revision change list",
     "cdc_percentile": "CDC BMI-for-age table",
     "checks_ledger": "Post-draft checks",
     "claim_ledger_census": "Claim ledger census",

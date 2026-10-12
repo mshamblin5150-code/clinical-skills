@@ -90,8 +90,6 @@ def changes(before: tuple[str, ...], after: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    use_utf8()
-    require_python_floor()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("shown_before", type=Path)
     parser.add_argument("shown_now", type=Path)
@@ -107,4 +105,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
+    require_python_floor()
     raise SystemExit(main())
