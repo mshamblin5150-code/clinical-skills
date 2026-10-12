@@ -441,6 +441,7 @@ because the live assignment accepts the initial post through the topic-level Com
 This skill opts in to the shared sheet's Initial-post attachment fallback when the signed bar
 allows a pointer body.
 
+Before each draft showing at Gate 1, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Every Gate 1 approval ask, including one repeated after a revision, shows the complete final text
 with its full reference list before the approval question. Show the clean source-check summary too. If the run proposed imagery,
 also show this table from `imagery-proposals.json`:

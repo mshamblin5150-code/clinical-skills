@@ -1051,6 +1051,14 @@ An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker
 
 The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the extract-entry vocabulary belongs to `aar_scan.ENTRY_KINDS`; this section copies neither object's rows.
 
+### Draft revision change list
+
+`tools/change_list.py` compares two retained Markdown showings and prints the sentence changes.
+The four scoped coursework skills reach the procedure in
+[revisions.md](skills/_shared/reference/revisions.md). Its comparison boundary belongs to
+`change_list.DECLARED_LIMITS`; this section copies none of its rows. Covered by
+`tools/test_change_list.py`, including retained-copy isolation against each skill's loader.
+
 ### Post-draft checks
 
 The reference scan reads a `practicum-case-study` draft. This one reads **the record of the readers who read it** — `scratch/runs/<course>-<module>-case-study/checks.md`, the second fan-out's file — and it is [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240).

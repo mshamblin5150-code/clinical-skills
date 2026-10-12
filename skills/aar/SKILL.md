@@ -80,6 +80,10 @@ File a `tracker-ticket` or `skill-file` ticket as soon as its body passes the pu
 
 ## 4. Write and grade the record
 
+Write this round's record under `<run-directory>/aar/` at the review-record filename the extract
+command printed: for example, key `response-x.md` prints `response-x.md.md` in round one and
+`response-x.md.round-2.md` in round two, including a rebuilt round.
+
 For a `clinical-note` or `batch-shift` run, also read its `UPTODATE CONFLICTS` go-ahead block.
 For each threshold-sheet conflict UpToDate won, search the tracker for an open ticket naming
 that sheet and row before filing. Reuse the existing ticket when present; otherwise file a
@@ -90,9 +94,7 @@ new ticket address in this round's private record. A conflict is evidence requir
 re-read, not by itself an observed correction to invent for the classifier. This work is owed
 even when the correction population is empty (ADR 0347 ruling 6).
 
-For the first round, write `<run-directory>/aar/<submission-key>.md`. For a later round, write the
-numbered review-record path beside the numbered extract the command produced. Never replace an
-earlier round. Use this shape:
+Keep every earlier round. Use this shape:
 
 ```text
 # AFTER-ACTION REVIEW

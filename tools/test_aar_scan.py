@@ -473,6 +473,7 @@ class CommandModes(SyntheticSnapshotCase):
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                1\n"
             "  private extract written         post-1.extract.md\n"
+            "  review record filename          post-1.md\n"
             "unread remainder 0\n",
         )
 
@@ -1162,6 +1163,42 @@ class ScanBasedSittingDiscovery(SyntheticSnapshotCase):
 
 
 class SubmissionRecord(SyntheticSnapshotCase):
+    def test_extract_names_the_review_file_for_first_rebuilt_and_later_rounds(self) -> None:
+        original_key = self.submission
+        self.submission = "response-x.md"
+        reread = self.run / "reread.md"
+        reread.write_text(
+            reread.read_text(encoding="utf-8").replace(original_key, self.submission),
+            encoding="utf-8",
+        )
+        arguments = [
+            str(self.run), "--submission", self.submission,
+            "--transcript", str(self.transcript),
+            "--memory-index", str(self.memory), "--extract",
+        ]
+        for extra in ([], ["--rebuild-round", "1"]):
+            with self.subTest(mode=extra):
+                status, stdout, stderr = invoke_main([*arguments, *extra])
+                self.assertEqual((status, stderr), (0, ""), stdout)
+                record_lines = [line for line in stdout.splitlines() if line.endswith("response-x.md.md")]
+                self.assertEqual(len(record_lines), 1, stdout)
+                self.assertIn("response-x.md.extract.md", stdout)
+        self.write_clean(extract=False)
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "later-record-round", {"content": "Review again."})) + "\n")
+        status, stdout, stderr = invoke_main(arguments)
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        record_lines = [line for line in stdout.splitlines() if line.endswith("response-x.md.round-2.md")]
+        self.assertEqual(len(record_lines), 1, stdout)
+        self.assertIn("response-x.md.round-2.extract.md", stdout)
+
+    def test_missing_review_detail_names_the_expected_record_filename(self) -> None:
+        self.submission = "response-x.md"
+        scan = aar_scan.survey(self.run, self.submission)
+        missing = [finding for finding in scan.findings if finding.kind == "missing-review"]
+        self.assertEqual(len(missing), 1)
+        self.assertIn("response-x.md.md", missing[0].detail)
+
     def test_missing_measurement_fails_a_new_round_but_not_an_old_round(self):
         self.write_clean()
         aar_scan.memory_measurement_path(self.run, self.submission).unlink()
