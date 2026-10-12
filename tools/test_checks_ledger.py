@@ -31,6 +31,7 @@ import hashlib
 import re
 import tempfile
 import unittest
+import file_digest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -356,6 +357,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     """Bind each behavior row to its blind-spot test and positive control."""
 
     HANDLERS = {
+        "page-fingerprint-origin": (
+            "ComposerAttachmentOutcome.test_page_fingerprint_has_clean_mismatch_and_missing_controls",
+            "ComposerAttachmentOutcome.test_attachment_bytes_have_clean_missing_and_mismatch_controls",
+        ),
         "findings-substance-is-shape": (
             "DeclaredLimitBehaviorControls.test_one_stock_sentence_satisfies_both_findings_paths",
             "DeclaredLimitBehaviorControls.test_both_findings_paths_refuse_an_empty_field",
@@ -1568,7 +1573,7 @@ class ComposerAttachmentOutcome(unittest.TestCase):
         if outcome == "attachment":
             fields += (
                 "REFUSAL: 2026-09-17 - message size exceeds maximum length\n"
-                "ATTACHMENT: posted/case-study.docx\n"
+                f"POSTED-FILE: case-study.docx | sha256={file_digest.sha256(docx)} | route=clinician-supplied | path=posted/case-study.docx\n"
             )
             posted = path.parent / "posted"
             posted.mkdir()
@@ -1628,6 +1633,21 @@ class ComposerAttachmentOutcome(unittest.TestCase):
         self.assertEqual(1, missing)
         self.assertIn("posted-attachment", report)
         self.assertIn("posted-attachment", missing_report)
+
+    def test_page_fingerprint_has_clean_mismatch_and_missing_controls(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "attachment")
+            document = path.parent / "output" / "case-study.docx"
+            reread = path.parent / "reread.md"
+            original = f"POSTED-FILE: case-study.docx | sha256={file_digest.sha256(document)} | route=clinician-supplied | path=posted/case-study.docx"
+            page = f"POSTED-FILE: case-study.docx | sha256={file_digest.sha256(document)} | route=page"
+            baseline = reread.read_text(encoding="utf-8").replace(original, page)
+            (path.parent / "posted" / document.name).unlink()
+            for text, expected in ((baseline, 0), (baseline.replace(file_digest.sha256(document), "a" * 64), 1), (baseline.replace(page, ""), 1)):
+                reread.write_text(text, encoding="utf-8")
+                status, report, error = self.grade_submission(path)
+                self.assertEqual(expected, status, error + report)
 
     def test_matching_posted_bytes_do_not_excuse_an_unrendered_word_document(self):
         directory, path = in_a_file(whole_file())

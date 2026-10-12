@@ -1633,6 +1633,7 @@ Then walk this list, by eye — none of it is mechanical:
 
 **The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
 
+- A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.
 - A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.
 - A well-formed verdict cannot prove that its reader opened or read the draft.
 - Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.
@@ -1698,8 +1699,8 @@ approval shown in full, then a reload and the same stop. Follow the shared sheet
 outcome procedure. A message-size refusal alone permits the fixed pointer and checked `.docx`;
 show its pointer body and displayed attachment filename and size at the same loaded-box stop,
 then record a fresh Posting go-ahead through the same call before submitting.
-The existing `the rendered document` check remains required on both outcomes. Download an
-attached document from the posted entry's own link into `<run-directory>/posted/` before grading.
+The existing `the rendered document` check remains required on both outcomes. Identify and read an
+attached document under [Posted files](../_shared/reference/lms-attachments.md#posted-files) before grading.
 Once either branch has a posted entry, call `approval_record.record_agent_posting(run,
 skill="practicum-case-study", submission=output_markdown.stem)`. If the clinician says he posted
 the approved artifact himself, call `approval_record.record_clinician_posting(...)` instead. On the
@@ -1719,12 +1720,13 @@ SUBMISSION-SHA256: <SHA-256 of the output Markdown>
 COMPOSER-OUTCOME: <inline or attachment, only for canvas-composer>
 HTML-BYTES: <byte count of the built HTML, only for canvas-composer>
 REFUSAL: <ISO date> - <wording observed on the page, attachment only>
-ATTACHMENT: posted/<filename, attachment only>
+POSTED-FILE: <shared Posted files line, attachment only>
 VERDICT: matches - <what was compared with the submitted artifact>
 ```
 
 Use `diverges - <what differs>` when the posted entry does not match and stop for clinician
 direction. Compute the fingerprint with `python tools/file_digest.py "<output Markdown>"` and write it
+and the attachment's `POSTED-FILE:` line
 before `/AAR` extracts the record; adding or changing the line afterwards makes that review stale
 because `aar_scan` fingerprints the whole block.
 Then invoke `/AAR` with the dated output Markdown stem as the submission key. After

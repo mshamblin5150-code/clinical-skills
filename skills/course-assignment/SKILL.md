@@ -132,7 +132,7 @@ REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>
 PASSAGE: <where in the source the supporting language sits>
 QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"
-RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
+RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>; an n.d. reference: see [An undated source needs a reasoned excuse](../_shared/reference/sourcing.md#an-undated-source-needs-a-reasoned-excuse)
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <substantive reason>
@@ -481,11 +481,12 @@ report the refusal and what was found, and stop at the clinician.
 Pass the inspected filename population to
 `assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)` and
 require `assignment_submission.submit_is_authorized(staged)` immediately before submitting.
-Then submit and read the posted artifact back from the LMS. If the clinician instead reports that
+Then submit and apply [Posted files](../_shared/reference/lms-attachments.md#posted-files) to
+identify and read every posted carrier. If the clinician instead reports that
 he uploaded the approved carrier population, do not call `confirm` or claim the run complete:
 record that route with
-`assignment_submission.record_clinician_upload(run, deck, uploaded_carriers=(...))`, download the
-posted artifact, and take the same posted reading. A clinician posting with no recorded approval is
+`assignment_submission.record_clinician_upload(run, deck, uploaded_carriers=(...))` and take the
+same posted-file reading under that shared section. A clinician posting with no recorded approval is
 refused. Append this exact record to
 `reread.md`, using the output deck stem as the heading on both submission branches:
 
@@ -496,6 +497,7 @@ POSTED: <the LMS's posted timestamp>
 READ: <ISO date of this reading>
 ATTACHMENT-COUNT: <submitted file count>
 SUBMITTED-FILE: <submitted basename, repeated once for every submitted file>
+POSTED-FILE: <one shared Posted files line for each submitted basename>
 SUBMISSION-SHA256: <SHA-256 of the output .pptx>
 VERDICT: matches - <whether the submitted filename population, carrier bytes, and deck match>
 ```
@@ -503,7 +505,8 @@ VERDICT: matches - <whether the submitted filename population, carrier bytes, an
 Use `diverges - <what differs>` when the posted artifact does not match. A divergence stops the
 completion path for clinician direction.
 
-Compute the fingerprint with `python tools/file_digest.py "<output .pptx>"` and write it before `/AAR`
+Compute the fingerprint with `python tools/file_digest.py "<output .pptx>"` and write it and every
+`POSTED-FILE:` line before `/AAR`
 extracts the record; adding or changing the line afterwards makes that review stale because
 `aar_scan` fingerprints the whole block. Invoke `/AAR`
 with the output deck stem as the submission key. Its completion report must say

@@ -216,6 +216,11 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit(
+        "page-fingerprint-origin",
+        "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     DeclaredLimit("reader-remark-free-text", "A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.", EvidenceDisposition.DECLARED_READING),
     # CHECK/VERDICT/FINDINGS carries no provenance about which artifact the
     # reader opened. The same record shape is available to a reader who did not
@@ -999,6 +1004,9 @@ POSTED_READING_KINDS = {
     "attachment-field": POSTED_ATTACHMENT,
     "attachment-copy": POSTED_ATTACHMENT,
     "attachment-digest": POSTED_ATTACHMENT,
+    "posted-file-malformed": POSTED_ATTACHMENT,
+    "posted-file-duplicate": POSTED_ATTACHMENT,
+    "posted-file-population": POSTED_ATTACHMENT,
 }
 
 

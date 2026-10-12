@@ -212,6 +212,11 @@ UNJOINED_SOURCE_FIELDS_LIMIT = (
 )
 
 DECLARED_LIMITS = (
+    (
+        "page-fingerprint-origin",
+        "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's heading supports the number traced from it",
@@ -1031,6 +1036,9 @@ POSTED_READING_KINDS = {
     "attachment-field": MISSING_POSTED_READING,
     "attachment-copy": POSTED_ATTACHMENT,
     "attachment-digest": POSTED_ATTACHMENT,
+    "posted-file-malformed": POSTED_ATTACHMENT,
+    "posted-file-duplicate": POSTED_ATTACHMENT,
+    "posted-file-population": POSTED_ATTACHMENT,
     "post-metadata": MISSING_POSTED_READING,
     "post-link": BORROWED_LOCATOR,
 }
