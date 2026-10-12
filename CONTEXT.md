@@ -366,7 +366,7 @@ The digest of a [[Claim heading]] as it stood when its refutation was taken, kep
 _Avoid_: heading digest, heading hash, refuted heading, claim fingerprint
 
 **Heading read**:
-A fresh reader's pairing of every factual sentence in a finished draft with the [[Claim heading]] it rests on, taken before the go-ahead and holding only the draft and the claim ledger. A sentence no heading states is unrecorded; a sentence claiming more than its heading, or other than it, is drifted. It establishes that the draft and the ledger agree, not that either is right, and it expires when the draft or any heading it names changes.
+A fresh [[Second reader]]'s pairing of every factual sentence in a finished draft with the [[Claim heading]] it rests on, taken before the go-ahead and holding only the draft, the claim ledger, and the items opened for the run's [[Project context record]]. With no second context it does not complete; the author never reads in its place. A sentence no heading states is unrecorded; a sentence claiming more than its heading, or other than it, is drifted. It establishes that the draft and the ledger agree, not that either is right, and it expires when the draft or any heading it names changes.
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
 **Item description**:
