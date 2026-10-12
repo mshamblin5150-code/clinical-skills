@@ -11,7 +11,8 @@ import hashlib
 import importlib
 import json
 import io
-from contextlib import redirect_stdout
+import sys
+from contextlib import redirect_stderr, redirect_stdout
 import tempfile
 import unittest
 from pathlib import Path
@@ -213,6 +214,101 @@ class OwnedAssets(ProjectContextFixture):
         draft, reader = text.split('Before any go-ahead, a fresh context receives only', 1)
         self.assertIn(rule, draft)
         self.assertIn(rule, reader)
+
+
+class DamagedProjectContextIsRefusedBeforeWriting(ProjectContextFixture):
+    def command(self):
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), redirect_stdout(output), redirect_stderr(output), mock.patch.object(
+            sys, "stdin", io.StringIO(json.dumps(self.service_payloads))
+        ):
+            status = context.main([str(self.run), "--write", "--submission", "submission", "--service-payloads", "-"])
+        return status, output.getvalue()
+
+    def test_a_damaged_free_text_line_is_named_and_preserved(self):
+        self.record(self.memory_entry(), self.plan_entry(terms="founder\a motivation"), self.service_entry())
+        path = self.run / context.RECORD_NAME
+        before = path.read_bytes()
+        status, report = self.command()
+        self.assertEqual(status, 1)
+        self.assertIn(f"{path}: line 13", report)
+        self.assertIn("U+0007", report)
+        self.assertIn("standing rule 6", report)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertNotIn("ORDER-OBSERVATION", report)
+
+    def test_path_text_and_registry_damage_are_refused_by_line(self):
+        characters = ("\t", "\a", "\0", "\f", "\v", "\r")
+        registry_text = self.registry.read_text(encoding="utf-8")
+        for character in characters:
+            for field in ("OPENED", "TERMS", "DETAIL", "registry"):
+                with self.subTest(character=ascii(character), field=field):
+                    self.registry.write_text(registry_text, encoding="utf-8")
+                    self.complete_record()
+                    path = self.registry if field == "registry" else self.run / context.RECORD_NAME
+                    text = path.read_text(encoding="utf-8")
+                    if field == "registry":
+                        text = text.replace("LOCATION: ", f"LOCATION: damaged{character}")
+                        line = 4
+                    elif field == "DETAIL":
+                        text += f"DETAIL: damaged{character}text\n"
+                        line = len(text.split("\n")) - 1
+                    else:
+                        text = text.replace(f"{field}: ", f"{field}: damaged{character}", 1)
+                        line = 9 if field == "OPENED" else 13
+                    path.write_bytes(text.encode("utf-8"))
+                    before = path.read_bytes()
+                    record_before = (self.run / context.RECORD_NAME).read_bytes()
+                    status, report = self.command()
+                    self.assertEqual(status, 1, report)
+                    self.assertIn(f"{path}: line {line}", report)
+                    self.assertIn(f"U+{ord(character):04X}", report)
+                    self.assertEqual(path.read_bytes(), before)
+                    self.assertEqual((self.run / context.RECORD_NAME).read_bytes(), record_before)
+                    self.assertNotIn("could not be read", report)
+                    self.assertNotIn("retrieval before draft", report)
+
+    def test_every_damaged_line_and_character_is_reported_before_other_findings(self):
+        path = self.run / context.RECORD_NAME
+        path.write_bytes(b"PROJECT-CONTEXT: none\nTERMS: bad\x07\ttext\nDETAIL: bad\x00text\n")
+        before = path.read_bytes()
+        status, report = self.command()
+        self.assertEqual(status, 1)
+        for line, character in ((2, "U+0007"), (2, "U+0009"), (3, "U+0000")):
+            self.assertIn(f"{path}: line {line}: {character}", report)
+        self.assertNotIn("CONFIRMED", report)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_windows_line_endings_and_fingerprinted_control_bytes_are_accepted(self):
+        self.complete_record()
+        for path in (self.run / context.RECORD_NAME, self.registry):
+            path.write_bytes(path.read_text(encoding="utf-8").replace("\n", "\r\n").encode("utf-8"))
+        self.plan.write_bytes(b"opened binary\x00\x07\x0c\t\r")
+        self.service_payloads["open-brain"]["thought-17"] = "service\x00\ttext"
+        status, report = self.command()
+        self.assertEqual(status, 0, report)
+        self.assertIn("CONTEXT-DIGEST:", (self.run / context.RECORD_NAME).read_text(encoding="utf-8"))
+
+    def test_none_does_not_read_a_damaged_or_absent_registry(self):
+        for absent in (False, True):
+            with self.subTest(absent=absent):
+                self.record()
+                path = self.run / context.RECORD_NAME
+                path.write_text(path.read_text(encoding="utf-8").replace("PROJECT-CONTEXT: Atlas", "PROJECT-CONTEXT: none - no project in this synthetic run"), encoding="utf-8")
+                if absent:
+                    self.registry.unlink()
+                else:
+                    self.registry.write_bytes(b"LOCATION: bad\x00\t\rpath\n")
+                status, report = self.command()
+                self.assertEqual(status, 0, report)
+
+    def test_final_bare_carriage_return_is_damage(self):
+        self.complete_record()
+        path = self.run / context.RECORD_NAME
+        path.write_bytes(path.read_bytes() + b"\r")
+        status, report = self.command()
+        self.assertEqual(status, 1, report)
+        self.assertIn("U+000D", report)
 
 
 class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
