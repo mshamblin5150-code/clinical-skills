@@ -502,7 +502,7 @@ def _numeric_values(reply: Reply, citations: tuple[Citation, ...]) -> tuple[str,
 
 
 def _number_findings(
-    reply: Reply, citations: tuple[Citation, ...], claims: str
+    reply: Reply, citations: tuple[Citation, ...], claims: str, heading_read_text: str = ""
 ) -> tuple[Finding, ...]:
     traced: set[str] = set()
     disbelieved: set[str] = set()
@@ -523,7 +523,13 @@ def _number_findings(
             # remains visible so narrative citation recognition cannot vanish.
             continue
         traced.update(heading_numbers)
-    return tuple(
+    own_figures = heading_read.own_figures(heading_read_text, reply.path.name)
+    artifact_numbers = tuple(dict.fromkeys(_numeric_values(reply, citations)))
+    absent = tuple(
+        Finding(heading_read.OWN_FIGURE_ABSENT, reply.path.name, f"{value} is absent from the artifact's traced numbers")
+        for value in sorted(own_figures - {value.casefold() for value in artifact_numbers})
+    )
+    return absent + tuple(
         Finding(
             UNTRACED_NUMBER,
             reply.path.name,
@@ -535,8 +541,8 @@ def _number_findings(
                 else f"{value} is absent from claims.md"
             ),
         )
-        for value in dict.fromkeys(_numeric_values(reply, citations))
-        if value.casefold() not in traced
+        for value in artifact_numbers
+        if value.casefold() not in traced and value.casefold() not in own_figures
     )
 
 
@@ -878,7 +884,7 @@ def survey(source: RunSource) -> Scan:
     ) + tuple(
         finding
         for reply, reply_citations in zip(source.replies, citations)
-        for finding in _number_findings(reply, reply_citations, source.claims)
+        for finding in _number_findings(reply, reply_citations, source.claims, source.heading_read_text)
     ) + _reuse_findings(source.replies) + tuple(
         finding
         for reply in source.replies

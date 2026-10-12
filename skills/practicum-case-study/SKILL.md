@@ -1494,6 +1494,7 @@ be several of them at once:
 | a heading-read-sentence-count mismatch | `PAIR` lines plus findings at unpaired locations do not equal the factual count in `SENTENCES` |
 | a heading-read-qualifier-count finding | the paired record's qualifier total differs, its count is absent or impossible, or a shortfall has no finding at that location |
 | a heading-read-item-count finding | the third sentence class is absent, or `ITEM` lines do not cover its count with distinct locations |
+| a `heading-read-own-figure-absent` finding | the shared kind reports a listed `OWN` or `ITEM` number absent from an artifact in the five number graders; `checks_ledger.py` exports this kind but does not run that body comparison |
 | a heading-read-unopened-item finding | an `ITEM` line names no opened project-context item |
 | a heading-read-unknown-heading pair | its eight-hex prefix names no current claim heading, including a heading edited after the read |
 | a heading-read-dropped-heading pair | the draft claims a record that says it was `DROPPED` |

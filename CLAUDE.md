@@ -1407,6 +1407,14 @@ Covered by `tools/test_post_text.py`.
 
 Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skill.py`.
 
+### Claude output access
+
+`python tools/claude_output_access.py` reads user-level Claude Code settings for a directory entry
+resolving to `repo_root.output_root()`. Exit 0 means the saved entry is present; exit 1 means it is
+absent and prints machine-specific JSON for the clinician to merge by hand; exit 2 means settings
+could not be read or parsed. The command never writes settings. Its module docstring owns the
+boundary: saved configuration establishes neither browser access nor Codex permissions.
+
 ### Clinical credential settings
 
 `python tools/clinical_credentials.py` reads the owning account profile's

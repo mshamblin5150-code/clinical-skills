@@ -155,6 +155,8 @@ The grader reads these rows:
   `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
   `heading-read-context-defect`, plus `heading-read-qualifier-count`,
   `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
+  `heading-read-own-figure-absent` reports a number listed on an `OWN` or `ITEM` line
+  that is absent from the document's traced body numbers.
 
 Default output is counts only; `--show` exposes private details. Exit 0 is clean, exit 1 is a
 finding, and exit 2 means the run was not completely scanned. Independently walk source support,
@@ -244,7 +246,8 @@ records every approved filename and SHA-256 plus the attachment count in the run
 Show `assignment_submission.approval_surface(staged)` and return to Gate 1
 if it differs from the approved surface. Before every file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true; a false result refuses the
-file. Inspect the staged
+file. Apply [File upload access](../../_shared/reference/canvas-editor.md#file-upload-access).
+Inspect the staged
 filename and Canvas assignment page, then stop again. Gate 1 never authorizes the **Submit
 Assignment** click. Per-context scratch paths may be removed after approval is recorded.
 

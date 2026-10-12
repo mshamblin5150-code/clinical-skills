@@ -302,6 +302,10 @@ by eye and reports that the run is not mechanically verified, as for `research_l
 
 ## A heading read binds the final draft to the ledger
 
+While drafting, write a figure in the clinician's own sentence or an item description in APA
+numerals under [APA number rules](apa7.md); never spell it out to pass a number check. Its
+numeral may remain untraced until the separate heading reader lists it in the final read.
+
 Before the first prose in a coursework run, write the purpose-named
 `<run-directory>/project-context.md`. Its confirmed header declares either the project or `none`
 with a reason. The account registry resolved by `repo_root.project_registry()` states one
@@ -458,6 +462,13 @@ restatement does. The clinician's own reasoning and experience are counted but n
 no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
 a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
 `project-context.md` records it. The reader opens and compares that item itself, claim by claim.
+Write one `OWN: <location> -> <number>[, <number> ...]` line for each clinician's own
+sentence carrying a number; own sentences without numbers get no line. The `OWN` line count
+is independent of the own-sentence count. For an item description carrying numbers, add
+` | figures <number>[, <number> ...]` after the `ITEM` identifier once those numbers agree
+with the opened item. List values in the same numeral form used in the draft. The number graders
+excuse listed values throughout that artifact and report a listed value absent from its traced
+numbers. The reader still pairs every factual sentence, including one sharing a listed value.
 A sentence stating who wrote, compiled, or supplied a document agrees only when a confirmed
 project-context header line, a memory entry, or the clinician's recorded answer states it, never on
 the document's own contents; where none does, write `CONTEXT-VERDICT: contradicts` and name the sentence.
@@ -479,7 +490,8 @@ DRAFT: <SHA-256 of the draft's raw bytes>
 ROUTE: separate context
 SENTENCES: <n> factual, <n> clinician's own, <n> item
 PAIR: <location> -> <first 8 hex of the heading digest> | qualifiers <n> of <total>
-ITEM: <location> -> <opened item identifier>
+OWN: <location> -> <number>[, <number> ...]
+ITEM: <location> -> <opened item identifier>[ | figures <number>[, <number> ...]]
 CONTEXT-DIGEST: <the project-context digest when this read was taken>
 CONTEXT-VERDICT: agrees
 CONTEXT-VERDICT: none
