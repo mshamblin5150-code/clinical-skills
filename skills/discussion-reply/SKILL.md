@@ -346,8 +346,10 @@ Before each reply's go-ahead, this fresh **Second reader** under [standing rule 
 in `project-context.md`. It opens those items itself. Do not give it research sources. Pairs may
 resolve only to `[REPLY: <name>]` records. Write one shared `## HEADING-READ:` record per response
 file in `<run-directory>/heading-read.md`, repair every `unrecorded` or `drifted` finding under
-[sourcing.md](../_shared/reference/sourcing.md), and repeat the read after any repair. With no second
-context, write `ROUTE: orchestrator walk`. Rerun `discussion_reply_scan.py`; it refuses a missing or
+[sourcing.md](../_shared/reference/sourcing.md), and repeat the read after any repair. The reader writes
+each problem outside its assigned question on a `REMARK: <problem>` line, repeated for each remark,
+and nowhere else in the record. With no second context, the read does not complete: write no record,
+give no go-ahead, and submit no artifact. Rerun `discussion_reply_scan.py`; it refuses a missing or
 stale record before the go-ahead.
 Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
 `unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,

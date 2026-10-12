@@ -154,12 +154,14 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
             heading_read.format_coverage(result),
         )
 
-    def test_only_the_two_ruled_routes_are_recognized(self):
-        self.assertEqual(
-            [heading_read.UNKNOWN_ROUTE],
-            [finding.kind for finding in scan(record(route="same context")).findings],
-        )
-        self.assertFalse(scan(record(route="orchestrator walk")).findings)
+    def test_only_a_separate_context_route_is_recognized(self):
+        for route in ("same context", "orchestrator" + " walk", ""):
+            with self.subTest(route=route):
+                self.assertEqual(
+                    [heading_read.UNKNOWN_ROUTE],
+                    [finding.kind for finding in scan(record(route=route)).findings],
+                )
+        self.assertFalse(scan(record(route="separate context")).findings)
 
     def test_pairs_plus_findings_must_equal_the_declared_factual_count(self):
         self.assertIn(

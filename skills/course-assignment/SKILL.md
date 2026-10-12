@@ -387,14 +387,19 @@ tool, write the two not-run records exactly as the shared sheet requires. The co
 enforces both the voice read and the model-owned profanity row. Its complete ceiling is
 `voice_read.DECLARED_LIMITS`; this skill copies no row.
 
-Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final `.pptx` (including its slide
-bullets and speaker-note sentences), `claims.md`, and the printed heading digests. Do not give it
-sources. It writes the shared `## HEADING-READ: <deck>.pptx` record from
-[sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`; locations name
-slide bullets and speaker-note sentences. Repair every `unrecorded` or `drifted` finding and repeat
-the read after any repair. With no second context, write `ROUTE: orchestrator walk`. Rerun
-`deck_scan.py --pptx <deck>`; it refuses a missing record, a stale deck digest, or a pair to an old
-heading before the go-ahead.
+### Heading read for both artifacts
+
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only
+the final `.pptx` or `.docx`, `claims.md`, the printed heading digests, and every item pointer recorded
+in `project-context.md`. It opens those items itself. Do not give it research sources. It writes the
+shared `## HEADING-READ: <artifact file>` record from [sourcing.md](../_shared/reference/sourcing.md)
+to `<run-directory>/heading-read.md`. Locations name slide bullets and speaker-note sentences for a
+deck, and body paragraphs, table cells, captions, and figure notes for a DOCX. Repair every
+`unrecorded` or `drifted` finding and repeat the read after any repair. The reader writes each problem
+outside its assigned question on a `REMARK: <problem>` line, repeated for each remark, and nowhere
+else in the record. Rerun the signed artifact's `course_assignment_scan.py`; it refuses a missing
+record, a stale artifact digest, or a pair to an old heading before the go-ahead. With no second
+context, the read does not complete: write no record, give no go-ahead, and submit no artifact.
 
 Both this scan and the terminal `--submission` scan require a current clean presentation-intent
 record and a clean adversarial record naming the highest retained pass and current `claims.md`.

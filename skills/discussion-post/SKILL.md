@@ -330,12 +330,15 @@ tool, write the two not-run records exactly as the shared sheet requires. The co
 enforces both the voice read and the model-owned profanity row. Its complete ceiling is
 `voice_read.DECLARED_LIMITS`; this skill copies no row.
 
-Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final output Markdown, `claims.md`, and
-the printed heading digests. Do not give it sources. It judges only whether each factual sentence
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final output Markdown, `claims.md`,
+the printed heading digests, and every item pointer recorded in `project-context.md`.
+It opens those items itself. Do not give it research sources. It judges only whether each factual sentence
 claims more than its heading, writes the shared `## HEADING-READ:` record from
 [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`, and pairs every
 factual sentence. Repair every `unrecorded` or `drifted` finding under the shared rules and repeat
-the read after any repair. With no second context, write `ROUTE: orchestrator walk`. The
+the read after any repair. It writes each problem outside its assigned question on a
+`REMARK: <problem>` line, repeated for each remark, and nowhere else in the record.
+With no second context, the read does not complete: write no record, give no go-ahead, and submit no artifact. The
 `discussion_post_scan.py` invocation below refuses a missing or stale record.
 Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
 `unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,
