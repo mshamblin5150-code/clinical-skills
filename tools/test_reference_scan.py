@@ -1858,6 +1858,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # table still states the wide rule, because the table is the rule; what changed
     # is that it now says beside the wide row how far the command reaches.
     ROW_PHRASES = {
+        scan.MISSING_ARTICLE: "A certain article number missing the `Article` label",
+        scan.FORMAT_BRACKET: "A bracket containing only a file format",
+        scan.ITALIC_IDENTIFIER: "An italic title ending in a recognizable identifier",
+        scan.SITE_REPEATS_AUTHOR: "A site name repeating its group author",
         scan.CITATION_AUTHOR_SPELLING: "A citation spelling an author differently from the reference list",
         scan.HEADING_NOT_APA: "The reference list headed anything but",
         scan.ENTRY_NOT_A_PARAGRAPH: "An entry written as a bullet or a numbered item",
@@ -2035,6 +2039,8 @@ Course material arrived with Links to an external site. attached. qxmarkerxq
 # One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
 # comment above each names the row it is there for.
 LEAKY_ENTRIES = (
+    "Example Group. (2026). *Example report (Report No. 12345)* [PDF]. Example Group. https://example.org/report",
+    "Example, A. (2026). Example article. *Journal, 17*(3), e12345. https://doi.org/10.1000/e12345",
     "Kübler, J. (2025). Topic. Publisher.",
     # entry-not-a-paragraph -- a bullet, which the renderer gives the list style.
     "- American College of Obstetricians and Gynecologists. (2023). Urinary tract "
@@ -2423,6 +2429,12 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "all-digit journal number absent from its DOI": self.bare_number,
+            "file-format word outside the closed list": self.unlisted_format,
+            "short bare identifier code": self.short_identifier,
+            "title wording ending in an identifier-word parenthetical": self.title_parenthetical,
+            "abbreviation-only site name": self.abbreviated_site,
+            "personal-author site name": self.personal_site,
             "whether an opted-in bold reference label marks the real list boundary": self.bold_label_boundary,
             "whether a shortened title resolves against more than one reference entry": self.shortened_title_ambiguity,
             "whether a citation naming part of a group author's name resolves": self.partial_group_name,
@@ -2446,6 +2458,28 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def bare_number(self):
+        entry = "Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10.1000/example"
+        result = scan.survey(scan.read_document(draft(entry)), AS_OF, "en")
+        self.assertNotIn(scan.MISSING_ARTICLE, [f.kind for f in result.findings])
+        self.assertEqual([e.text for e in result.bare_number_candidates], [entry])
+
+    def unlisted_format(self):
+        self.assertNotIn(scan.FORMAT_BRACKET, kinds(draft("Example Group. (2026). *Work* [EPUB]. https://example.org/work")))
+
+    def short_identifier(self):
+        self.assertNotIn(scan.ITALIC_IDENTIFIER, kinds(draft("Example Group. (2026). *Work (CMS-1807-F)*. https://example.org/work")))
+
+    def title_parenthetical(self):
+        # A title's literal wording remains indistinguishable from an identifier.
+        self.assertIn(scan.ITALIC_IDENTIFIER, kinds(draft("Example Group. (2026). *Learning to write (Report)*. https://example.org/work")))
+
+    def abbreviated_site(self):
+        self.assertNotIn(scan.SITE_REPEATS_AUTHOR, kinds(draft("World Health Organization. (2026). *Work*. WHO. https://example.org/work")))
+
+    def personal_site(self):
+        self.assertNotIn(scan.SITE_REPEATS_AUTHOR, kinds(draft("Example, A. (2026). *Work*. Example, A. https://example.org/work")))
 
     def bold_label_boundary(self):
         text = "A misplaced label follows.\n\n**References**\n\nRoss, J. (2025). A topic. https://example.org/topic\n"
@@ -3112,6 +3146,97 @@ class TheReadingTheCommandCannotDoIsAGradedCheck(unittest.TestCase):
             "skills/practicum-case-study/SKILL.md step 9 no longer carries the row",
         )
         self.assertIn("retrieval date", line)
+
+
+class MechanicalReferenceElements(unittest.TestCase):
+    def command(self, entry):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic.md"
+            author = "Example" if entry.startswith("Example,") else "Example Group"
+            path.write_text(draft(entry, body=f"# Case\n\n({author}, 2026).\n"), encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                status = scan.main([str(path), "--as-of", "2026-10-12", "--paper-language", "English", "--show"])
+            return status, out.getvalue()
+
+    def test_each_new_refusal_and_correct_twin_through_public_command(self):
+        pairs = (
+            (scan.MISSING_ARTICLE,
+             "Example, A. (2026). Study. *Journal, 17*(3), e12345. https://doi.org/10.1000/e12345",
+             "Example, A. (2026). Study. *Journal, 17*(3), Article e12345. https://doi.org/10.1000/e12345"),
+            (scan.MISSING_ARTICLE,
+             "Example, A. (2026). Study. *Journal, 17*(3), 12345. https://doi.org/10.1000/12345",
+             "Example, A. (2026). Study. *Journal, 17*(3), Article 12345. https://doi.org/10.1000/12345"),
+            (scan.FORMAT_BRACKET,
+             "Example Group. (2026). *Work* [PDF]. https://example.org/work",
+             "Example Group. (2026). *Work*. https://example.org/work"),
+            (scan.ITALIC_IDENTIFIER,
+             "Example Group. (2026). *Work (Table AB-12)*. https://example.org/work",
+             "Example Group. (2026). *Work* (Table AB-12). https://example.org/work"),
+            (scan.SITE_REPEATS_AUTHOR,
+             "Example Group [EG]. (2026). *Work*. eXample  Group. https://example.org/work",
+             "Example Group. (2026). *Work*. https://example.org/work"),
+        )
+        for kind, defective, correct in pairs:
+            with self.subTest(kind=kind, entry=defective):
+                status, report = self.command(defective)
+                self.assertEqual(status, 1, report)
+                self.assertRegex(report, re.escape(kind) + r"\s+1")
+                status, report = self.command(correct)
+                self.assertEqual(status, 0, report)
+
+    def test_silent_controls_and_declared_misses(self):
+        entries = [
+            f"Example Group. (2026). *Work ({value})*. https://example.org/work"
+            for value in ("COVID-19", "HP2030", "2000-2019", "CMS-1807-F")
+        ] + [
+            "Example Group. (2026). *Work* [PowerPoint slides]. https://example.org/work",
+            "Example Group. (2026). *Work* [EPUB]. https://example.org/work",
+            "Example Group. (2026). *Work*. EG. https://example.org/work",
+            "Example, A. (2026). *Work*. Example. https://example.org/work",
+            "Example Group. (2026). *Work by Example Group*. https://example.org/work",
+        ]
+        for entry in entries:
+            with self.subTest(entry=entry):
+                status, report = self.command(entry)
+                self.assertEqual(status, 0, report)
+
+    def test_one_page_number_is_named_only_as_candidate(self):
+        for doi in ("example", "x245y", ""):
+            entry = f"Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10.1000/{doi}"
+            status, report = self.command(entry)
+            self.assertEqual(status, 0, report)
+            self.assertIn("bare-number candidates           1", report)
+            self.assertIn(entry, report)
+
+    def test_truncated_doi_does_not_crash_candidate_reader(self):
+        entry = "Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10."
+        status, report = self.command(entry)
+        self.assertEqual(status, 0, report)
+        self.assertIn("bare-number candidates           1", report)
+
+    def test_title_numbers_are_not_journal_locators(self):
+        for title in ("Annual report, 17, e12345", "Annual report. Findings, 17, e12345"):
+            entry = f"Example Group. (2026). *{title}*. https://example.org/work"
+            status, report = self.command(entry)
+            self.assertEqual(status, 0, report)
+            self.assertIn("bare-number candidates           0", report)
+
+    def test_repeated_group_site_with_internal_periods_refuses(self):
+        entry = "U.S. Department of Health and Human Services. (2026). *Work*. U.S. Department of Health and Human Services. https://example.org/work"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic.md"
+            path.write_text(draft(entry, body="# Case\n\n(U.S. Department of Health and Human Services, 2026).\n"), encoding="utf-8")
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                status = scan.main([str(path), "--as-of", "2026-10-12", "--paper-language", "English", "--show"])
+            self.assertEqual(status, 1, output.getvalue())
+            self.assertRegex(output.getvalue(), r"site-repeats-author\s+1")
+
+    def test_all_closed_format_words_refuse_case_insensitively(self):
+        for value in scan.FORMAT_WORDS:
+            status, report = self.command(f"Example Group. (2026). *Work* [{value.upper()}]. https://example.org/work")
+            self.assertEqual(status, 1, report)
 
 
 if __name__ == "__main__":

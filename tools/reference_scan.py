@@ -549,6 +549,23 @@ MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 CITATION_READER_COVERAGE = "citation-reader-coverage"
 CITATION_AUTHOR_SPELLING = "citation-author-spelling"
+# #1570 / ADR 0357: mechanically recognizable reference-element defects.
+MISSING_ARTICLE = "missing-article"
+FORMAT_BRACKET = "format-bracket"
+ITALIC_IDENTIFIER = "italic-identifier"
+SITE_REPEATS_AUTHOR = "site-repeats-author"
+ITALIC_SPAN = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)|(?<!_)_([^_\n]+)_(?!_)")
+BARE_JOURNAL_LOCATOR = re.compile(
+    r",\s*\d+(?:\s*\([^()]+\))?\s*,\s*(?P<number>[A-Za-z]*\d+)\.(?=\s|$)"
+)
+FORMAT_WORDS = frozenset({
+    "pdf", "pdf file", "pdf document", "word document", ".pdf", ".docx",
+    ".doc", ".pptx", ".xlsx", ".csv",
+})
+IDENTIFIER_WORD = re.compile(
+    r"\b(?:No\.|Nos\.|Report\b|Publication\b|Pub\.|Vol\.|Vols\.|ed\.|"
+    r"Edition\b|Issue\b|Series\b|Table\b|Project\b|Document\b)|\d{5,}", re.I
+)
 REFERENCE_BUCKETS = (
     ReferenceBucket("uptodate", ("UpToDate article",)),
     ReferenceBucket("statpearls", ("StatPearls",)),
@@ -619,6 +636,10 @@ NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 # body: *a checker built from the ticket as written would look in the wrong file
 # and find nothing.* A column headed with one file name would have reproduced that.
 ROWS = {
+    MISSING_ARTICLE: "apa7 10",
+    FORMAT_BRACKET: "apa7 39",
+    ITALIC_IDENTIFIER: "apa7 39",
+    SITE_REPEATS_AUTHOR: "apa7 39",
     HEADING_NOT_APA: "apa7 1",
     ENTRY_NOT_A_PARAGRAPH: "apa7 1",
     ENTRY_HAS_NO_YEAR: "apa7 1",
@@ -702,6 +723,12 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    ("all-digit journal number absent from its DOI", "A bare number can be a one-page article's page; report it as a reader candidate rather than a finding."),
+    ("file-format word outside the closed list", "Only the closed format words in FORMAT_WORDS are mechanically refused by this row."),
+    ("short bare identifier code", "A parenthetical such as (CMS-1807-F) has neither an identifier word nor five consecutive digits."),
+    ("title wording ending in an identifier-word parenthetical", "The string predicate cannot distinguish a title's own wording from publication identification; a reader must settle it."),
+    ("abbreviation-only site name", "WHO does not equal World Health Organization under the exact group-name comparison."),
+    ("personal-author site name", "The repeated-site row is scoped to authors with no personal initials."),
     (
         "whether an opted-in bold reference label marks the real list boundary",
         "The bold-label switch opens the list at that line but cannot determine whether the writer placed it correctly.",
@@ -1365,6 +1392,7 @@ class Scan:
     findings: tuple[Finding, ...]
     citation_coverage: CitationCoverage = CitationCoverage()
     paper_language: str = "unspecified"
+    bare_number_candidates: tuple[Entry, ...] = ()
 
 
 def _is_reference_heading(text: str) -> bool:
@@ -1901,10 +1929,65 @@ def _heading_findings(document: Document) -> list[Finding]:
     return [Finding(HEADING_NOT_APA, "heading", detail)]
 
 
+def _bare_locator(entry: Entry) -> tuple[str, bool] | None:
+    """Return a bare journal locator and whether #1570 makes it refusing."""
+    year = entry._year_match
+    if year is None:
+        return None
+    rest = entry.text[year.end():]
+    # Keep punctuation inside italic titles from becoming a source boundary.
+    masked = ITALIC_SPAN.sub(lambda span: " " * len(span.group()), rest)
+    title_end = re.search(r"\.\s+", masked)
+    if title_end is None:
+        return None
+    plain = rest[title_end.end():].replace("*", "").replace("_", "")
+    match = BARE_JOURNAL_LOCATOR.search(plain)
+    if match is None:
+        return None
+    number = match.group("number")
+    doi = DOI.search(entry.text)
+    doi_match = re.search(r"10\.\S+", entry.text[doi.start():]) if doi else None
+    doi_text = doi_match.group() if doi_match else ""
+    in_doi = bool(re.search(r"(?<![A-Za-z0-9])" + re.escape(number) + r"(?![A-Za-z0-9])", doi_text))
+    return number, number[0].isalpha() or in_doi
+
+
+def _site_repeats_author(entry: Entry) -> bool:
+    year = entry._year_match
+    locator = re.search(r"https?://|\bdoi:\s*10\.", entry.text, re.I)
+    if year is None or locator is None:
+        return False
+    author = entry.text[:year.start()].rstrip(". ")
+    author = re.sub(r"\s*\[[^\]]+\]$", "", author)
+    if personal_authors(author):
+        return False
+    # Mask emphasis so a title ending in its author never becomes a site element.
+    tail = ITALIC_SPAN.sub("TITLE", entry.text[year.end():locator.start()])
+    tail = re.sub(r"\bRetrieved\s+.*?\s+from\s*$", "", tail, flags=re.I).rstrip(". ")
+    compact_tail = re.sub(r"\s+", "", tail).casefold()
+    compact_author = re.sub(r"\s+", "", author).casefold()
+    if not compact_author or not compact_tail.endswith(compact_author):
+        return False
+    # The complete author may itself contain periods (e.g., U.S. Department).
+    return compact_tail[:-len(compact_author)].endswith(".")
+
+
 def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     found: list[Finding] = []
     where = f"entry on line {entry.line}"
     at = entry.line
+    locator = _bare_locator(entry)
+    if locator is not None and locator[1]:
+        found.append(Finding(MISSING_ARTICLE, where, entry.text, at))
+    if any(value.casefold() in FORMAT_WORDS for value in re.findall(r"\[([^\]]+)\]", entry.text)):
+        found.append(Finding(FORMAT_BRACKET, where, entry.text, at))
+    for span in ITALIC_SPAN.finditer(entry.text):
+        parenthetical = re.search(r"\(([^()]*)\)$", span.group(1) or span.group(2))
+        if parenthetical and IDENTIFIER_WORD.search(parenthetical.group(1)):
+            found.append(Finding(ITALIC_IDENTIFIER, where, entry.text, at))
+            break
+    if _site_repeats_author(entry):
+        found.append(Finding(SITE_REPEATS_AUTHOR, where, entry.text, at))
     if not entry.paragraph:
         found.append(Finding(ENTRY_NOT_A_PARAGRAPH, where, entry.text, at))
     if not entry.year and not DATE_FREE_CONSTITUTION.search(entry.text):
@@ -2165,6 +2248,8 @@ def survey(document: Document, as_of: date | None, paper_language: str | None = 
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         entries_at_fault=len(at_fault),
         findings=tuple(found),
+        bare_number_candidates=tuple(entry for entry in document.entries
+                                     if (locator := _bare_locator(entry)) is not None and not locator[1]),
     )
 
 
@@ -2192,6 +2277,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             "graded" if scan.paper_language in reference_alphabets.TABLE["languages"] else NOT_GRADED
         ),
         f"  reference entries read           {scan.entries}",
+        f"  bare-number candidates           {len(scan.bare_number_candidates)}",
         f"    UpToDate entries               {scan.uptodate}",
         f"    entries carrying a DOI         {scan.with_doi}",
         f"    recognized legal-form entries  {scan.legal}",
@@ -2224,6 +2310,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("")
     lines.append(f"  entries at fault                 {scan.entries_at_fault}")
     if show:
+        lines += ["", "  bare-number candidates (reader ruling required):"]
+        for entry in scan.bare_number_candidates:
+            lines.append(f"    entry on line {entry.line}: {entry.text}")
         if scan.citation_coverage.disagreements:
             lines += ["", "  citation key disagreements (safe to paste):"]
             for evidenced, grammar in scan.citation_coverage.disagreements:
