@@ -444,8 +444,9 @@ with digests printed by `research_ledger.py --heading-digests`, plus every item 
 with the first eight hex characters of the current heading digest and judges only whether the
 sentence claims more than that heading. A paraphrase claiming no more is a match; an absent claim is
 `unrecorded`, and a broader population or subject, changed number, added entity or condition, or
-dropped limitation is `drifted`. A requirement, quantifier, or exclusivity the draft attributes to
-the source is an added condition unless the heading itself states it, even when the record's
+dropped limitation is `drifted`. A sentence presenting one opinion as a general standard, or
+one source as several agreeing sources, is also `drifted`. A requirement, quantifier, or exclusivity
+the draft attributes to the source is an added condition unless the heading itself states it, even when the record's
 restatement does. The clinician's own reasoning and experience are counted but need
 no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
 a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
