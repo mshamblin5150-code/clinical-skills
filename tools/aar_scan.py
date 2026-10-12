@@ -2010,7 +2010,7 @@ def _survey_round(
     record_path = review_path(run, submission, round_number)
     records = int(record_path.is_file())
     if not records:
-        return Scan(submission, 0, 0, 0, 0, 0, (Finding("missing-review", submission),))
+        return Scan(submission, 0, 0, 0, 0, 0, (Finding("missing-review", str(record_path)),))
     try:
         review = read_review(record_path)
         baseline = _baseline(run, submission, round_number)
@@ -2613,12 +2613,14 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             )
             if rebuild_value:
                 rebuilt_round = int(rebuild_value)
+                record_round = rebuilt_round
                 destination, count, _archived = rebuild_extract(
                     run, submission, rebuilt_round
                 )
                 if review_path(run, submission, rebuilt_round).is_file():
                     rebuilt_scan = survey(run, submission)
             else:
+                record_round = _next_review_round(run, submission)
                 destination, count = write_extract(
                     run, transcript, submission, Path(memory_value).expanduser().resolve()
                 )
@@ -2641,6 +2643,7 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                     else ()
                 ),
                 f"  private extract written         {destination.name}",
+                f"  review record filename          {review_path(run, submission, record_round).name}",
                 run_grader.format_unread_remainder(int(extract_fields["UNREAD-REMAINDER"])),
         )
         remainder = int(extract_fields["UNREAD-REMAINDER"])

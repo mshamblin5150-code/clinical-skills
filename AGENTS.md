@@ -50,6 +50,11 @@ instructions or whether the encounter earns the code.
 
 **`tools/exam_scheme.py` is a Required command for `clinical-note` and `batch-shift`.** It reads each supplied note's physical examination against the profile's explicit abdominal scheme and refuses quadrant wording for a nine-region clinician. Its clean exit is required before a standalone go-ahead or building a Review sheet. It reports notes read, examination sections found, and the unread remainder; an unlocated examination is unread. Without the command's clean exit that gate stops.
 
+**`tools/change_list.py` is a Required command for revisions shown by `discussion-reply`,
+`discussion-post`, `peer-critique`, and `practicum-case-study`.** It produces the sentence
+change list shown verbatim with every showing after the first, under
+[Revisions](skills/_shared/reference/revisions.md). Without its run, the list is not computed.
+
 **`tools/aar_scan.py` is a Required command for `aar`.** It extracts the run and grades the after-action record; the invoking skill resumes its completion grader only after exit 0. After an install has been tried, a consumer without the command can walk the same rows by eye but cannot call the after-action review mechanically verified.
 
 **`tools/anchor_scan.py` is a Required command for `icd10-cpt` and for the descriptor-agreement steps inherited by `clinical-note` and `batch-shift`.** Its ordinary mode grades worksheet anchors. Its agreement-brief mode produces the answer-free note/code brief, and its agreement-read mode grades the separated reader's record and the bidirectional note/worksheet code bind. Without a clean required run, descriptor agreement and the paired code populations are not mechanically verified.

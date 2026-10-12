@@ -361,6 +361,7 @@ Ask whether the substance is right, whether the register is his, and, separately
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit content go-ahead authorizes loading.
+Before each draft showing at the go-ahead, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
 Before asking for the go-ahead, run `python tools/project_context.py <run-directory>

@@ -378,6 +378,7 @@ showing that gate, inspect the threaded Canvas Composer and read
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit content go-ahead for this reply authorizes loading.
+Before each draft showing, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
 Before asking for each reply's go-ahead, run `python tools/project_context.py <run-directory>

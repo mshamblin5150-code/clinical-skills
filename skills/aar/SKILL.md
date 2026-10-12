@@ -90,8 +90,9 @@ new ticket address in this round's private record. A conflict is evidence requir
 re-read, not by itself an observed correction to invent for the classifier. This work is owed
 even when the correction population is empty (ADR 0347 ruling 6).
 
-For the first round, write `<run-directory>/aar/<submission-key>.md`. For a later round, write the
-numbered review-record path beside the numbered extract the command produced. Never replace an
+Write this round's record under `<run-directory>/aar/` at the review-record filename the extract
+command printed: for example, key `response-x.md` prints `response-x.md.md` in round one and
+`response-x.md.round-2.md` in round two, including a rebuilt round. Never replace an
 earlier round. Use this shape:
 
 ```text

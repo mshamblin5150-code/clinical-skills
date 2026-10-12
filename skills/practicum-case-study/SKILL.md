@@ -1560,6 +1560,7 @@ clinician does not get a list of citation defects to repair by hand. What goes t
 what a fix would require **him** to decide — a claim the evidence does not settle, a register the
 voice model does not cover. Everything else is repaired in the document before it is rendered again.
 
+Before each draft showing, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Every change after the first draft, a reader's repair or the clinician's revision, is carried to
 every section that restates what it changed. When the clinician changes a care setting or
 disposition, restate it in one exact sentence and wait for his yes before carrying it into any
