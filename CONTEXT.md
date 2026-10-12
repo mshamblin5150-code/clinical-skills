@@ -262,6 +262,10 @@ _Avoid_: context file, memory read, background, project notes
 A **Submission** the clinician already handed in on the same board or the same case as the work being drafted — his initial post beneath a reply, his case study beneath a critique of a classmate's. A run declares it, or declares that none exists with a reason, in its **Project context record**, because a sentence describing his own plan can be checked only against the plan he actually wrote.
 _Avoid_: his post, prior work, own post, earlier submission
 
+**Course history**:
+Every **Submission** the clinician already handed in earlier in the same course, across every type of work: initial posts, replies, assignments, case studies and critiques. A run declares each paper it opened, or that none exists with a reason, in its **Project context record**, so a quotation or image reused from an earlier paper is framed for the piece at hand rather than carried over with its old framing. Reuse is judged by fit, never by repetition.
+_Avoid_: course series, series, previous modules, prior papers, earlier course submissions
+
 **Case material**:
 The fixed data set a case gives every student, whether a file the course supplies or the clinician's own transcription of a case presented by video. A run declares it, or that none exists with a reason, in its **Project context record**. Lines the clinician added to his own copy, such as a sanity check, a differential or a first plan, are his reasoning before research, never the case and never his settled position; that is his **Own submission**.
 _Avoid_: case file, case data, scenario, intake
