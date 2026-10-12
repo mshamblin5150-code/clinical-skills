@@ -396,11 +396,10 @@ research_ledger:numeric-claim-unquantified	2026-08-19T10:02:45-04:00	approval
 research_ledger:page-year-disagrees	2026-08-19T11:53:22-04:00	approval
 research_ledger:page-year-form	2026-10-09T18:16:23-04:00	approval
 research_ledger:page-year-unstated	2026-08-19T11:53:22-04:00	approval
-research_ledger:qualifier	2026-10-11T00:00:00+00:00	ledger
-research_ledger:qualifier-field	2026-10-11T10:30:10-04:00	ledger
-research_ledger:qualifier-heading-missing	2026-10-11T10:30:10-04:00	ledger
-research_ledger:qualifier-passage-missing	2026-10-11T10:30:10-04:00	ledger
-research_ledger:qualifier-restatement-missing	2026-10-11T10:30:10-04:00	ledger
+research_ledger:qualifier-field	2026-10-11T00:00:00Z	ledger
+research_ledger:qualifier-heading-missing	2026-10-11T00:00:00Z	ledger
+research_ledger:qualifier-passage-missing	2026-10-11T00:00:00Z	ledger
+research_ledger:qualifier-restatement-missing	2026-10-11T00:00:00Z	ledger
 research_ledger:qualifiers	2026-10-11T00:00:00Z	ledger
 research_ledger:read-after-date	2026-08-19T11:53:22-04:00	approval
 research_ledger:refutation-echoes-restatement	2026-08-19T11:53:22-04:00	approval

@@ -46,9 +46,10 @@ class CheckLandingBetweenPostingAndGrade(FrozenFixture):
         self.item["recorded_at"] = 1791590400  # before qualifier adoption
         self.save()
         records = research_ledger.read_records(replace_field(CLEAN, "QUALIFIERS", None))
-        with checks.grading(self.run, "post"):
-            result = research_ledger.survey(records, date(2026, 10, 12))
-        self.assertIn("qualifier-field", {f.kind for f in result.findings})
+        for ledger_date in (date(2026, 10, 11), date(2026, 10, 12)):
+            with self.subTest(ledger_date=ledger_date), checks.grading(self.run, "post"):
+                result = research_ledger.survey(records, ledger_date)
+            self.assertIn("qualifier-field", {f.kind for f in result.findings})
     def test_time_log_is_required_only_after_its_start(self):
         self.item["skill"] = "clinical-note"
         self.item["recorded_at"] = 1790812800  # 2026-10-01 UTC
