@@ -1,6 +1,11 @@
 # A case study's routing walk is a written record and a red-flag exception goes to the clinician
 
-**Measured at:** 50802febe9a65a709ed757a76a559a5475e3c778
+**Measured at:** ac4bfe0f2866eb172b84c7bb591259387df193c6
+
+*Re-declared from `50802feb` on 2026-10-12 for the Ruling 9 correction below. Between the two bases
+`style.md` section 7's abbreviation bullet and one `practicum-case-study` step 9 paragraph changed
+(#1791); neither is a context line of any #1576 hunk, so the measurements below were re-checked and
+stand.*
 
 [#1576](https://github.com/mshamblin5150-code/clinical-skills/issues/1576) was filed from the
 after-action review of a `practicum-case-study` run (NUR 5144 Module 4). It proposed eleven plan,
@@ -114,8 +119,17 @@ applies, the clinician instruction quoted, and its source stated correctly. Ever
 draft has its `### DEPARTURE:` entry. An entry not tied to draft text stays until it is answered or
 withdrawn. Rebuilding the file from the draft, as written, was declined because some entries live
 only in the file, such as the visit-date assumption ADR 0361 Ruling 1 writes before drafting, and a
-rebuild drops them unnoticed. The rule stays prose; the leftovers and decisions readers already read
-this file.
+rebuild drops them unnoticed. The `the leftovers of every change after the first draft` reader takes
+`proposed-<date>.md` as an input, and an entry left stale by a change is one of its leftovers; that
+brief belongs to [#1577](https://github.com/mshamblin5150-code/clinical-skills/issues/1577). A
+grader shape check was declined, because whether an entry is current is a reading with no closed
+outcome vocabulary.
+
+Correction, 2026-10-12: this ruling formerly closed *The rule stays prose; the leftovers and
+decisions readers already read this file.* That was false. The leftovers reader reads only the
+draft and the description of the round's changes, and the decisions reader's brief checks only for
+a narrowing the departures section omits. The clinician then ruled that the leftovers reader takes
+the file, so the ruling no longer rests on the false premise.
 
 ## Ruling 10 — a cited sentence carries its heading's qualifiers and nothing wider
 
