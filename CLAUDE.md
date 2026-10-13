@@ -1075,7 +1075,7 @@ The reference scan reads a `practicum-case-study` draft. This one reads **the re
 python tools/checks_ledger.py <a checks file>
 ```
 
-Before every step 9 reader round, the Grader handoffs rerun over the placed draft and keep their
+Before every `practicum-case-study` step 9 reader round, the Grader handoffs rerun over the placed draft and keep their
 raw output. The walks-only handoff needs no reader verdicts or output document:
 
 ```bash

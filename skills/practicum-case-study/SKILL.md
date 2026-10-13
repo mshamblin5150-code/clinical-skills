@@ -1733,7 +1733,7 @@ If the draft changes after any row was dispatched, recompute its fingerprint and
 no prior record is banked across a draft change.
 
 Before a draft is placed for any step 9 reader round, the `research_ledger.py --draft`,
-`case_study_scan.py` and `reference_scan.py` **Grader handoffs** under
+`case_study_scan.py` and `reference_scan.py` **Grader handoff** commands under
 [standing rule 6](../../AGENTS.md) run again over the draft as placed. The walks-only Grader
 handoff joins them before every round:
 
@@ -1745,7 +1745,7 @@ This mode grades only `emergency-walk.json`, `bar-walk.json`, `fact-trace.json` 
 `routing-walk.json`, using their existing registered starts; it requires no `## CHECK:` verdicts
 or output document. Exit 0 is clean, 1 is a walk finding, and 2 means it did not scan (an unreadable
 checks file or no active walk population). A read population prints the shared `unread remainder`
-line. Keep each handoff's raw output in the run directory. Repair a finding, including a missing
+line. Keep each command's raw output in the run directory. Repair a finding, including a missing
 or malformed walk, and rerun its grader before readers see the draft. These results are not check
 records and replace no row. The full `checks_ledger.py` command before the go-ahead is unchanged.
 
