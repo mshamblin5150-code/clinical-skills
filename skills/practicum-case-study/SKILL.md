@@ -1316,9 +1316,9 @@ rows whose verdict comes from a command.
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
 | the dose against the record that sourced it | every prescription table, and `<claims-ledger>` | a reader: for every drug row stating a dose, does the claim record naming that drug state **that** dose — the same quantity, in whatever unit and form the source wrote it — rather than a different one. Never whether the dose is *right*: a wrong-but-sourced dose passes this row and is [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
-| the threshold sheets against this patient | the whole draft, the faculty material's patient, and `reference/thresholds/` via `coverage.md`, including its `subject` column | a reader: group the registry's rows by subject; where this patient's problems touch any cell in a subject, open every sheet in that subject; and where the draft rests on rows from more than one sheet, decide whether each sheet's own population wording holds for **this** patient — `?` means nobody has ruled whether that cell has siblings, never that it has none; population and quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so this pair is seen by nobody else | yes |
-| the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**; for **every alternative the draft rejects with a stated reason** — setting, drug, test or procedure — **whether the chosen option meets that same reason**, never whether the rejection was right; and **every departure from a clinician instruction the departures section does not list**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
-| the leftovers of every change after the first draft | the whole Markdown draft and the description of the round of changes | a reader that did not make the change is told what changed and reads the whole draft for leftovers of the old version. Its `clean` names the changes it walked, or states that no change followed the first draft. One read covers one round of changes | yes |
+| the threshold sheets against this patient | the whole draft, the faculty material's patient, and `reference/thresholds/` via `coverage.md`, including its `subject` column | a reader: group the registry's rows by subject; where this patient's problems touch any cell in a subject, open every sheet in that subject; and where the draft rests on rows from more than one sheet, decide whether each sheet's own population wording holds for **this** patient — `?` means nobody has ruled whether that cell has siblings, never that it has none; population and quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so this pair is seen by nobody else. For a pregnant patient, **a row an opened sheet gives for every pregnancy that the Plan omits is a `defect`**, never an observation | yes |
+| the clinical decisions no command reaches | the faculty material, the whole Markdown draft, and `<run-directory>/routing-walk.json` | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**; for **every alternative the draft rejects with a stated reason** — setting, drug, test or procedure — **whether the chosen option meets that same reason**, never whether the rejection was right; and **every departure from a clinician instruction the departures section does not list**; for every row of the routing walk, **whether its Receiving item is clinically right** ([ADR 0362](../../docs/adr/0362-a-case-study-s-routing-walk-is-a-written-record-and-a-red-flag-exception-goes-to-the-clinician.md) Ruling 2). Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition. **The stakes standard, from round one:** a `defect` is only what a faculty grader or a clinician acting on the document would catch as an error; anything else goes on a `REMARK:` line | yes |
+| the leftovers of every change after the first draft | the whole Markdown draft, the description of the round of changes, and `<run-directory>/proposed-<date>.md` | a reader that did not make the change is told what changed and reads the whole draft for leftovers of the old version. An entry in `proposed-<date>.md` the round's changes left stale — old entry numbers, a place it applies that is missing, or a misquoted clinician instruction — is one of that round's leftovers. Its `clean` names the changes it walked, or states that no change followed the first draft. One read covers one round of changes | yes |
 | the heading read | the final Markdown draft, `<claims-ledger>`, and the heading digests printed by `research_ledger.py --heading-digests` | This fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives no sources and pairs every factual sentence with the current heading it rests on. It writes the shared record below; an `unrecorded` or `drifted` sentence is repaired under [sourcing.md](../_shared/reference/sourcing.md), and every repair is read again before the go-ahead. It writes each problem outside its assigned question on a `REMARK: <problem>` line, repeated for each remark, and nowhere else in the record. With no second context, the read does not complete: write no record, give no go-ahead, and submit no artifact | no |
 | the numbering in context | `<numbering-readback>` produced by `python tools/docx_read.py "<the case study document>" --numbering`, and the Markdown draft | a reader: read the reconstructed numerals in context, never the raw `.docx`; does each section start where it should, does each MDM entry discuss **by name** the diagnosis at the same position in the differential, and does every restart or deliberate continuation suit the section | yes |
 | the rendered document | the Markdown draft, the rendered `.docx`, and the final retained render, page by page | coverage: `tools/render_scan.py` below; then a vision-capable reader opens every retained page image, compares it page by page with the Markdown, records `SOURCE` as `word-pdf`, `word-xps`, or `clinician` and `PASS` as the positive retained pass number, and reports clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
@@ -1538,10 +1538,18 @@ it inspected. If the harness cannot view the retained pixels, that reader return
 prewritten heading remains incomplete and the document is not submitted. A text-only reread of the
 Markdown cannot substitute for the visual check.
 
+The render reader records in its `rendered.md` record its own counts of reference entries and
+prescription pads on the retained page images, and is **not told the expected numbers**. The
+orchestrator counts both in the Markdown and compares. A disagreement sends the reader back to
+recount the named pages; the orchestrator never settles it by asserting its own count. Do not put
+expected counts in the reader's brief.
+
 Every step 9 reader first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
 **Each row is a Second reader surface under [standing rule 6](../../AGENTS.md).** As this surface's
 narrowing, each reader also receives the part of this file above `## Steps`, marked settled and never
-reportable as a defect. It grades only the rule its row names. Each gets the draft, that rule, and
+reportable as a defect. **The brief names the two credential strings outright as settled**: the
+`Rx:` block's FNP string beside the `Signed by:` line's RN string is correct under *Credentials*
+above. It grades only the rule its row names. Each gets the draft, that rule, and
 the instruction to report findings rather than fix them. If no second
 context can be obtained, the row remains incomplete and the document is not submitted.
 
@@ -1549,6 +1557,11 @@ The orchestrator fills each prewritten heading as its verdict arrives. Since
 [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240), the grader below catches two
 records under one check. What it cannot catch is a write that landed on nothing, so the prewritten
 headings remain what makes a lost verdict visible.
+
+**A reader recommendation that reverses a fix an earlier round required is reconciled before it
+is applied.** Put the two findings side by side against the source both rest on, record in the run
+directory which stands and why, and apply nothing until that is settled. If the source does not
+settle it, it goes to `PROPOSED`.
 
 **One record per check**, filled in under its heading:
 
@@ -1574,6 +1587,8 @@ VERDICT: clean
 DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Walked every retained page against the Markdown; no clipping, overlap,
     broken numbering, bad break, misplaced heading, or reference-layout defect.
+    Reference entries counted on the page images: <reader's count>.
+    Prescription pads counted on the page images: <reader's count>.
 SOURCE: word-pdf
 PASS: 3
 REMARK: <problem outside the assigned question; repeat as needed>
@@ -1716,6 +1731,23 @@ skimmed is what a well-formed `clean` from a reader that read looks like.
 
 If the draft changes after any row was dispatched, recompute its fingerprint and rerun every row;
 no prior record is banked across a draft change.
+
+Before a draft is placed for any step 9 reader round, the `research_ledger.py --draft`,
+`case_study_scan.py` and `reference_scan.py` **Grader handoffs** under
+[standing rule 6](../../AGENTS.md) run again over the draft as placed. The walks-only Grader
+handoff joins them before every round:
+
+```bash
+python tools/checks_ledger.py <checks-ledger> --walks-only
+```
+
+This mode grades only `emergency-walk.json`, `bar-walk.json`, `fact-trace.json` and
+`routing-walk.json`, using their existing registered starts; it requires no `## CHECK:` verdicts
+or output document. Exit 0 is clean, 1 is a walk finding, and 2 means it did not scan (an unreadable
+checks file or no active walk population). A read population prints the shared `unread remainder`
+line. Keep each handoff's raw output in the run directory. Repair a finding, including a missing
+or malformed walk, and rerun its grader before readers see the draft. These results are not check
+records and replace no row. The full `checks_ledger.py` command before the go-ahead is unchanged.
 
 **Every rule the command applies is written above, so after the install has been tried a harness
 with no Python walks the file by eye instead.** Its clean exit remains required before submission;

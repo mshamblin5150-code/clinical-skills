@@ -1673,6 +1673,60 @@ class PreReviewWalksThroughCommand(unittest.TestCase):
                 self.assertEqual(1, self.grade({}, moment)[0])
 
 
+class WalksOnlyThroughCommand(unittest.TestCase):
+    def grade(self, records=None, *, missing=None, malformed=None,
+              first_draft="2099-01-01T00:00:00Z"):
+        records = records if records is not None else PreReviewWalksThroughCommand().records()
+        records = dict(records)
+        records["routing-walk.json"] = RoutingWalkThroughCommand().routing_record()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "checks.md"
+            path.write_text("FIRST-DRAFT: " + first_draft + "\n" +
+                            "## CHECK: differential ordering\n", encoding="utf-8")
+            for name, record in records.items():
+                if name != missing:
+                    (path.parent / name).write_text(
+                        "{broken" if name == malformed else json.dumps(record), encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = checks.main([str(path), "--walks-only"])
+            return status, out.getvalue(), err.getvalue()
+
+    def test_clean_walks_pass_without_draft_render_or_reader_verdicts(self):
+        status, report, error = self.grade()
+        self.assertEqual(0, status, report + error)
+        self.assertIn("unread remainder 0", report)
+        self.assertNotIn("missing-verdict", report)
+
+    def test_each_missing_walk_is_a_finding_before_readers(self):
+        for name in ("emergency-walk.json", "bar-walk.json", "fact-trace.json", "routing-walk.json"):
+            with self.subTest(name=name):
+                status, report, error = self.grade(missing=name)
+                self.assertEqual(1, status, report + error)
+                self.assertIn("unread remainder 1", report)
+                self.assertNotIn("Emergency A", report)
+
+    def test_each_malformed_walk_is_a_finding_before_readers(self):
+        for name in ("emergency-walk.json", "bar-walk.json", "fact-trace.json", "routing-walk.json"):
+            with self.subTest(name=name):
+                self.assertEqual(1, self.grade(malformed=name)[0])
+
+    def test_malformed_entry_uses_the_full_commands_walk_contract(self):
+        records = PreReviewWalksThroughCommand().records()
+        records["bar-walk.json"]["entries"][0]["outcome"] = "maybe"
+        self.assertEqual(1, self.grade(records)[0])
+
+    def test_no_active_walk_population_did_not_scan(self):
+        self.assertEqual(2, self.grade(first_draft="2001-01-01T00:00:00Z")[0])
+
+    def test_missing_checks_file_did_not_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = checks.main([str(Path(directory) / "missing.md"), "--walks-only"])
+        self.assertEqual(2, status)
+
+
 class RoutingWalkThroughCommand(unittest.TestCase):
     records = PreReviewWalksThroughCommand.records
     grade = PreReviewWalksThroughCommand.grade

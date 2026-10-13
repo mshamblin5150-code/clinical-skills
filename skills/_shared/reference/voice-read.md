@@ -63,6 +63,11 @@ one sentence toward one pair's generic half without copying that half verbatim. 
 }
 ```
 
+`pair_id` is the text between the opening `**` of the pair's heading line in the model and the
+`.**` that closes it: a model line beginning `**Hard stop before the qualifier.**` gives
+`"pair_id": "Hard stop before the qualifier"`. The Voice reader's `answers` use the same form.
+The example is synthetic.
+
 Keep this record from the Voice reader. The grader reconstructs the planted copy from the real
 surface and these two sentence strings; any other text change fails.
 The comparison ignores line endings while every digest binds raw bytes.
