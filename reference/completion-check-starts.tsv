@@ -112,6 +112,7 @@ checks_ledger:inline-html	2026-09-17T10:14:51-04:00	approval
 checks_ledger:invalid-rendered-record	2026-09-10T13:28:58-04:00	approval
 checks_ledger:missing-check	2026-08-19T14:32:25-04:00	approval
 checks_ledger:pre-review-walks	2026-10-12T21:31:32Z	ledger
+checks_ledger:routing-walk	2026-10-13T00:07:13Z	ledger
 checks_ledger:missing-heading-read	2026-09-13T14:50:02+00:00	approval
 checks_ledger:missing-verdict	2026-08-19T14:32:25-04:00	approval
 checks_ledger:posted-attachment	2026-09-17T10:14:51-04:00	approval

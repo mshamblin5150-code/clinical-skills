@@ -433,6 +433,7 @@ SUBMISSION_FINGERPRINT = "submission-fingerprint"
 INLINE_HTML = "inline-html"
 POSTED_ATTACHMENT = "posted-attachment"
 PRE_REVIEW_WALKS = "pre-review-walks"
+ROUTING_WALK = "routing-walk"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -460,6 +461,7 @@ ROWS = {
     INLINE_HTML: "#1154",
     POSTED_ATTACHMENT: "#1154",
     PRE_REVIEW_WALKS: "#1575",
+    ROUTING_WALK: "#1576",
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
@@ -1077,6 +1079,34 @@ def _walk_text(value: object) -> bool:
     return isinstance(value, str) and bool(SUBSTANCE.search(value))
 
 
+def routing_walk(run: Path, checks_text: str) -> list[Finding]:
+    """Grade recorded routing shape; sources and clinical routes remain reader-owned."""
+    import json
+
+    if not completion_checks.active("checks_ledger:" + ROUTING_WALK, _first_draft_moment(checks_text)):
+        return []
+    try:
+        record = json.loads((run / "routing-walk.json").read_text(encoding="utf-8"))
+        entries = record["entries"]
+        if not isinstance(entries, list) or (not entries and not _walk_text(record.get("none"))):
+            raise ValueError("entries need a list and an empty-list reason")
+        for entry in entries:
+            if not isinstance(entry, dict) or entry.get("kind") not in (
+                "warning sign", "MDM promotion trigger", "ordered test", "deferred action",
+            ):
+                raise ValueError("entry needs a routing kind")
+            if any(not _walk_text(entry.get(field)) for field in ("subject", "receiving_item")):
+                raise ValueError("entry needs a subject and Receiving item")
+            if "education_receiving_item" in entry and not _walk_text(entry["education_receiving_item"]):
+                raise ValueError("recorded Education needs a Receiving item")
+            numeric = "numeric_value" in entry or bool(re.search(r"\d", entry["subject"]))
+            if numeric and any(not _walk_text(entry.get(field)) for field in ("numeric_value", "source")):
+                raise ValueError("numeric row needs its value and source")
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+        return [Finding(ROUTING_WALK, "routing-walk.json", "missing or malformed routing record")]
+    return []
+
+
 POSTED_READING_KINDS = {
     "missing-record": SUBMISSION_FINGERPRINT,
     "fingerprint": SUBMISSION_FINGERPRINT,
@@ -1134,7 +1164,10 @@ def _grade(
     rendered_report = f"the rendered pass: {NOT_GRADED} - no check records were read"
     if source.records:
         passes = render_pass.read_passes(source.path.parent / "render")
-        extra: list[Finding] = list(heading_extra) + pre_review_walks(source.path.parent, source.text)
+        extra: list[Finding] = (
+            list(heading_extra) + pre_review_walks(source.path.parent, source.text)
+            + routing_walk(source.path.parent, source.text)
+        )
         rendered = next(
             (
                 record
@@ -1247,6 +1280,9 @@ def _grade(
             "the pre-review walks: shape only" if completion_checks.active(
                 "checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(source.text)
             ) else f"the pre-review walks: {NOT_GRADED} - first draft predates the check",
+            "the routing walk: shape only" if completion_checks.active(
+                "checks_ledger:" + ROUTING_WALK, _first_draft_moment(source.text)
+            ) else f"the routing walk: {NOT_GRADED} - first draft predates the check",
             reader_remarks.report(scan.reader_remarks),
             run_grader.format_unread_remainder(scan.reader_unread),
             *(f"unread reader record: CHECK: {name}" for name in scan.unread_records),

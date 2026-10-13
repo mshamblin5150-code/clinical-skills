@@ -1470,6 +1470,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # scanner knows. ``AGENTS.md`` classes this as a Required command because the
     # skill requires its clean exit before submission.
     ROW_PHRASES = {
+        checks.ROUTING_WALK: "a missing or malformed routing record",
         checks.PRE_REVIEW_WALKS: "a missing or malformed pre-review walk",
         checks.heading_read.QUALIFIER_COUNT: "a heading-read-qualifier-count finding",
         checks.heading_read.ITEM_COUNT: "a heading-read-item-count finding",
@@ -1584,6 +1585,8 @@ class PreReviewWalksThroughCommand(unittest.TestCase):
         }
 
     def grade(self, records: dict, first_draft: str = "2099-01-01T00:00:00Z") -> tuple[int, str, str]:
+        records = dict(records)
+        records.setdefault("routing-walk.json", {"entries": [], "none": "No synthetic routing subjects"})
         directory, path = in_a_file("FIRST-DRAFT: " + first_draft + "\n" + whole_file())
         with directory:
             for name, value in records.items():
@@ -1668,6 +1671,84 @@ class PreReviewWalksThroughCommand(unittest.TestCase):
         for moment in ("unknown", "", "2001-01-01T00:00:00Z\nFIRST-DRAFT: 2099-01-01T00:00:00Z"):
             with self.subTest(moment=moment):
                 self.assertEqual(1, self.grade({}, moment)[0])
+
+
+class RoutingWalkThroughCommand(unittest.TestCase):
+    records = PreReviewWalksThroughCommand.records
+    grade = PreReviewWalksThroughCommand.grade
+    def routing_grade(self, record, first_draft="2099-01-01T00:00:00Z"):
+        records = self.records()
+        records["routing-walk.json"] = record
+        return self.grade(records, first_draft)
+
+    def routing_record(self):
+        return {"entries": [
+            {"kind": kind, "subject": "Synthetic subject", "receiving_item": "Plan: scheduled call"}
+            for kind in ("warning sign", "MDM promotion trigger", "ordered test", "deferred action")
+        ]}
+
+    def test_routing_complete_and_numeric_records_pass(self):
+        record = self.routing_record()
+        record["entries"][0]["education_receiving_item"] = "Education: scheduled call"
+        record["entries"][1].update(numeric_value="10 units", source="Claims: synthetic threshold")
+        self.assertEqual(0, self.routing_grade(record)[0])
+
+    def test_routing_bad_shapes_and_fields_fail(self):
+        for record in (None, [], {}, {"entries": "unknown"}, {"entries": [None]},
+                       {"entries": [{}]}, {"entries": []}):
+            with self.subTest(record=record):
+                self.assertEqual(1, self.routing_grade(record)[0])
+        for field in ("kind", "subject", "receiving_item"):
+            for value in (None, "", "---", 12, []):
+                with self.subTest(field=field, value=value):
+                    record = self.routing_record()
+                    record["entries"][0][field] = value
+                    self.assertEqual(1, self.routing_grade(record)[0])
+        record = self.routing_record()
+        record["entries"][0]["kind"] = "unknown"
+        self.assertEqual(1, self.routing_grade(record)[0])
+
+    def test_routing_numeric_source_and_education_locators_are_required(self):
+        for fields in ({"numeric_value": "10 units"}, {"numeric_value": "", "source": "Claim A"},
+                       {"numeric_value": "10 units", "source": ""},
+                       {"subject": "Synthetic threshold 10 units"},
+                       {"education_receiving_item": ""}):
+            with self.subTest(fields=fields):
+                record = self.routing_record()
+                record["entries"][0].update(fields)
+                status, report, _ = self.routing_grade(record)
+                self.assertEqual(1, status)
+                self.assertIn("routing-walk", report)
+                self.assertNotIn("Synthetic threshold", report)
+
+    def test_routing_missing_or_invalid_json_and_independent_start(self):
+        import completion_checks
+
+        start = completion_checks.registry()["checks_ledger:routing-walk"]
+        old_start = completion_checks.registry()["checks_ledger:pre-review-walks"]
+        self.assertGreater(start[0], old_start[0])
+        for moment in ("2099-01-01T00:00:00Z", old_start[0].isoformat()):
+            directory, path = in_a_file("FIRST-DRAFT: " + moment + "\n" + whole_file())
+            with directory:
+                for name, record in self.records().items():
+                    (path.parent / name).write_text(json.dumps(record), encoding="utf-8")
+                expected = 1 if moment.startswith("2099") else 0
+                self.assertEqual(expected, run([str(path)])[0])
+                (path.parent / "routing-walk.json").write_text("{", encoding="utf-8")
+                self.assertEqual(expected, run([str(path)])[0])
+
+    def test_routing_empty_population_and_unknown_dates(self):
+        self.assertEqual(0, self.routing_grade({"entries": [], "none": "No synthetic routing subjects"})[0])
+        for moment in ("unknown", "", "2001-01-01T00:00:00Z\nFIRST-DRAFT: 2099-01-01T00:00:00Z"):
+            with self.subTest(moment=moment):
+                self.assertEqual(1, self.routing_grade(None, moment)[0])
+
+    def test_skill_routing_example_passes_the_public_command(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        section = skill.split("### Pre-review walk records", 1)[1]
+        example = re.search(r"```json\n(.*?)\n```", section, re.S)
+        self.assertIsNotNone(example)
+        self.assertEqual(0, self.routing_grade(json.loads(example.group(1)))[0])
 
 
 class ComposerAttachmentOutcome(unittest.TestCase):
