@@ -216,6 +216,11 @@ that form.
 Every clinical claim carries a citation. Every numbered MDM entry carries at least one in-text
 citation. Density runs one to three citations per entry.
 
+**Every promotion trigger and every ordered test names its Receiving item in the Plan.** A trigger
+in an MDM entry, a warning sign in the Patient Education, and each test in the Plan carries the
+Plan item that receives the patient or work (emergency triage, a named referral, a scheduled call).
+A trigger or a result with no Receiving item is an unfinished order.
+
 ## 6. Plan — orders, not prose
 
 Bulleted imperatives. Drug lines carry dose, route, frequency, duration and indication. The
@@ -238,6 +243,11 @@ is 4 or greater, enoxaparin 40 mg subcutaneous daily, adjusted for creatinine cl
 compression."* One submission goes further and writes a **timed** conditional with the procedure
 spelled out — manual detorsion if urology is unavailable by a stated hour.
 
+**A deferred action names the visit or call that does it.** Every Plan item deferred to later (a
+result to review, a history question, a decision) names a Receiving item this Plan actually
+schedules, and that visit or call lists the deferred action on its agenda. A deferred decision is
+timed inside the window its cited source gives.
+
 ## 7. Patient Education — spoken, second person
 
 The most distinctive voice in the document. It reads as a transcript of what he would say, not as a
@@ -255,6 +265,9 @@ Rules the corpus follows without exception:
 - One bullet per plan item, in roughly plan order.
 - The reasoning is given, not just the instruction — *why* the drug is changing.
 - **Warning signs are concrete and actionable.** Never "seek care if symptoms worsen."
+- **Where the presenting complaint overlaps the warning list, each warning sign is stated as a
+  change from the presenting baseline**: new, worse, or different from what the patient goes home
+  with. The Plan and the Patient Education give the same Receiving item for each sign.
 - Ends on the follow-up interval.
 - Where knowledge is genuinely absent it is admitted to the patient rather than papered over.
 - **No abbreviations at all** in the patient-facing script; in the Plan and MDM,
@@ -328,6 +341,10 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   a prescription for a drug that must not be given. The decision not to use it belongs in the Plan
   and the MDM, as reasoning.
 - Acute, one-time and intravenous drugs take `Refill: none`. Maintenance takes `Refill: 3`.
+- **For a fixed course, size the supply so the fills reach the stated endpoint and no further.**
+  A stated duration or dated count binds the `Disp:` quantity times one plus the refill count to
+  that course. Never cut the refill count to fix an overshoot; change the supply and recompute both
+  whenever either changes. A drug stopped at reassessment keeps the ordinary supply with `Refill: 3`.
 - **A drug that continues carries its stop criterion in the drug row. Ruled 2026-08-19.** An order
   reading `Ceftriaxone 1 g IV every 24 hours` says when to start and never says when to stop, and
   the reader supplies *until discharge* out of their own head. The clinician's words: *"the rocephin
@@ -345,6 +362,10 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   rest** — *"continued for the admission and reassessed daily against the fever curve"* — rather
   than a number recalled. **A route change is a different drug unless the drug has that route**, and
   saying so in the order is cheaper than a reader assuming it does.
+- **Where the symptoms a stop rule would key on are common in the patient's population, key it to
+  a measured value instead** (a laboratory result, a vital sign, a dated count). The measured value
+  takes its own step 3 claim record and reaches `PROPOSED` only when the evidence does not settle
+  it. This rule does not reach an as-needed order, whose symptom is its indication.
 
 **Credentials are account values.** Before drafting, read the name,
 `SIGNATURE-CREDENTIALS: <signature credentials>`, and

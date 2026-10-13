@@ -326,6 +326,12 @@ numeric decision point, `reference/guidelines-catalog.md` and `tools/guidelines_
 society corpus. **A missing row in a threshold sheet is not a negative finding**; a missing USPSTF
 row is one about the USPSTF, and never a statement that the item is unindicated.
 
+**Every numeric trigger is quoted from its threshold-sheet row or claim record.** A value that sends
+the patient somewhere (a vital sign, a laboratory cut point, a gestational window for an order)
+carries that row's or record's own value and destination. A severe-range value goes where its source
+sends it, and no trigger sits inside the range the cited source calls normal. Each numeric row in
+the routing walk names the threshold-sheet row or run claim record it was quoted from.
+
 Where those searches leave a claim uncovered, follow [the shared search order](../_shared/reference/sourcing.md#search-the-evidence-store-and-guideline-index-first):
 search his UpToDate account through the Authenticated route without asking, file each topic used
 as a supplement dump, then consult outside sources.
@@ -416,6 +422,12 @@ Standing rule 3 still binds: a `PROPOSED (verify before use)` block lists every 
 skill contributed that the clinician's draft did not already contain — each differential added,
 each code, each drug, each dose. Write it to `<run-directory>/proposed-<date>.md`, show it to the
 clinician before submission, and never put it after References in the submission Markdown.
+
+**Before each reader round, reconcile `proposed-<date>.md` with the placed draft in both
+directions.** Each entry has its current entry numbers, every place it applies, the clinician
+instruction quoted, and its source stated correctly. Every narrowing in the draft has its
+`### DEPARTURE:` entry. An entry not tied to draft text, such as the pre-draft visit-date
+assumption, stays until answered or withdrawn; preserve it while reconciling the file.
 
 The same file carries a `## Departures` section with one entry for every place the draft narrows or
 departs from a clinician instruction. Each entry states what was instructed, what the draft says,
@@ -979,6 +991,11 @@ for applying retrieved context while drafting, keyed staging, retained observati
 clinician waivers, and the pre-approval reading.
 At the go-ahead, show any late gate and its waived-observation count.
 
+**Write each cited sentence from its claim heading's own text.** Open the heading the sentence
+rests on. The claim carries every qualifier in that heading (population, drug class, condition,
+time window) and nothing wider. Facts about this patient from the faculty material may stand
+beside it. The step 9 heading read still runs as detection.
+
 **Read only the canonical path the identity command reports**, and write each section in the register that
 section takes — the MDM, the patient education and the reflective prose are three different voices
 and [../_shared/reference/voice.md](../_shared/reference/voice.md) §2 says which is which. Where the model declares a
@@ -998,6 +1015,11 @@ diagnosis or makes another ruled out or argued down, not a textbook summary of t
 verdict, and the strongest form in the corpus promotes the verdict to the entry's own header line
 with the reasoning underneath.
 
+**Before the draft is placed for a reader round, walk each rejected alternative's stated reason
+against the chosen option.** If an alternative is ruled out on a specific reason (dose, guideline
+fit, contraindication), confirm the chosen option meets that same reason, including every
+product that shares a contraindicated ingredient. The decisions reader still runs the same test.
+
 **Before the first reader round, walk every signed bar element against the draft.** Write
 `<run-directory>/bar-walk.json` in the shape below. Each element `bar.md` carries is met in a named
 section or inapplicable with its one-clause explanation under *A wrapper instruction that does not
@@ -1005,6 +1027,35 @@ fit this patient is reasoned about* and a `### DEPARTURE:` entry. The faculty to
 this walk; it does not replace it.
 
 ### Pre-review walk records
+
+**Before the first reader round, write `<run-directory>/routing-walk.json`.** List every warning
+sign, MDM promotion trigger, ordered test and deferred action beside its **Receiving item** in
+the Plan (defined in [CONTEXT.md](../../CONTEXT.md)). A warning sign also stated in the Patient
+Education names the same Receiving item in both sections. Carry each clinician ruling through
+this walk, including a ruling on a proposed red-flag exception.
+
+The routing record is a JSON object with an `entries` list. Each entry has substantive text in
+`kind`, `subject`, and `receiving_item`. Its `kind` is `warning sign`, `MDM promotion trigger`,
+`ordered test`, or `deferred action`. A warning sign also stated in Patient Education carries
+`education_receiving_item`. A row carrying a numeric value includes `numeric_value` and `source`,
+where `source` names its threshold-sheet row or run claim record. With no subjects, write
+`"entries": []` and a substantive `"none"` reason. For example:
+
+```json
+{"entries": [
+  {"kind": "ordered test", "subject": "Synthetic laboratory test",
+   "receiving_item": "Plan: scheduled result-review call"},
+  {"kind": "MDM promotion trigger", "subject": "Synthetic numeric trigger",
+   "receiving_item": "Plan: emergency triage", "numeric_value": "Synthetic threshold 10",
+   "source": "Claims ledger: Synthetic trigger"}
+]}
+```
+
+`checks_ledger.py` reads routing shape only, including the Receiving item and numeric source;
+completeness, clinical correctness, source agreement and agreement between sections stay reader
+judgments. Numeric shape is identified by the recorded `numeric_value` or `source` field, not by
+digits in a test's name; an omitted numeric row or unrecorded value remains a completeness reading.
+This check has its own registered start and uses the retained `FIRST-DRAFT` timestamp.
 
 These files stay in the run directory, outside the graded document. Each is a JSON object with
 `entries`, a list of objects. Every named text field contains substantive text. When a walk has no
@@ -1651,6 +1702,12 @@ position, an unknown trace kind, or an empty entries list without a `none` reaso
 and draft before handoff. Runs first drafted before the registered start are not graded on this
 check; the retained `FIRST-DRAFT` timestamp supplies its ledger comparison moment.
 
+A `routing-walk` finding means a missing or malformed routing record: an unreadable object or
+entries list, an unknown kind, a missing subject or Receiving item, an empty list without a `none`
+reason, an empty recorded Education Receiving item, or a numeric row with no value or source.
+Repair the record and draft before handoff. Runs first drafted before this check's own registered
+start are not graded on it; the retained `FIRST-DRAFT` supplies its comparison moment.
+
 Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan** — no file, or no
 `## CHECK:` record in it. Re-run with `--show` to see which, and **that output is PHI**: read it, do
 not paste it. **A clean scan is not a checked draft** — every verdict in that file is a reading, and
@@ -1674,10 +1731,18 @@ voice model does not cover. Everything else is repaired in the document before i
 
 Before each draft showing, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Every change after the first draft, a reader's repair or the clinician's revision, is carried to
-every section that restates what it changed. When the clinician changes a care setting or
+every section that restates what it changed. **Before the repaired draft is placed for the next
+round, search the whole draft for the changed rule** (its drug, threshold, symptom, destination or
+interval) and change every occurrence, including the drug row and the Plan, the order endpoint and
+its prose, and an ordered counseling item and the education item that delivers it. When the
+clinician changes a care setting or
 disposition, restate it in one exact sentence and wait for his yes before carrying it into any
 section. After one round of changes, a reader that did not make them reads the whole draft under
 `the leftovers of every change after the first draft` for remnants of the old version.
+
+**A repair that would add an exception narrowing a red-flag rule is not placed.** Keep the single
+rule in the draft and put the exception in `PROPOSED` for the clinician. Carry whatever the
+clinician rules through the routing walk.
 
 **These readers see a patient record, and what they may report back is the strict form.** A finished
 draft is written about a patient, so a reader reports **where and what is wrong** — the section, the
