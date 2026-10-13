@@ -1099,7 +1099,7 @@ def routing_walk(run: Path, checks_text: str) -> list[Finding]:
                 raise ValueError("entry needs a subject and Receiving item")
             if "education_receiving_item" in entry and not _walk_text(entry["education_receiving_item"]):
                 raise ValueError("recorded Education needs a Receiving item")
-            numeric = "numeric_value" in entry or bool(re.search(r"\d", entry["subject"]))
+            numeric = "numeric_value" in entry or "source" in entry
             if numeric and any(not _walk_text(entry.get(field)) for field in ("numeric_value", "source")):
                 raise ValueError("numeric row needs its value and source")
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):

@@ -1711,7 +1711,7 @@ class RoutingWalkThroughCommand(unittest.TestCase):
     def test_routing_numeric_source_and_education_locators_are_required(self):
         for fields in ({"numeric_value": "10 units"}, {"numeric_value": "", "source": "Claim A"},
                        {"numeric_value": "10 units", "source": ""},
-                       {"subject": "Synthetic threshold 10 units"},
+                       {"source": "Claims: synthetic threshold"},
                        {"education_receiving_item": ""}):
             with self.subTest(fields=fields):
                 record = self.routing_record()
@@ -1720,6 +1720,11 @@ class RoutingWalkThroughCommand(unittest.TestCase):
                 self.assertEqual(1, status)
                 self.assertIn("routing-walk", report)
                 self.assertNotIn("Synthetic threshold", report)
+
+    def test_digits_in_test_names_are_not_numeric_values(self):
+        record = self.routing_record()
+        record["entries"][2]["subject"] = "HbA1c"
+        self.assertEqual(0, self.routing_grade(record)[0])
 
     def test_routing_missing_or_invalid_json_and_independent_start(self):
         import completion_checks

@@ -1053,7 +1053,9 @@ where `source` names its threshold-sheet row or run claim record. With no subjec
 
 `checks_ledger.py` reads routing shape only, including the Receiving item and numeric source;
 completeness, clinical correctness, source agreement and agreement between sections stay reader
-judgments. This check has its own registered start and uses the retained `FIRST-DRAFT` timestamp.
+judgments. Numeric shape is identified by the recorded `numeric_value` or `source` field, not by
+digits in a test's name; an omitted numeric row or unrecorded value remains a completeness reading.
+This check has its own registered start and uses the retained `FIRST-DRAFT` timestamp.
 
 These files stay in the run directory, outside the graded document. Each is a JSON object with
 `entries`, a list of objects. Every named text field contains substantive text. When a walk has no
