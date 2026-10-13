@@ -1075,6 +1075,18 @@ The reference scan reads a `practicum-case-study` draft. This one reads **the re
 python tools/checks_ledger.py <a checks file>
 ```
 
+Before every `practicum-case-study` step 9 reader round, the Grader handoffs rerun over the placed draft and keep their
+raw output. The walks-only handoff needs no reader verdicts or output document:
+
+```bash
+python tools/checks_ledger.py <a checks file> --walks-only
+```
+
+It grades only the pre-review walk records, using their existing start dates and shape contracts.
+Exit 0 is clean, 1 is a walk finding, and 2 means it did not scan; a read population prints the shared
+`unread remainder` line. Missing or malformed walks are repaired before readers see the draft.
+The full command before the go-ahead is unchanged; this mode supplies no check verdicts.
+
 **The ticket is an asymmetry rather than a defect, and that is the whole argument for building it.** That skill has two fan-outs and they are one mechanism: N agents, one record each, into one Markdown file, headings written first, one writer. **[practicum-case-study](skills/practicum-case-study/SKILL.md) step 3's fan-out got a grader on [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) and [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9's did not**, so the second one's record shape was held by exactly what the first one's was held by before `research_ledger.py` existed — a sentence saying so, and a line in a by-eye checklist. #214's *what a written instruction cannot do is fail* transfers whole, and it transfers to the fan-out with **less** protection.
 
 **Two cheaper answers were priced first and both were refused.** Extending `research_ledger.py` shares no record contract with it, so the module would have to dispatch on which file it was handed, and its exit-2 *no `## CLAIM:` record* limb would stop distinguishing an unreadable ledger from a checks file. The recognized field set and its row-specific ownership belong to `checks_ledger.FIELD` and the skill's worked records; this section copies neither. Declaring the absence in `SKILL.md` on [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s terms costs one sentence and leaves the three silent-pass shapes standing. The clinician ruled the tool, 2026-08-19.

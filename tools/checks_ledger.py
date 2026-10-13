@@ -1317,6 +1317,61 @@ def _grade(
     )
 
 
+@dataclass(frozen=True)
+class WalksScan:
+    findings: tuple[Finding, ...]
+    read: int
+    unread: int
+
+
+def _load_walks(parsed: run_grader.Parsed) -> tuple[Path, str]:
+    path = Path(parsed.source)
+    try:
+        return path, path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read checks file {path.name}") from failure
+
+
+def _grade_walks(source: tuple[Path, str], _parsed: run_grader.Parsed) -> run_grader.Grade[WalksScan]:
+    path, text = source
+    moment = _first_draft_moment(text)
+    groups = (
+        (PRE_REVIEW_WALKS, ("emergency-walk.json", "bar-walk.json", "fact-trace.json"), pre_review_walks),
+        (ROUTING_WALK, ("routing-walk.json",), routing_walk),
+    )
+    findings: list[Finding] = []
+    population = 0
+    for kind, files, grade in groups:
+        if completion_checks.active("checks_ledger:" + kind, moment):
+            population += len(files)
+            findings.extend(grade(path.parent, text))
+    unread = len(findings)
+    scan = WalksScan(tuple(findings), population - unread, unread)
+    return run_grader.Grade(
+        scan=scan, source=path.name,
+        findings_failed=bool(findings), coverage_failed=not population,
+        diagnostics=("no active pre-review walk population",) if not population else (),
+        reports=(run_grader.format_unread_remainder(unread),) if population else (),
+    )
+
+
+def format_walks_report(scan: WalksScan, source: str, *, show: bool = False) -> str:
+    lines = [f"{source}: pre-review walks only (shape, not clinical truth)",
+             f"walk records read {scan.read}", f"walk findings {len(scan.findings)}"]
+    for kind in (PRE_REVIEW_WALKS, ROUTING_WALK):
+        lines.append(f"{kind}: {sum(f.kind == kind for f in scan.findings)}")
+    if show:
+        lines.extend(f"{f.kind}: {f.check}: {f.detail}" for f in scan.findings)
+    return "\n".join(lines)
+
+
+WALKS_GRADER = run_grader.Grader(
+    usage="usage: checks_ledger.py <a checks file> --walks-only [--show]",
+    options=(run_grader.Option("--walks-only"), run_grader.Option("--show")),
+    load=_load_walks, grade=_grade_walks, format_report=format_walks_report,
+)
+
+
 GRADER = run_grader.Grader(
     usage="usage: checks_ledger.py <a checks file> [--show] [--document <output Markdown>] [--submission <key>]",
     options=(
@@ -1332,7 +1387,7 @@ GRADER = run_grader.Grader(
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    return run_grader.run(GRADER, argv)
+    return run_grader.run(WALKS_GRADER if "--walks-only" in argv else GRADER, argv)
 
 
 if __name__ == "__main__":

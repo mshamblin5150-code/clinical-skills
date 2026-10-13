@@ -391,7 +391,10 @@ When `PROJECT-CONTEXT` is `none`, the classmate and course-history declarations 
 their read locations through `PROJECT-SEARCH`. No registered project places are owed in
 that branch; file hashing and the go-ahead recheck apply to the declared retrieval.
 
-The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
+On a run that names a project, the memory index and every registered project place are owed.
+A `none` run owes neither; with no declared classmate or `COURSE-HISTORY` retrieval its record
+carries no `PROJECT-SEARCH`, `PROJECT-WAIVE` or `## PLACE:` entry, and `tools/project_context.py`
+refuses one that does. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.
 Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`, `EXAMINED`,
 `UNREADABLE`, and `OPENED`; a searched service carries `CORPUS-SIZE`, one `QUERY` per query, and
