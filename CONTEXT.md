@@ -1336,6 +1336,10 @@ _Avoid_: references, mentions, cited tickets, dependencies
 Text on a surface GitHub scans — a commit message, a pull request title or body — that its measured closing grammar would act on. Accidental by nature: the author was writing prose and the parser found an instruction. Distinct from a **binding**, which is deliberate and owns its line, and from a **citation**, which the grammar never reaches. The same bytes on a non-surface — an issue comment, a committed file — are not a hazard until they migrate.
 _Avoid_: binding, false positive, accidental close, match
 
+**Premature close**:
+A whole-ticket binding naming a ticket whose ruling the clinician has not yet made, marked by the `grilling` label. It is a binding rather than a **closing hazard**, because it was written on purpose; what is wrong is its timing, since the merge closes the ticket before the grill. A partial binding is never one, because it leaves the ticket open. Distinct from a **binding** in general, which is legitimate once the ticket is settled.
+_Avoid_: early close, false close, grilling close, early merge
+
 **Merge receipt**:
 The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
 _Avoid_: notification, confirmation, comment, log
