@@ -140,6 +140,11 @@ could refuse correct work.
 Whether a work is designed to change remains the declared reading it already is in `NOT_REACHED` and
 `apa7.md` §7. Nothing here moves it.
 
+*Superseded 2026-10-16.* The words "Nothing here moves it." are narrowed by
+[ADR 0367](0367-a-patient-faq-takes-no-retrieval-date-and-five-reference-shapes-are-refused-where-apa-makes-them-certain.md)
+ruling 2: a recognizable patient FAQ is graded as a webpage and its retrieval date is refused.
+Whether any other work is designed to change stays the declared reading.
+
 ## Build checklist
 
 - `tools/assignment_docx_scan.py`: ruling 1, limited to `Reference`-styled paragraphs, with a test that
