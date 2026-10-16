@@ -56,6 +56,13 @@ run would have to work around the vocabulary of the row it grades, and two passe
 on it. Making the Entry copy hold only the four sections was declined as a larger change to what the
 Entry copy is, for the same protection.
 
+*Superseded 2026-10-16.* **The words "removes any prior derived copy, and exits nonzero in the
+derive and `--check` routes alike" are superseded by
+[ADR 0385](0385-the-entry-copy-check-never-writes-or-deletes-a-copy.md)
+ruling 1 for the `--check` route, and are left as written.** The check removes no copy on any
+refusal. The narrowing to the four Note sections, the section-naming refusal, the whole-copy
+fallback, the nonzero exit in both routes and the removal in the derive route stand.
+
 ## Ruling 2 — the skill's mention advice is rewritten to match both readers
 
 The backtick paragraph in `skills/clinical-note/SKILL.md` is rewritten. Inside the four Note
