@@ -1483,7 +1483,7 @@ An observed reversal in a session's transcript — a claim was asserted, later c
 _Avoid_: mistake, error, defect, feedback, pushback
 
 **Reversal candidate**:
-One line, in the orchestrator's own words, naming a reversal it observed during the **sitting**, whoever the corrector was, written before a **review round** is extracted. It is a lead the review's reader must answer, either by naming the entry the **correction** rests on or by rejecting it with a reason, and it is never itself a correction's evidence. Distinct from a **correction**, which is the reversal once a reader has found it standing in the record: a candidate is the erring context's claim that one happened, and the distance between the two is what an independent reader is for. A round with nothing to list says so rather than listing nothing, because an absent list and an empty one would otherwise read alike.
+One line, in the orchestrator's own words, naming a reversal it observed during the **sitting**, whoever the corrector was, written before a **review round** is extracted. It is a lead the review's reader must answer, either by naming the entry the **correction** rests on or by rejecting it with a reason, and it is never itself a correction's evidence. Distinct from a **correction**, which is the reversal itself as it stands in the transcript: a candidate is the erring context's claim that one happened, and the distance between the two is what an independent reader is for. A round with nothing to list says so rather than listing nothing, because an absent list and an empty one would otherwise read alike.
 _Avoid_: candidate correction, hint, seed, self-report, known correction
 
 **Disposition**:
