@@ -42,6 +42,12 @@ Folding the check into the approval grader alone was declined because the refusa
 arrive after the clinician has read the whole Review sheet. Having the note writer avoid the shapes
 was declined because nothing would check.
 
+*Superseded 2026-10-16.* The words "The writing pass never runs it on its own output" are superseded
+by [ADR 0380](0380-a-pass-may-grammar-check-its-own-note-and-a-prior-run-is-a-record-not-a-template.md)
+ruling 1: a note pass may run the check-only mode on its own note before hand-back. The
+orchestrating context's non-authoring run over every note before the Review sheet survives
+unchanged.
+
 ## Ruling 2 — the check-only mode also requires the four-section split
 
 In that mode the note must also split through `note_grammar.parse`, the parser form sections uses,
