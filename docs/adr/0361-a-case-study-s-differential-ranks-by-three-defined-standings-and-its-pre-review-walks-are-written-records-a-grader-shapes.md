@@ -41,6 +41,8 @@ trigger sits in the MDM entry of the diagnosis it promotes. A clinician ruling i
 own scope words. A visit-date assumption is written into `proposed-<date>.md` before drafting
 whenever a recommendation depends on the date.
 
+*Superseded 2026-10-16.* The words "or a code for the combined condition" are superseded by [ADR 0377](0377-a-causal-link-the-clinician-never-stated-is-never-written-and-a-complication-code-rests-on-the-index-or-his-words.md) ruling 5. A combination code the index presumes through `with` needs no claim record or departure. The causal-link clause, a combination code with no index path, and the rest of this ruling stand.
+
 ## Ruling 2 — the cited source's emergency list is walked before the first reader round, and the walk is written down
 
 Section 3 is adopted with a record. Before the first reader round the run writes, in the run
