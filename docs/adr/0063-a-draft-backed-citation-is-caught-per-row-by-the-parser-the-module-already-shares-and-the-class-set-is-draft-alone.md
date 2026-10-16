@@ -224,6 +224,12 @@ this reads is the near half of that ticket rather than the far half.
 with `no` in the command column. This ticket makes that cell false and must flip it to the command in
 the same commit — the row's reader is unchanged.
 
+*Corrected 2026-10-16: that flip was wrong for this row. The command's draft limb reads a
+`clinical-note` `FILLED·proposed` threshold tail, which a case study never writes, so in a case-study
+run it prints `NOT RUN`.
+[ADR 0369](0369-a-case-study-s-draft-label-is-a-reader-s-walk-of-the-reference-list.md) makes the row
+reader-only, substantiated, and walked over the reference list. Every numbered ruling above stands.*
+
 **A second measurement is recorded and not acted on here.** Across all 169 catalog topics there are
 **zero mixed-class topics** — every topic's documents share a class — so the multi-source scenario
 decision 3 was filed over is empty in today's corpus, and the first mixed-class topic that appears is
