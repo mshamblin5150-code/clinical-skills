@@ -63,6 +63,13 @@ the code already chosen, which in the recorded case are silent. A rule naming on
 `R19.0-`/`R22.-` pair was declined because the defect is the starting word of the trace and the
 one-sided placement of an Excludes1, and neither is particular to that pair.
 
+*Superseded 2026-10-16.* The words "For any symptom code whose descriptor names a body site, the
+writer traces `--index` from the location words the note uses" are widened by
+[ADR 0378](0378-a-code-is-also-traced-from-the-note-s-site-cause-or-type-word-and-the-trigger-widens-adr-0373-s-location-rule.md)
+ruling 1: for any code, the writer also traces from each site, cause or type word the note names,
+and #1598 builds the one paragraph. The worked example, the instruction to read both codes'
+Excludes1, and the placement survive.
+
 ## Ruling 2 — the grader keeps its route-start test and the site stays a reading
 
 `_route_status` and the Writer self-grade are unchanged. Whether a later step of an index path, such
