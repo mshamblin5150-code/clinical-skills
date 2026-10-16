@@ -154,6 +154,16 @@ would not retract it.
 another, and the number does not move. That is a real hole, it is written into the module, and the
 only closure available is the one the firewall forbids.
 
+## Patient text outside the scratch root
+
+**Claude's user-level session store holds patient text from every run.** `~/.claude/projects/`
+keeps each session's transcript and, for a tool output too large to show inline, a saved copy under
+`tool-results/`. A transcript carries pasted shorthand, every note opened with the Read tool, and
+every brief sent to a subagent, so no printing rule keeps patient text out of it. The store is
+outside this census and outside standing rule 6's cleanup; the repository neither walks nor deletes
+it. [ADR 0375](../adr/0375-a-subagent-launch-hook-refuses-a-patient-work-brief-that-names-temp-or-no-existing-staging-folder.md)
+ruling 5 declares it rather than banning console output.
+
 ## Two things this rule does not do
 
 **It deletes nothing, and no work list may.** Disposing of an unaccounted entry is an `rm` on
