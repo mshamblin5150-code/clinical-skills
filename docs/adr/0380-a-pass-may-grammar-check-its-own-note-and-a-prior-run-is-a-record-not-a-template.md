@@ -74,6 +74,13 @@ rewording risk #1812 records is small here. [ADR 0375](0375-a-subagent-launch-ho
 a writer's identifier self-scan, because a writer searching for the source spelling does not find its
 own guessed one; a grammar check has no such blind spot, since the tool reads the note it was given.
 
+*Superseded 2026-10-16.* **The step-7 correction, "is corrected to say that it writes no copy and
+deletes a prior" derived copy on a grammar failure, is superseded by
+[ADR 0385](0385-the-entry-copy-check-never-writes-or-deletes-a-copy.md)
+ruling 1, and is left as written.** The check deletes no copy, so step 7's sentence is true as
+written and is not reworded. A note pass running the check on its own note before hand-back, and the
+orchestrating context's non-authoring run before the Review sheet, stand.
+
 ## Ruling 2 — step 1 names the source of each shift constant
 
 Course and Site come from the profile; where the shift is already in Medatrax, its record wins for
