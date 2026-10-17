@@ -68,6 +68,14 @@ nothing grades the placement. Ending a render record at its own field set was de
 weakens the parser: a misspelled field at the end of a real record would fall outside it silently.
 The heading reads `POSTING` rather than `POSTED` so it cannot be read as the field beneath it.
 
+*Superseded 2026-10-17.* **The words "holding `POST-URL:` and `POSTED:`", "the whole-file field
+read still finds both fields" and "Older runs that wrote the bare fields above their first record
+still read" are superseded by [ADR 0388](0388-the-initial-post-is-posted-when-its-approval-record-says-so-and-its-saved-link-is-read-only-from-the-posting-block.md)
+ruling 1, ruling 2, ruling 5 and ruling 6, and are left as written.** Posting is decided by the
+approval record, the block holds the link alone and is the only place it is read, and a run older
+than the approval record reads as posting not recorded. The heading, its name, and its ending any
+render record above it stand.
+
 ## Ruling 3 — every approval ask shows the whole text, in three skills
 
 At `discussion-post` Gate 1 and at the `discussion-reply` and `peer-critique` go-aheads, every ask for
