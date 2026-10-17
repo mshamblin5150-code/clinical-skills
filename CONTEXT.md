@@ -1039,7 +1039,7 @@ A gate whose off state means a read stopped partway. A finding the read already 
 _Avoid_: soft gate, degraded gate, best-effort gate
 
 **Unread remainder**:
-The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
+The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run as one figure per report, with each member counted once however many counters see it, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
 _Avoid_: skipped count, miss count, unparsed lines, coverage gap
 
 **Declared absence**:
