@@ -144,6 +144,16 @@ The **Authenticated route** is the clinician's signed-in Chrome through
 before giving up on the sought source, choosing an open substitute, or writing `STATUS: unsourced`
 because of a wall.
 
+On UpToDate and VitalSource, an agent on the route may click the sign-in form's own Sign In
+button when the clinician's password manager has already filled every field. It never types or
+changes a credential, and it never clicks Continue with Google, a single sign-on page, or a passkey
+prompt. An empty field, or a sign-in form reached from a link inside material the run is reading,
+stops the attempt as a failed read. Every research and refutation brief that sends an agent
+through the route states this permission, because an agent cannot infer it; a return that stopped
+at a signed-out page is a failed read, not a read of the source. The permission names those two
+sites because the clinician authorized each by name; another site needs its own ruling.
+[#1794](https://github.com/mshamblin5150-code/clinical-skills/issues/1794) recorded the ruling.
+
 A refuter writes `paywalled` only when the source body remains inaccessible through the
 Authenticated route; an anonymous or in-app login wall does not establish the disposition.
 [ADR 0042](../../../docs/adr/0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md)
@@ -580,7 +590,9 @@ stops the ask. The returned `Prepared` holds the paired grader report, remarks, 
 lines. Read the report; give each remark a `reader_remarks.Outcome("fixed", "<what changed>")`
 or `reader_remarks.Outcome("leave", "<proposal and reason>")`, in returned order. Show
 `reader_remarks.surface(prepared, outcomes)` in the chat before the question: it numbers every
-remark with its outcome and prints every coverage qualifier word for word. Coverage lines are
+remark with its outcome, prints the accepted reply forms with the numbers proposed to be left
+whenever any remark is, and prints every coverage qualifier word for word. The question never asks
+a yes-or-no question about the leave proposals. Coverage lines are
 shown for reading and carry no waiver. The complete draft and references still follow their
 skill's existing approval rule.
 
@@ -593,4 +605,5 @@ coverage lines after preparation and the last artifact change, before the reply.
 artifact or grader report requires preparation and a new ask. The durable approval keeps each
 remark and its accepted outcome. `reader_remarks.DECLARED_LIMITS` owns this gate's ceiling.
 [ADR 0330](../../../docs/adr/0330-a-reader-remark-is-shown-at-the-go-ahead-and-waived-only-by-name.md)
-is the authority.
+is the authority; the printed reply forms extend its ruling 3, per
+[#1794](https://github.com/mshamblin5150-code/clinical-skills/issues/1794).
