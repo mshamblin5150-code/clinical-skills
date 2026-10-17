@@ -11,6 +11,7 @@ import tempfile
 
 from console_codec import require_python_floor, use_utf8
 import grilling_stop_hook
+import memory_index
 from repo_root import main_repo_root
 
 
@@ -114,7 +115,11 @@ def _install_hook(document: object, script: Path) -> dict[str, object]:
     return document
 
 
-def _memory_pointer(tracked_format: Path) -> str:
+def _memory_pointer(tracked_format: Path, subjects: tuple[str, ...] | None = None) -> str:
+    """The pointer memory; an existing ADR 0391 placement is carried over unchanged."""
+    placement = ""
+    if subjects is not None:
+        placement = f"  subjects: {', '.join(subjects) if subjects else 'none'}\n"
     return (
         "---\n"
         "name: grill-one-question-at-a-time\n"
@@ -122,6 +127,7 @@ def _memory_pointer(tracked_format: Path) -> str:
         "metadata:\n"
         "  node_type: memory\n"
         "  type: feedback\n"
+        f"{placement}"
         "---\n\n"
         "The binding format is the tracked file at "
         f"`{tracked_format}`. Read it before asking a grilling question; this memory "
@@ -181,7 +187,8 @@ def install(*, home: Path, source_root: Path, owning_checkout: Path) -> None:
         for memory in memory_root.glob(
             "*/memory/grill-one-question-at-a-time.md"
         ):
-            _write_atomic(memory, _memory_pointer(tracked_format))
+            subjects = memory_index.read_memory(memory).subjects
+            _write_atomic(memory, _memory_pointer(tracked_format, subjects))
 
 
 def main() -> int:

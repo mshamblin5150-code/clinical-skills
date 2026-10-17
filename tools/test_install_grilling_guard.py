@@ -120,6 +120,39 @@ class InstallerContract(unittest.TestCase):
         self.assertNotIn("old duplicated rules", pointer)
         self.assertNotIn("tracked format", pointer)
 
+    def test_a_rerun_keeps_the_memory_s_subject_placement(self) -> None:
+        # ADR 0391: the pointer must not move a filed memory back to a flat line.
+        import memory_index
+
+        memory = (
+            self.home / ".claude" / "projects" / "project" / "memory"
+            / "grill-one-question-at-a-time.md"
+        )
+        memory.write_text(
+            "---\nname: grill-one-question-at-a-time\n"
+            'description: "Use the tracked one-question grilling format."\n'
+            "metadata:\n  node_type: memory\n  type: feedback\n  subjects: adr-grilling\n---\n\nold\n",
+            encoding="utf-8",
+        )
+
+        self.install()
+
+        self.assertEqual(memory_index.read_memory(memory).subjects, ("adr-grilling",))
+        self.assertIn(str(self.owning / "docs" / "agents" / "grilling.md"), memory.read_text(encoding="utf-8"))
+
+    def test_a_memory_with_no_placement_stays_unplaced_by_the_installer(self) -> None:
+        import memory_index
+
+        memory = (
+            self.home / ".claude" / "projects" / "project" / "memory"
+            / "grill-one-question-at-a-time.md"
+        )
+        memory.write_text("old duplicated rules\n", encoding="utf-8")
+
+        self.install()
+
+        self.assertIsNone(memory_index.read_memory(memory).subjects)
+
     def test_agents_bytes_outside_the_marked_block_are_unchanged(self) -> None:
         agents = self.home / ".codex" / "AGENTS.md"
         before = b"first\r\nsecond\r\n\r\n"
