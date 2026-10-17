@@ -859,6 +859,49 @@ class GoAheadRechecks(ProjectContextFixture):
                 self.assertTrue(result.coverage, result.report)
                 self.assertIn(str(self.memory), result.report)
 
+    def test_every_subject_list_is_read_as_part_of_the_index(self):
+        # ADR 0391 ruling 8: a memory edited or retired under a subject still moves.
+        listing = self.memory.parent / "subjects" / "canvas.md"
+        listing.parent.mkdir()
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n", encoding="utf-8")
+        self.assertEqual(self.write().exit_code, 0)
+        self.assertFalse(self.check().coverage)
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n- [B](../b.md) — second\n", encoding="utf-8")
+        result = self.check()
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("[B](../b.md)", result.report)
+        listing.write_text("# Canvas\n\n- [B](../b.md) — second\n", encoding="utf-8")
+        self.assertTrue(self.check().coverage)
+
+    def test_the_unposted_completion_recheck_sees_a_subject_list_edit(self):
+        listing = self.memory.parent / "subjects" / "canvas.md"
+        listing.parent.mkdir()
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n", encoding="utf-8")
+        self.assertEqual(self.write().exit_code, 0)
+        self.assertFalse(self.complete().coverage)
+        listing.write_text("# Canvas\n\n- [A](../a.md) — rewritten\n", encoding="utf-8")
+        result = self.complete()
+        self.assertTrue(result.coverage, result.report)
+        self.assertIn(str(self.memory), result.report)
+
+    def test_the_unposted_completion_recheck_reads_the_index_by_lines(self):
+        # ADR 0391 ruling 8: an appended line is shown, not a move, in every check.
+        self.memory.write_text("memory index\nanother session's pointer\n", encoding="utf-8")
+        result = self.complete()
+        self.assertFalse(result.coverage, result.report)
+        self.memory.write_text("edited index\n", encoding="utf-8")
+        self.assertTrue(self.complete().coverage)
+
+    def test_malformed_line_fingerprints_are_a_shape_finding_in_the_unposted_recheck(self):
+        record = self.run / context.RECORD_NAME
+        text = record.read_text(encoding="utf-8")
+        start = text.index("MEMORY-LINES: ")
+        end = text.index("\n", start)
+        record.write_text(text[:start] + 'MEMORY-LINES: ["not-a-fingerprint"]' + text[end:], encoding="utf-8")
+        result = self.complete()
+        self.assertTrue(result.finding, result.report)
+        self.assertIn("record shape is invalid", result.report)
+
     def test_reordering_whitespace_and_blank_lines_do_not_move_but_duplicate_loss_does(self):
         self.memory.write_text("first\nsecond\nfirst\n", encoding="utf-8")
         self.assertEqual(self.write().exit_code, 0)
@@ -921,9 +964,16 @@ class GoAheadRechecks(ProjectContextFixture):
         self.record_posting()
         self.assertTrue(self.complete().finding)
 
-    def test_unposted_terminal_grade_keeps_whole_file_rechecking(self):
+    def test_unposted_terminal_grade_rechecks_files_and_the_index_by_lines(self):
+        # ADR 0391 ruling 8: an appended memory line no longer moves an unposted key;
+        # an edited line and any other changed file still do.
         self.check()
         self.memory.write_text("memory index\nnew pointer\n", encoding="utf-8")
+        self.assertFalse(self.complete().coverage)
+        self.memory.write_text("edited index\n", encoding="utf-8")
+        self.assertTrue(self.complete().coverage)
+        self.memory.write_text("memory index\n", encoding="utf-8")
+        self.plan.write_bytes(b"changed plan\n")
         self.assertTrue(self.complete().coverage)
 
     def test_corrupt_saved_result_is_a_finding(self):

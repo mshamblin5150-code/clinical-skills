@@ -270,6 +270,30 @@ calls `use_utf8` and `require_python_floor` from that path. The preceding order 
 **Correction, 2026-10-03:** `compaction_reminder.py` and `install_compaction_reminder.py` are the
 new direct commands for #1206; both call `use_utf8` and `require_python_floor` from that path.
 
+**Correction, 2026-10-17:** `memory_index.py` is a direct command for #1707; its command path calls
+`use_utf8()` and then `require_python_floor()`.
+
+### Memory index
+
+Claude Code loads the auto-memory index `MEMORY.md` into every session and cuts it at its line and
+character limits. [ADR 0391](docs/adr/0391-the-memory-index-keeps-everywhere-rules-flat-and-files-situation-memories-under-generated-subject-lists.md)
+keeps memories that apply in every session as flat lines and files situation memories under one line
+per subject, each pointing to a generated list in the memory folder's `subjects/`. The filing rule
+and the fixed subject table live only in [docs/agents/memory.md](docs/agents/memory.md).
+
+```bash
+python tools/memory_index.py <MEMORY.md>                          # report
+python tools/memory_index.py <MEMORY.md> --write                  # rebuild the lists and flat lines
+python tools/memory_index.py <MEMORY.md> --write --install-rule   # also insert the rule block
+```
+
+Exit 0 means no memory is unplaced, 1 means at least one is, and 2 means the index, its rule block
+markers, or the tracked rule could not be read; the module docstring defines unplaced. A memory
+with no `subjects` header keeps its existing flat line verbatim, and lines that link no memory file
+are kept as written. `project_context` reads `MEMORY.md` and every subject list as one index, and the after-action review
+records each subject list's size and fails an unplaced memory. The complete boundary belongs to
+`memory_index.DECLARED_LIMITS`; this section copies none of its rows.
+
 ### Compaction reminder
 
 `tools/compaction_reminder.py` runs at Claude Code's `SessionStart` boundary and emits
@@ -1317,7 +1341,8 @@ showing a later notice preserves the result the clinician approved.
 The same five completion graders enable the shared row with `--submission`. After recorded posting,
 they carry forward the go-ahead result and name moves approved over by the clinician. A posted
 approval predating the check is named, counted, and passes on this row. An unposted key keeps the
-whole-file completion recheck. Service text is not retrieved again, and a finding wins.
+whole-file completion recheck, except that the memory index and its subject lists are compared by
+lines (ADR 0391 ruling 8). Service text is not retrieved again, and a finding wins.
 Their shared heading read binds `CONTEXT-DIGEST` to the items retained when the read was taken.
 Edited or removed items, or added places or opened items, break it; appended memory-index lines
 preserve it. A posted item's read is not rebound. It permits only `agrees`, or `none`
