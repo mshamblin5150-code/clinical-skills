@@ -474,6 +474,10 @@ _Avoid_: entry key, author key, sort key, match key
 The narrowest source shape a reference entry's own signals support, declaring every APA nursing source class that shape can span rather than guessing one class. The vocabulary is `uptodate`, `statpearls`, `legal`, `cochrane`, `doi-work`, `identified-media`, `identified-web`, and `unresolved`. Coverage is **clean** when every spanned class has a form in the local APA sheet, and **undecidable** otherwise — either because the shape reaches outside APA's nursing set, or because a spanned class has no form on the sheet. Undecidable entries report and never fail a draft.
 _Avoid_: source class, reference type, guessed class, citation kind
 
+**Reference slide**:
+A deck slide the presentation's independent second reader classifies as part of the reference list. That classification, not the slide's own heading, makes it one: a slide headed as references that the reader does not list, or a listed slide not headed that way, is an unread disagreement rather than either kind. Its entries are its paragraphs in the order the audience reads them, each whole on one slide; a forced line break inside an entry joins it, and an entry carried onto the next slide is two broken entries.
+_Avoid_: references page, bibliography slide, title slide
+
 **Legal reference entry**:
 A reference for enacted or codified law, including a session law, a statute or a regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one. **Enacted and codified are two locations of one law, not two kinds of entry** — an act as passed and the same act as codified are the same authority written twice, and an entry may carry both.
 _Avoid_: citation entry, code cite, regulation cite, statute entry
