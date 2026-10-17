@@ -873,6 +873,17 @@ class GoAheadRechecks(ProjectContextFixture):
         listing.write_text("# Canvas\n\n- [B](../b.md) — second\n", encoding="utf-8")
         self.assertTrue(self.check().coverage)
 
+    def test_the_unposted_completion_recheck_sees_a_subject_list_edit(self):
+        listing = self.memory.parent / "subjects" / "canvas.md"
+        listing.parent.mkdir()
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n", encoding="utf-8")
+        self.assertEqual(self.write().exit_code, 0)
+        self.assertFalse(self.complete().coverage)
+        listing.write_text("# Canvas\n\n- [A](../a.md) — rewritten\n", encoding="utf-8")
+        result = self.complete()
+        self.assertTrue(result.coverage, result.report)
+        self.assertIn(str(self.memory), result.report)
+
     def test_reordering_whitespace_and_blank_lines_do_not_move_but_duplicate_loss_does(self):
         self.memory.write_text("first\nsecond\nfirst\n", encoding="utf-8")
         self.assertEqual(self.write().exit_code, 0)

@@ -33,7 +33,10 @@ def memory(root: Path, name: str, description: str | None = "does a thing", subj
 def run(argv: list[str]) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        status = memory_index.main(argv)
+        try:
+            status = memory_index.main(argv)
+        except SystemExit as exit_:
+            status = exit_.code
     return status, out.getvalue(), err.getvalue()
 
 
@@ -150,12 +153,45 @@ class AnUnplacedMemoryIsAFinding(Fixture):
         status, out, _ = run([str(self.index), "--write"])
         self.assertEqual(status, 1, out)
 
-    def test_an_unreadable_header_is_unplaced(self):
+    def test_an_unreadable_header_with_a_line_is_counted_but_placed(self):
+        # ADR 0391 ruling 9 fails only a memory that reaches no index.
         (self.root / "broken.md").write_text("---\nname broken\n---\n", encoding="utf-8")
         self.index.write_text("- [Broken](broken.md) — x\n", encoding="utf-8")
-        status, out, _ = run([str(self.index), "--show"])
-        self.assertEqual(status, 1)
-        self.assertIn("the header cannot be read", out)
+        status, out, _ = run([str(self.index), "--write", "--show"])
+        self.assertEqual(status, 0, out)
+        self.assertIn("unread headers: 1", out)
+        self.assertIn("unread header: broken.md", out)
+        self.assertIn("- [Broken](broken.md) — x", self.index.read_text(encoding="utf-8"))
+
+    def test_an_unreadable_header_keeps_its_subject_list_lines(self):
+        path = memory(self.root, "listed", "x", "canvas")
+        self.index.write_text("", encoding="utf-8")
+        run([str(self.index), "--write"])
+        path.write_text("---\nname listed\n---\n", encoding="utf-8")
+        status, out, _ = run([str(self.index), "--write"])
+        self.assertEqual(status, 0, out)
+        self.assertIn("../listed.md", (self.root / "subjects" / "canvas.md").read_text(encoding="utf-8"))
+
+    def test_an_unreadable_header_in_no_index_is_unplaced(self):
+        (self.root / "broken.md").write_text("---\nname broken\n---\n", encoding="utf-8")
+        self.index.write_text("", encoding="utf-8")
+        status, out, _ = run([str(self.index), "--write", "--show"])
+        self.assertEqual(status, 1, out)
+        self.assertIn("the header cannot be read and the memory is in no index", out)
+
+    def test_top_level_and_metadata_subjects_are_both_read_and_must_agree(self):
+        (self.root / "top.md").write_text('---\nname: top\ndescription: "x"\nsubjects: canvas\n---\n',
+                                          encoding="utf-8")
+        self.index.write_text("- [Top](top.md) — x\n", encoding="utf-8")
+        status, _, _ = run([str(self.index), "--write"])
+        self.assertEqual(status, 0)
+        self.assertIn("../top.md", (self.root / "subjects" / "canvas.md").read_text(encoding="utf-8"))
+        (self.root / "top.md").write_text(
+            '---\nname: top\ndescription: "x"\nsubjects: canvas\nmetadata:\n  subjects: none\n---\n',
+            encoding="utf-8",
+        )
+        _, out, _ = run([str(self.index)])
+        self.assertIn("unread headers: 1", out)
 
     def test_a_declared_memory_not_yet_rebuilt_is_unplaced_until_the_rebuild(self):
         memory(self.root, "new", "x", "canvas")
@@ -199,6 +235,42 @@ class NotRead(Fixture):
         status, _, err = run([str(self.index)])
         self.assertEqual(status, 2)
         self.assertIn("NOT READ", err)
+
+    def test_an_unterminated_rule_block_refuses_and_writes_nothing(self):
+        memory(self.root, "a")
+        text = memory_index.BLOCK_START + "\nrule text\n- [A](a.md) — kept\n"
+        self.index.write_text(text, encoding="utf-8")
+        status, _, err = run([str(self.index), "--write"])
+        self.assertEqual(status, 2)
+        self.assertIn("malformed rule block markers", err)
+        self.assertEqual(self.index.read_text(encoding="utf-8"), text)
+
+
+class LinesThatAreNotMemoriesAreKept(Fixture):
+    def test_external_links_anchors_blank_lines_and_trailing_spaces_survive(self):
+        memory(self.root, "a")
+        text = ("# Index\n\n- [A](a.md) — hook  \n- [Site](https://example.org/x) — external\n"
+                "- [Part](a.md#section) — anchor\n")
+        self.index.write_text(text, encoding="utf-8")
+        status, out, _ = run([str(self.index), "--write"])
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.index.read_text(encoding="utf-8"), text)
+        self.assertIn("0 dangling lines dropped", out)
+
+    def test_the_trim_constant_holds_no_invisible_source_character(self):
+        source = Path(memory_index.__file__).read_text(encoding="utf-8")
+        self.assertEqual(len(source.splitlines()), source.count("\n"))
+
+
+class TheSurveyCountsEveryFileARebuildWouldTouch(Fixture):
+    def test_an_emptied_subject_list_counts_as_a_change(self):
+        path = memory(self.root, "one", "first", "canvas")
+        self.index.write_text("", encoding="utf-8")
+        run([str(self.index), "--write"])
+        path.write_text(path.read_text(encoding="utf-8").replace("subjects: canvas", "subjects: none"),
+                        encoding="utf-8")
+        _, out, _ = run([str(self.index)])
+        self.assertIn("files a rebuild would change: 2", out)
 
 
 class TheIndexIsReadAsOne(Fixture):

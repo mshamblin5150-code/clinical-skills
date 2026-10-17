@@ -1249,6 +1249,16 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
             if file_error and "outside owed PLACE" in file_error:
                 shape_errors.append(file_error)
             changed = current != opened.digest
+            if (not compare_memory_lines and not changed and not file_error
+                    and item.place == registry.memory_index and entry.values("MEMORY-LINES")):
+                # ADR 0391 ruling 8: an edit inside a subject list leaves MEMORY.md's
+                # bytes alone, so the whole-file recheck also compares the line population.
+                try:
+                    stored = json.loads(entry.value("MEMORY-LINES"))
+                    current_lines = [sha256(line.encode("utf-8")).hexdigest() for line in _memory_lines(entry, opened)]
+                    changed = bool(Counter(stored) - Counter(current_lines))
+                except (OSError, UnicodeError, ValueError, TypeError):
+                    shape_errors.append("memory line fingerprints are unreadable")
             if compare_memory_lines and not file_error and item.place == registry.memory_index and entry.values("MEMORY-LINES"):
                 try:
                     stored = json.loads(entry.value("MEMORY-LINES"))
