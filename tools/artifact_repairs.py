@@ -157,20 +157,42 @@ def place(run: Path, artifact: Path, kind: str) -> None:
     write_ledger(run, payload)
 
 
-def record_repair(run: Path, before: Path, after: Path, scope: dict) -> dict:
+def record_repair(run: Path, before: Path, after: Path, scope: dict,
+                  rescope: bool = False) -> dict:
     payload = ledger(run)
     record = payload["files"][str(after.resolve())]
-    expected = record["repairs"][-1]["after"] if record["repairs"] else record["placement"]
-    if digest(before) != expected:
-        raise ValueError("before copy does not end the recorded chain")
+    previous = record["repairs"][-1] if record["repairs"] else None
+    if rescope:
+        # A failed comparison is a recorded declaration that turned out to be
+        # narrower than the pass. Re-scoping repeats the identical before and
+        # after pair under an equal-or-wider declaration and supersedes the
+        # failed record without erasing it; the gate and the REPAIRS block
+        # keep both. It never widens backwards: the failed scope is a floor,
+        # so the audit story only ever declares more, never less.
+        if previous is None or previous["comparison"]["verdict"] == "pass":
+            raise ValueError("only a recorded failed comparison can be re-scoped")
+        if (digest(before) != previous["before"]
+                or digest(after) != previous["after"]):
+            raise ValueError("re-scope must repeat the recorded before and after pair")
+        scope_record(scope)
+        if (set(previous["scope"]["fields"]) - set(scope["fields"])
+                or set(previous["scope"]["sections"]) - set(scope["sections"])):
+            raise ValueError("re-scope must be equal or wider than the failed scope")
+    else:
+        expected = previous["after"] if previous else record["placement"]
+        if digest(before) != expected:
+            raise ValueError("before copy does not end the recorded chain")
     result = compare(before, after, scope, record["kind"])
     retained = ledger_path(run).parent / uuid4().hex
     retained.mkdir()
     (retained / "before.md").write_bytes(before.read_bytes())
     (retained / "after.md").write_bytes(after.read_bytes())
-    record["repairs"].append({"before": digest(before), "after": digest(after),
-                              "scope": scope, "copies": str(retained.relative_to(run)),
-                              "comparison": result})
+    entry = {"before": digest(before), "after": digest(after),
+             "scope": scope, "copies": str(retained.relative_to(run)),
+             "comparison": result}
+    if rescope:
+        entry["supersedes"] = previous["copies"]
+    record["repairs"].append(entry)
     write_ledger(run, payload)
     return result
 
@@ -192,12 +214,31 @@ def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) 
                 failures += 1
                 continue
             expected = record["placement"]
+            superseded = {repair["supersedes"] for repair in record["repairs"]
+                          if "supersedes" in repair}
             for repair in record["repairs"]:
                 copies = (run / repair["copies"]).resolve()
                 if not copies.is_relative_to(ledger_path(run).parent.resolve()):
                     raise ValueError("copies outside retained repair directory")
                 before, after = copies / "before.md", copies / "after.md"
                 measured = compare(before, after, repair["scope"], record["kind"])
+                if repair["copies"] in superseded:
+                    # A superseded comparison keeps its evidence checked and
+                    # visible but no longer grades the verdict or advances the
+                    # chain; the record that supersedes it re-links the pair.
+                    if (digest(before) != repair["before"]
+                            or digest(after) != repair["after"]
+                            or measured != repair["comparison"]):
+                        failures += 1
+                    continue
+                if "supersedes" in repair:
+                    host = next((prior for prior in record["repairs"]
+                                 if prior["copies"] == repair["supersedes"]), None)
+                    if (host is None or host["copies"] == repair["copies"]
+                            or host.get("before") != repair["before"]
+                            or host.get("after") != repair["after"]
+                            or host.get("comparison", {}).get("verdict") == "pass"):
+                        raise ValueError("re-scope does not supersede the failed pair it names")
                 if (repair["before"] != expected or digest(before) != repair["before"]
                         or digest(after) != repair["after"] or measured != repair["comparison"]
                         or measured["verdict"] != "pass"):
@@ -213,11 +254,14 @@ def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) 
 def repairs_report(run: Path) -> str:
     lines = ["REPAIRS"]
     for key, record in ledger(run)["files"].items():
+        superseded = {repair["supersedes"] for repair in record["repairs"]
+                      if "supersedes" in repair}
         for repair in record["repairs"]:
             copies = run / repair["copies"]
             result = compare(copies / "before.md", copies / "after.md", repair["scope"], record["kind"])
             sections = [name + (" (outside scope)" if name in result["outside_scope"] else "") for name in result["sections"]]
-            lines.append(f"{Path(key).name} | scope={','.join(repair['scope']['fields'] + repair['scope']['sections']) or 'none'} | {result['verdict']} | sections={','.join(sections) or 'none'}")
+            mark = " (superseded by a re-scope)" if repair["copies"] in superseded else ""
+            lines.append(f"{Path(key).name} | scope={','.join(repair['scope']['fields'] + repair['scope']['sections']) or 'none'} | {result['verdict']}{mark} | sections={','.join(sections) or 'none'}")
     return "\n".join(lines if len(lines) > 1 else lines + ["none"])
 
 
@@ -233,6 +277,8 @@ def main(argv: list[str]) -> int:
     comparison.add_argument("--before", type=Path, required=True)
     comparison.add_argument("--after", type=Path, required=True)
     comparison.add_argument("--scope", type=Path, required=True)
+    comparison.add_argument("--rescope", action="store_true",
+                            help="re-record the last failed pair under an equal-or-wider scope, superseding it")
     comparison.add_argument("--show", action="store_true")
     report = commands.add_parser("report", help="private REPAIRS block for the go-ahead")
     report.add_argument("run", type=Path)
@@ -244,7 +290,8 @@ def main(argv: list[str]) -> int:
         elif args.command == "report":
             print(repairs_report(args.run))
         else:
-            result = record_repair(args.run, args.before, args.after, scope_record(read_json(args.scope)))
+            result = record_repair(args.run, args.before, args.after, scope_record(read_json(args.scope)),
+                                   rescope=args.rescope)
             print(f"protected populations changed: {len(result['changed'])}; unnamed changes: {len(result['violations'])}")
             if args.show:
                 print(json.dumps(result, indent=2))
