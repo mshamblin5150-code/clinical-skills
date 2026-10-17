@@ -415,7 +415,7 @@ A fresh [[Second reader]]'s pairing of every factual sentence in a finished draf
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
 **Item description**:
-A sentence in a finished coursework draft stating what an item opened for the run's [[Project context record]] says, such as a classmate's plan or a prior submission. It is neither a factual sentence resting on a [[Claim heading]] nor the clinician's own reasoning: its source is the opened item itself, so the [[Heading read]] ties it to that item and compares it claim by claim, never to the ledger.
+A sentence in a finished coursework draft stating what an item opened for the run's [[Project context record]] says, such as a classmate's plan or a prior submission. It is neither a factual sentence resting on a [[Claim heading]] nor the clinician's own reasoning: its source is the opened item itself, so the [[Heading read]] ties it to that item, quotes the one place in the item it rests on or records that the whole item was searched for an asserted absence, and compares it claim by claim, never to the ledger. A true quote shows where the reader looked, never that the item supports the sentence.
 _Avoid_: classmate summary, context sentence, paraphrase of the post
 
 **Own figure**:
