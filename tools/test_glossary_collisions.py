@@ -59,6 +59,12 @@ DECLARED_CANDIDATES = (
         "value in a note.",
     ),
     Candidate(
+        "Fixture",
+        Verdict.COLLISION,
+        "The bare term is a committed regression set; a Fixture writer is the kind of "
+        "subagent that writes a run's output, not a kind of set. Ruled with ADR 0403.",
+    ),
+    Candidate(
         "Composer",
         Verdict.COLLISION,
         "The bare term is the editor a contribution is written into; a Composer view is the "
