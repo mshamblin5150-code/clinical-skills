@@ -10,6 +10,10 @@ Turning ER-style clinical shorthand into academic documentation — comprehensiv
 Raw ER-style scratch for one encounter, written at the bedside, typo-ridden and incomplete.
 _Avoid_: notes, scribbles, raw text
 
+**Practice rule**:
+The clinician's own statement of how he practices that settles how his **Shorthand** reads, such as a rapid screen named without a result being negative. Kept with his own shorthand forms in his words and dated, and binding on every note from the moment he states it, including notes in the same shift that are not yet approved.
+_Avoid_: preference, house rule, standing order
+
 **Encounter**:
 One patient seen once. The atomic unit of the domain.
 _Avoid_: visit, case, patient

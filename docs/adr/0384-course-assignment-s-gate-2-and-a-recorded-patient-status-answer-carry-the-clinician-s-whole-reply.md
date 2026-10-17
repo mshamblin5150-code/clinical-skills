@@ -97,6 +97,8 @@ Relying on the Review-sheet go-ahead with the worksheet naming the answer was de
 of a whole shift's sheet would stand as the only evidence of a single per-patient answer, and the
 field sets a billed E/M code. Leaving the written rule was declined for #1461's departure.
 
+*Superseded 2026-10-17.* The words "the clinician's whole reply to the pre-approval questions block, verbatim" are superseded by [ADR 0404](0404-an-ambiguous-answer-is-read-back-and-earlier-care-status-is-asked-at-the-first-stop.md) ruling 4. The recorded reply is his whole reply, verbatim, to whichever stop asked the earlier-visit question, the `batch-shift` step 4 stop or the pre-approval questions block. The check through `approval_record.verify_clinician_reply`, the requirement to follow the day file or shorthand, the refusal of an unheld reply, and the delegated fallback still stand.
+
 ## What this does not reach
 
 - **Whether his words were about the click or the status.** The check proves he wrote those words
