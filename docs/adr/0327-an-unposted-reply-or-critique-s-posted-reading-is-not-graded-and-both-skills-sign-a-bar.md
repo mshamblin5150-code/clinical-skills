@@ -93,6 +93,12 @@ its own ticket. Moving the initial post onto the approval record here was declin
 rulings 1 and 2 depends on it and it would bring a third grader and its disagreement cases into this
 build.
 
+*Superseded 2026-10-17.* **The words "`discussion_post_scan` keeps deciding posting from the
+`POST-URL` and `POSTED` fields" are superseded by
+[ADR 0388](0388-the-initial-post-is-posted-when-its-approval-record-says-so-and-its-saved-link-is-read-only-from-the-posting-block.md)
+ruling 1, and are left as written.** The initial post decides posting from the approval record. The
+decline to move it inside #1495's build stands as a statement about that build.
+
 ## Ruling 4 — reply and critique runs sign a bar at the stop they already have
 
 At its existing stop for the clinician, before any claim is researched, each skill writes `bar.md`
