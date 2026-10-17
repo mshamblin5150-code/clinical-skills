@@ -270,6 +270,31 @@ calls `use_utf8` and `require_python_floor` from that path. The preceding order 
 **Correction, 2026-10-03:** `compaction_reminder.py` and `install_compaction_reminder.py` are the
 new direct commands for #1206; both call `use_utf8` and `require_python_floor` from that path.
 
+**Correction, 2026-10-17:** `memory_index.py` is a direct command for #1707; its command path calls
+`use_utf8()` and then `require_python_floor()`.
+
+### Memory index
+
+Claude Code loads the auto-memory index `MEMORY.md` into every session and cuts it at its line and
+character limits. [ADR 0391](docs/adr/0391-the-memory-index-keeps-everywhere-rules-flat-and-files-situation-memories-under-generated-subject-lists.md)
+keeps memories that apply in every session as flat lines and files situation memories under one line
+per subject, each pointing to a generated list in the memory folder's `subjects/`. Each memory file
+declares `subjects: <subject>, ...` or `subjects: none` under `metadata:`. The filing rule and the
+fixed subject table live in [docs/agents/memory.md](docs/agents/memory.md).
+
+```bash
+python tools/memory_index.py <MEMORY.md>                          # report
+python tools/memory_index.py <MEMORY.md> --write                  # rebuild the lists and flat lines
+python tools/memory_index.py <MEMORY.md> --write --install-rule   # also insert the rule block
+```
+
+Exit 0 means every memory file is placed in an index, 1 means one is unplaced, and 2 means the
+index, its directory, or the tracked rule could not be read. A memory with no `subjects` header keeps
+its existing flat line, so a rebuild before any header exists leaves the index's lines unchanged.
+`project_context` reads `MEMORY.md` and every subject list as one index, and the after-action review
+records each subject list's size and fails an unplaced memory. The complete boundary belongs to
+`memory_index.DECLARED_LIMITS`; this section copies none of its rows.
+
 ### Compaction reminder
 
 `tools/compaction_reminder.py` runs at Claude Code's `SessionStart` boundary and emits

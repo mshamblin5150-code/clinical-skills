@@ -8,6 +8,7 @@ aar_scan:coverage-mismatch	2026-10-12T10:12:47-04:00	approval
 aar_scan:landing-output	2026-10-08T00:00:00+00:00	extraction
 aar_scan:memory-index-measurement	2026-10-11T20:16:17+00:00	extraction
 aar_scan:memory-index-overflow	2026-10-11T20:16:17+00:00	extraction
+aar_scan:memory-index-unplaced	2026-10-17T13:20:14+00:00	extraction
 aar_scan:memory-measurement	2026-10-11T20:16:17+00:00	extraction
 aar_scan:missing-classifier-entry	2026-09-12T00:00:00+00:00	extraction
 aar_scan:missing-correction-field	2026-09-02T15:26:38-04:00	approval

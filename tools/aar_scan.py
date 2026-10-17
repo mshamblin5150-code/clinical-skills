@@ -45,6 +45,7 @@ from typing import Any, Iterable, Mapping
 from console_codec import use_utf8
 from discussion_artifact import REREAD_BLOCK
 import git_paths
+import memory_index
 import shell_reader
 import repo_root
 import run_grader
@@ -59,11 +60,6 @@ LANDING_OUTPUT_CUTOFF = completion_checks.registry()["aar_scan:landing-output"][
 MEMORY_MEASUREMENT_CUTOFF = completion_checks.registry()["aar_scan:memory-measurement"][0]
 SYSTEM_SUBTYPE_CUTOFF = completion_checks.registry()["aar_scan:system-subtype"][0]
 MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
-# ECMAScript WhiteSpace and LineTerminator characters used by String.trim().
-JS_TRIM_WHITESPACE = (
-    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
-    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
-)
 
 
 SCOPED_SKILLS = frozenset(
@@ -254,6 +250,7 @@ ROWS: Mapping[str, str] = MappingProxyType(
         "missing-review": "the submission has no review record",
         "memory-index-measurement": "the round has no valid memory-index measurement",
         "memory-index-overflow": "the recorded memory index exceeds its load limits",
+        "memory-index-unplaced": "a recorded memory file has no place in any memory index",
         "unscannable-review": "the review record or its evidence cannot be scanned",
         "unscannable-extract": "the extract cannot be scanned",
         "posted-reading-mismatch": "the extract has no current fingerprint of its posted reading",
@@ -297,7 +294,7 @@ DECLARED_LIMITS = (
     ),
     (
         "memory index outside the sitting",
-        "Only the recorded Claude Code index measurement is graded; later growth, other memory mechanisms, and limit changes without a release change are outside this row.",
+        "Only the recorded Claude Code index measurement is graded; later growth, other memory mechanisms, and limit changes without a release change are outside this row. Subject list sizes are reported and never graded (ADR 0391 ruling 9).",
     ),
     (
         "reasoning-only correction",
@@ -908,11 +905,9 @@ def measure_memory(run: Path, submission: str, round_number: int) -> Path:
     index = Path(value).expanduser()
     if not index.is_absolute():
         raise ValueError("extract MEMORY-INDEX must be absolute")
-    # Claude Code measures the trimmed JavaScript string, including UTF-16
-    # code units rather than UTF-8 bytes. Preserve interior CRLF characters.
-    text = index.read_bytes().decode("utf-8").strip(JS_TRIM_WHITESPACE)
-    lines = len(text.split("\n")) if text else 0
-    characters = len(text.encode("utf-16-le")) // 2
+    lines, characters = memory_index.measure(index)
+    # ADR 0391 ruling 9: subject list sizes are reported, an unplaced memory is graded.
+    placement = memory_index.survey(index)
     limits = dict(MEMORY_INDEX_LIMITS)
     record = {
         "submission": submission, "round": round_number,
@@ -920,6 +915,8 @@ def measure_memory(run: Path, submission: str, round_number: int) -> Path:
         "memory_index": value, "measured_at": datetime.now(timezone.utc).isoformat(),
         "lines": lines, "characters": characters, "limits": limits,
         "verdict": "fail" if lines > limits["lines"] or characters > limits["characters"] else "pass",
+        "subject_lists": dict(placement.subject_lists),
+        "unplaced": len(placement.unplaced),
     }
     destination = memory_measurement_path(run, submission, round_number)
     destination.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -955,6 +952,16 @@ def _memory_index_grade(
         if not isinstance(record["measured_at"], str):
             raise ValueError("invalid measurement timestamp")
         _utc_timestamp(record["measured_at"], "memory measured-at")
+        # A measurement written before ADR 0391's build carries neither key and
+        # reports the placement row as not graded; one key without the other is invalid.
+        if "unplaced" in record or "subject_lists" in record:
+            lists = record["subject_lists"]
+            if (
+                type(record["unplaced"]) is not int or record["unplaced"] < 0
+                or not isinstance(lists, dict)
+                or any(not isinstance(k, str) or type(v) is not int or v < 0 for k, v in lists.items())
+            ):
+                raise ValueError("invalid subject-list or unplaced counts")
     except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
         return (f"{prefix}: measurement missing or invalid",), (Finding("memory-index-measurement", str(exc)),)
     reports = [
@@ -962,12 +969,23 @@ def _memory_index_grade(
         f"{record['characters']}/{limits['characters']} characters; "
         f"Claude Code {limits['release']}; {record['verdict']}"
     ]
+    if "unplaced" in record:
+        lists = record["subject_lists"]
+        reports.append(
+            f"{prefix}: subject lists (reported only): "
+            + ("; ".join(f"{key} {count} lines" for key, count in sorted(lists.items())) or "none")
+            + f"; unplaced memories {record['unplaced']}"
+        )
+    else:
+        reports.append(f"{prefix}: unplaced memories {NOT_GRADED} - measured before ADR 0391")
     versions = tuple(value.strip() for value in fields.get("HARNESS-VERSIONS", "").split(","))
     mismatched = tuple(value for value in versions if re.fullmatch(r"\d+\.\d+\.\d+", value) and value != limits["release"])
     if mismatched:
         reports.append(f"Claude Code {', '.join(mismatched)} differs from measured release {limits['release']}; re-measure memory index limits.")
-    findings = (Finding("memory-index-overflow", f"round {round_number}"),) if overflow else ()
-    return tuple(reports), findings
+    findings = [Finding("memory-index-overflow", f"round {round_number}")] if overflow else []
+    if record.get("unplaced"):
+        findings.append(Finding("memory-index-unplaced", f"round {round_number}: {record['unplaced']}"))
+    return tuple(reports), tuple(findings)
 
 
 def _review_round_numbers(run: Path, submission: str) -> tuple[int, ...]:

@@ -72,7 +72,9 @@ below; a well-shaped retained handling record alone does not establish the dicti
 
 `Nothing durable` is not a disposition.
 
-- `memory-write`: update the project memory for a fact about the clinician.
+- `memory-write`: update the project memory for a fact about the clinician. File it under
+  [memory.md](../../docs/agents/memory.md)'s rule: a `subjects` header naming the subject whose work
+  it matters to, or `subjects: none` when it applies in every session.
 - `tracker-ticket`: file the tool or workflow defect.
 - `skill-file`: a skill instruction is a ruling. File a ticket containing the exact proposed diff and stop; do not edit the skill unattended.
 - `check`: add or tighten the mechanical check and its tests.
@@ -141,11 +143,21 @@ Rounds before `aar_scan.LANDING_OUTPUT_CUTOFF` keep their historical evidence ru
 
 The grader refuses a correction resting on an entry whose text the extractor wrote rather than copied, and it counts every record's corrector against the kind of entry it names without grading that count.
 
-After this round's memory writes land, measure the index at the extract's `MEMORY-INDEX:` path:
+When a correction is something an existing memory already said, the memory was missed rather than
+missing. Promote it one step under ADR 0391 ruling 6: a memory filed under a subject becomes
+`subjects: none`, landed as a `memory-write`; a flat memory becomes a tracked rule, landed through
+`skill-file` or `check`.
+
+After this round's memory writes land, rebuild the index and its subject lists, then measure the
+index at the extract's `MEMORY-INDEX:` path:
 
 ```bash
+python tools/memory_index.py <MEMORY.md> --write
 python tools/aar_scan.py <run-directory> --submission <submission-key> --measure-memory
 ```
+
+A rebuild exit 1 names an unplaced memory under `--show`; fix its `subjects` header and rebuild
+before measuring, because the measurement records the unplaced count the grade fails on.
 
 The command writes the newest round's `.memory-index.json` beside its review record.
 Use `--round <number>` only to remeasure a named earlier round. A measurement refusal stops
@@ -169,7 +181,9 @@ The memory-index row reads only each round's recorded measurement, never the liv
 It prints lines and characters against the limits in `aar_scan.MEMORY_INDEX_LIMITS` on every grade.
 An oversized index or a missing or invalid measurement for a round extracted since
 `aar_scan.MEMORY_MEASUREMENT_CUTOFF` fails with exit 1. Compact the index, measure that round again,
-then re-run the grade. Earlier rounds without a measurement report `not graded`. A different
+then re-run the grade. The same row reports each subject list's line count without grading it and
+fails a recorded unplaced memory; a measurement taken before ADR 0391's build carries no placement
+counts and reports that count as `not graded`. Earlier rounds without a measurement report `not graded`. A different
 Claude Code release in `HARNESS-VERSIONS:` prints a non-failing instruction to re-measure the
 limits. Later memory writes do not change the recorded grade of a finished run.
 

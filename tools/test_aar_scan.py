@@ -109,7 +109,8 @@ def unread_remainder_input(root: Path) -> grader_conformance.UnreadRemainderInpu
         write_transcript(transcript)
         with transcript.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"type": kind}) + "\n")
-        memory = root / f"{name}-memory.md"
+        memory = root / f"{name}-memory" / "MEMORY.md"
+        memory.parent.mkdir()
         memory.write_text("# Index\n", encoding="utf-8")
         (run / "reread.md").write_text(
             "## REREAD: synthetic-submission\n"
@@ -1263,6 +1264,45 @@ class SubmissionRecord(SyntheticSnapshotCase):
         status, stdout, stderr = invoke_main(argv)
         self.assertEqual(status, 0, stdout + stderr)
         self.assertIn("1/200 lines; 1/25000 characters", stdout)
+
+    def test_an_unplaced_memory_fails_and_subject_list_sizes_are_only_reported(self):
+        self.write_clean()
+        argv = [str(self.run), "--submission", self.submission]
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+        self.assertIn("subject lists (reported only): none; unplaced memories 0", stdout)
+        root = self.memory.parent
+        (root / "subjects").mkdir()
+        (root / "subjects" / "canvas.md").write_text("# Canvas\n\n- [A](../a.md) — x\n", encoding="utf-8")
+        (root / "a.md").write_text(
+            '---\nname: a\ndescription: "x"\nmetadata:\n  subjects: canvas\n---\n', encoding="utf-8"
+        )
+        (root / "orphan.md").write_text("# Orphan\n", encoding="utf-8")
+        status, stdout, stderr = invoke_main([*argv, "--measure-memory"])
+        self.assertEqual(status, 0, stdout + stderr)
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 1, stdout + stderr)
+        self.assertIn("canvas 2 lines; unplaced memories 1", stdout)
+        (root / "orphan.md").unlink()
+        invoke_main([*argv, "--measure-memory"])
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+
+    def test_a_measurement_without_placement_counts_reports_not_graded_and_half_a_pair_is_invalid(self):
+        self.write_clean()
+        argv = [str(self.run), "--submission", self.submission]
+        path = aar_scan.memory_measurement_path(self.run, self.submission)
+        record = json.loads(path.read_text(encoding="utf-8"))
+        del record["subject_lists"]
+        path.write_text(json.dumps(record), encoding="utf-8")
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 1, stdout + stderr)
+        self.assertIn("measurement missing or invalid", stdout)
+        del record["unplaced"]
+        path.write_text(json.dumps(record), encoding="utf-8")
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+        self.assertIn("unplaced memories not graded - measured before ADR 0391", stdout)
 
     def setUp(self) -> None:
         super().setUp()
@@ -3167,7 +3207,10 @@ class SubmissionRecord(SyntheticSnapshotCase):
         second_memory.write_text("# Preferences\n", encoding="utf-8")
         fields, identifiers = self.extract()
         event = sorted(identifiers)[0]
-        self.memory.write_text("# Index\n- corrected fact\n", encoding="utf-8")
+        self.memory.write_text(
+            "# Index\n- corrected fact\n- [Preferences](PREFERENCES.md) — durable preferences\n",
+            encoding="utf-8",
+        )
         second_memory.write_text("# Preferences\n- sustained preference\n", encoding="utf-8")
         self.write_correction_record(
             self.run,

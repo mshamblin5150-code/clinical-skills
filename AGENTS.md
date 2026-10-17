@@ -57,6 +57,8 @@ change list shown verbatim with every showing after the first, under
 
 **`tools/aar_scan.py` is a Required command for `aar`.** It extracts the run and grades the after-action record; the invoking skill resumes its completion grader only after exit 0. After an install has been tried, a consumer without the command can walk the same rows by eye but cannot call the after-action review mechanically verified.
 
+**`tools/memory_index.py` is a Required command for `aar`.** After the review's memory writes land, it rebuilds the memory index's subject lists and flat lines from each memory's own header, before the index is measured. Without it, a memory filed under a subject reaches no index until the next rebuild, and the measurement records it as unplaced.
+
 **`tools/anchor_scan.py` is a Required command for `icd10-cpt` and for the descriptor-agreement steps inherited by `clinical-note` and `batch-shift`.** Its ordinary mode grades worksheet anchors. Its agreement-brief mode produces the answer-free note/code brief, and its agreement-read mode grades the separated reader's record and the bidirectional note/worksheet code bind. Without a clean required run, descriptor agreement and the paired code populations are not mechanically verified.
 
 **`tools/refusal_scan.py` is a Required command before a worksheet with refusal records is handed off.** `icd10-cpt`, `clinical-note`, and `batch-shift` select the pass's own worksheet with `--stem` and require exit 0. With no refusal records, the pass records that the check has no subjects. Without the clean required run, the worksheet's refusal records are not mechanically verified.

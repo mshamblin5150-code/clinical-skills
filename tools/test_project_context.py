@@ -859,6 +859,20 @@ class GoAheadRechecks(ProjectContextFixture):
                 self.assertTrue(result.coverage, result.report)
                 self.assertIn(str(self.memory), result.report)
 
+    def test_every_subject_list_is_read_as_part_of_the_index(self):
+        # ADR 0391 ruling 8: a memory edited or retired under a subject still moves.
+        listing = self.memory.parent / "subjects" / "canvas.md"
+        listing.parent.mkdir()
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n", encoding="utf-8")
+        self.assertEqual(self.write().exit_code, 0)
+        self.assertFalse(self.check().coverage)
+        listing.write_text("# Canvas\n\n- [A](../a.md) — first\n- [B](../b.md) — second\n", encoding="utf-8")
+        result = self.check()
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("[B](../b.md)", result.report)
+        listing.write_text("# Canvas\n\n- [B](../b.md) — second\n", encoding="utf-8")
+        self.assertTrue(self.check().coverage)
+
     def test_reordering_whitespace_and_blank_lines_do_not_move_but_duplicate_loss_does(self):
         self.memory.write_text("first\nsecond\nfirst\n", encoding="utf-8")
         self.assertEqual(self.write().exit_code, 0)

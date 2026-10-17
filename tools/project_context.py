@@ -20,6 +20,7 @@ from types import MappingProxyType
 from typing import Mapping, TypeVar
 
 import coursework_run
+import memory_index
 import aar_scan
 import repo_root
 import run_grader
@@ -1290,7 +1291,8 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
 
 
 def _memory_lines(entry: Entry, opened: Opened) -> list[str]:
-    return [line.rstrip() for line in _file_path(entry, opened).read_text(encoding="utf-8").splitlines() if line.strip()]
+    """The memory index and every subject list, read as one index (ADR 0391 ruling 8)."""
+    return memory_index.index_lines(_file_path(entry, opened))
 
 
 def _go_ahead_records(run: Path) -> dict[str, dict]:
