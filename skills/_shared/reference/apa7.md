@@ -118,6 +118,12 @@ year, and fuller dates proceed chronologically. Only works with identical dates 
 title, ignoring an initial `A`, `An`, or `The`; explicitly numbered parts in one series retain
 series order. They are not lettered by citation order, page order, or discovery order.
 
+- **Within one series, a leading section number is an explicit part number.** Two sections of one standards
+  supplement titled `6. Glycemic goals…` and `14. Children and adolescents…` keep series order, so
+  section 6 takes `a` and section 14 takes `b`, even though spelled-out title order would put
+  `fourteen` before `six`. The number must be followed by a period; a title such as `6 ways to…`
+  is ordinary title text.
+
 - **The same *authors*, not the same first author.** The rule is scoped to an identical author
   string. `Hsu, K. (2026)` and `Hsu, K., & Khosropour, C. (2026)` are two author strings, and
   `(Hsu, 2026)` and `(Hsu & Khosropour, 2026)` already tell them apart in text — so **neither takes
@@ -377,6 +383,8 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the Evidence store, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
 | **legal form and authority validity** | The command recognizes a narrow statute/regulation subset plus date-free constitutional locators and full-date treaty forms. It does not validate cases, legislative materials, proposed rules, executive orders, patents, parallel reporters, official-version choice, state-specific form, or current legal status |
+| Whether **leading-numbered titles share one series** | A title opening with a number and a period is read as a series part without checking that the works share a series or container, so two unrelated same-year works opening `1.` and `2.` are graded in number order |
+| An **unnumbered work among numbered series parts** | Where an unnumbered work such as an introduction falls among a series' numbered parts by the same authors in the same year is not graded; the numbered parts keep number order and the unnumbered works keep title order among themselves |
 | A **combining mark without a precomposed form** | NFC leaves such a mark in place. It interrupts the name pattern, so a surname such as `Ą̃žuolas` still keys as `a` rather than its full folded name |
 
 **That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
