@@ -905,9 +905,9 @@ def measure_memory(run: Path, submission: str, round_number: int) -> Path:
     index = Path(value).expanduser()
     if not index.is_absolute():
         raise ValueError("extract MEMORY-INDEX must be absolute")
-    lines, characters = memory_index.measure(index)
     # ADR 0391 ruling 9: subject list sizes are reported, an unplaced memory is graded.
     placement = memory_index.survey(index)
+    lines, characters = placement.lines, placement.characters
     limits = dict(MEMORY_INDEX_LIMITS)
     record = {
         "submission": submission, "round": round_number,
@@ -970,11 +970,9 @@ def _memory_index_grade(
         f"Claude Code {limits['release']}; {record['verdict']}"
     ]
     if "unplaced" in record:
-        lists = record["subject_lists"]
         reports.append(
-            f"{prefix}: subject lists (reported only): "
-            + ("; ".join(f"{key} {count} lines" for key, count in sorted(lists.items())) or "none")
-            + f"; unplaced memories {record['unplaced']}"
+            f"{prefix}: {memory_index.subject_list_summary(record['subject_lists'])}"
+            f"; unplaced memories {record['unplaced']}"
         )
     else:
         reports.append(f"{prefix}: unplaced memories {NOT_GRADED} - measured before ADR 0391")

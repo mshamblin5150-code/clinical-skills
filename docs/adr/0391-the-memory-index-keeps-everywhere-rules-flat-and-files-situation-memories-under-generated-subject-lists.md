@@ -1,6 +1,11 @@
 # The memory index keeps everywhere rules flat and files situation memories under generated subject lists
 
-**Measured at:** 4edb3153b9ca6cb8114da429f39d97bc2b0f3a71
+**Measured at:** d26097d37c840a1139d493c1ca72aa98329a838d
+
+*Re-declared from `4edb3153` for the review-time addition to ruling 8 alone. The section below was
+measured against `main` before this record's build; `tools/project_context.py` and
+`tools/aar_scan.py` have changed since, so its sentences about what those modules read describe
+the pre-build code.*
 
 [#1707](https://github.com/mshamblin5150-code/clinical-skills/issues/1707) was routed here by
 [ADR 0333](0333-a-bold-references-label-is-read-off-the-word-path-and-an-oversized-memory-index-fails-the-review.md)
@@ -102,6 +107,13 @@ subject line in `MEMORY.md` carries no member count, so filing a new memory edit
 Fingerprinting `MEMORY.md` alone was declined because a memory rewritten or retired under a subject
 mid-run would never reach the go-ahead; fingerprinting only the subject lists a run opened was
 declined because a run that skipped a subject would also skip its protection.
+
+Ruled in review of the build, 2026-10-17: the same line comparison applies at the completion check
+of a submission not yet posted, which had compared `MEMORY.md`'s whole-file bytes. An appended line
+there is no longer a move; every other opened file keeps its whole-file check. Keeping the mix was
+declined because a line added to `MEMORY.md` moved the item while the same line added to a subject
+list did not; one digest over the index and its lists was declined because every retained run
+record holds a digest of `MEMORY.md` alone.
 
 ## Ruling 9 — the review grades the load limits and an unplaced memory
 

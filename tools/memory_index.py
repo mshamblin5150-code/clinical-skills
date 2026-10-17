@@ -82,6 +82,11 @@ DECLARED_LIMITS = (
         "Files in subjects/ that no table subject names are read as index lines and never rewritten.",
     ),
     (
+        "an index in a shared folder",
+        "The population is every top-level Markdown file beside the index, so an index kept in a "
+        "folder with other documents reads them as memories.",
+    ),
+    (
         "a refresh rebuilds the whole index",
         "The rule block is refreshed only by --write, which also rebuilds every list and flat line.",
     ),
@@ -122,37 +127,45 @@ class Memory:
 
 
 @dataclass(frozen=True)
+class Snapshot:
+    """Every file one survey or rebuild reads, read once."""
+
+    index_text: str
+    list_texts: Mapping[str, str]  # every subjects/*.md stem -> its text
+    memories: Mapping[str, Memory]  # memory file name -> its header
+
+    @property
+    def newline(self) -> str:
+        return "\r\n" if "\r\n" in self.index_text else "\n"
+
+    @property
+    def unread_headers(self) -> tuple[str, ...]:
+        return tuple(name for name, memory in self.memories.items() if memory.header == "unreadable")
+
+
+@dataclass(frozen=True)
 class Links:
     """The memory-file links the current index and subject lists carry."""
 
-    index: Mapping[str, str]  # memory file name -> title, from MEMORY.md
+    index: frozenset[str]  # memory files MEMORY.md links
     lists: Mapping[str, Mapping[str, str]]  # subject key -> memory file name -> line
-
-    def title(self, name: str) -> str | None:
-        if name in self.index:
-            return self.index[name]
-        for lines in self.lists.values():
-            if name in lines:
-                match = _LINK.match(lines[name].strip())
-                return match.group("title") if match else None
-        return None
+    titles: Mapping[str, str]  # memory file name -> the title its first line carries
 
     @property
     def linked(self) -> frozenset[str]:
-        return frozenset(self.index) | frozenset(name for lines in self.lists.values() for name in lines)
+        return self.index | frozenset(name for lines in self.lists.values() for name in lines)
 
 
 @dataclass(frozen=True)
 class Plan:
+    snapshot: Snapshot
+    links: Links
     index_text: str
     lists: Mapping[str, str]
     removed_lists: tuple[str, ...]
-    links: Links
-    memories: int
     flat: int
     filed: int
-    unplaced: tuple[tuple[str, str], ...]
-    unread_headers: tuple[str, ...]
+    unplaced: tuple[tuple[str, str], ...]  # header problems; reaching no index is the survey's
     dropped: int
 
 
@@ -179,7 +192,7 @@ def read_rule(source: Path = RULE_SOURCE) -> Rule:
         cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
         if len(cells) != 3 or not row.strip().startswith("|"):
             continue
-        if cells[0] in {"Subject", ""} or set(cells[0]) <= {"-", " "}:
+        if cells[0] in {"Subject", ""} or set(cells[0]) <= {"-", ":", " "}:
             continue
         if not re.fullmatch(r"[a-z][a-z0-9-]*", cells[0]):
             raise ValueError(f"{source.name}: invalid subject identifier {cells[0]!r}")
@@ -263,8 +276,8 @@ def memory_files(index: Path) -> tuple[Path, ...]:
     ))
 
 
-def _lines(path: Path) -> list[str]:
-    lines = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
+def _split(text: str) -> list[str]:
+    lines = text.replace("\r\n", "\n").split("\n")
     return lines[:-1] if lines and lines[-1] == "" else lines
 
 
@@ -273,11 +286,19 @@ def _list_paths(index: Path) -> tuple[Path, ...]:
     return tuple(sorted(root.glob("*.md"))) if root.is_dir() else ()
 
 
+def read_snapshot(index: Path) -> Snapshot:
+    return Snapshot(
+        index.read_bytes().decode("utf-8"),
+        {path.stem: path.read_bytes().decode("utf-8") for path in _list_paths(index)},
+        {path.name: read_memory(path) for path in memory_files(index)},
+    )
+
+
 def index_lines(index: Path) -> list[str]:
     """Nonblank lines of MEMORY.md and of every subject list, read as one index."""
     lines = []
     for path in (index, *_list_paths(index)):
-        lines.extend(line.rstrip() for line in _lines(path) if line.strip())
+        lines.extend(line.rstrip() for line in _split(path.read_bytes().decode("utf-8")) if line.strip())
     return lines
 
 
@@ -290,25 +311,28 @@ def _memory_target(target: str, prefix: str = "") -> str | None:
     return target if _MEMORY_TARGET.fullmatch(target) else None
 
 
-def read_links(index: Path, rule: Rule) -> Links:
+def read_links(snapshot: Snapshot, rule: Rule) -> Links:
+    index: set[str] = set()
     titles: dict[str, str] = {}
-    for line in _lines(index):
+    for line in _split(snapshot.index_text):
         match = _LINK.match(line.strip())
         name = match and _memory_target(match.group("target"))
         if name:
+            index.add(name)
             titles.setdefault(name, match.group("title"))
     lists: dict[str, dict[str, str]] = {}
-    for path in _list_paths(index):
-        if path.stem not in rule.keys:
+    for key, text in snapshot.list_texts.items():
+        if key not in rule.keys:
             continue
         members: dict[str, str] = {}
-        for line in _lines(path):
+        for line in _split(text):
             match = _LINK.match(line.strip())
             name = match and _memory_target(match.group("target"), "../")
             if name:
                 members.setdefault(name, line.rstrip())
-        lists[path.stem] = members
-    return Links(titles, lists)
+                titles.setdefault(name, match.group("title"))
+        lists[key] = members
+    return Links(frozenset(index), lists, titles)
 
 
 def _block_bounds(lines: list[str]) -> tuple[int, int] | None:
@@ -327,69 +351,62 @@ def _line(title: str, target: str, description: str) -> str:
 
 def plan(index: Path, rule: Rule, *, install: bool = False) -> Plan:
     """Compute the rebuilt index and subject lists without writing them."""
-    current = _lines(index)
+    snapshot = read_snapshot(index)
+    current = _split(snapshot.index_text)
     bounds = _block_bounds(current)
-    newline = "\r\n" if b"\r\n" in index.read_bytes() else "\n"
-    links = read_links(index, rule)
-    memories = {path.name: read_memory(path) for path in memory_files(index)}
+    newline = snapshot.newline
+    links = read_links(snapshot, rule)
 
     unplaced: list[tuple[str, str]] = []
-    unread: list[str] = []
     generated_flat: dict[str, str] = {}
-    keep_flat: set[str] = set()
+    keep_flat: set[str] = set()  # memories whose existing lines are kept verbatim
     members: dict[str, list[tuple[str, str]]] = {subject.key: [] for subject in rule.subjects}
-    for name, memory in memories.items():
-        title = links.title(name) or memory.title or memory.name or Path(name).stem
-        if memory.header == "unreadable":
-            unread.append(name)
-            keep_flat.add(name)
-            retained = [(key, lines[name]) for key, lines in links.lists.items() if name in lines]
-            for key, line in retained:
-                members[key].append((title, line))
-            if name not in links.index and not retained:
-                unplaced.append((name, "the header cannot be read and the memory is in no index"))
-            continue
-        if memory.subjects is None and name in links.index:
-            keep_flat.add(name)
-            continue
+    for name, memory in snapshot.memories.items():
+        title = links.titles.get(name) or memory.title or memory.name or Path(name).stem
         unknown = [key for key in (memory.subjects or ()) if key not in rule.keys]
-        if unknown:
+        if memory.header == "unreadable":
+            for key, lines in links.lists.items():
+                if name in lines:
+                    members[key].append((title, lines[name]))
+        elif memory.subjects is None and name in links.index:
+            pass
+        elif unknown:
             unplaced.append((name, "subject not on the fixed list: " + ", ".join(unknown)))
-            keep_flat.add(name)
-            continue
-        if not memory.description:
+        elif not memory.description:
             unplaced.append((name, "no description to build a line from"))
-            keep_flat.add(name)
-            continue
-        if not memory.subjects:
+        elif not memory.subjects:
             generated_flat[name] = _line(title, name, memory.description)
+            continue
         else:
             for key in memory.subjects:
                 members[key].append((title, _line(title, "../" + name, memory.description)))
+            continue
+        keep_flat.add(name)
 
     body: list[str] = []
-    dropped = 0
+    flat = dropped = 0
+    subject_targets = {f"{SUBJECTS_DIR}/{key}.md" for key in rule.keys}
     for position, line in enumerate(current):
         if bounds and bounds[0] <= position <= bounds[1]:
             continue
         match = _LINK.match(line.strip())
-        if not match:
-            body.append(line)
-            continue
-        target = match.group("target")
-        if target.startswith(SUBJECTS_DIR + "/") and target[len(SUBJECTS_DIR) + 1:].removesuffix(".md") in rule.keys:
-            continue
-        name = _memory_target(target)
+        target = match.group("target") if match else ""
+        name = _memory_target(target) if match else None
+        if target in subject_targets:
+            continue  # subject lines are regenerated below
         if name is None:
             body.append(line)
-        elif name not in memories:
+        elif name not in snapshot.memories:
             dropped += 1
         elif name in keep_flat:
             body.append(line)
+            flat += 1
         elif name in generated_flat:
             body.append(generated_flat.pop(name))
+            flat += 1
         # otherwise the memory is filed under a subject and leaves MEMORY.md
     body.extend(generated_flat[name] for name in sorted(generated_flat))
+    flat += len(generated_flat)
 
     subject_lines = [
         _line(subject.name, f"{SUBJECTS_DIR}/{subject.key}.md", "open when " + subject.when)
@@ -406,15 +423,8 @@ def plan(index: Path, rule: Rule, *, install: bool = False) -> Plan:
                 [f"# {subject.name}", "", f"Open when {subject.when}.", "", *rows]
             ) + newline
     removed = tuple(key for key in links.lists if key not in lists)
-    flat = sum(
-        1 for line in body
-        if (match := _LINK.match(line.strip())) and _memory_target(match.group("target"))
-    )
-    filed = sum(1 for memory in memories.values() if memory.subjects and memory.path.name not in keep_flat)
-    return Plan(
-        index_text, lists, removed, links, len(memories), flat, filed,
-        tuple(unplaced), tuple(unread), dropped,
-    )
+    filed = sum(1 for name, memory in snapshot.memories.items() if memory.subjects and name not in keep_flat)
+    return Plan(snapshot, links, index_text, lists, removed, flat, filed, tuple(unplaced), dropped)
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -422,11 +432,19 @@ def _write_atomic(path: Path, text: str) -> None:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", dir=path.parent, delete=False) as stream:
         stream.write(text)
         temporary = Path(stream.name)
-    temporary.replace(path)
+    try:
+        temporary.replace(path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def write(index: Path, rule: Rule, *, install: bool = False) -> Plan:
-    """Rebuild the index and subject lists, removing a table subject's list once it is empty."""
+    """Rebuild the index and subject lists, removing a table subject's list once it is empty.
+
+    Every output is derived from the memory files' headers, so a run interrupted after
+    some lists were written converges on the next run.
+    """
     result = plan(index, rule, install=install)
     for key, text in result.lists.items():
         _write_atomic(index.parent / SUBJECTS_DIR / f"{key}.md", text)
@@ -436,44 +454,54 @@ def write(index: Path, rule: Rule, *, install: bool = False) -> Plan:
     return result
 
 
+def _measure_text(text: str) -> tuple[int, int]:
+    text = text.strip(JS_TRIM_WHITESPACE)
+    lines = len(text.split("\n")) if text else 0
+    return lines, len(text.encode("utf-16-le")) // 2
+
+
 def measure(index: Path) -> tuple[int, int]:
     """Lines and characters as Claude Code counts the loaded index (ADR 0333).
 
     Claude Code measures the trimmed JavaScript string in UTF-16 code units rather
     than UTF-8 bytes; interior CRLF characters are preserved.
     """
-    text = index.read_bytes().decode("utf-8").strip(JS_TRIM_WHITESPACE)
-    lines = len(text.split("\n")) if text else 0
-    return lines, len(text.encode("utf-16-le")) // 2
+    return _measure_text(index.read_bytes().decode("utf-8"))
 
 
-def _same(path: Path, text: str) -> bool:
-    return path.is_file() and path.read_bytes().decode("utf-8") == text
+def subject_list_summary(subject_lists: Mapping[str, int]) -> str:
+    """The one wording of the ungraded subject-list sizes (ADR 0391 ruling 9)."""
+    sizes = "; ".join(f"{key} {count} lines" for key, count in sorted(subject_lists.items()))
+    return "subject lists (reported only): " + (sizes or "none")
 
 
 def survey(index: Path, rule: Rule | None = None) -> Survey:
-    """Report the current index: placement of every memory file and each list's size."""
+    """Report the index as it stands on disk: placement, list sizes, and pending changes."""
     rule = rule or read_rule()
     result = plan(index, rule)
+    snapshot = result.snapshot
     reasons = dict(result.unplaced)
-    for path in memory_files(index):
-        if path.name not in result.links.linked and path.name not in reasons:
-            reasons[path.name] = "no line in any index; rebuild to place it"
-    lists = {path.stem: sum(1 for line in _lines(path) if line.strip()) for path in _list_paths(index)}
-    current = index.read_bytes().decode("utf-8")
+    unread = snapshot.unread_headers
+    for name in snapshot.memories:
+        if name not in result.links.linked and name not in reasons:
+            reasons[name] = (
+                "the header cannot be read and the memory is in no index" if name in unread
+                else "no line in any index; rebuild to place it"
+            )
+    current = snapshot.index_text
     block: BlockState
     if BLOCK_START not in current:
         block = "absent"
     else:
-        expected = rule.block.replace("\n", "\r\n" if "\r\n" in current else "\n")
-        block = "current" if expected in current else "stale"
-    stale_files = int(not _same(index, result.index_text)) + len(result.removed_lists) + sum(
-        not _same(index.parent / SUBJECTS_DIR / f"{key}.md", text) for key, text in result.lists.items()
+        block = "current" if rule.block.replace("\n", snapshot.newline) in current else "stale"
+    stale_files = int(current != result.index_text) + len(result.removed_lists) + sum(
+        snapshot.list_texts.get(key) != text for key, text in result.lists.items()
     )
-    lines, characters = measure(index)
+    lines, characters = _measure_text(current)
     return Survey(
-        result.memories, tuple(sorted(reasons.items())), result.unread_headers,
-        lines, characters, lists, block, stale_files,
+        len(snapshot.memories), tuple(sorted(reasons.items())), unread, lines, characters,
+        {key: sum(1 for line in _split(text) if line.strip()) for key, text in snapshot.list_texts.items()},
+        block, stale_files,
     )
 
 
@@ -483,8 +511,7 @@ def report_lines(view: Survey, *, show: bool, wrote: Plan | None) -> list[str]:
         f"memory files: {view.memories}; placed {placed}; unplaced {len(view.unplaced)}",
         f"unread headers: {len(view.unread_headers)}",
         f"MEMORY.md: {view.lines} lines; {view.characters} characters",
-        "subject lists (reported only): "
-        + ("; ".join(f"{key} {count} lines" for key, count in sorted(view.subject_lists.items())) or "none"),
+        subject_list_summary(view.subject_lists),
         f"rule block: {view.block}",
     ]
     if wrote is not None:
@@ -513,6 +540,7 @@ def main(argv: list[str]) -> int:
         if not index.is_file():
             raise OSError(f"{index} is not a file")
         wrote = write(index, rule, install=args.install_rule) if args.write else None
+        # Deliberately re-read after a write: the report describes the files on disk.
         view = survey(index, rule)
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"memory index NOT READ: {exc}", file=sys.stderr)

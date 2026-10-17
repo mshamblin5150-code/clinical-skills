@@ -895,8 +895,7 @@ def _write_context_record(
             assert digest is not None
             if item.place == registry.memory_index:
                 try:
-                    hashes = [sha256(line.encode("utf-8")).hexdigest()
-                              for line in _memory_lines(entry, opened)]
+                    hashes = _line_hashes(_memory_lines(entry, opened))
                 except (OSError, UnicodeError):
                     errors.append(f"{item.place}: memory index could not be read")
                     continue
@@ -1109,11 +1108,8 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             return False
         for key, (entry, opened) in before.items():
             new_entry, new_opened = after[key]
-            stored_lines = entry.value("MEMORY-LINES")
-            if stored_lines:
-                stored = json.loads(stored_lines)
-                hashes = [sha256(line.encode("utf-8")).hexdigest() for line in _memory_lines(entry, opened)]
-                if Counter(stored) - Counter(hashes):
+            if entry.value("MEMORY-LINES"):
+                if Counter(_stored_memory_lines(entry)) - Counter(_line_hashes(_memory_lines(entry, opened))):
                     return False
             elif opened.digest != new_opened.digest:
                 return False
@@ -1249,29 +1245,20 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
             if file_error and "outside owed PLACE" in file_error:
                 shape_errors.append(file_error)
             changed = current != opened.digest
-            if (not compare_memory_lines and not changed and not file_error
-                    and item.place == registry.memory_index and entry.values("MEMORY-LINES")):
-                # ADR 0391 ruling 8: an edit inside a subject list leaves MEMORY.md's
-                # bytes alone, so the whole-file recheck also compares the line population.
+            if not file_error and item.place == registry.memory_index and entry.values("MEMORY-LINES"):
+                # ADR 0391 ruling 8: the whole index is compared by lines in every
+                # check; an added line is shown and only a lost line is a move.
                 try:
-                    stored = json.loads(entry.value("MEMORY-LINES"))
-                    current_lines = [sha256(line.encode("utf-8")).hexdigest() for line in _memory_lines(entry, opened)]
-                    changed = bool(Counter(stored) - Counter(current_lines))
-                except (OSError, UnicodeError, ValueError, TypeError):
-                    shape_errors.append("memory line fingerprints are unreadable")
-            if compare_memory_lines and not file_error and item.place == registry.memory_index and entry.values("MEMORY-LINES"):
-                try:
-                    stored = json.loads(entry.value("MEMORY-LINES"))
-                    if not isinstance(stored, list) or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in stored):
-                        raise ValueError("invalid memory line fingerprints")
+                    stored = _stored_memory_lines(entry)
                     lines = _memory_lines(entry, opened)
-                    hashes = [sha256(line.encode("utf-8")).hexdigest() for line in lines]
+                    hashes = _line_hashes(lines)
                     changed = bool(Counter(stored) - Counter(hashes))
-                    additions = Counter(hashes) - Counter(stored)
-                    for line, fingerprint in zip(lines, hashes):
-                        if additions[fingerprint]:
-                            added_lines.append(line)
-                            additions[fingerprint] -= 1
+                    if compare_memory_lines:
+                        additions = Counter(hashes) - Counter(stored)
+                        for line, fingerprint in zip(lines, hashes):
+                            if additions[fingerprint]:
+                                added_lines.append(line)
+                                additions[fingerprint] -= 1
                 except (OSError, UnicodeError, ValueError):
                     shape_errors.append("memory line fingerprints are unreadable")
             if file_error or changed:
@@ -1303,6 +1290,18 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
 def _memory_lines(entry: Entry, opened: Opened) -> list[str]:
     """The memory index and every subject list, read as one index (ADR 0391 ruling 8)."""
     return memory_index.index_lines(_file_path(entry, opened))
+
+
+def _line_hashes(lines: list[str]) -> list[str]:
+    return [sha256(line.encode("utf-8")).hexdigest() for line in lines]
+
+
+def _stored_memory_lines(entry: Entry) -> list[str]:
+    """The retrieval-time line fingerprints; a malformed value raises ValueError."""
+    stored = json.loads(entry.value("MEMORY-LINES"))
+    if not isinstance(stored, list) or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in stored):
+        raise ValueError("invalid memory line fingerprints")
+    return stored
 
 
 def _go_ahead_records(run: Path) -> dict[str, dict]:

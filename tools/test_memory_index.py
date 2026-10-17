@@ -7,6 +7,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import memory_index
 
@@ -228,6 +229,64 @@ class TheRuleBlock(Fixture):
         status, _, err = run([str(self.index), "--install-rule"])
         self.assertEqual(status, 2)
         self.assertIn("usage", err)
+
+
+class TheRebuildConverges(Fixture):
+    def files(self) -> dict[str, bytes]:
+        return {str(path.relative_to(self.root)): path.read_bytes()
+                for path in sorted(self.root.rglob("*")) if path.is_file()}
+
+    def seed(self) -> None:
+        memory(self.root, "pause", "pause in the box", "canvas, coursework")
+        memory(self.root, "stash", "never stash", "none")
+        memory(self.root, "old")
+        self.index.write_text("- [Old](old.md) — kept\n- [Pause](pause.md) — old\n", encoding="utf-8")
+
+    def test_running_twice_changes_nothing_the_second_time(self):
+        self.seed()
+        run([str(self.index), "--write", "--install-rule"])
+        first = self.files()
+        status, out, _ = run([str(self.index), "--write"])
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.files(), first)
+        self.assertIn("files a rebuild would change: 0", run([str(self.index)])[1])
+
+    def test_a_crash_after_the_lists_and_before_the_index_converges_on_rerun(self):
+        self.seed()
+        rule = memory_index.read_rule()
+        result = memory_index.plan(self.index, rule)
+        for key, text in result.lists.items():  # the crash: lists written, index not
+            memory_index._write_atomic(self.root / "subjects" / f"{key}.md", text)
+        run([str(self.index), "--write"])
+        crashed = self.files()
+        clean = Path(tempfile.mkdtemp(dir=self.root.parent))
+        try:
+            self.root, self.index = clean, clean / "MEMORY.md"
+            self.seed()
+            run([str(self.index), "--write"])
+            self.assertEqual(self.files(), crashed)
+        finally:
+            import shutil
+            shutil.rmtree(clean)
+
+    def test_a_failed_write_leaves_no_temporary_file(self):
+        target = self.root / "out.md"
+        with mock.patch.object(Path, "replace", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                memory_index._write_atomic(target, "text")
+        self.assertEqual(sorted(self.root.iterdir()), [])
+
+
+class TheSubjectTable(unittest.TestCase):
+    def test_an_aligned_separator_row_is_read_as_a_separator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "memory.md"
+            source.write_text(
+                "## Subjects\n\n| Subject | Name | Open when |\n| :--- | :---: | ---: |\n"
+                "| canvas | Canvas | posting |\n\n## Installed block\n\n```text\nSubjects: {SUBJECTS}.\n```\n",
+                encoding="utf-8",
+            )
+            self.assertEqual([s.key for s in memory_index.read_rule(source).subjects], ["canvas"])
 
 
 class NotRead(Fixture):

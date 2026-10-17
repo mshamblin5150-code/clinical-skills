@@ -1341,7 +1341,8 @@ showing a later notice preserves the result the clinician approved.
 The same five completion graders enable the shared row with `--submission`. After recorded posting,
 they carry forward the go-ahead result and name moves approved over by the clinician. A posted
 approval predating the check is named, counted, and passes on this row. An unposted key keeps the
-whole-file completion recheck. Service text is not retrieved again, and a finding wins.
+whole-file completion recheck, except that the memory index and its subject lists are compared by
+lines (ADR 0391 ruling 8). Service text is not retrieved again, and a finding wins.
 Their shared heading read binds `CONTEXT-DIGEST` to the items retained when the read was taken.
 Edited or removed items, or added places or opened items, break it; appended memory-index lines
 preserve it. A posted item's read is not rebound. It permits only `agrees`, or `none`
