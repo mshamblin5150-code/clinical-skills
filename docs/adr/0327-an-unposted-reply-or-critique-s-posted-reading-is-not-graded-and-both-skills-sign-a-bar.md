@@ -116,6 +116,12 @@ checker applies that skill's built-in rules was declined because it copies skill
 rests on the caller declaring correctly. Either way the rules applied would be ones the clinician never
 saw, which is the defect the first filed run produced.
 
+*Superseded 2026-10-17.* The words "the run writes the date into `SIGNED` only then" are replaced by
+[ADR 0397](0397-every-coursework-bar-is-signed-by-one-shared-command-that-fingerprints-it-and-a-reused-bar-is-only-checked.md)
+ruling 1: a shared signing command writes the date, fingerprints the bar, and carries the
+clinician's answer at that stop. The stop, the three fields, their defaults, the reused post bar and
+`research_ledger`'s refusal of a run with no bar still stand.
+
 ## Ruling 5 — the filed runs are left as they stand
 
 The runs #1495 records are not repaired. Four posted with no approval record and one wrote its
