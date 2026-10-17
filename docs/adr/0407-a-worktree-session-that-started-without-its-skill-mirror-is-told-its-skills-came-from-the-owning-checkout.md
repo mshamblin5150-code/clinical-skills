@@ -1,15 +1,16 @@
 # A worktree session that started without its skill mirror is told its skills came from the owning checkout
 
-**Measured at:** cc92dd95cc71027e7c1d095088b8bbe61889e650
+**Measured at:** 078bbef405bac9cc39177e24120b9860fd6066d9
 
 [#1806](https://github.com/mshamblin5150-code/clinical-skills/issues/1806) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift) on 2026-10-14. A worktree
 session's `/batch-shift` text came from the owning checkout's `.claude/skills/` mirror, which was 548
 commits behind the session's tree, while its session-start mirror repair reported every skill
 linked. The ticket offered two remedies and asked that the resolving scope be measured first.
-Grilled 2026-10-17 against `main` at `4dbf0795`, where the freshness gate read `FRESH`; the commit above adds only this record. The
-clinician ruled every point below in that session, one question at a time. **Nothing is built here;
-this is the record the build reads.**
+Grilled 2026-10-17 against `main` at `4dbf0795`, where the freshness gate read `FRESH`; `main`
+then moved to `850f4493`, whose two merges touched no file under `skills/`, `tools/` or `.claude/`,
+and the commit above adds only this record to it. The clinician ruled every point below in that
+session, one question at a time. **Nothing is built here; this is the record the build reads.**
 
 ## Measured before ruling
 
@@ -36,6 +37,13 @@ loaded.
 **The creation-time repair did not create the folder.** `tools/hooks/post-checkout` repairs the
 mirror when Git reports a new worktree, but this worktree's folder was made by the session-start
 hook four seconds after its settings file. Why the creation path skipped it was not measured.
+[ADR 0152](0152-the-skills-mirror-is-repaired-at-session-start-and-its-orphans-are-drained.md)
+measured on 2026-09-08 that a plain `git worktree add` fires `post-checkout` and that every
+desktop-app worktree then alive carried a 23-entry `.claude/skills` copied from the main checkout's
+working tree. This worktree carried no `.claude/skills` at all, while its gitignored
+`.claude/settings.local.json` has the owning checkout's file's modification time to the
+microsecond, so the app still copies part of `.claude/` but no longer the skill folder. The app's
+creation path has changed since that measurement.
 
 **Git hooks take the same route by configuration.** `core.hooksPath` in the owning checkout's
 `.git/config` is the absolute path `C:\codeing\clinical_skills\tools\hooks`, so every worktree commit
@@ -45,6 +53,10 @@ documented setup command writes the relative `tools/hooks`. In a throwaway repos
 relative setting, a commit in a linked worktree ran the worktree's edited hook and a commit in the
 main checkout ran the main checkout's. The three hook files matched by content on the measured day;
 13 commits touched `tools/hooks/` in the seven weeks before the measured day.
+[ADR 0131](0131-the-shared-sheet-directory-moves-whole-and-the-mirror-gains-a-non-skill-rule.md)
+noted the absolute path as the reason a new worktree inherits `post-checkout`; in a second throwaway
+repository with the relative setting, `git worktree add` still fired `post-checkout` in the new
+worktree with the all-zero previous object id, so the relative path keeps that property.
 
 **Every repo skill was byte-identical between the two trees on the measured day.** The owning
 checkout was on `main`, 37 commits behind `origin/main`.
