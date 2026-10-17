@@ -105,6 +105,8 @@ classification adversarial. Reading inside the envelope to set a kind was priced
 the classifier one inference it can already make from the body in front of it, and pays a second
 moving matcher for it.
 
+*Superseded 2026-10-17.* The words "`clinician` narrows to its true meaning: **a user row with no harness flag and no recognized envelope.**" are superseded by [ADR 0387](0387-the-clinician-s-words-are-read-apart-from-every-envelope-and-one-envelope-list-serves-both-readers.md) ruling 1. A row is read as pieces, and `clinician` is the Clinician's words read apart from every recognized envelope; that record's ruling 5 is a declared exception to the refusal to read inside an envelope. The rule that a kind names the envelope and never the origin stands.
+
 ### 3. The label is keyed on three things and the remainder is printed
 
 Row shape, the harness's own row flags, and a declared envelope set, matched by containment rather
