@@ -102,6 +102,12 @@ ground." are narrowed by
 ruling 5: a record whose every ruling is withdrawn carries one banner above its first section
 instead. The fixed opening and the four parts still stand.
 
+*Superseded 2026-10-17.* The words "names the overturning record with a link and its ruling number," are
+narrowed by
+[ADR 0390](0390-an-overturned-passage-with-no-ruling-number-is-located-by-its-exact-quote-and-a-repair-s-mislabeled-opening-is-restored.md)
+ruling 2: an overturning record with no numbered rulings is linked bare. The fixed opening, the
+quote and the account of what stands still stand.
+
 ## Ruling 5 — the overturning ADR declares its targets, and a suite test binds both directions
 
 A record that overturns anything carries an optional `## Supersedes` section naming each target and
@@ -121,6 +127,11 @@ as written or reconciles it in the same change.
 [ADR 0343](0343-the-implementation-map-is-retired-and-a-wholly-withdrawn-record-carries-one-supersession-banner.md)
 ruling 5: a wholly withdrawn record is declared with `every ruling` in place of a ruling number. The
 binding in both directions and its floor still stand.
+
+*Superseded 2026-10-17.* The words "naming each target and its ruling" are narrowed by
+[ADR 0390](0390-an-overturned-passage-with-no-ruling-number-is-located-by-its-exact-quote-and-a-repair-s-mislabeled-opening-is-restored.md)
+ruling 1: a target outside any numbered ruling is named by its exact quote. The binding in both
+directions and its floor still stand.
 
 ## Ruling 6 — a missing marker fails the suite and refuses no commit
 
