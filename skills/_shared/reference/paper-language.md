@@ -18,7 +18,9 @@ The committed `reference/reference-alphabets.json` carries English and the CLDR
 rows named by [ADR 0356](../../../docs/adr/0356-the-paper-language-picks-the-filing-alphabet-and-english-files-a-special-letter-as-its-plain-letter.md).
 The non-English rows use primary collation weights; national APA guides have not
 confirmed them. Their fixed controls name the ICU and CLDR versions that produced
-them. German awaits its own ruling. With no language answer or a language absent
+them. German files `ä`, `ö` and `ü` as their plain vowels and `ß` as `ss`, and accepts
+either order where two names differ only by those letters ([ADR 0399](../../../docs/adr/0399-the-german-row-files-an-umlaut-as-its-plain-vowel-and-leaves-a-sharp-s-tie-unbroken.md)).
+With no language answer or a language absent
 from the table, ordering is `not graded`, with the language named, and a scan with
 no other finding exits 2. A finding still takes exit 1.
 

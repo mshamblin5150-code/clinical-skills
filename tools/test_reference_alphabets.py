@@ -32,10 +32,29 @@ class PaperLanguage(unittest.TestCase):
         self.assertLess(alphabets.ordering("Husa", "cs"), alphabets.ordering("Chata", "cs"))
         self.assertLess(alphabets.ordering("Chata", "cs"), alphabets.ordering("Ivan", "cs"))
 
+    def test_german_files_umlauts_as_plain_vowels_and_leaves_ties_unbroken(self):
+        """ADR 0399: Göbel files with Gobel, before Goebel; ß and ss tie either way."""
+        self.assertEqual(alphabets.language_name("Deutsch"), "de")
+        self.assertEqual(alphabets.language_name("German"), "de")
+        self.assertEqual(alphabets.ordering("Göbel", "de"), alphabets.ordering("Gobel", "de"))
+        self.assertEqual(alphabets.ordering("Müller", "de"), alphabets.ordering("Muller", "de"))
+        self.assertEqual(alphabets.ordering("Straße", "de"), alphabets.ordering("Strasse", "de"))
+        self.assertLess(alphabets.ordering("Göbel", "de"), alphabets.ordering("Goebel", "de"))
+        self.assertLess(alphabets.ordering("Mueller", "de"), alphabets.ordering("Müller", "de"))
+        for pair in (("Straße", "Strasse"), ("Strasse", "Straße"), ("Räben", "Raben"), ("Raben", "Räben")):
+            with self.subTest(order=pair):
+                entries = "".join(f"{name}, J. (2025). Topic. Publisher.\n" for name in pair)
+                text = f"A claim ({pair[0]}, 2025; {pair[1]}, 2025).\n\n## References\n\n{entries}"
+                kinds = [f.kind for f in scan.survey(scan.read_document(text), date(2026, 10, 12), "German").findings]
+                self.assertNotIn(scan.LIST_NOT_SORTED, kinds)
+        text = "A claim (Goebel, 2025; Göbel, 2025).\n\n## References\n\nGoebel, J. (2025). Topic. Publisher.\nGöbel, J. (2025). Topic. Publisher.\n"
+        kinds = [f.kind for f in scan.survey(scan.read_document(text), date(2026, 10, 12), "German").findings]
+        self.assertIn(scan.LIST_NOT_SORTED, kinds)
+
     def test_citation_matches_but_reports_spelling(self):
         for cited, listed in [("Ovretveit", "Øvretveit"), ("Kubler", "Kübler"), ("Moller", "Møller"), ("Strasse", "Straße")]:
             text = f"A claim ({cited}, 2025).\n\n## References\n\n{listed}, J. (2025). Topic. Publisher.\n"
-            for language in ("en", "nb", "German", None):
+            for language in ("en", "nb", "German", "Dutch", None):
                 findings = scan.survey(scan.read_document(text), date(2026, 10, 12), language).findings
                 self.assertEqual([f.kind for f in findings], [scan.CITATION_AUTHOR_SPELLING])
 
@@ -46,7 +65,7 @@ class PaperLanguage(unittest.TestCase):
             draft = Path(directory) / "draft.md"
             draft.write_text("A claim (Øvretveit, 2025; Zhang, 2025).\n\n## References\n\nØvretveit, J. (2025). Topic. Publisher.\nZhang, J. (2025). Topic. Publisher.\n", encoding="utf-8")
             base = [str(draft), "--as-of", "2026-10-12", "--profile", str(profile)]
-            for extra, status, label in [([], 1, "nb"), (["--paper-language", "English"], 0, "en"), (["--paper-language", "German"], 2, "German"), (["--paper-language", "Klingon"], 2, "Klingon")]:
+            for extra, status, label in [([], 1, "nb"), (["--paper-language", "English"], 0, "en"), (["--paper-language", "German"], 0, "de"), (["--paper-language", "Dutch"], 2, "Dutch"), (["--paper-language", "Klingon"], 2, "Klingon")]:
                 with redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()):
                     self.assertEqual(scan.main(base + extra), status)
                 self.assertIn(label.casefold(), output.getvalue())
