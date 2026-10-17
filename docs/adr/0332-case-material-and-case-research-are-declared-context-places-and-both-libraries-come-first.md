@@ -63,6 +63,8 @@ that the record does not show opened as an item of a read place. The tool locate
 names the file and the clinician confirms it with the rest of the header, as for the own-submission
 line. The line is part of the confirmed header the context digest covers.
 
+*Superseded 2026-10-17.* The words "The tool locates nothing: the run names the file" are superseded by [ADR 0400](0400-the-case-material-is-the-faculty-source-and-a-recorded-image-is-matched-before-drafting.md) ruling 2. For a video case the line names the course site's address of the video page, and the clinician's capture is declared on its own line. The line, its exactly-once requirement, the refusal of a reasonless `none`, the opened requirement for a declared path, and its place in the confirmed header and context digest still stand.
+
 A written instruction alone was declined because the recorded failure was a skipped written step,
 and a skipped step looks the same as a run with nothing to read. Widening the own-submission line
 to several files was declined because the gate could no longer say which declared file was missing.
