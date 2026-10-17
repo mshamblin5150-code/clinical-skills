@@ -98,7 +98,7 @@ class ReferenceLanguage(unittest.TestCase):
             bar.write_text(bar.read_text(encoding="utf-8") + "PAPER-LANGUAGE: Norwegian Bokmål\n", encoding="utf-8")
             profile = Path(directory) / "profile.md"
             profile.write_text("PAPER-LANGUAGE: Spanish\n", encoding="utf-8")
-            for extra, expected in [([], "nb"), (["--paper-language", "English"], "en"), (["--paper-language", "German"], "german")]:
+            for extra, expected in [([], "nb"), (["--paper-language", "English"], "en"), (["--paper-language", "German"], "de")]:
                 parsed = run_grader.parse(scan.GRADER, [*case.argv, "--profile", str(profile), *extra])
                 source = scan.load(parsed)
                 self.assertEqual(scan.survey(source).paper_language, expected)
