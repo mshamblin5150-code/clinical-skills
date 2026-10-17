@@ -1306,6 +1306,10 @@ _Avoid_: check, independent check, grading pass, review step
 A file a fixture-generating pass reads as part of its prompt, whether or not the run opened anything under `fixtures/`, so naming a concrete fixture in one hands the pass the answer the run withholds. The blind-instruction check deliberately reads a wider population than this, adding files authors edit often though no pass reads them; a file the check reads is not thereby a required instruction, and a required instruction the check does not read is still one.
 _Avoid_: guarded file, checked file, prompt file, instruction file
 
+**Fixture writer**:
+The kind of subagent a fixture-generating pass runs as. It starts without `CLAUDE.md` and is handed the skill files and `AGENTS.md`, which is why `CLAUDE.md` is not a **Required instruction** though it names fixtures. Every fixture run proves, before any note is written, that the writer cannot recall a word planted only in `CLAUDE.md` while an ordinary subagent can; a run written by any other kind of subagent is not blind.
+_Avoid_: blind agent, isolated pass, generator, clean subagent
+
 **Narrowing**:
 What a **Briefing surface** states that the shared rule does not contain — a blinding whitelist, a capability requirement, an ordering gate. It is the only thing a surface writes for itself, because anything else it states about delegation is a copy of a rule that already binds it. Distinct from a **Hatch**, which excuses a finding rather than adding an obligation.
 _Avoid_: exception, override, local rule, carve-out
