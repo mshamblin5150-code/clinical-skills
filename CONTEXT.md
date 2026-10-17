@@ -287,7 +287,7 @@ Every **Submission** the clinician already handed in earlier in the same course,
 _Avoid_: course series, series, previous modules, prior papers, earlier course submissions
 
 **Case material**:
-The fixed data set a case gives every student, whether a file the course supplies or the clinician's own transcription of a case presented by video. A run declares it, or that none exists with a reason, in its **Project context record**. Lines the clinician added to his own copy, such as a sanity check, a differential or a first plan, are his reasoning before research, never the case and never his settled position; that is his **Own submission**.
+The fixed data set a case gives every student, in the faculty's own form: the case document as posted, or the slides, video and narration of a case presented by video. The clinician's transcription or shorthand capture of that source is his working material, a way to find things in it, never the case: its wording is checked against the source before it is quoted, and before anything is charged as missing from it. A run declares the case material, or that none exists with a reason, in its **Project context record**. Lines the clinician added to his own copy, such as a sanity check, a differential or a first plan, are his reasoning before research, never the case and never his settled position; that is his **Own submission**.
 _Avoid_: case file, case data, scenario, intake
 
 **Case research**:
