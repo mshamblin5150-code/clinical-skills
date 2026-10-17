@@ -1039,7 +1039,7 @@ A gate whose off state means a read stopped partway. A finding the read already 
 _Avoid_: soft gate, degraded gate, best-effort gate
 
 **Unread remainder**:
-The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
+The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run as one figure per report, with each member counted once however many counters see it, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
 _Avoid_: skipped count, miss count, unparsed lines, coverage gap
 
 **Declared absence**:
@@ -1391,6 +1391,10 @@ _Avoid_: gate, checker, backstop, net, layer
 **Unreadable body**:
 Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all: an issue create is refused as a missing-body finding, while every other such route is silent. Distinct too from a **lost body**, which was read and is itself the defect. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
 _Avoid_: no body, empty, skipped, not scanned
+
+**Unreadable payload**:
+The request a harness hands a hook that the hook cannot turn into the record it expects: text that does not parse, a parsed value that is not a record, or a read that failed. It is the harness's fault and never the command's, so no retry by the agent can repair it. A guard that holds one has checked nothing, and the outcome is neither a finding nor a clean pass: a command guard **refuses** only when the raw text still carries what its own refusal needs, and otherwise lets the call through with a note both the agent and the clinician see; an end-of-turn check always lets the turn end with a note, because refusing a stop it cannot grade asks for a retry that cannot succeed. Distinct from an **unreadable body**, which is text inside a payload the hook did read.
+_Avoid_: bad input, malformed hook, hook failure, parse error
 
 **Lost body**:
 A body a recognized **publish route** carries and the checker did read, whose text did not land: nothing but whitespace, the two characters `@-`, or a single `@`-token. It is a finding and it is **refused**, never a clean scan and never an **unreadable body**, because the checker holds the text and the text is the defect. Distinct from a route carrying no body flag at all, which is silent on every route except an issue create.

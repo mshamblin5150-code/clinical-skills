@@ -83,6 +83,8 @@ already uses for an unresolvable target. Blocking was declined because it would 
 this question for the existing guards. Silent allowing was declined because it is the defect #1728
 was filed over. This hook joins #1728's population, and whatever that ruling decides binds it too.
 
+*Superseded 2026-10-17.* The words "the hook allows the call and attaches a visible `backslash check: unread` note" are superseded by [ADR 0392](0392-a-guard-that-cannot-read-its-payload-refuses-only-on-its-own-trigger-in-the-raw-text.md) ruling 1. The hook refuses an unreadable payload whose raw text carries four consecutive backslashes and allows the rest with the note. Placing this hook under #1728's ruling, and declining a silent allow, still stand.
+
 ## Ruling 5. One exact probe command is exempt so the block can be retired
 
 The hook allows exactly `printf '%s\n' 'backslash-probe: a\\b'` and nothing else. Its output shows
@@ -109,3 +111,5 @@ character (refused), a Monitor payload, and malformed and non-object payloads (a
 Before merge the builder runs one real Bash call carrying `\\` in the session and confirms the hook
 saw both backslashes and refused it. That confirms the payload is formed before the halving, which
 the transcript shows but no test can.
+
+*Superseded 2026-10-17.* The words "and malformed and non-object payloads (allowed with the note)" are superseded by [ADR 0392](0392-a-guard-that-cannot-read-its-payload-refuses-only-on-its-own-trigger-in-the-raw-text.md) ruling 6. Malformed and non-object payloads are tested both with and without the trigger. The other planted payloads and the live probe before merge still stand.
