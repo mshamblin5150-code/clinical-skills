@@ -1,6 +1,6 @@
 # A guard that cannot read its payload refuses only on its own trigger in the raw text
 
-**Measured at:** 5d32d8490b61bba071e0dba6013349aff84d97ad
+**Measured at:** 1e968bac80d0711a156748c12dd5716b72ec63c5
 
 [#1728](https://github.com/mshamblin5150-code/clinical-skills/issues/1728) was filed from the
 grilling of #1520, whose ADR 0340 ruling 5 sent the question to its own ticket: several hooks let
@@ -130,3 +130,5 @@ batch carrying `tabId` on only one action.
   refuse anything.
 - **Codex's handling of `additionalContext` and `systemMessage`** for the guards installed there is
   measured at the build, not assumed here.
+
+*Corrected 2026-10-17, hours after ratification.* Ruling 6 says each member's `DECLARED_LIMITS`; `tracker_publish_hook` has no object by that name and keeps its limits in `NOT_REACHED`, which is where its posture is named. The tracker sweep closing this grilling found it. The ruling is unchanged. Measured at is re-declared for this correction; no file under `tools/` or `.claude/settings.json` changed between the original base and this one, so the table above re-derives unchanged.
