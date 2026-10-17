@@ -80,6 +80,8 @@ to end an unbroken chain from placement through zero or more recorded, passing r
 chain, a failed comparison or a comparison never run is exit 1. This binds every skill that places
 notes or worksheets, not only `batch-shift`.
 
+*Superseded 2026-10-17.* The words "A broken chain, a failed comparison or a comparison never run is exit 1" are narrowed by [ADR 0405](0405-a-repair-scope-is-recorded-before-the-file-changes-and-only-the-clinician-supersedes-a-failed-comparison.md) ruling 2. A failed comparison superseded by a re-scope record carrying the clinician's verified acceptance no longer breaks the chain. The placement hash, the unbroken chain, and exit 1 for an unsuperseded failed comparison, a broken chain or a comparison never run all stand.
+
 ## Ruling 6 — the go-ahead shows every repair pass and the sections it changed
 
 Beside the `PRE-APPROVAL PATIENT QUESTIONS` block, and never inside the Review sheet, the run shows
