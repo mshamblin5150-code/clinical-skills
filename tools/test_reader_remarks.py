@@ -264,6 +264,31 @@ class ApprovalSurfaces(unittest.TestCase):
             self.show("Synthetic approved content.\n" + remarks.surface(prepared, self.outcomes))
             self.approve()
 
+    def test_the_surface_names_the_reply_forms_only_when_a_remark_is_proposed_to_be_left(self):
+        prepared = remarks.Prepared('', (remarks.Remark('a', 'One.'), remarks.Remark('b', 'Two.'), remarks.Remark('c', 'Three.')), ('unread remainder 1',))
+        fixed = remarks.Outcome('fixed', 'Repaired.')
+        leave = remarks.Outcome('leave', 'Keep it.')
+        self.assertNotIn('Proposed to leave', remarks.surface(prepared, (fixed, fixed, fixed)))
+        lines = remarks.surface(prepared, (leave, fixed, leave)).splitlines()
+        request = 'Proposed to leave: 1, 3. To leave them, reply "leave all of them" or "leave 1, 3".'
+        self.assertEqual(request, lines[3])
+        self.assertEqual('unread remainder 1', lines[4])
+        for reply in ('leave all of them', 'leave 1, 3'):
+            with self.subTest(reply=reply):
+                self.assertTrue({1, 3} <= remarks._left_numbers(reply, 3))
+        self.assertNotIn('Proposed to leave', remarks.surface(prepared, (leave, fixed, leave), request_leaves=False))
+
+    def test_a_content_ask_without_the_reply_forms_is_refused(self):
+        self.graders()
+        self.outcomes = (remarks.Outcome('leave', 'Keep the wording for this synthetic exercise.'),)
+        for course in (False, True):
+            with self.subTest(course=course):
+                prepared = self.prepare(course)
+                shown = remarks.surface(prepared, self.outcomes, request_leaves=False)
+                self.show('Synthetic approved content.\n' + shown, 'send it, leave 1')
+                with self.assertRaisesRegex((approvals.ApprovalRecordError, assignments.GateError), 'not shown.*Proposed to leave'):
+                    self.approve(course, 'send it, leave 1')
+
     def test_all_leaves_and_negated_leaves(self):
         self.assertEqual({1, 2}, remarks._left_numbers('go, leave all of them', 2))
         self.assertEqual({1, 2}, remarks._left_numbers('leave 1 and 2, fire', 2))

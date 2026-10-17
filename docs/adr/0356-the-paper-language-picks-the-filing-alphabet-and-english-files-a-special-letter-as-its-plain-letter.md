@@ -92,6 +92,8 @@ APA guide confirms these rows, and the record says so beside them.
 disagree: one files `ä` as A, another as AE, and two disagree on whether `ß` precedes `ss`. A German
 paper is therefore not graded on order until that ruling lands.
 
+*Superseded 2026-10-17.* The words "**German has no row** until the clinician rules on umlauts and `ß`." are superseded by [ADR 0399](0399-the-german-row-files-an-umlaut-as-its-plain-vowel-and-leaves-a-sharp-s-tie-unbroken.md) ruling 1. German now has a CLDR row filing umlauts as plain vowels, and ADR 0399 ruling 2 leaves a sharp-s tie unbroken; the rest of ruling 3, the committed table and the ungraded path for an absent language, survives.
+
 ## Ruling 4 — the paper's language is asked once, saved in the profile, and overridable per paper
 
 The paper's language is an account setting. `setup-clinical-skills` asks for it in the same step as

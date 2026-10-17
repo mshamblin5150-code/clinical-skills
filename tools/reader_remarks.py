@@ -25,6 +25,7 @@ DECLARED_LIMITS = (
     "The transcript comparison collapses whitespace and does not prove visual presentation or clinician attention.",
     "A fixed outcome records the change shown and accepted; it does not mechanically establish that the change resolves the remark.",
     "Explicit leaves recognize leave, keep, or accept followed by remark numbers or all remarks; other wording requires a new explicit reply.",
+    "The printed reply forms must appear before the reply; another question asked beside them is not detected.",
 )
 
 
@@ -136,7 +137,15 @@ def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_t
     return prepared
 
 
-def surface(prepared: Prepared, outcomes: tuple[Outcome, ...] = ()) -> str:
+def leave_request(outcomes: tuple[Outcome, ...]) -> str | None:
+    """Name the reply forms that answer every leave proposal, or None when there is none."""
+    numbers = ", ".join(str(n) for n, outcome in enumerate(outcomes, 1) if outcome.status == "leave")
+    if not numbers:
+        return None
+    return f'Proposed to leave: {numbers}. To leave them, reply "leave all of them" or "leave {numbers}".'
+
+
+def surface(prepared: Prepared, outcomes: tuple[Outcome, ...] = (), *, request_leaves: bool = True) -> str:
     if len(outcomes) != len(prepared.remarks):
         raise RemarkError("every reader remark needs a fixed outcome or a proposal to leave it")
     lines = []
@@ -145,7 +154,8 @@ def surface(prepared: Prepared, outcomes: tuple[Outcome, ...] = ()) -> str:
             raise RemarkError(f"remark {number} needs a substantive fixed or leave outcome")
         label = "Fixed" if outcome.status == "fixed" else "Propose to leave"
         lines.append(f"{number}. {remark.origin} — {remark.text} — {label}: {outcome.detail}")
-    return "\n".join((*lines, *prepared.coverage))
+    request = leave_request(outcomes) if request_leaves else None
+    return "\n".join((*lines, *((request,) if request else ()), *prepared.coverage))
 
 
 def _left_numbers(reply: str, population: int) -> set[int]:
@@ -187,7 +197,8 @@ def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_te
         outcomes = tuple(Outcome("fixed" if row["outcome"] == "fixed" else "leave", row["detail"])
                          for row in accepted)
         inherited_leaves = {n for n, row in enumerate(accepted, 1) if row["outcome"] == "left on clinician's word"}
-    required = surface(prepared, outcomes).splitlines()
+    # A posting inherits answered leaves, so only the content ask must carry the reply forms.
+    required = surface(prepared, outcomes, request_leaves=accepted is None).splitlines()
     shown, unread = approval_record.assistant_text(run, after=boundary if accepted is not None else prepared_at, before=reply_at)
     shown_lines = {" ".join(line.split()) for message in shown for line in message.splitlines()}
     missing = [line for line in required if " ".join(line.split()) not in shown_lines]

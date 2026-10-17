@@ -3,7 +3,8 @@
 Secondary accent differences and tertiary case differences are disregarded.
 The Latin repertoire is fixed by the builder; characters outside it retain their
 NFKD letters. Printed names are never modified. English folding also owns citation
-equality in every paper language. German awaits its own ruling.
+equality in every paper language. German files an umlaut as its plain vowel and
+`ß` as `ss`, leaving either tie unbroken (ADR 0399).
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ ALIASES = {
     "english": "en", "danish": "da", "norwegian bokmål": "nb",
     "norwegian bokmal": "nb", "norwegian": "nb", "no": "nb",
     "swedish": "sv", "finnish": "fi", "icelandic": "is", "polish": "pl",
-    "czech": "cs", "turkish": "tr", "spanish": "es",
+    "czech": "cs", "turkish": "tr", "spanish": "es", "german": "de", "deutsch": "de",
 }
 LANGUAGE_LINE = re.compile(r"^PAPER-LANGUAGE:[ \t]*(.*?)[ \t]*$", re.M)
 

@@ -1959,6 +1959,10 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             "A refuter writes `paywalled` only when the source body remains inaccessible through the Authenticated route; an anonymous or in-app login wall does not establish the disposition.",
             "Where the route cannot be reached in the run, the attempt is a failed read: `STATUS: unreadable` or `REFUTATION: unreadable`, with `INSTRUMENTS` naming the attempts.",
             "An unreachable route never yields `paywalled` and never yields `STATUS: unsourced` on the ground of a wall.",
+            "On UpToDate and VitalSource, an agent on the route may click the sign-in form's own Sign In button when the clinician's password manager has already filled every field.",
+            "It never types or changes a credential, and it never clicks Continue with Google, a single sign-on page, or a passkey prompt.",
+            "An empty field, or a sign-in form reached from a link inside material the run is reading, stops the attempt as a failed read.",
+            "Every research and refutation brief that sends an agent through the route states this permission, because an agent cannot infer it;",
         ):
             with self.subTest(sentence=sentence):
                 self.assertIn(sentence, section)
