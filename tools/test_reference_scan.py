@@ -587,6 +587,65 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
             kinds(draft(part_one, part_two, body=body)),
         )
 
+    ADA = "American Diabetes Association Professional Practice Committee. (2026{letter}). {title}: Standards of care in diabetes—2026. *Diabetes Care, 49*(Suppl. 1)."
+    ADA_BODY = "# Case\n\nThe standards (American Diabetes Association Professional Practice Committee, 2026a, 2026b, 2026c) apply.\n"
+
+    def ada(self, letter, title):
+        return self.ADA.format(letter=letter, title=title)
+
+    def test_leading_section_numbers_keep_series_order(self):
+        """#1796: spelled-out title order puts ``fourteen`` before ``six``, and the
+        sheet keeps explicitly numbered parts in series order instead."""
+        six = self.ada("a", "6. Glycemic goals and hypoglycemia")
+        fourteen = self.ada("b", "14. Children and adolescents")
+        self.assertNotIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(six, fourteen, body=self.ADA_BODY)))
+
+    def test_leading_section_numbers_lettered_by_title_are_a_finding(self):
+        fourteen = self.ada("a", "14. Children and adolescents")
+        six = self.ada("b", "6. Glycemic goals and hypoglycemia")
+        self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(fourteen, six, body=self.ADA_BODY)))
+
+    def test_an_unnumbered_work_among_numbered_parts_does_not_force_title_order(self):
+        intro = self.ada("a", "Introduction and methodology")
+        six = self.ada("b", "6. Glycemic goals and hypoglycemia")
+        fourteen = self.ada("c", "14. Children and adolescents")
+        self.assertNotIn(
+            scan.AB_OUT_OF_TITLE_ORDER,
+            kinds(draft(intro, six, fourteen, body=self.ADA_BODY)),
+        )
+
+    def test_numbered_parts_out_of_order_in_a_mixed_group_are_a_finding(self):
+        intro = self.ada("a", "Introduction and methodology")
+        fourteen = self.ada("b", "14. Children and adolescents")
+        six = self.ada("c", "6. Glycemic goals and hypoglycemia")
+        self.assertIn(
+            scan.AB_OUT_OF_TITLE_ORDER,
+            kinds(draft(intro, fourteen, six, body=self.ADA_BODY)),
+        )
+
+    def test_one_numbered_title_does_not_silence_title_order_among_the_rest(self):
+        """The unnumbered works still keep title order among themselves."""
+        body = "# Case\n\nSmith (2020a, 2020b, 2020c) reported the works.\n"
+        zebra = "Smith, A. (2020a). Zebra habits. Journal."
+        mango = "Smith, A. (2020b). 3. Mango habits. Journal."
+        apple = "Smith, A. (2020c). Apple habits. Journal."
+        self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(zebra, mango, apple, body=body)))
+
+    def test_a_leading_number_without_a_period_stays_on_title_order(self):
+        """``fourteen tips`` sorts before ``six ways``, so title order letters it first."""
+        fourteen = "Smith, A. (2020a). 14 tips for clinic. Journal."
+        six = "Smith, A. (2020b). 6 ways to triage. Journal."
+        body = "# Case\n\nSmith (2020a, 2020b) reported both works.\n"
+        self.assertNotIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(fourteen, six, body=body)))
+        swapped = (six.replace("2020b", "2020a"), fourteen.replace("2020a", "2020b"))
+        self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(*swapped, body=body)))
+
+    def test_an_identified_series_out_of_part_order_is_a_finding(self):
+        part_two = "Smith, A. (2020a). Alpha process: Part 2. Journal."
+        part_one = "Smith, A. (2020b). Zulu process: Part 1. Journal."
+        body = "# Case\n\nSmith (2020a, 2020b) reported both parts.\n"
+        self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(part_two, part_one, body=body)))
+
     def test_author_roles_do_not_prevent_required_letters(self):
         writer = "Smith, A. (Writer). (2020). Alpha. Studio."
         director = "Smith, A. (Director). (2020). Beta. Studio."
@@ -2452,6 +2511,8 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
             "legal form and authority validity": self.legal_form_and_authority_validity,
+            "leading-numbered titles share one series": self.leading_numbers_across_series,
+            "unnumbered work among numbered series parts": self.unnumbered_work_among_numbered_parts,
             "combining mark without a precomposed form": self.combining_mark_without_a_precomposed_form,
         }
         self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
@@ -2613,6 +2674,22 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         document = scan.read_document(draft(entry, body=body))
         self.assertEqual(document.entries[0].key, "a")
         self.assertEqual(document.citations[0].key, "a")
+
+    def leading_numbers_across_series(self):
+        # Two unrelated works in different journals are still held to number order.
+        body = "# Case\n\nSmith (2020a, 2020b) reported both works.\n"
+        two = "Smith, A. (2020a). 2. Alpha notes. *First Journal*."
+        one = "Smith, A. (2020b). 1. Zulu notes. *Second Journal*."
+        self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(two, one, body=body)))
+
+    def unnumbered_work_among_numbered_parts(self):
+        # The introduction is misplaced after both numbered parts and is not graded.
+        def entry(letter, title):
+            return f"Smith, A. (2020{letter}). {title}. Journal."
+
+        body = "# Case\n\nSmith (2020a, 2020b, 2020c) reported the series.\n"
+        lettered = (entry("a", "6. Goals"), entry("b", "14. Children"), entry("c", "Introduction"))
+        self.assertNotIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(*lettered, body=body)))
 
     def uptodate_last_update_year(self):
         entry = UPTODATE.replace("(2025)", "(2019)")

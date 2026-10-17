@@ -816,6 +816,18 @@ NOT_REACHED = (
         "reporters, official-version choice, state-specific form, or current legal status.",
     ),
     (
+        "leading-numbered titles share one series",
+        "A title opening with a number and a period is read as a series part without "
+        "checking that the works share a series or container, so two unrelated same-year "
+        "works opening 1. and 2. are graded in number order.",
+    ),
+    (
+        "unnumbered work among numbered series parts",
+        "Where an unnumbered work such as an introduction falls among a series' numbered "
+        "parts by the same authors in the same year is not graded; the numbered parts "
+        "keep number order and the unnumbered works keep title order among themselves.",
+    ),
+    (
         "combining mark without a precomposed form",
         "NFC composes a surname only where a precomposed character exists. A remaining "
         "combining mark still interrupts the name pattern, so a surname such as "
@@ -866,6 +878,9 @@ _MONTH_ORDER = {
     )
 }
 _SERIES_PART = re.compile(r"\b(?:part|volume|book)\s+(\d+|[ivx]+)\b", re.I)
+# A title opening with a section number and a period, such as ``6. Glycemic goals``, is an
+# explicitly numbered part (#1796). The period keeps ``6 ways to ...`` on title order.
+_LEADING_PART = re.compile(r"(\d+)\.\s")
 
 
 def _under_thousand(value: int) -> list[str]:
@@ -1259,7 +1274,11 @@ class Entry:
     @property
     def series_part(self) -> int | None:
         match = self._year_match
-        return series_number(self.text[match.end() :]) if match else None
+        if match is None:
+            return None
+        rest = self.text[match.end() :]
+        leading = _LEADING_PART.match(rest.lstrip(". \t"))
+        return int(leading.group(1)) if leading else series_number(rest)
 
 
 def classify_entry(entry: Entry) -> ReferenceBucket:
@@ -2075,12 +2094,20 @@ def _disambiguation_findings(entries: tuple[Entry, ...], language: str | None) -
             continue
         ordered = sorted(lettered, key=lambda e: year_key(e.year))
         date_orders = [entry.date_order for entry in ordered]
-        parts = [entry.series_part for entry in ordered]
+        parts = [part for part in (e.series_part for e in ordered) if part is not None]
         titles = [entry.filing_title(language) for entry in ordered] if language else []
         if len(set(date_orders)) > 1:
             assignment_is_wrong = date_orders != sorted(date_orders)
-        elif all(part is not None for part in parts) and len(set(parts)) == len(parts):
-            assignment_is_wrong = parts != sorted(parts)
+        elif parts and len(set(parts)) == len(parts):
+            # Numbered parts keep number order among themselves and unnumbered works
+            # keep title order among themselves. Where an unnumbered work falls among
+            # the numbered parts is a declared reading (#1796).
+            unnumbered = [
+                title for entry, title in zip(ordered, titles) if entry.series_part is None
+            ]
+            assignment_is_wrong = parts != sorted(parts) or bool(
+                all(unnumbered) and unnumbered != sorted(unnumbered)
+            )
         else:
             assignment_is_wrong = bool(all(titles) and titles != sorted(titles))
         if assignment_is_wrong:
