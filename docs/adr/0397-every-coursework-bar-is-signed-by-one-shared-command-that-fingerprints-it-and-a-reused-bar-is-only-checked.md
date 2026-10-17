@@ -1,14 +1,15 @@
 # Every coursework bar is signed by one shared command that fingerprints it and a reused bar is only checked
 
-**Measured at:** ec4de36ea25d1803c230220cd03611ca31c62179
+**Measured at:** b64ee902f449b9d08754cadacfe7579a2c052b17
 
 [#1769](https://github.com/mshamblin5150-code/clinical-skills/issues/1769) was filed from the
 grilling of #1569, which produced
 [ADR 0355](0355-a-course-assignment-bar-is-signed-by-a-command-that-fingerprints-it-and-carries-the-clinician-s-reply.md).
 That record signs a `course-assignment` bar with a command that fingerprints `bar.md` and carries
 the clinician's confirming reply, and its ruling 4 left the other four skills that sign a bar to
-this ticket. Grilled 2026-10-17 against `main` at the commit above, where the freshness gate read
-`FRESH`. The clinician ruled every point below in that session. **Nothing is built here; this is
+this ticket. Grilled 2026-10-17 against `main` at `ec4de36e`, where the freshness gate read `FRESH`;
+the merge to the commit above changed none of the measured files. The clinician ruled every point
+below in that session. **Nothing is built here; this is
 the record the build reads.**
 
 ## Measured before ruling
@@ -123,7 +124,9 @@ The build that implements this record edits at least the four skills' signing st
 `tools/assignment_bar.py`, `tools/research_ledger.py`, `tools/discussion_post_scan.py`,
 `tools/discussion_reply_scan.py`, `tools/peer_critique_scan.py`, `tools/checks_ledger.py`,
 `reference/completion-check-starts.tsv`, and `CLAUDE.md`'s *Course assignment artifact grading*
-section, which names `assignment_bar.py` as the signer.
+section, which names `assignment_bar.py` as the signer. It also edits
+`skills/_shared/reference/sourcing.md`'s own-work section, which tells a run with no bar to write
+one with `SIGNED` and names the signing command only for `course-assignment`.
 
 ## Supersedes
 
