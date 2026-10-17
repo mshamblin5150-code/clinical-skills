@@ -1,6 +1,6 @@
 # The coding readers carry reader remarks to the clinical go-ahead
 
-**Measured at:** 66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff
+**Measured at:** 62a755eb242a1c54a513b5bcc070c9f02c19ee2d
 
 [ADR 0330](0330-a-reader-remark-is-shown-at-the-go-ahead-and-waived-only-by-name.md) gave the
 coursework readers a place for a **Reader remark** and kept the clinical skills out of it on the
@@ -146,6 +146,8 @@ a remark about the page belongs with the agreement reader that reads it.
   outcome.
 - `skills/icd10-cpt/SKILL.md`, `skills/batch-shift/SKILL.md`, and `skills/clinical-note/SKILL.md`:
   the record shapes and the `READER REMARKS` block at each go-ahead.
+- `reference/completion-check-starts.tsv`: a start-date row for every new check and refusal
+  above, under ADR 0346 ruling 4.
 - Tests that drive each refusal through the public approval seam and that an unexpected key in each
   record now counts as unread.
 
@@ -154,8 +156,14 @@ a remark about the page belongs with the agreement reader that reads it.
 - **Whether a reader notices an outside problem at all**, and **whether a fix resolves its
   remark**: ADR 0330's limits, unchanged.
 - **A remark hidden inside a free-text answer**: ruling 5's declared limit.
-- **Runs graded before this change**: an adoption question, routed by ADR 0310 to
-  [#1558](https://github.com/mshamblin5150-code/clinical-skills/issues/1558) as ADR 0330's was.
+- **Runs approved before this change**: **corrected 2026-10-17, the day this record merged.** It
+  first said this was an open adoption question routed by ADR 0310 to
+  [#1558](https://github.com/mshamblin5150-code/clinical-skills/issues/1558). #1558 had already
+  closed:
+  [ADR 0346](0346-a-posted-item-s-clean-terminal-grade-is-frozen-and-a-later-check-starts-on-a-recorded-date.md)
+  freezes a posted item's clean terminal grade, and its ruling 4 gives every later completion check
+  a start date, so earlier work reports `not graded` on it. This record's checks take those start
+  dates, as the build list now says.
 - **The coordinator's overrule of a reader**: #1591.
 - **Whether the clinical go-ahead shows the grader's coverage lines**: ADR 0330 ruling 4 has no
   clinical counterpart, and the clinical approval stores those lines without checking that they
