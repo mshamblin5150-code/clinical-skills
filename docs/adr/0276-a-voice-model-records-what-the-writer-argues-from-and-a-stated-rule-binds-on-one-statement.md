@@ -159,6 +159,12 @@ its own ticket:
 #1427 is correct without either: both need the model's records to exist, and neither changes how the
 model is built.
 
+*Superseded 2026-10-17.* The words "and shown at the go-ahead" are narrowed by
+[ADR 0394](0394-a-proposed-image-is-ruled-at-its-own-stop-before-any-grade-render-or-reader-and-the-ruling-is-the-clinician-s-verified-reply.md)
+ruling 1: a proposed image is shown and ruled at its own stop before any grade, render or reader.
+Its domain, the property it spends, the separate question, the clinician's yes and the harvest
+exclusion still stand.
+
 ## What this record does not settle
 
 **The spelling of the marks.** How the draft marks a proposed image, how the run record carries
