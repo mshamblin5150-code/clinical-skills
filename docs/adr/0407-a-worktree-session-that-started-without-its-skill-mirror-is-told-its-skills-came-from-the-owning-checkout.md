@@ -1,13 +1,13 @@
 # A worktree session that started without its skill mirror is told its skills came from the owning checkout
 
-**Measured at:** 4dbf0795b56f31864d63103bb4a9584bcf6ee9ae
+**Measured at:** cc92dd95cc71027e7c1d095088b8bbe61889e650
 
 [#1806](https://github.com/mshamblin5150-code/clinical-skills/issues/1806) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift) on 2026-10-14. A worktree
 session's `/batch-shift` text came from the owning checkout's `.claude/skills/` mirror, which was 548
 commits behind the session's tree, while its session-start mirror repair reported every skill
 linked. The ticket offered two remedies and asked that the resolving scope be measured first.
-Grilled 2026-10-17 against `main` at the commit above, where the freshness gate read `FRESH`. The
+Grilled 2026-10-17 against `main` at `4dbf0795`, where the freshness gate read `FRESH`; the commit above adds only this record. The
 clinician ruled every point below in that session, one question at a time. **Nothing is built here;
 this is the record the build reads.**
 
@@ -44,7 +44,7 @@ runs the owning checkout's hook files; the hooks resolve their tools through
 documented setup command writes the relative `tools/hooks`. In a throwaway repository with that
 relative setting, a commit in a linked worktree ran the worktree's edited hook and a commit in the
 main checkout ran the main checkout's. The three hook files matched by content on the measured day;
-12 commits touched `tools/hooks/` in the preceding seven weeks.
+13 commits touched `tools/hooks/` in the seven weeks before the measured day.
 
 **Every repo skill was byte-identical between the two trees on the measured day.** The owning
 checkout was on `main`, 37 commits behind `origin/main`.
