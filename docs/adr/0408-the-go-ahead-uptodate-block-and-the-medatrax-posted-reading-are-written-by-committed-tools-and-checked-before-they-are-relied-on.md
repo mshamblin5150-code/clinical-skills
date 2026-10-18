@@ -56,6 +56,8 @@ is what gets entered in Medatrax. Reading a passed search with no pull as a fail
 because it cannot tell a failure from an unused search and has nowhere to keep the decision and
 instrument.
 
+*Superseded 2026-10-18.* The words "Every passed search must end in either a recorded live pull or a recorded failed pull" are widened by [ADR 0409](0409-the-uptodate-pull-checks-the-query-it-sent-files-drug-pages-by-version-and-proves-a-failed-pull-opened-the-page.md) ruling 2. A passed search may also end as a recorded mismatched search. The failed-pull command, its decision and instrument, and the finding for a passed search with no recorded outcome all stand.
+
 ## Ruling 2 — the lines are shown in chat at the go-ahead, not inside the `.docx`
 
 `UPTODATE CONFLICTS` and `UPTODATE FAILED PULLS`, each `none` when empty, are shown in chat beside
