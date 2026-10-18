@@ -576,9 +576,17 @@ _Avoid_: evidence folder, shared reference, cache, library
 A search of the clinician's live UpToDate account made for a real encounter, so its words leave the machine. It carries clinical terms, at most one population word and at most one sex word, and nothing else the encounter supplied, and it is checked before it is typed, because once typed it has reached a third party. Distinct from a search of the **Evidence store**, which stays local, and from a coursework search, whose case carries no patient.
 _Avoid_: live lookup, patient search, UpToDate query
 
+**Drug page**:
+A drug monograph the clinician's UpToDate account serves from its separate drug database rather than as a clinical topic. It names no author and carries no review or update date, so it is identified by its own version line and the date it was read, and it stays current for one year from that read. It may fill a gap and may be cited in coursework, but it never overrides a threshold sheet, because it summarizes labeling and expert opinion rather than weighing the guidelines a sheet distills. Distinct from a **Topic sheet** and from a clinical topic, both of which are dated by the publisher.
+_Avoid_: Lexidrug entry, drug topic, monograph topic, drug information topic
+
 **Failed pull**:
-An **Outbound search** that was checked and typed but returned no topic copy to read, because the account was signed out, the service was unavailable, or no topic matched. It is recorded with the decision it was for and what was tried, because a gap it leaves keeps its earlier verdict and shows no sign of the attempt in the note. Every Outbound search ends in either a live pull or a failed pull, and the go-ahead lists every failed pull, or `none`.
+An **Outbound search** that was checked and typed but returned no topic or **Drug page** copy to read, because the account was signed out, the service was unavailable, no page matched, or a page that was actually opened could not be read by a second method either. It is recorded with the decision it was for, one of those four reasons, and the evidence that reason requires, because a gap it leaves keeps its earlier verdict and shows no sign of the attempt in the note. A page never opened is not a failed pull. Every Outbound search ends in a live pull, a failed pull, or a **Mismatched search**, and the go-ahead lists every failed pull, or `none`.
 _Avoid_: missed lookup, UpToDate error, unavailable topic
+
+**Mismatched search**:
+An **Outbound search** whose query, read back off the results page, differs from the query that was checked, so words that were never checked reached a third party. It is recorded with whether the sent words would themselves have passed the check, shown at the go-ahead, and never used for a pull; the agent searches again under a new check.
+_Avoid_: typo search, bad query, garbled search
 
 **Topic sheet**:
 The committed distillation of one supplied topic: the source's own summary section restated in this repository's prose, verbatim only where a number, dose, criterion or cut point is the honesty mechanism, beside every bibliographic fact a citation needs. Keyed to the clinical topic and never to the dump that supplied it, so a topic supplied twice is one sheet read twice.
