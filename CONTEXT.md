@@ -576,6 +576,10 @@ _Avoid_: evidence folder, shared reference, cache, library
 A search of the clinician's live UpToDate account made for a real encounter, so its words leave the machine. It carries clinical terms, at most one population word and at most one sex word, and nothing else the encounter supplied, and it is checked before it is typed, because once typed it has reached a third party. Distinct from a search of the **Evidence store**, which stays local, and from a coursework search, whose case carries no patient.
 _Avoid_: live lookup, patient search, UpToDate query
 
+**Failed pull**:
+An **Outbound search** that was checked and typed but returned no topic copy to read, because the account was signed out, the service was unavailable, or no topic matched. It is recorded with the decision it was for and what was tried, because a gap it leaves keeps its earlier verdict and shows no sign of the attempt in the note. Every Outbound search ends in either a live pull or a failed pull, and the go-ahead lists every failed pull, or `none`.
+_Avoid_: missed lookup, UpToDate error, unavailable topic
+
 **Topic sheet**:
 The committed distillation of one supplied topic: the source's own summary section restated in this repository's prose, verbatim only where a number, dose, criterion or cut point is the honesty mechanism, beside every bibliographic fact a citation needs. Keyed to the clinical topic and never to the dump that supplied it, so a topic supplied twice is one sheet read twice.
 _Avoid_: summary, digest, extract, article, evidence sheet
