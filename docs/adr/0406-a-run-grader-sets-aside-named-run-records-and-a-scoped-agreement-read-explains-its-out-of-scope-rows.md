@@ -1,13 +1,13 @@
 # A run grader sets aside named run records and a scoped agreement read explains its out-of-scope rows
 
-**Measured at:** 4dbf0795b56f31864d63103bb4a9584bcf6ee9ae
+**Measured at:** 83dd691cf5a7d7bd4790a8ae7210b5f0364d6478
 
 [#1805](https://github.com/mshamblin5150-code/clinical-skills/issues/1805) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift) on 2026-10-14. It reported two
 grader population traps. Comments added two more shifts that hit the first trap, the same trap in
 `differential_scan.py`, and a coordination note for
 [ADR 0404](0404-an-ambiguous-answer-is-read-back-and-earlier-care-status-is-asked-at-the-first-stop.md)
-ruling 7. Grilled 2026-10-17 against `main` at the commit above, where the freshness gate read
+ruling 7. Grilled 2026-10-17 against `main` at `4dbf0795`, where the freshness gate read
 `FRESH`. The clinician ruled every point below in that session, one question at a time. **Nothing
 is built here; this is the record the build reads.**
 
@@ -65,7 +65,7 @@ note.
 A test collects every backticked bare `name.md` in `skills/batch-shift/SKILL.md`,
 `skills/clinical-note/` and `skills/icd10-cpt/SKILL.md`. Each must match the `note-N.md` shape, be
 on ruling 1's list, or be on a declared list of names that are not run files, today `coverage.md`
-and `project-context.md`. A new name fails the suite until it is classified. A one-way test that only
+and `SOAP.md`. A new name fails the suite until it is classified. A one-way test that only
 checks listed names still appear, and a declared limit alone, were declined because neither catches
 a new run record, which is the failure the ticket's own enumeration showed.
 
@@ -96,6 +96,8 @@ inherits ruling 1 through the shared reader. Hosted on a command taking explicit
   set-aside names available to every member's report (ruling 1).
 - `tools/anchor_scan.py` `_markdown_files`, `tools/medatrax_posting.py` `note_paths` and the
   summary-path fallback in `tools/filled_vitals_census.py` read that list instead of their own sets.
+- The `medatrax_posting.DECLARED_LIMITS` row `standalone note population` names the same list; it
+  names only README.md and reread.md today while the code also excludes `shift-summary.md`.
 - A test over a run carrying notes, `shift-summary.md`, `delegated-answers.md` and `reread.md`,
   through each member's public command: the note count is unchanged and the set-aside names print.
 - The inventory test (ruling 2), and a `DECLARED_LIMITS` row naming its backtick boundary.
@@ -110,3 +112,10 @@ inherits ruling 1 through the shared reader. Hosted on a command taking explicit
   note until someone lists it; the miscount shows, but nothing classifies it.
 - **A misnamed note under the `note-N.md` posting population.** `filled_vitals_census.py` and the
   posting fingerprint keep their name-derived populations, which this record does not change.
+
+**Correction, 2026-10-18:** ruling 2's declared list read `coverage.md` and `project-context.md`.
+Re-derived over the ruled population at `83dd691c`, `project-context.md` has no bare backticked
+occurrence there, and `SOAP.md` (in `skills/clinical-note/HP.md`) is the unclassified name; the
+first measurement read `AGENTS.md` too and matched lowercase names only. The build checklist gains
+the stale `medatrax_posting.DECLARED_LIMITS` row. Found by #1805's closing tracker sweep. The
+`Measured at` line moved to that commit; no other measured file changed between the two.
