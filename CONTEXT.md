@@ -856,6 +856,10 @@ _Avoid_: summary, digest, extract, cheat sheet
 The bracketed citation on a proposed item's own line that names one **Threshold sheet** row by its source, class, population, and value. Its class is the row's own wording, so the sheet rather than the punctuation says where the class ends, and a row with no class is cited without one. It identifies a row and never argues that the row applies to the patient.
 _Avoid_: citation tail, guideline tag, threshold reference, class token
 
+**USPSTF tail**:
+The bracketed citation on a proposed item's own line that names one USPSTF recommendation by the topic title copied from the USPSTF sheet, then its grade, population, and year. The title is copied rather than composed, so the item's own wording never decides which recommendation is meant. Grade and year must agree with that topic; the population is the writer's description of whom the recommendation covers and is not compared. Like a **Threshold tail**, it identifies a recommendation and never argues that it applies to the patient.
+_Avoid_: USPSTF tag, USPSTF reference, grade tail
+
 **Topic**:
 The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic. Distinct from the **catalog topic**, which is a document's own wording rather than the clinician's, so one topic in this sense may be spread across several catalog topics under names no committed artifact groups.
 _Avoid_: condition, subject, area
@@ -1253,7 +1257,7 @@ A condition from the patient's history that the note shows required or affected 
 _Avoid_: active problem, addressed condition, comorbidity, chronic condition
 
 **Code label**:
-The words a note uses to name a code where the clinician submits it: on a final or preexisting diagnosis line, in a numbered differential entry, or as the code-and-descriptor half of a welded refusal. It runs from the start of its line, or the end of the code before it on that line, to the hyphen that pins its code, hedge included, and never takes in the reasoning after it. **Descriptor agreement** for a diagnosis, a differential or a refusal must show inside it; words elsewhere in the note that agree do not vouch for a label that does not. A procedure code has none, because which line documents an act done today is a reading. Distinct from a coding worksheet's quotation, which quotes it.
+The words a note uses to name a code where the clinician submits it: on a final or preexisting diagnosis line, in a numbered differential entry, or as the code-and-descriptor half of a welded refusal. It runs from the start of its line, or the end of the code before it on that line, to the hyphen that pins its code, hedge included, and never takes in the reasoning after it. A word shaped like a code that the code set does not hold, such as the vitamin name B12, is part of the label rather than the code before it. **Descriptor agreement** for a diagnosis, a differential or a refusal must show inside it; words elsewhere in the note that agree do not vouch for a label that does not. A procedure code has none, because which line documents an act done today is a reading. Distinct from a coding worksheet's quotation, which quotes it.
 _Avoid_: diagnosis line, slot, entry name, anchor line, label line
 
 **Code-set database**:
