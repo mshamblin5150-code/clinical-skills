@@ -322,8 +322,9 @@ The glossary candidates are the compounding part. Tokens that appeared more than
 
 ### 7. Build the Review sheet
 
-The go-ahead Review sheet carries `UPTODATE CONFLICTS` and `UPTODATE FAILED PULLS` lines,
-including `none` for each empty population. Roll up the per-note conflicts (sheet, row, topic,
+At the go-ahead, show `UPTODATE CONFLICTS` and `UPTODATE FAILED PULLS` lines in chat beside
+`PRE-APPROVAL PATIENT QUESTIONS` and `REPAIRS`, including `none` for each empty population; they
+stay outside the Review sheet (ADR 0408). Roll up the per-note conflicts (sheet, row, topic,
 update date, what differs) and failures (decision and instrument tried). The shift's after-action
 review follows the shared sheet-row ticket route once per conflict, searching for an open
 ticket first and carrying no encounter details into tracker content.
