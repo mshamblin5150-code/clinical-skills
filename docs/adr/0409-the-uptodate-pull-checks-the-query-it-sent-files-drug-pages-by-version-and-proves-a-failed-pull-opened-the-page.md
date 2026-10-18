@@ -1,14 +1,15 @@
 # The UpToDate pull checks the query it sent, files drug pages by version, and proves a failed pull opened the page
 
-**Measured at:** 91f234ebd4b9e41839f5938784f10819449159b9
+**Measured at:** 806ebbe6373a14433ea79381b60cc9fdf56e3800
 
 [#1809](https://github.com/mshamblin5150-code/clinical-skills/issues/1809) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift) on 2026-10-14. The UpToDate
 puller's own report named two defects. A key chord meant to submit or clear the search box was
 typed as literal text, so one query reached UpToDate carrying a character the pretyping check never
 saw. And two drug-dosing pages were recorded as failed reads because they were expected to carry no
-clinical-topic masthead, without either page being opened. Grilled 2026-10-18 against `main` at the
-commit above, where the freshness gate read `FRESH`. The clinician ruled every point below in that
+clinical-topic masthead, without either page being opened. Grilled 2026-10-18 against `main` at
+`91f234ebd4b9e41839f5938784f10819449159b9`, where the freshness gate read `FRESH`; the declared
+commit above adds only this record's own first draft to that base. The clinician ruled every point below in that
 session, one question at a time, and asked for the drug page to be measured live before ruling on
 it. **Nothing is built here; this is the record the build reads.**
 
@@ -44,8 +45,9 @@ only the first 50,000 characters of the folded text and was corrected when the c
 it; the figures here are the whole-page reading.
 
 **The coursework grader already reads a drug-page citation as an UpToDate citation.**
-`research_ledger.UPTODATE_TITLE` matches any APA entry ending `UpToDate.`, so a drug-page reference
-enters the store-membership join and fails it today only because no drug page has ever been filed.
+`research_ledger.UPTODATE_TITLE` matches an APA entry whose parenthesized date or `n.d.` and title
+are followed by `UpToDate.`, with or without a URL after it, so a drug-page reference in the APA
+sheet's drug-information form enters the store-membership join and fails it today only because no drug page has ever been filed.
 Its currency check reads a topic's literature-review month against the bar's UpToDate window, which
 a drug page cannot supply.
 
@@ -159,13 +161,19 @@ brief was declined because it proves nothing about what the coordinator pastes.
   (ruling 2); the four failed-pull reasons and their required evidence (ruling 9); the completion
   gate counting three outcomes; `DECLARED_LIMITS` gains the readback limit.
 - The go-ahead block command from ADR 0408 ruling 3: the `UPTODATE MISMATCHED SEARCHES` line and the
-  `sheet kept` conflict entry.
+  `sheet kept` conflict entry. The `sheet kept` entry is derived from the drug page's own live pull,
+  which carries ADR 0408 ruling 4's sheet, row and what-differs arguments marked as kept rather than
+  won, because no pull settled that conflict.
 - `tools/uptodate_store.py`: drug-page ingest identified by title, version and read date; refusal of
   a page with a folded indication; filing by section; search returning sections; the report's count
-  of drug pages past one year. Measure several drug pages before writing the filing check.
-- The note tail grader: the `[uptodate drug: ...]` form, and refusal of a drug page past one year.
+  of drug pages past one year; the unfiled-material sweep counting a drug page by its version line,
+  since it has none of the three topic markers the sweep counts today. Measure several drug pages
+  before writing the filing check.
+- The note tail grader, `tools/differential_scan.py` row 24, which today reads every `uptodate` tail
+  against the topic form: the `[uptodate drug: ...]` form, and refusal of a drug page past one year.
 - `tools/research_ledger.py`: drug-page citations join the filed drug pages, and the one-year term
-  replaces the review-month check for them.
+  replaces the review-month check for them. A filed drug page inside its year stands for the
+  undated-reference row's reason, since `n.d.` is its correct APA date.
 - `skills/_shared/reference/uptodate-pull.md`, and a test binding its required statements;
   `skills/clinical-note/SKILL.md`, `skills/batch-shift/SKILL.md` and the coursework research steps
   point at it.
@@ -182,6 +190,9 @@ brief was declined because it proves nothing about what the coordinator pastes.
   that its dose fits the indication, weight, or kidney function in front of the clinician.
 - **A drug page's revisions between reads.** The version line identifies the copy that was read; a
   copy within its year can still be behind the live page.
-- **The other run-script findings of the same review**, which stay on
-  [#1882](https://github.com/mshamblin5150-code/clinical-skills/issues/1882) and
-  [#1811](https://github.com/mshamblin5150-code/clinical-skills/issues/1811).
+- **The per-run scripts and the CPT receipt**, which stay on
+  [#1882](https://github.com/mshamblin5150-code/clinical-skills/issues/1882), filed from #1808's
+  grilling, and [#1811](https://github.com/mshamblin5150-code/clinical-skills/issues/1811), filed
+  from the ED-shift review of the same day.
+- **Which indication section a cited dose came from.** The drug tail names the page, not the
+  section, so whether the dose matches the entered diagnosis stays a reading.
