@@ -1,6 +1,6 @@
 # The UpToDate pull checks the query it sent, files drug pages by version, and proves a failed pull opened the page
 
-**Measured at:** 806ebbe6373a14433ea79381b60cc9fdf56e3800
+**Measured at:** 4127a8646c1804b74c9d7c3f6eeab0eea2bbc025
 
 [#1809](https://github.com/mshamblin5150-code/clinical-skills/issues/1809) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift) on 2026-10-14. The UpToDate
@@ -9,7 +9,7 @@ typed as literal text, so one query reached UpToDate carrying a character the pr
 saw. And two drug-dosing pages were recorded as failed reads because they were expected to carry no
 clinical-topic masthead, without either page being opened. Grilled 2026-10-18 against `main` at
 `91f234ebd4b9e41839f5938784f10819449159b9`, where the freshness gate read `FRESH`; the declared
-commit above adds only this record's own first draft to that base. The clinician ruled every point below in that
+commit above adds only this record's own drafts to that base. The clinician ruled every point below in that
 session, one question at a time, and asked for the drug page to be measured live before ruling on
 it. **Nothing is built here; this is the record the build reads.**
 
@@ -103,7 +103,9 @@ that the drug reference and the guideline differed.
 ## Ruling 6 — coursework may cite a filed drug page
 
 The coursework graders accept a citation to a filed drug page through the same store-membership
-join, with the reference written in the APA sheet's drug-information form. The clinician has cited
+join, with the reference written in the APA sheet's drug-information form, dated `n.d.`, and
+carrying a retrieval date because the page is designed to change, which `reference_scan.py`
+already requires of an UpToDate entry. The clinician has cited
 the drug database in coursework before for its treatment recommendations and the conditions each
 drug treats. Refusing drug-page citations in coursework was declined on that ground.
 
@@ -173,7 +175,11 @@ brief was declined because it proves nothing about what the coordinator pastes.
   against the topic form: the `[uptodate drug: ...]` form, and refusal of a drug page past one year.
 - `tools/research_ledger.py`: drug-page citations join the filed drug pages, and the one-year term
   replaces the review-month check for them. A filed drug page inside its year stands for the
-  undated-reference row's reason, since `n.d.` is its correct APA date.
+  undated-reference row's reason, since `n.d.` is its correct APA date. The join key drops the
+  `[Drug information]` description, which `uptodate_topic` captures today and which would
+  otherwise keep a correct citation from matching its filed page.
+- `skills/_shared/reference/apa7.md` §21: the UpToDate-hosted drug page's worked form, with its
+  retrieval date, so the sheet and `reference_scan.py` agree.
 - `skills/_shared/reference/uptodate-pull.md`, and a test binding its required statements;
   `skills/clinical-note/SKILL.md`, `skills/batch-shift/SKILL.md` and the coursework research steps
   point at it.
