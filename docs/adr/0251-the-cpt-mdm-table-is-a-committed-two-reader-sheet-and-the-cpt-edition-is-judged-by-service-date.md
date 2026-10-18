@@ -94,6 +94,8 @@ owning checkout's `scratch/`, and the skill names its path once. The receipt sti
 its edition, fingerprint, and boundary match the database, not that the reading occurred, as
 `coding_freshness.DECLARED_LIMITS` already states.
 
+*Superseded 2026-10-18.* The words "It then writes the private CPT receipt with a command that derives every receipt field from the database" are superseded by [ADR 0411](0411-the-private-cpt-receipt-is-retired-because-every-field-it-held-was-copied-from-the-database-it-was-checked-against.md) ruling 1. The receipt and its command are retired. The first reader's edition and ISBN confirmation before transcribing survives and writes no file; ADR 0411 ruling 2 declares the ISBN half unrecorded.
+
 ## Ruling 7 — the CPT edition boundary is judged by service date
 
 A CPT receipt and an MDM sheet serve an encounter when that encounter's **service date** falls within
@@ -102,6 +104,8 @@ their edition, not when the day the gate runs does. A 2026-12-20 encounter coded
 `coding_freshness.py` already selects the ICD-10-CM release, and how CPT codes are assigned by date of
 service. It supersedes ADR 0250 ruling 5's wording that the CPT receipt expires when the edition
 boundary passes; a fingerprint change still invalidates the receipt.
+
+*Superseded 2026-10-18.* The words "A CPT receipt and an MDM sheet serve an encounter" are superseded by [ADR 0411](0411-the-private-cpt-receipt-is-retired-because-every-field-it-held-was-copied-from-the-database-it-was-checked-against.md) ruling 1. No receipt exists after that ruling. The service-date rule survives and applies to the procedure-code database's edition and the MDM sheet.
 
 ## Ruling 8 — the freshness gate refuses an E/M code no verified sheet covers
 
@@ -117,6 +121,8 @@ stays outside the gate's claim.
 At the 2027 edition, the procedure-code database is rebuilt from the 2027 licensed source, a new
 two-reader sheet is transcribed, and a new receipt is written. The 2026 sheet and receipt continue to
 serve 2026 service dates.
+
+*Superseded 2026-10-18.* The words "and a new receipt is written" are superseded by [ADR 0411](0411-the-private-cpt-receipt-is-retired-because-every-field-it-held-was-copied-from-the-database-it-was-checked-against.md) ruling 1. No receipt is written for any edition. A new edition still needs a rebuilt database and a new two-reader sheet, and the 2026 sheet continues to serve 2026 service dates.
 
 ## Consequences
 

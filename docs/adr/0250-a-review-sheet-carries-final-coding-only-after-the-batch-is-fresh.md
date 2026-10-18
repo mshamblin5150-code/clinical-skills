@@ -72,6 +72,8 @@ written.** Ruling 5's CPT receipt expiry, *"it expires when that boundary passes
 encounter's service date rather than the day the gate runs. A fingerprint change still invalidates the
 receipt, and every other ruling here stands.
 
+*Superseded 2026-10-18.* The words "CPT uses a durable private receipt naming the licensed edition, source fingerprint, and next edition boundary" are superseded by [ADR 0411](0411-the-private-cpt-receipt-is-retired-because-every-field-it-held-was-copied-from-the-database-it-was-checked-against.md) ruling 1. Every receipt field was copied from the database it was checked against, so the receipt is retired. CPT currency is the database edition's coverage of the service date and its year-end, plus the passing MDM sheet; the two limbs and every other sentence of this ruling survive.
+
 ## Ruling 6 — one blocked encounter blocks the batch
 
 The Review sheet is batch-atomic. Every confirmed encounter appears exactly once and every
