@@ -1,13 +1,13 @@
 # A matcher a note pass satisfies by rewording is retired and a uspstf citation names its topic by copying the sheet title
 
-**Measured at:** 04afe5183762c059c75d5c97db6522267605ed0b
+**Measured at:** 2bfc773851a9eb8b834b428677109f2dc1de2a2a
 
 [#1812](https://github.com/mshamblin5150-code/clinical-skills/issues/1812) was filed from the
 after-action review of a `batch-shift` run (NUR5144 ED shift) on 2026-10-14. Two note passes
 reworded correct clinical prose to get past a matcher. One replaced a vitamin name after a
 `tools/anchor_scan.py` self-grade. The other renamed a proposed item until the row 24 USPSTF join in
-`tools/differential_scan.py` stopped matching. Grilled 2026-10-18 against `main` at the commit
-above, where the freshness gate read `FRESH`. The clinician ruled every point below in that session,
+`tools/differential_scan.py` stopped matching. Grilled 2026-10-18 against `main` at `04afe518`, where the freshness gate read `FRESH`. The
+commit above adds only this record's first draft and its glossary entries to that base. The clinician ruled every point below in that session,
 one question at a time. **Nothing is built here; this is the record the build reads.**
 
 A matcher that a pass can satisfy by rewording teaches the next pass to write for the tool rather
@@ -217,7 +217,10 @@ Ruling 8 overturns the paragraph of
 that reads "`recalled, no shipped sheet` becomes a graded finding". That record's join on the
 artifact column and its matching on registry topic names survive.
 
-ADR 0017 states its rulings as unnumbered paragraphs, and `tools/test_adr_supersession.py` reads a
-marker only beneath a numbered ruling. A marker in that record would be refused as an unread
-supersession marker, and a declaration here would find no ruling to bind. So the overturning is
-stated in this record alone, and the gap is filed as its own ticket.
+ADR 0017 states its rulings as unnumbered paragraphs. [ADR 0390](0390-an-overturned-passage-with-no-ruling-number-is-located-by-its-exact-quote-and-a-repair-s-mislabeled-opening-is-restored.md)
+ruling 1 already rules this case: the exact quote is the coordinate, and the quoted words occur once
+in ADR 0017. `tools/test_adr_supersession.py` does not read that quote form yet; building it is
+[#1706](https://github.com/mshamblin5150-code/clinical-skills/issues/1706). Until then the
+overturning is stated in this record alone. Whichever lands second, #1706's build or this record's
+build, adds the marker beneath that ADR 0017 paragraph and the quote-form `## Supersedes` declaration
+here.
