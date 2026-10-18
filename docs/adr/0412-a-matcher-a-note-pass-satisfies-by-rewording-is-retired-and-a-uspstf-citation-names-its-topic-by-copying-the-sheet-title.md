@@ -1,14 +1,15 @@
 # A matcher a note pass satisfies by rewording is retired and a uspstf citation names its topic by copying the sheet title
 
-**Measured at:** 2bfc773851a9eb8b834b428677109f2dc1de2a2a
+**Measured at:** aed463c377aa10dcb05a5ffe9932a279eef59372
 
 [#1812](https://github.com/mshamblin5150-code/clinical-skills/issues/1812) was filed from the
 after-action review of a `batch-shift` run (NUR5144 ED shift) on 2026-10-14. Two note passes
 reworded correct clinical prose to get past a matcher. One replaced a vitamin name after a
 `tools/anchor_scan.py` self-grade. The other renamed a proposed item until the row 24 USPSTF join in
-`tools/differential_scan.py` stopped matching. Grilled 2026-10-18 against `main` at `04afe518`, where the freshness gate read `FRESH`. The
-commit above adds only this record's first draft and its glossary entries to that base. The clinician ruled every point below in that session,
-one question at a time. **Nothing is built here; this is the record the build reads.**
+`tools/differential_scan.py` stopped matching. Grilled 2026-10-18 against `main` at `04afe518`,
+where the freshness gate read `FRESH`. The commit above adds only drafts of this record and its
+glossary entries to that base. The clinician ruled every point below in that session, one question
+at a time. **Nothing is built here; this is the record the build reads.**
 
 A matcher that a pass can satisfy by rewording teaches the next pass to write for the tool rather
 than the reader. Every ruling below either removes such a matcher, makes it report instead of fail,
@@ -164,8 +165,11 @@ items that deserve a reader's look.
 
 [ADR 0409](0409-the-uptodate-pull-checks-the-query-it-sent-files-drug-pages-by-version-and-proves-a-failed-pull-opened-the-page.md)
 rulings 4 and 7 add an `uptodate drug:` tail to the same row. Its branch is selected by the
-`uptodate` prefix and this record changes only the `uspstf` and `recalled` branches, so whichever
-build lands second keeps the other's branch.
+`uptodate` prefix, and this record changes the grammar of only the `uspstf` and `recalled`
+branches. One piece is shared: the `uptodate`, `recalled`, `uspstf` and threshold branches all add
+to the single checked count in `differential_scan._guideline_floor` that ruling 7 splits. So the
+drug tail lands on one of ruling 7's labeled lines, and whichever build lands second keeps the
+other's branch and its line.
 
 ## Build checklist
 
