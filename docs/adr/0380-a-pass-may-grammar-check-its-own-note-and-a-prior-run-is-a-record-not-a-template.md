@@ -136,6 +136,8 @@ A graded row was declined because a prior given result can share a proposed test
 matcher a pass satisfies by rewording is #1812's shape. No check was declined because the later
 clinic shift's defect was caught only by comparing a repair with the clinician's answers.
 
+*Superseded 2026-10-19.* The words "Batch-shift's second reader rules on each one in the drift row 21 walk" are superseded by [ADR 0433](0433-the-clinician-rules-each-recommended-item-named-in-objective-at-the-go-ahead-and-a-blanket-delegation-never-promotes-one.md) ruling 1. No batch-shift reader walks drift row 21, so the clinician rules each matched pair at the go-ahead after a non-authoring scanner run over every note. The never-graded count, its `--show` pairs, the allowed and defective readings of a pair, and the exit status stand.
+
 ## Ruling 6 — the refusal template carries its anchor
 
 The `NOT CODED, NOTHING ESTABLISHED IT` template in `skills/icd10-cpt/SKILL.md` step 4, and every
