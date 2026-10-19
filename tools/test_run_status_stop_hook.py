@@ -125,12 +125,15 @@ class RunStatusContract(unittest.TestCase):
                     self.assertIn("malformed", response["reason"])
                     self.assertIn(line, response["reason"])
 
-    def test_invalid_command_input_keeps_the_existing_allow_posture(self) -> None:
+    def test_invalid_command_input_allows_with_an_ungraded_warning(self) -> None:
         for raw in (b"\xff", b"{", b"[]"):
             with self.subTest(raw=raw):
                 result = self.command_grade(raw)
                 self.assertEqual(0, result.returncode, result.stderr)
-                self.assertEqual(b"", result.stdout)
+                response = json.loads(result.stdout.decode("utf-8"))
+                self.assertTrue(response["continue"])
+                self.assertIn("did not grade the turn", response["systemMessage"])
+                self.assertNotIn("decision", response)
                 self.assertEqual(b"", result.stderr)
 
     def test_malformed_line_identifies_the_failed_grammar_element(self) -> None:

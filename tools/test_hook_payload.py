@@ -108,6 +108,18 @@ class UnreadableHookPayloads(unittest.TestCase):
     def test_escaped_trigger_is_a_declared_raw_search_limit(self):
         self.assert_command_outcome(self.command("tracker_publish_hook", '["g\\u0068"]'), False)
 
+    def test_decoder_nesting_limit_uses_the_same_unreadable_policy(self):
+        for name, samples in COMMAND_GUARDS.items():
+            for index in (0, 2):
+                with self.subTest(name=name, trigger=index == 0):
+                    raw = "[" * 1100 + json.dumps(samples[index])
+                    self.assert_command_outcome(self.command(name, raw), index == 0)
+        for name in STOP_GUARDS:
+            with self.subTest(name=name):
+                response = self.command(name, "[" * 1100 + '"gh"')
+                self.assertTrue(response["continue"])
+                self.assertIn("did not grade the turn", response["systemMessage"])
+
 
 if __name__ == "__main__":
     from console_codec import require_python_floor, use_utf8

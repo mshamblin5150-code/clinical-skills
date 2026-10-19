@@ -29,7 +29,7 @@ def read_payload(
         payload = json.loads(raw)
         if isinstance(payload, dict):
             return payload, {}
-    except (ValueError, OSError, UnicodeError, TypeError):
+    except (ValueError, OSError, UnicodeError, TypeError, RecursionError):
         pass
 
     note = f"{guard}: unreadable hook payload; did not grade the {'call' if trigger else 'turn'}."
