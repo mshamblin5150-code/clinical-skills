@@ -28,6 +28,7 @@ import re
 import unittest
 from datetime import date
 from pathlib import Path
+from typing import NamedTuple
 from unittest import mock
 
 from adr_read import ruling_attributions, ruling_ordinals
@@ -88,12 +89,21 @@ def collapsed(text: str) -> str:
     return " ".join(text.split())
 
 
-def quote_locations(text: str, quote: str) -> list[int]:
-    """Locate every occurrence outside counted markers, retaining its paragraph."""
+class QuoteLocation(NamedTuple):
+    paragraph: int
+    line: int
+    end_line: int
+
+
+def quote_locations(text: str, quote: str) -> list[QuoteLocation]:
+    """Locate exact words outside markers, keeping paragraph and ruling context."""
+    pattern = re.compile(r"\s+".join(re.escape(word) for word in quote.split()))
     return [
-        line for line, paragraph in paragraphs(text)
+        QuoteLocation(line, line + paragraph[:match.start()].count("\n"),
+                      line + paragraph[:match.end()].count("\n"))
+        for line, paragraph in paragraphs(text)
         if not OPENING.match(collapsed(paragraph))
-        for _ in range(collapsed(paragraph).count(quote))
+        for match in pattern.finditer(paragraph)
     ]
 
 
@@ -128,9 +138,12 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
                 target = "\n".join(unfenced_lines(records.get(quoted.group(2), "")))
                 quote = collapsed(quoted.group(3))
                 locations = quote_locations(target, quote)
+                target_contexts = {row.line: row.number for row in ruling_attributions(target)}
                 if len(locations) != 1:
                     findings.append(f"{name}: target quote occurs {len(locations)} times outside markers")
-                elif dict((row.line, row.number) for row in ruling_attributions(target)).get(locations[0]) is not None:
+                elif any(target_contexts.get(line) is not None for line in range(
+                    locations[0].line, locations[0].end_line + 1
+                )):
                     findings.append(f"{name}: quote coordinate targets a numbered ruling")
                 declarations.add((name, quoted.group(2), quote))
             elif whole:
@@ -206,7 +219,7 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
                         locations = quote_locations(text, quote)
                         if len(locations) != 1:
                             findings.append(f"{name}: marker quote occurs {len(locations)} times outside markers")
-                        elif index == 0 or locations[0] != blocks[index - 1][0]:
+                        elif index == 0 or locations[0].paragraph != blocks[index - 1][0]:
                             findings.append(f"{name}: quote marker is not directly beneath its target paragraph")
                         markers.add((link.group(2), name, quote))
                 else:
@@ -239,6 +252,24 @@ class SupersessionBindingTests(unittest.TestCase):
     def test_quote_coordinate_refuses_a_numbered_target(self):
         records = self.quote_records()
         records['0005-old.md'] = records['0005-old.md'].replace('## Decision', '## Ruling 1')
+        self.assertTrue(any('numbered ruling' in row for row in supersession_findings(records)))
+
+    def test_quote_context_is_read_at_the_words_not_the_paragraph_opening(self):
+        records = self.quote_records()
+        records['0005-old.md'] = records['0005-old.md'].replace(
+            '## Decision\n\nOld\nwords.',
+            'Introductory prose.\n## Ruling 1\nOld\nwords.\n## Commentary',
+        )
+        self.assertTrue(any('numbered ruling' in row for row in supersession_findings(records)))
+
+    def test_quote_coordinate_cannot_cross_into_a_numbered_ruling(self):
+        records = self.quote_records()
+        quote = 'Introductory prose. ## Ruling 1 Old words.'
+        records = {name: text.replace('"Old words."', f'"{quote}"') for name, text in records.items()}
+        records['0005-old.md'] = records['0005-old.md'].replace(
+            '## Decision\n\nOld\nwords.',
+            'Introductory prose.\n## Ruling 1\nOld words.\n## Commentary',
+        )
         self.assertTrue(any('numbered ruling' in row for row in supersession_findings(records)))
 
     def test_bare_marker_link_refuses_an_overturning_record_with_rulings(self):

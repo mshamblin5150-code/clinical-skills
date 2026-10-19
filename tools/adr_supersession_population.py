@@ -63,6 +63,9 @@ def banner_disposition_findings(banners, declarations, rows) -> list[str]:
         if not isinstance(row, dict):
             continue
         key = (row.get('later'), row.get('earlier'))
+        if not all(isinstance(value, str) for value in key):
+            findings.append("classification pair IDs must be strings")
+            continue
         disposition = row.get('disposition')
         if disposition is not None:
             if disposition != BANNER_DISPOSITION or key[1] not in banners or row.get('classification') != 'overturned':

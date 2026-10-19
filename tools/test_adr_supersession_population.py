@@ -212,6 +212,12 @@ class ClassificationTests(unittest.TestCase):
         for phrase in ("missing classification", "duplicate classification", "extra classification", "unread classification", "no reason"):
             self.assertIn(phrase, findings)
 
+    def test_malformed_pair_identity_remains_a_finding_with_banner_metadata(self):
+        report = fixture()
+        reading = classified(report)
+        reading['pairs'][0]['earlier'] = []
+        self.assertIn('classification pair IDs must be strings', population.classification_findings(report, reading))
+
     def test_historical_coverage_has_explicit_boundary_and_does_not_grade_digest(self):
         report = fixture()
         reading = classified(report)
