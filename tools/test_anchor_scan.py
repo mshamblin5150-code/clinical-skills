@@ -1915,7 +1915,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             )
 
     def drug_read(self, words: str, code: str, route: str, *,
-                  ground: str = "none", history: str = "") -> tuple[int, str]:
+                  ground: str = "none", history: str = "", show: bool = True) -> tuple[int, str]:
         descriptor = scan._official_descriptor("ICD-10", code)
         (self.notes / "case-01.md").write_text(
             f"# Synthetic note\nFinal diagnosis: {words} - {code}\n"
@@ -1932,7 +1932,31 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             open_status_evidence="none", threshold="none", waits_on_result="none",
             column_ground=ground,
         )
-        return self.grade({"pairs": [{"stem": "case-01", "codes": [record]}]}, show=True)
+        return self.grade({"pairs": [{"stem": "case-01", "codes": [record]}]}, show=show)
+
+    def test_prescribed_blind_read_carries_ground_remarks_and_default_stays_private(self):
+        for skill in ("icd10-cpt", "clinical-note", "batch-shift"):
+            text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            commands = [line for line in text.splitlines()
+                        if line.startswith("python tools/anchor_scan.py ")
+                        and "--agreement-read <run>/agreement-reader/read.json" in line]
+            self.assertTrue(commands, skill)
+            self.assertTrue(all("--show" in line.split() for line in commands), skill)
+        words = "took too many acetaminophen tablets"
+        route = "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1"
+        status, report = self.drug_read(words, "T39.1X1A", route, ground=words, show=False)
+        self.assertEqual(0, status, report)
+        self.assertNotIn(words, report)
+        self.assertNotIn("T39.1X1A", report)
+        self.assertNotIn("READER-REMARK:", report)
+        status, report = self.drug_read(words, "T39.1X1A", route, ground=words)
+        self.assertEqual(0, status, report)
+        import reader_remarks
+        remarks = reader_remarks.read_report(report)
+        prepared = reader_remarks.Prepared(report, remarks, ())
+        surface = reader_remarks.surface(prepared, (reader_remarks.Outcome("leave", "Review ground"),))
+        self.assertIn(words, surface)
+        self.assertIn("T39.1X1A", surface)
 
     def test_plain_word_overdose_needs_a_verbatim_column_ground(self):
         words = "took too many acetaminophen tablets"

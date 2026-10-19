@@ -485,8 +485,15 @@ After the writer gate, build and grade the independent blind read:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json --show
 ```
+
+Keep this shown report private: its findings and generated remarks contain note text.
+Before the clinical go-ahead, read every `READER-REMARK:` entry it emits and place
+each code and quoted column ground in the numbered `READER REMARKS` block beside
+the note or Review sheet, with a change made or a proposal to leave it. A count alone
+does not carry the ground. This display step applies even while #1702's general
+coding-reader approval enforcement remains unbuilt.
 
 The brief supplies the complete note with its tier block and each code's number, official
 descriptor, system, and role. It supplies no worksheet quotation.
