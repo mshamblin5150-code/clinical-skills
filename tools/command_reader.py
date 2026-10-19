@@ -21,6 +21,11 @@ from tracker_records import TrackerRecord
 
 NOT_REACHED = (
     (
+        "merge messages reach only supplied subject and body text",
+        "The merge route reads explicit gh pr merge fields and REST commit_title/"
+        "commit_message fields; GitHub-generated defaults and browser merges are not read.",
+    ),
+    (
         "a file rewritten after the scan is graded on its earlier text",
         "The reader reads body-file bytes when extraction runs and does not "
         "observe a rewrite before publication.",
@@ -97,6 +102,7 @@ PUBLISH_ROUTES = (
     ("pr", "comment"),
     ("pr", "edit"),
     ("pr", "review"),
+    ("pr", "merge"),
     ("api",),
 )
 
@@ -234,6 +240,13 @@ API_NON_PUBLICATION_RECORD_ENDPOINTS = (
 API_ROUTE_PATTERNS = (
     (
         re.compile(
+            r"/?repos/[^/?]+/[^/?]+/pulls/"
+            r"(?P<identifier>[^/?]+)/merge(?:\?.*)?\Z"
+        ),
+        ("pr", "merge"),
+    ),
+    (
+        re.compile(
             r"/?repos/[^/?]+/[^/?]+/issues/"
             r"(?P<identifier>[^/?]+)/comments(?:\?.*)?\Z"
         ),
@@ -310,13 +323,13 @@ RAW_PUBLISH_ROUTE = re.compile(
 
 
 LOOSE_PUBLICATION_FLAG = re.compile(
-    r"(?<!\S)(?:(?:--body(?:-file)?|--title|--comment|--input|"
+    r"(?<!\S)(?:(?:--body(?:-file)?|--title|--subject|--comment|--input|"
     r"--raw-field|--field)(?:\s|=|\Z)|-[btFcf](?:\S*|\s|\Z))"
 )
 
 
 LOOSE_ARGV_PUBLICATION_FLAG = re.compile(
-    r"['\"](?:(?:--body(?:-file)?|--title|--comment|--input|"
+    r"['\"](?:(?:--body(?:-file)?|--title|--subject|--comment|--input|"
     r"--raw-field|--field)(?:['\"]|=)|-[btFcf](?:['\"]|\S))",
     re.IGNORECASE,
 )
@@ -1750,12 +1763,42 @@ def extract(command: str) -> Extraction:
     grade_route = api_grade
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
+    inline_flags = (
+        {"--subject": "subject", "-t": "subject", "--body": "body", "-b": "body"}
+        if route == ("pr", "merge") else INLINE_FLAGS
+    )
+    api_fields = (
+        {"commit_title": "subject", "commit_message": "body"}
+        if grade_route == ("pr", "merge") else {"title": "title", "body": "body"}
+    )
     publications: list[Publication] = []
     assignments, substitutions, _uncertain = _publish_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
         source_token = argument_sources[index]
+        if (
+            route == ("pr", "merge")
+            and token[:2] in ("-t", "-b", "-F")
+            and len(token) > 2
+            and token[2] != "="
+        ):
+            flag, value = token[:2], token[2:]
+            if flag == "-F":
+                read = _read_file_field(
+                    "body", value, command, assignments, substitutions
+                )
+            else:
+                read = _read_inline_value(
+                    inline_flags[flag],
+                    _source_without_literal_prefix(source_token, flag),
+                    "" if source_token.startswith(flag) else flag,
+                )
+            if isinstance(read, Unreadable):
+                return Extraction(route, number, tuple(publications), (read,), grade_route)
+            publications.append(read)
+            index += 1
+            continue
         api_option = _api_value_option(arguments, index) if route == ("api",) else None
         if (
             api_option is not None
@@ -1767,7 +1810,7 @@ def extract(command: str) -> Extraction:
                 route, number, tuple(publications), (unreadable,), grade_route
             )
         body_flag = (
-            token in INLINE_FLAGS
+            token in inline_flags
             or token in FILE_FLAGS
             or (
                 route == ("issue", "close")
@@ -1796,7 +1839,8 @@ def extract(command: str) -> Extraction:
                     route, number, tuple(publications), (unreadable,), grade_route
                 )
             key, separator, value = option_value.partition("=")
-            if separator and key in ("body", "title"):
+            if separator and key in api_fields:
+                key = api_fields[key]
                 source_argument = _api_option_source_word(
                     argument_sources,
                     index,
@@ -1870,8 +1914,8 @@ def extract(command: str) -> Extraction:
                     (api_input,),
                     grade_route,
                 )
-            for field in ("title", "body"):
-                value = api_input.request.get(field)
+            for key, field in api_fields.items():
+                value = api_input.request.get(key)
                 if isinstance(value, str):
                     publications.append(
                         Publication(
@@ -1885,9 +1929,9 @@ def extract(command: str) -> Extraction:
                     )
             index += api_option[2]
             continue
-        if token in INLINE_FLAGS and index + 1 < len(arguments):
+        if token in inline_flags and index + 1 < len(arguments):
             read = _read_inline_value(
-                INLINE_FLAGS[token], argument_sources[index + 1]
+                inline_flags[token], argument_sources[index + 1]
             )
             if isinstance(read, Unreadable):
                 return Extraction(route, number, tuple(publications), (read,), grade_route)
@@ -1949,7 +1993,7 @@ def extract(command: str) -> Extraction:
                         return Extraction(route, number, tuple(publications), (read,))
                     publications.append(read)
                     break
-        for flag, field in INLINE_FLAGS.items():
+        for flag, field in inline_flags.items():
             prefix = flag + "="
             if token.startswith(prefix):
                 read = _read_inline_value(
