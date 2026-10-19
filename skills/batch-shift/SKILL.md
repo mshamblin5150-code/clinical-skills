@@ -402,7 +402,7 @@ endings, remove trailing whitespace from every line, and end with exactly one ne
 blocks, Medatrax fields, and technical receipts. Then run:
 
 ```bash
-python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+python tools/coding_freshness.py <batch-codes.json> --receipt <batch-freshness.json>
 ```
 
 Exit 0 and `coding-freshness: PASS` are required. An unknown status or any unread, stale,

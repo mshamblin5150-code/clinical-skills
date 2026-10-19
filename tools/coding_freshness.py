@@ -47,7 +47,7 @@ DATE_TEXT = rf"{MONTH}\s+\d{{1,2}},\s+20\d{{2}}"
 DECLARED_LIMITS = (
     "The caller supplies each normalized-content digest and code population; the gate binds those declarations but does not derive them from notes or worksheets.",
     "The live pages establish which named release applies or was most recently published; the gate does not download and byte-compare the authority's release archive with the committed database.",
-    "The CPT receipt proves that its declared edition, fingerprint, and derived boundary match the database; it cannot prove that the authenticated book reading which authored the private receipt occurred.",
+    "The MDM sheet's book, edition, and ISBN header lines are copied from the database; only the edition year is read from the book by both readers, and the reader's ISBN confirmation is unrecorded.",
     "Code identity, completeness, billability, and date status do not establish medical necessity, descriptor agreement with the note, CPT instructions, or the E/M level.",
     "The MDM sheet gate checks agreement digests and edition coverage, not the clinical support for a selected level or whether its readers viewed the book.",
 )
@@ -280,7 +280,6 @@ def validate_procedures(
     service_date: str,
     as_of: date,
     hcpcs_page: str,
-    cpt_receipt: dict[str, object],
     procedure_database: Path,
     findings: list[str],
 ) -> tuple[dict[str, str | None], dict[str, str | None], Path | None, str | None]:
@@ -291,24 +290,9 @@ def validate_procedures(
     if current_hcpcs_release(hcpcs_page, as_of) != expected_hcpcs:
         findings.append("HCPCS authoritative release is unread or stale")
 
-    if cpt_receipt.get("schema") != 1:
-        findings.append("CPT freshness receipt schema is unreadable")
-    if cpt_receipt.get("source_id") != cpt_source["id"]:
-        findings.append("CPT freshness receipt names a different source")
-    if cpt_receipt.get("source_edition") != cpt_source["edition"]:
-        findings.append("CPT freshness receipt names a different edition")
-    if cpt_receipt.get("source_sha256") != cpt_source["sha256"]:
-        findings.append("CPT source fingerprint changed")
     boundary = derived_cpt_boundary(cpt_source)
-    try:
-        declared_boundary = date.fromisoformat(str(cpt_receipt.get("valid_through")))
-    except ValueError:
-        findings.append("CPT freshness receipt has no readable edition boundary")
-    else:
-        if declared_boundary != boundary:
-            findings.append("CPT edition boundary does not match its source")
-        if date.fromisoformat(service_date) > boundary:
-            findings.append("CPT freshness receipt expired at the next edition boundary")
+    if date.fromisoformat(service_date) > boundary:
+        findings.append("CPT source edition expired at the next edition boundary")
     if date.fromisoformat(service_date) < date.fromisoformat(str(cpt_source["effective_date"])):
         findings.append("CPT source edition does not cover the service date")
 
@@ -385,7 +369,6 @@ def validate_procedures(
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("manifest", type=Path)
-    parser.add_argument("--cpt-receipt", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--icd-database", type=Path, default=icd10_lookup.DEFAULT_DATABASE)
     parser.add_argument(
@@ -401,9 +384,8 @@ def main(argv: list[str]) -> int:
 
     try:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-        cpt_receipt = json.loads(args.cpt_receipt.read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict) or not isinstance(cpt_receipt, dict):
-            raise ValueError("manifest and CPT receipt must each be a JSON object")
+        if not isinstance(manifest, dict):
+            raise ValueError("manifest must be a JSON object")
         service_date = date.fromisoformat(str(manifest["service_date"])).isoformat()
         icd_page = read_url(ICD_RELEASE_URL)
         hcpcs_page = read_url(HCPCS_RELEASE_URL)
@@ -430,7 +412,6 @@ def main(argv: list[str]) -> int:
             service_date,
             today(),
             hcpcs_page,
-            cpt_receipt,
             args.procedure_database,
             findings,
         )
