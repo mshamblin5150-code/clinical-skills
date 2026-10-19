@@ -1,12 +1,12 @@
 # A recursive walk never enters a link and one shared walk serves the census the sweep and the after-action review
 
-**Measured at:** eff49ded7de21df6249ed07fa7cde1abefeb7935
+**Measured at:** 44a9557ad5cdbb6345ff951a123b2f824631310e
 
 [#1841](https://github.com/mshamblin5150-code/clinical-skills/issues/1841) was filed from the
 tracker sweep closing #1685's grilling on 2026-10-16. Grilled 2026-10-18 against `main` at
-`31b048a1`, where the measurements below were taken; the branch was then brought forward to the
-commit above, which adds only another ticket's ADR and glossary entries, and the freshness gate read
-`FRESH`. The clinician ruled every point below in that session, one question at a time. **Nothing is
+`31b048a1`, where the measurements below were taken. The commit above adds only a draft of this
+record to `main` at `1b98c073`, which differs from that base only by ADRs 0413 to 0415 and their
+glossary entries, and the freshness gate read `FRESH` there. The clinician ruled every point below in that session, one question at a time. **Nothing is
 built here; this is the record the build reads.**
 
 ## Measured before ruling
