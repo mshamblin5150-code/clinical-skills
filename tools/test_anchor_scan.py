@@ -79,9 +79,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_five_declared_readings_and_eleven_behaviors(self):
+    def test_the_partition_is_six_declared_readings_and_eleven_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(5, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(11, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -1914,11 +1914,12 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                 scan._route_status(subject, f"{first} | {last}", "example"),
             )
 
-    def drug_read(self, words: str, code: str, route: str) -> tuple[int, str]:
+    def drug_read(self, words: str, code: str, route: str, *,
+                  ground: str = "none", history: str = "") -> tuple[int, str]:
         descriptor = scan._official_descriptor("ICD-10", code)
         (self.notes / "case-01.md").write_text(
             f"# Synthetic note\nFinal diagnosis: {words} - {code}\n"
-            "Active treatment at initial encounter.\n", encoding="utf-8",
+            f"Active treatment at initial encounter.\n{history}\n", encoding="utf-8",
         )
         (self.worksheets / "case-01.md").write_text(
             f'ICD-10  {code}  {descriptor}\n  ANCHOR: "{words}"\n', encoding="utf-8",
@@ -1929,13 +1930,130 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             agreeing_words=words, route=route,
             encounter_evidence="Active treatment at initial encounter.",
             open_status_evidence="none", threshold="none", waits_on_result="none",
+            column_ground=ground,
         )
         return self.grade({"pairs": [{"stem": "case-01", "codes": [record]}]}, show=True)
+
+    def test_plain_word_overdose_needs_a_verbatim_column_ground(self):
+        words = "took too many acetaminophen tablets"
+        route = "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1"
+        status, report = self.drug_read(words, "T39.1X1A", route)
+        self.assertEqual(1, status, report)
+        self.assertIn("has no column ground", report)
+        status, report = self.drug_read(words, "T39.1X1A", route, ground=words)
+        self.assertEqual(0, status, report)
+        self.assertRegex(report, r"medicine columns resting on reader ground\s+1")
+        import reader_remarks
+        remarks = reader_remarks.read_report(report)
+        self.assertEqual(1, len(remarks))
+        self.assertIn("T39.1X1A", remarks[0].text)
+        self.assertIn(words, remarks[0].text)
+
+    def test_overdose_main_entry_settles_column_and_by_drug_referral(self):
+        route = (
+            "Overdose, overdosage (drug) -> see Table of Drugs and Chemicals, by drug, poisoning | "
+            "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1"
+        )
+        status, report = self.drug_read("Acetaminophen overdose", "T39.1X1A", route)
+        self.assertEqual(0, status, report)
+        self.assertRegex(report, r"medicine columns resting on reader ground\s+0")
+        self.assertNotIn("READER-REMARK:", report)
+
+    def test_ground_keeps_the_poisoning_intent_choice(self):
+        words = "ibuprofen ingestion, not intentional"
+        for number, column in enumerate(scan.DRUG_COLUMNS[:4], 1):
+            with self.subTest(column=column):
+                status, report = self.drug_read(
+                    words, f"T39.31{number}A",
+                    f"Ibuprofen > {column} -> code T39.31{number}", ground=words,
+                )
+                self.assertEqual(0 if number == 1 else 1, status, report)
+
+    def test_toxicity_settles_neither_medicine_column(self):
+        for number, column in ((1, scan.DRUG_COLUMNS[0]), (5, "Adverse effect")):
+            with self.subTest(column=column):
+                route = f"Digoxin > {column} -> code T46.0X{number}"
+                status, report = self.drug_read("digoxin toxicity", f"T46.0X{number}A", route)
+                self.assertEqual(1, status, report)
+                self.assertIn("has no column ground", report)
+                ground = "Took digoxin as prescribed."
+                status, report = self.drug_read(
+                    "digoxin toxicity", f"T46.0X{number}A", route, ground=ground, history=ground,
+                )
+                self.assertEqual(1 if number == 1 else 0, status, report)
+
+    def test_ingestion_subentry_cannot_settle_a_medicine_column(self):
+        route = (
+            "Ingestion > drug or medicament > overdose or wrong substance given or taken -> "
+            "see Table of Drugs and Chemicals, by drug, poisoning | "
+            "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1"
+        )
+        words = "acetaminophen ingestion"
+        status, report = self.drug_read(words, "T39.1X1A", route)
+        self.assertEqual(1, status, report)
+        self.assertIn("has no column ground", report)
+        status, report = self.drug_read(words, "T39.1X1A", route, ground=words)
+        self.assertEqual(0, status, report)
+        self.assertRegex(report, r"medicine columns resting on reader ground\s+1")
+
+    def test_other_medicine_families_can_rest_on_note_ground(self):
+        for words, code, route in (
+            ("rash from amoxicillin", "T36.0X5A", "Amoxicillin > Adverse effect -> code T36.0X5"),
+            ("ran out of insulin", "T38.3X6A", "Insulin (amorphous) (globin) (isophane) (Lente) (NPH) (Semilente) (Ultralente) > Underdosing -> code T38.3X6"),
+        ):
+            with self.subTest(code=code):
+                self.assertEqual(1, self.drug_read(words, code, route)[0])
+                status, report = self.drug_read(words, code, route, ground=words)
+                self.assertEqual(0, status, report)
+                self.assertRegex(report, r"medicine columns resting on reader ground\s+1")
+
+    def test_column_ground_must_be_note_text_even_with_a_mechanical_column(self):
+        for words in ("took too many acetaminophen tablets", "acetaminophen poisoning"):
+            with self.subTest(words=words):
+                status, report = self.drug_read(
+                    words, "T39.1X1A",
+                    "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1",
+                    ground="Invented dose history",
+                )
+                self.assertEqual(1, status, report)
+                self.assertIn("column ground is not note text", report)
+
+    def test_proper_use_only_reads_label_and_ground(self):
+        route = (
+            "Overdose, overdosage (drug) -> see Table of Drugs and Chemicals, by drug, poisoning | "
+            "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1"
+        )
+        status, report = self.drug_read(
+            "acetaminophen overdose", "T39.1X1A", route,
+            history="Home medications: lisinopril as prescribed.",
+        )
+        self.assertEqual(0, status, report)
+        for ground in ("Took acetaminophen as prescribed.", "Took less acetaminophen."):
+            with self.subTest(ground=ground):
+                status, report = self.drug_read(
+                    "acetaminophen overdose", "T39.1X1A", route, ground=ground, history=ground,
+                )
+                self.assertEqual(1, status, report)
+
+    def test_denial_alone_does_not_establish_poisoning(self):
+        words = "ibuprofen ingestion, not intentional"
+        last = "Ibuprofen > Poisoning Accidental (unintentional) -> code T39.311"
+        self.assertEqual(1, self.drug_read(words, "T39.311A", last)[0])
+        status, report = self.drug_read(words, "T39.311A", last, ground=words)
+        self.assertEqual(0, status, report)
+        self.assertRegex(report, r"medicine columns resting on reader ground\s+1")
+        status, report = self.drug_read(
+            "ibuprofen overdose, not intentional", "T39.311A",
+            "Overdose, overdosage (drug) -> see Table of Drugs and Chemicals, by drug, poisoning | " + last,
+        )
+        self.assertEqual(0, status, report)
+        self.assertRegex(report, r"medicine columns resting on reader ground\s+0")
 
     def test_poisoning_flat_denial_agrees_only_with_accidental(self):
         words = "acetaminophen overdose, denies suicidal intent"
         status, report = self.drug_read(
             words, "T39.1X1A",
+            "Overdose, overdosage (drug) -> see Table of Drugs and Chemicals, by drug, poisoning | "
             "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1",
         )
         self.assertEqual(0, status, report)
@@ -1947,17 +2065,18 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                 else ("Ibuprofen", "T39.31")
             )
             for variant in (words, words.upper(), words.title()):
-                for number, column in enumerate(scan.DRUG_COLUMNS, start=1):
+                columns = scan.DRUG_COLUMNS[:4] if expected <= 4 else scan.DRUG_COLUMNS
+                for number, column in enumerate(columns, start=1):
                     with self.subTest(words=variant, column=column):
                         status, report = self.drug_read(
                             variant, f"{stem}{number}A",
                             f"{substance} > {column} -> code {stem}{number}",
+                            ground=variant,
                         )
                         self.assertEqual(0 if number == expected else 1, status, report)
 
     def test_poisoning_negation_and_surviving_intent_through_agreement_read(self):
-        # #1889 will replace ingestion's current poisoning-word route with a
-        # counted column ground; the intent choices here remain ADR 0383's.
+        # The quoted ground settles ingestion; intent choices remain ADR 0383's.
         self.assert_drug_intent_columns((
             ("ibuprofen ingestion, not intentional", 1),
             ("ibuprofen ingestion, denies self-harm", 1),
@@ -2056,7 +2175,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         route = "Ibuprofen > Poisoning Accidental (unintentional) -> code T39.311"
         self.assertEqual(1, self.drug_read(words, "T39.311A", route)[0])
         source = Path(scan.__file__).read_text(encoding="utf-8")
-        mutated = source.replace("nonprescribed|with alcohol", "nonprescribed|with alcohol|test exposure")
+        mutated = source.replace(r"\bpoisoning\b", r"\b(?:poisoning|test exposure)\b")
         self.assertNotEqual(source, mutated)
         module = types.ModuleType("anchor_scan_column_mutant")
         module.__file__ = scan.__file__
@@ -2065,7 +2184,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             with patch.dict(globals(), scan=module):
                 status, report = self.drug_read(words, "T39.311A", route)
                 self.assertEqual(0, status, report)
-                self.assertIn("with alcohol|test exposure", self.brief()["instructions"])
+                self.assertIn("poisoning|test exposure", self.brief()["instructions"])
 
     def test_drug_columns_follow_the_guideline_definitions(self):
         cases = (
@@ -2080,14 +2199,8 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
 
         for words, expected in cases:
             with self.subTest(words=words):
-                self.assertTrue(scan._drug_column_agrees(expected, words))
-                self.assertFalse(
-                    any(
-                        scan._drug_column_agrees(other, words)
-                        for other in scan.DRUG_COLUMNS
-                        if other != expected
-                    )
-                )
+                number = scan.DRUG_COLUMNS.index(expected) + 1
+                self.assert_drug_intent_columns(((words, number),))
 
     def test_drug_columns_distinguish_intent_from_negated_word_forms(self):
         cases = (
@@ -2101,20 +2214,14 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         )
 
         for words, expected in cases:
-            for variant in (words, words.upper(), words.title()):
-                for column in scan.DRUG_COLUMNS:
-                    with self.subTest(words=variant, column=column):
-                        self.assertEqual(
-                            column == expected,
-                            scan._drug_column_agrees(column, variant),
-                        )
+            # These controls concern intent; use the same medicine across cases.
+            words = words.replace("carbon monoxide", "ibuprofen")
+            self.assert_drug_intent_columns(((words, scan.DRUG_COLUMNS.index(expected) + 1),))
 
     def test_hedged_self_harm_agrees_only_with_undetermined(self):
         words = "acetaminophen ingestion, possibly intentional self-harm; patient denies"
 
-        self.assertTrue(scan._drug_column_agrees("Poisoning Undetermined", words))
-        self.assertFalse(scan._drug_column_agrees("Poisoning Intentional self-harm", words))
-        self.assertFalse(scan._drug_column_agrees("Poisoning Accidental (unintentional)", words))
+        self.assert_drug_intent_columns(((words, 4),))
 
     def test_neoplasm_behavior_columns_are_mutually_exclusive(self):
         cases = (
