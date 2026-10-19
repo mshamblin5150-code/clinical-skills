@@ -609,7 +609,7 @@ The gitignored record of one **Evidence dump** -- which topics arrived, for whic
 _Avoid_: index, inventory, log, catalog
 
 **Titled copy**:
-A run's copy of an **Evidence dump** that was handed over without topic titles, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. It differs from the handover in at most two ways: the titles, and a second copy of a topic dropped because the two differed only in page chrome, with the dropped copy and the difference written into the mapping. It never edits a kept block. The titles and any drop are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
+A run's copy of an **Evidence dump** that was handed over without topic titles, or that holds a **Drug page**, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. It differs from the handover in at most three ways: the titles, a second copy of a topic dropped because the two differed only in page chrome, and a drug page left out because a handover cannot show when it was read or that its doses were expanded, each drop written into the mapping. A drug page the case needs is pulled live instead. It never edits a kept block. The titles and any drop are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
 _Avoid_: reconstructed dump, fixed dump, cleaned evidence
 
 **Salted letter**:
