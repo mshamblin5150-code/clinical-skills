@@ -245,6 +245,16 @@ from a proposal reliably. Issue #290.
 
 ### Check closing keywords before merge
 
+A whole-ticket binding on a `grilling` ticket is a **premature close**.
+The publication hook refuses it on `gh pr create` and `gh pr edit`. The separate
+**Premature close scan, pull request** CI step grades the title, body and every
+commit message with `python tools/tracker_merge_receipt.py --check-premature-close`.
+It exits 0 when clean, 1 on a premature close, and 2 on unread labels.
+Use `Part of #N` on its own line after checking whether another session holds
+`in flight`; if the grill is really over, remove `grilling` first. The complete
+boundaries belong to `tracker_publish_hook.NOT_REACHED` and
+`tracker_merge_receipt.NOT_REACHED`.
+
 **The canary may be red.** The fixed check name is
 `newer Python 3.14 canary (may fail before the maintainer upgrades)`.
 [ADR 0431](../adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md)

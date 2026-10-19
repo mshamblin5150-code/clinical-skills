@@ -1967,6 +1967,12 @@ that object and copies none of its rows.
 
 ### Tracker publish hook
 
+On `gh pr create` and `gh pr edit`, a whole-ticket binding naming a `grilling`
+ticket is refused as a premature close, using the existing batched readback.
+Use `Part of #N` on its own line after checking whether another session holds
+`in flight`; if the grill is over, remove `grilling` first. The rule's boundary
+belongs to `tracker_publish_hook.NOT_REACHED`.
+
 The AAR quotation check uses the shared walk and denies publication if a run
 subfolder cannot be listed or a compared file cannot be read. Its report gives
 unread subfolder and file counts, never names, and says to restore read access
@@ -2283,6 +2289,12 @@ It prints a path, a line number for content and its own table's entry — **neve
 **Parity with the skill was one-directional and #278 is what exercised it.** The test asserted every row of the skill's table is covered by the scanner and never the reverse, so adding a form to `TABLE` left the whole suite green with the file a reader opens never mentioning it — the `.claude/skills/` mirror problem again, two files holding two answers. The reverse assertion is there now, and it was mutation-tested by dropping the row before it was believed. **`STEM_CHANGES` and `DRUGS` stay outside it deliberately**: the skill names those in prose rather than in the table, and the drug half already had its own reverse check.
 
 ### Closing keyword scan
+
+The separate **Premature close scan, pull request** CI step runs
+`tracker_merge_receipt.py --check-premature-close` over the title, body, and
+commit messages. It refuses whole-ticket bindings on `grilling` tickets and
+turns red when labels cannot be read. The scanner remains offline; the new
+command's boundary belongs to `tracker_merge_receipt.NOT_REACHED`.
 
 GitHub treats its measured closing grammar as an instruction without reading prose intent. [#183](https://github.com/mshamblin5150-code/clinical-skills/issues/183) records the resulting accidental closes; [ADR 0073](docs/adr/0073-the-closing-scan-grades-the-measured-github-grammar-plus-a-declared-margin.md) records the live parser measurement and the deliberately wider margins. `tools/closing_keyword_scan.py` grades the artifact text before GitHub acts on it, and its full boundary is named in `closing_keyword_scan.DECLARED_LIMITS` rather than copied here:
 

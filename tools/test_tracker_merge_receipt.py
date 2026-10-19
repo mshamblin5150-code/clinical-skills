@@ -28,6 +28,59 @@ def merged_pr(body: str, **changes):
 
 
 class ExplicitTicketReferencesBecomeReceipts(unittest.TestCase):
+    def test_ci_grades_all_surfaces_and_label_read_outcomes(self):
+        cases = [
+            ({"body": "Closes #1602"}, [], 0),
+            ({"body": "Part of #1602"}, ["grilling"], 0),
+            ({"body": "Implements #1602's decision 1"}, ["grilling"], 0),
+            ({"title": "Closes #1602"}, ["grilling"], 1),
+            ({"commits": [{"messageHeadline": "Closes #1602"}]}, ["grilling"], 1),
+            ({"commits": [{"messageBody": "Closes #1602"}]}, ["grilling"], 1),
+            ({"body": "Closes #1602"}, ["needs-triage", "blocked", "ready-for-human", "in flight"], 0),
+        ]
+        for fields, labels, expected in cases:
+            with self.subTest(fields=fields, labels=labels), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "pr.json"
+                path.write_text(json.dumps(fields), encoding="utf-8")
+                response = mock.Mock(returncode=0, stdout=json.dumps({"labels": [{"name": label} for label in labels]}))
+                with mock.patch.object(receipt.subprocess, "run", return_value=response) as fetch:
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(receipt.main(["--check-premature-close", str(path)]), expected)
+                self.assertEqual(fetch.call_count, 0 if expected == 0 and "Closes" not in str(fields) else 1)
+
+    def test_ci_unread_labels_are_exit_two_even_beside_a_finding(self):
+        for failure in (mock.Mock(returncode=1), mock.Mock(returncode=0, stdout='{}'), mock.Mock(returncode=0, stdout='{"labels":[{}]}'), OSError("offline")):
+            with self.subTest(failure=failure):
+                with mock.patch.object(receipt.subprocess, "run", side_effect=[
+                    mock.Mock(returncode=0, stdout='{"labels":[{"name":"grilling"}]}'), failure,
+                ]):
+                    with contextlib.redirect_stderr(io.StringIO()) as report:
+                        status = receipt.check_premature_close({"body": "Closes #1602, #1603"})
+                self.assertEqual(status, 2)
+                self.assertIn("NOT GRADED", report.getvalue())
+                self.assertIn("premature close: #1602", report.getvalue())
+
+    def test_whole_binding_set_reuses_decorated_receipt_grammar_and_deduplicates(self):
+        document = {"title": "Closes #1602", "body": "> 1. **Closes #1602, #1603.**",
+                    "commits": [{"messageBody": "Closes #1602\nPart of #1604"}]}
+        self.assertEqual(receipt.whole_ticket_bindings(document), {1602, 1603})
+        with mock.patch.object(receipt.subprocess, "run", return_value=mock.Mock(returncode=0, stdout='{"labels":[]}')) as fetch:
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(receipt.check_premature_close(document), 0)
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_ci_refuses_a_whole_ticket_binding_on_a_grilling_ticket(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pr.json"
+            path.write_text(json.dumps(merged_pr("Closes #1602")), encoding="utf-8")
+            response = mock.Mock(returncode=0, stdout='{"labels":[{"name":"grilling"}]}')
+            with mock.patch.object(receipt.subprocess, "run", return_value=response):
+                with contextlib.redirect_stderr(io.StringIO()) as report:
+                    status = receipt.main(["--check-premature-close", str(path)])
+            self.assertEqual(status, 1)
+            self.assertIn("Part of #1602", report.getvalue())
+            self.assertIn("in flight", report.getvalue())
+
     def test_every_declared_reference_form_owns_its_decorated_line(self):
         for alternative in receipt.REFERENCE_ALTERNATIVES:
             reference = alternative.example
@@ -504,6 +557,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertEqual(
             set(dict(receipt.NOT_REACHED)),
             {
+                "premature-close labels are a check-time snapshot",
                 "a well-formed binding can name the wrong ticket",
                 "the pre-merge check cannot watch a local merge",
                 "a no-ticket declaration is graded for shape, not truth",

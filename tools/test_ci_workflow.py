@@ -84,6 +84,17 @@ def tracker_event_checks_step(text):
 
 
 class TheWorkflowExists(unittest.TestCase):
+    def test_premature_close_is_an_independent_non_advisory_maintainer_step(self):
+        text = workflow_text()
+        suite = job_text(text, "suite")
+        step = suite.partition("      - name: Premature close scan, pull request")[2].split("      - name:")[0]
+        self.assertIn("if: always() && github.event_name == 'pull_request'", step)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", step)
+        self.assertIn("'pull-request.json'", step)
+        self.assertIn("python tools/tracker_merge_receipt.py --check-premature-close $pr", step)
+        self.assertNotIn("continue-on-error", step)
+        self.assertNotIn("--check-premature-close", job_text(text, "canary"))
+
     def test_the_file_is_where_github_looks_for_it(self):
         self.assertTrue(WORKFLOW.is_file(), f"no workflow at {WORKFLOW}")
 
