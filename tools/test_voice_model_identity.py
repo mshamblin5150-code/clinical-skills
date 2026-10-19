@@ -16,6 +16,7 @@ import voice_read
 import imagery_proposals
 import project_context
 import lms_attachments
+import case_video
 
 
 class RecordWriter(unittest.TestCase):
@@ -215,7 +216,7 @@ class ScopedCompletionGraders(unittest.TestCase):
                         imagery_proposals.EXPECTED_ROW,
                         project_context.EXPECTED_ROW,
                         lms_attachments.EXPECTED_ROW,
-                    ),
+                    ) + ((case_video.EXPECTED_ROW,) if skill in {"peer-critique", "practicum-case-study"} else ()),
                 )
 
     def test_each_scoped_skill_writes_the_record_before_drafting(self) -> None:

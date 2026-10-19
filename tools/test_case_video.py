@@ -10,6 +10,7 @@ import unittest
 
 import case_video
 import artifact_lock
+from prose_bind import NAMING, bind
 
 
 class Alignment(unittest.TestCase):
@@ -207,6 +208,11 @@ class CaptureGate(unittest.TestCase):
 
 
 class Wiring(unittest.TestCase):
+    def test_consumers_name_the_limits_without_copying_their_rows(self):
+        root = Path(__file__).resolve().parents[1]
+        for name in ("AGENTS.md", "CLAUDE.md", "skills/_shared/reference/case-video.md"):
+            self.assertFalse(bind(case_video.DECLARED_LIMITS, (root / name).read_text(encoding="utf-8"), mode=NAMING))
+
     def test_only_the_two_video_case_graders_owe_the_gate(self):
         import checks_ledger
         import peer_critique_scan

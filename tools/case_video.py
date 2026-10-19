@@ -33,12 +33,12 @@ EXPECTED_ROW = "the case video capture"
 MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v2", "large-v3")
 DECLARED_LIMITS = (
     ("shared-engine", "Agreement between passes is not proof; both can mishear alike."),
-    ("frames", "Frame count is a floor, not proof every slide was distinct or detected."),
+    ("frame-distinctness-unproven", "Frame count is a floor, not proof every slide was distinct or detected."),
     ("file-identity", "A fingerprint binds the local file, not what YouTube serves later."),
-    ("narration-only", "The run decides which drug names, doses and numbers are absent from slides."),
+    ("narration-classification-reader-owned", "The run decides which drug names, doses and numbers are absent from slides."),
     ("reader-record", "Recorded frame reads, clinician answers and quotation locations are declarations, not observed listening or semantic verification."),
     ("case-kind", "A false non-video declaration or unrecorded quotation cannot be detected from prose."),
-    ("timing", "Timestamps locate decoded media; unusual audio/video offsets and word timing errors require a video check."),
+    ("av-offsets-unmeasured", "Timestamps locate decoded media; unusual audio/video offsets and word timing errors require a video check."),
 )
 
 

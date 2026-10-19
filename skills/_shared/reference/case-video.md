@@ -84,9 +84,9 @@ Write `<run>/case-video/<submission-key>.json`, using the exact key the completi
   "draft_sha256": "SHA-256 of the final draft's raw bytes",
   "frames_read": ["frames/frame-000001.png", "frames/frame-000002.png"],
   "narration_review": "What was compared across the whole narration and every slide for drug names, doses and numbers",
-  "narration_only": [{"id": "N1", "kind": "dose", "quote": "exact primary-pass words", "seconds": 12.5}],
-  "answers": {"D1": "Clinician's full confirmation or correction", "N1": "Clinician's full confirmation or correction"},
-  "uses": [{"id": "N1", "location": "Draft heading and sentence quoting or faulting this datum"}]
+  "narration_only": [{"id": "N<entry>", "kind": "dose", "quote": "exact primary-pass words", "seconds": 12.5}],
+  "answers": {"D<entry>": "Clinician's full confirmation or correction", "N<entry>": "Clinician's full confirmation or correction"},
+  "uses": [{"id": "N<entry>", "location": "Draft heading and sentence quoting or faulting this datum"}]
 }
 ```
 
