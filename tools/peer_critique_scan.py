@@ -60,6 +60,7 @@ import voice_read
 import imagery_proposals
 import project_context
 import lms_attachments
+import case_video
 import approval_record
 import heading_read
 import research_ledger
@@ -74,6 +75,7 @@ EXPECTED_COMPLETION_CHECKS = (
     imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
+    case_video.EXPECTED_ROW,
 )
 
 
@@ -764,6 +766,10 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         coverage_limb=PROJECT_CONTEXT_UNVERIFIED,
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, parsed.value("--submission"))
+    grade = case_video.apply_completion_gate(
+        grade, source.path, submission,
+        {submission: (source.path / "critique.md").read_bytes()} if submission is not None else {},
+    )
     grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER)
     grade = approval_record.apply_completion_gate(
         grade, source.path, "peer-critique", parsed.value("--submission")

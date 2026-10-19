@@ -110,6 +110,15 @@ Then read three documents side by side and keep them side by side for the whole 
 material** the assignment supplied, the **classmate's post**, and the **clinician's own post** on
 the same case.
 
+For a video case, follow [Case video capture](../_shared/reference/case-video.md) now:
+prepare and read every slide image, supply its terms, then transcribe with two local model sizes.
+Show the combined narration-only clinical-data and disagreement list and wait for the clinician's
+answers before quoting or faulting those entries. A failed capture stops for his repair-or-type
+choice. Record the selected route and the bound review, including `kind: none` for a document-only
+case. `python tools/case_video.py check <run> --submission critique.md --draft <run>/critique.md`
+must exit 0 before handoff; `peer_critique_scan.py --submission` repeats the gate. The shared
+[narration rule](../_shared/reference/sourcing.md#case-video-narration) governs quotations.
+
 **Only what the case supplied is in scope.** A case study hands every student one fixed data set. An
 item absent from that data set — a family history nobody was given, an insurance field the case
 never stated — is not the classmate's omission, and a finding against them for it is a finding

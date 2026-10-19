@@ -196,6 +196,12 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
             attachments = checks_path.parent / "lms-attachments"
             attachments.mkdir(exist_ok=True)
             (attachments / f"{submission}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
+            capture = checks_path.parent / "case-video"
+            capture.mkdir(exist_ok=True)
+            (capture / f"{submission}.json").write_text(
+                json.dumps({"kind": "none", "reason": "Synthetic document-only case"}),
+                encoding="utf-8",
+            )
             checks.voice_model_identity.write_record(checks_path.parent)
             identity_path = checks_path.parent / checks.voice_model_identity.RECORD_NAME
             identity = json.loads(identity_path.read_text(encoding="utf-8"))
