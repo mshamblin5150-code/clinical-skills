@@ -142,6 +142,13 @@ Also not required to use the clinical skills, and deliberately not cited from [A
 or `output/` and points the writer to standing rule 6. Its complete reading boundary belongs
 to `heredoc_write_hook.DECLARED_LIMITS`.
 
+### Backslash pair guard
+
+`tools/backslash_pair_hook.py` is a standalone `PreToolUse` hook for Bash and
+Monitor under ADR 0368 and ADR 0392. Its complete reading boundary, probe,
+measurement, and unreadable-payload posture belong to
+`backslash_pair_hook.DECLARED_LIMITS`.
+
 ### Scanner pipe guard
 
 `tools/scanner_pipe_hook.py` refuses a piped scanner status before Claude Code's
@@ -275,6 +282,9 @@ new direct commands for #1206; both call `use_utf8` and `require_python_floor` f
 
 **Correction, 2026-10-17:** `memory_index.py` is a direct command for #1707; its command path calls
 `use_utf8()` and then `require_python_floor()`.
+
+**Correction, 2026-10-19:** `backslash_pair_hook.py` is now the most recent direct command
+and calls `use_utf8()` then `require_python_floor()` from that path.
 
 ### Memory index
 
