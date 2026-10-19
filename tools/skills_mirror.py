@@ -273,12 +273,19 @@ def repo_root() -> Path:
 
 
 def run_relevant_paths(root: Path) -> RunRelevantPaths:
-    """Read instructions Git lists, preserving readable citations and read counts."""
-    listed = _git_read(
-        root, "run-relevant path-set",
-        "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "skills",
-    )
-    prose = {"AGENTS.md", *filter(None, listed.split("\0"))}
+    """Read tracked and untracked, unignored instructions and report unread files.
+
+    A clean read covers that Git-listed population, including not-yet-staged
+    drafts; ignored instructions contribute no citations.
+    """
+    try:
+        listed = git_paths.read_path_records(
+            root, "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+            "--", "skills",
+        )
+    except git_paths.GitPathError as exc:
+        raise BaseReadFailed("run-relevant path-set") from exc
+    prose = {"AGENTS.md", *listed}
     cited_tools = set()
     replaced = unopenable = 0
     for relative in sorted(prose):
