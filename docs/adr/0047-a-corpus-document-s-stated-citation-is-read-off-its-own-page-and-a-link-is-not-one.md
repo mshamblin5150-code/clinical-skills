@@ -2,6 +2,8 @@
 
 [#512](https://github.com/mshamblin5150-code/clinical-skills/issues/512) was split out of [#439](https://github.com/mshamblin5150-code/clinical-skills/issues/439)'s grilling on 2026-08-25 because a source link is a different kind of fact from the columns beside it. Its decision-reason 1: *"It introduces a class of committed fact nothing in the tree can re-derive or verify. Every other column in both ledgers is either read off the document or hand-audited against it. A URL is neither — it is a claim about the outside world, and the repo has no instrument that could ever grade one."*
 
+*Superseded 2026-08-29.* The words "the repo has no instrument that could ever grade one" are superseded by [ADR 0067](0067-the-download-address-is-seeded-from-the-stated-citation-and-a-found-one-is-true-only-on-digest-identity.md) ruling 8. Only this ground is falsified. All rulings, including ruling 6, stand.
+
 Grilled on 2026-08-27, against `origin/main` `6f60fae`. The clinician ruled every point below on the same day. **Nothing is built here; this is the record the build reads.**
 
 ## The measurement falsified the premise, which is why there is a column at all
@@ -34,6 +36,8 @@ A DOI printed in a document's own citation line — `JAMA. 2019;321(4):394-398. 
    **Positional readers.** `tools/test_guidelines_catalog.py:803` sums `int(cells[6])` for the page total, so inserting anywhere before index 6 silently changes what that test adds up. **And `tools/corpus_census.py:742` holds `CATALOG_CELL_COUNT = 10`** — the eight columns plus the two empty strings a leading and trailing pipe produce — tested with `==` at `:753`, so a ninth column matches no row at all: `read_catalog_topics` goes from **169 topics to 0**, measured 2026-08-27 by appending the column to a copy of the catalog. **Appending saves the first and not the second; only raising the constant saves the second.**
 
    **Prose enumerations that become false.** `CONTEXT.md:247`'s **Guideline catalog** entry and `CLAUDE.md:1175` each list all eight columns by name. Both are [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape and neither fails anything when it goes stale.
+
+   > *Locator added 2026-10-19.* Both prose coordinates above name **Guideline catalog**: the definition in `CONTEXT.md` and the same-named section in `CLAUDE.md`. The coordinates remain the record's historical positions.
 
    *(Corrected in place under [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md) on 2026-08-27, hours after ratification, and the way it was found is worth more than the repair. The original named `test_guidelines_catalog.py` alone — a ruling **about a positional dependency** that had itself surveyed one of two, which is this record's own extractor-coverage warning arriving on the record within the hour. Two sweep subagents reading unrelated tickets found the `corpus_census` reader independently of each other, and one of them also found the two enumerations — including the one seven lines above the `Stated citation` entry **this record itself added to `CONTEXT.md`**. The anchor was `:804` and is `:803`; `:804` is the `assertEqual`.)*
 9. **The scaffold reaches the catalog reader and must not reach the blind reader.** Both readers seeing the draft would agree on the regex's answer, and the audit would have measured the matcher against itself — a numerator and denominator built from one matcher, which this repo's extractor-coverage rule already forbids.

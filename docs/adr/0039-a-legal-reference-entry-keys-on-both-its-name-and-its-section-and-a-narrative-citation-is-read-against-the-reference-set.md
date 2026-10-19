@@ -126,6 +126,8 @@ Shipping A+C alone closes both limbs the ticket names and leaves the canonical f
 
 **A legal citation's year is never checked against its entry's year.** An APA legal entry yields an empty-year key by design, and `tools/test_discussion_post_scan.py:333`'s `test_yearless_legal_citation_matches_a_dated_regulation_record` depends on it, because a bare `42 C.F.R. § 482.13` in prose has no year to offer. That key resolves regardless of year. Ruling 6 makes the parenthetical citation better-formed; it does not make the year enforceable, and no branch considered here can while the bare form must resolve.
 
+*Superseded 2026-09-08.* The words "A legal citation's year is never checked against its entry's year." are superseded by [ADR 0151](0151-the-citation-author-date-split-is-evidenced-by-the-reference-list.md) ruling 4. All rulings stand.
+
 **Whether the cited section says what the draft claims.** That is the refutation pass in `skills/discussion-post/SKILL.md`, which states it has no carve-out for legal primary sources. Nothing here reads a regulation.
 
 **Whether APA's own page says what the guides say it says.** Recorded above rather than glossed.
@@ -137,4 +139,4 @@ Shipping A+C alone closes both limbs the ticket names and leaves the canonical f
 *Corrected 2026-09-12.* The guide-grounding sentence above formerly said *"This is guide consensus across seven independent university
 library guides."* The figure was false when written, and the linked pages are not independent attestations; [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) rulings 1 and 2 require the corrected reading in place under ADR 0016. **No ruling of this record changes.**
 
-*Superseded 2026-09-12.* The statement *"and **not** a read of APA's own page"* correctly records the ground on 2026-08-26 and is left as written, but [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 6 retired that caveat; the later *Publication Manual* read replaced the ground. The recorded Imperva result survives unchanged, as do all rulings of this record. [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 3 records the correction.
+*Superseded grounding marked 2026-09-12.* The statement *"and **not** a read of APA's own page"* correctly records the ground on 2026-08-26 and is left as written, but [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 6 retired that caveat; the later *Publication Manual* read replaced the ground. The recorded Imperva result survives unchanged, as do all rulings of this record. [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 3 records the correction.

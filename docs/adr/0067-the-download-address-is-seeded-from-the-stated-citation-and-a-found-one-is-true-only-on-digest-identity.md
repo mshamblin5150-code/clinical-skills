@@ -187,3 +187,4 @@ it for a `digest`.
 ## Supersedes
 
 - [ADR 0057](0057-the-corpus-sweep-is-comprehensive-and-every-ruling-it-needs-is-already-ruled.md) ruling 6, the words "The guideline catalog gains a `url` column". Stated citation remains separate and is not bound to sheet URL; corpus identity policy survives.
+- [ADR 0047](0047-a-corpus-document-s-stated-citation-is-read-off-its-own-page-and-a-link-is-not-one.md) the words "the repo has no instrument that could ever grade one", Only this ground is falsified. All rulings, including ruling 6, stand.

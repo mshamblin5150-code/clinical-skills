@@ -21,6 +21,7 @@ class PublicAdrDates(unittest.TestCase):
         "**Point 3 is narrowed rather than overruled — see [ADR 0026](0026-public.md), 1988-04-17.**",
         "dated record of what was decided on 1988-04-17",
         "**Corrected in place on 1988-04-17:**",
+        "**The key gained a third component on 1988-04-17 — see [ADR 0014](0014-public.md).**",
         "Correction, 1988-04-17, on [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058)'s",
     )
 

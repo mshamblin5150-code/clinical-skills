@@ -245,6 +245,8 @@ answers to two records.
 Ruled twice, with a named victim, and with a live misread of `discussion_reply_scan` in this
 record's own measurement.
 
+*Superseded 2026-09-10.* The words "or over container names beyond the one literal `DECLARED_LIMITS`" are superseded by [ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md) ruling 1. The refusal of a matcher over limit shapes stands.
+
 **A uniform container.** Untouched. No module's limits object moves, splits, or changes shape.
 
 **A repository-wide limits-object count without its matcher.** ADR 0074's own prohibition; every

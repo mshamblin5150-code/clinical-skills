@@ -70,14 +70,15 @@ read against — and deliberately not in this ticket's own vocabulary: *cross-sh
 the mechanism's words, not a reader's. The step 9 table row:
 
 > **What it reads:** the whole draft, the faculty material's patient, and `reference/thresholds/`
-> via `coverage.md`, including its `subject` column.
-> **How:** a reader: group the registry's rows by subject, and where the patient's problems touch
-> any cell in a subject, open every sheet in that subject; `?` means nobody has ruled whether that
-> cell has siblings, never that it has none. Where the draft rests on rows from more than one sheet,
-> decide whether each sheet's own population wording holds for **this** patient — population and
-> quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so
-> this pair is seen by nobody else.
+> via `coverage.md`.
+> **How:** a reader: identify every threshold sheet whose topic this patient's problems touch,
+> and where the draft rests on rows from more than one sheet, whether each sheet's own population
+> wording holds for **this** patient — population and quantity keys are sheet-local, `CONFLICT`
+> is within-sheet, and no command compares two sheets, so this pair is seen by nobody else.
 > **A `clean` says what it walked:** yes.
+
+*Superseded 2026-09-01.* *(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. ADR 0102 and #689 added the registry's authored `subject` column after this row was ratified. Ruling 3's quoted reader contract now includes the column, its group-expansion walk, and the meaning of `?`; the row name, reader, population judgment, and other rulings are unchanged.)*
+The words "identify every threshold sheet whose topic this patient's problems touch" are superseded by [ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md) ruling 1. The row name, reader, population judgment and rulings 1, 2 and 4 stand. The replacement reads `coverage.md`, including its `subject` column: group the registry's rows by subject, and where the patient's problems touch any cell in a subject, open every sheet in that subject; `?` means nobody has ruled whether that cell has siblings, never that it has none.
 
 Scope is the join. Single-sheet threshold applicability in general is a different reading and is
 not widened into this row.
@@ -146,6 +147,8 @@ grilling did not re-open either.
 built it is for a mechanical cross-sheet gate, on its own ticket, and this record does not
 foreclose it.
 
+*Superseded 2026-09-01.* The words "If one is ever built it is for a mechanical cross-sheet gate" are superseded by [ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md) ruling 1. Ruling 2 still needs no committed grouping: the reader derives the join per patient. The first sentence was the build scope and expired with that build.
+
 **Widening the row to single-sheet applicability.** Ruling 3's scope clause.
 
 ## Declared limits
@@ -168,5 +171,3 @@ discharged (`CONTEXT.md`'s entries carried the sheet-local wording from ADR 0057
 `66ba77f`), the stale 149/407 figures become the command's to state, and the two moved line
 anchors are replaced with symbol-level ones. Cross-reference comments on #587 and #565 record the
 collision.
-
-*Superseded 2026-09-01.* *(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. ADR 0102 and #689 added the registry's authored `subject` column after this row was ratified. Ruling 3's quoted reader contract now includes the column, its group-expansion walk, and the meaning of `?`; the row name, reader, population judgment, and other rulings are unchanged.)*

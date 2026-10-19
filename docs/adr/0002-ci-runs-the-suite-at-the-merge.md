@@ -24,11 +24,24 @@ A third merge (#179) had 66 tests that neither side had run, and was green — a
 
 **`windows-latest` because CI red must mean the maintainer's machine red.** The platform-shaped code here is Windows-shaped: the cp1252 console defect #150 exists for, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo actually executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason: matching the machine every commit is made from is worth more than proving a floor.
 
+*Superseded 2026-10-19.* The words "Python 3.14 for the same reason: matching the machine every commit is made from is worth more than proving a floor." are superseded by [ADR 0431](0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md) ruling 1. The `windows-latest` reasoning and advisory posture stand.
+
 **The reason first given for that was false, and it is the worst error in this ADR.** It read *"no consumer runs these tools, so the stated floor has nobody behind it."* [AGENTS.md](../../AGENTS.md) says the opposite in as many words — `icd10-cpt` **and**, since [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46), `clinical-note` both query `reference/icd10cm-2026.sqlite` through `tools/icd10_lookup.py`, so *"an agent that cannot run the script is working from recall."* **A consumer runs Python on this repo's critical path.** The ICD lookup path carries the future annotations import, does not call `zip(strict=)`, and parses at 3.7. But that does not put the repository floor entirely in files no consumer imports: AGENTS.md also declares `tools/discussion_post_scan.py` a `discussion-post` dependency, and its `survey` function calls `zip(strict=)`. README.md instructs macOS consumers to install a newer Python on the strength of the stated floor, so the floor has a consumer consequence even where that particular execution path sits below it.
 
 **That leaves a real gap this ADR does not close.** AGENTS.md promises *"There is still nothing to install"*, and a job pinned to 3.14 says nothing about whether a consumer on an older interpreter can look up a code. Two different floors are in play — the tooling's and the consumer path's — and **CI measures neither**.
 
-*Superseded 2026-09-12.* **Superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 1.** This record's single-number floor was the wrong shape. The repository now declares a consumer floor and a tooling floor separately, derives both with `tools/python_floor.py`, and runs the complete suite in a second job at the consumer floor. This ADR's `windows-latest` maintainer job and its reasoning stand.
+**What the floor actually is, and why the first answer here was wrong.** This paragraph originally read *"the floor is 3.10 in any case: `int | None` is PEP 604, and there is no 3.11-or-later syntax anywhere in `tools/` — checked, not assumed."* The number survives and **both halves of the reasoning do not**. A future annotations import stringizes annotations at definition time, but it does not exempt a module: `typing.get_type_hints` can evaluate those annotations again. Modules without that import are not all tests either; `tools/prose_bind.py` is non-test tooling imported by test modules throughout the suite. The evidence for the floor is:
+
+*Superseded 2026-09-12.* **Superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 1.** This record's single-number floor was the wrong shape. The repository now declares a consumer floor and a tooling floor separately, derives both with `tools/python_floor.py`, and runs the complete suite in a second job at the consumer floor. This ADR's `windows-latest` maintainer job and its reasoning stand. The words "the floor is 3.10" are superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 1. The `windows-latest` maintainer job and its reasoning stand.
+
+| | |
+| --- | --- |
+| `zip(strict=)` in non-test tooling | a **runtime API** added in 3.10, which no future import defuses |
+| `test_console_codec.main_guard` returning `ast.If \| None` | an annotation evaluated at definition time, requiring PEP 604 runtime support |
+
+**And "checked, not assumed" was overstated, which is the part worth keeping.** The check was a grep for a hand-picked list of newer syntax — the same partial-instrument move [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) is about, made while writing a ticket that cites it. `ast.parse(..., feature_version=(3, 9))` parses every module here cleanly, because `int | None` in an annotation is valid *grammar* at any version and fails only at runtime, so that instrument is blind too. **The only interpreter on this machine is 3.14**, so the suite has never run on 3.10 or 3.11 and nobody has evidence that it would. The floor is inferred by static reading, and static reading has now been wrong about it twice.
+
+That does not change the ruling — a single job matching the maintainer's machine is what was decided, and an unverified floor is an argument for claiming less rather than for running more. But if the floor is ever to be a claim this repo makes, **only a job that runs on it can settle it**, and that is a second decision rather than a correction.
 
 **Both triggers, because `main` is reached two ways.** `pull_request` checks out the merge result rather than the branch head, which is the tree this ADR is about; `push` to `main` catches the local-merge-and-push route that `pull_request` never sees.
 
@@ -65,7 +78,6 @@ That is two of three layers dark, permanently, on the rule that matters most. **
 >
 > **This ADR's reasoning is extended rather than falsified.** *A green check still means less than it looks like, and now says so* was true of the **layers** and silent about the **population**: the job runs `--all` with nothing staged, so the file most likely to carry a new mistake — the one being written — was invisible to the walk and nothing on the page said so. The `--all` path-layer row above even carried the words *`--all` walks tracked files*, spent on why that layer is inapplicable rather than on what the two live layers covered. Recorded here rather than edited into the text above, because an ADR is a record of what was decided and when.
 
-
 **Most of this repo is still ungraded by anything here.** Skill rules, drift rows and `assertions.md` are graded by reading; ADR 0001 exists because of that. CI will not grade a note, will not catch a rule contradicting another skill, and cannot see `.claude/skills/` drift, because the mirror is gitignored. Standing rule 4 is greppable and `spelling_scan.py` now exists with its mention-versus-use rule, but running it in CI would change its posture from advisory to blocking and was left out of scope.
 
 **A green threshold-sheet step is explicitly not a complete clinical-source grade.** On a runner, gates that require out-of-repo evidence remain unavailable and say so in the summary. The useful guarantee is narrower: every gate supported by the committed checkout ran against the merge tree, and a refusing result from one of those gates still makes the advisory job red. Missing default recommendation records no longer make that job permanently red after #181; explicitly named missing or unreadable evidence retains the tool's ungraded exit status.
@@ -89,5 +101,5 @@ populations, said modules without the future annotations import were tests, said
 annotations were never evaluated, and said no consumer imported a floor-setting module. The facts
 were corrected under ADR 0016; the advisory `windows-latest` and Python 3.14 decision is unchanged.
 
-*Superseded 2026-09-12.* Superseded in part, 2026-09-12: ADR 0187 ruling 14 replaces this record's single-number floor
+Superseded in part, 2026-09-12: ADR 0187 ruling 14 replaces this record's single-number floor
 paragraph; its maintainer CI job, platform reasoning and advisory posture stand.

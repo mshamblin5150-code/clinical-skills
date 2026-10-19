@@ -138,3 +138,4 @@ fixture, and a stale registration on the accounted-set failure branch, which no 
 ## Supersedes
 
 - [ADR 0138](0138-an-absent-committing-scratch-root-is-nothing-to-grade-and-the-empty-population-rule-is-not-generalized.md) ruling 6, the words "A worktree deleted without `git worktree prune` stays in `git worktree list --porcelain`". An unlocked missing root remains a counted, report-only stale registration. A locked missing root has a separate state and no prune remedy; pruning also requires confirmed deletion. No age threshold or new refusal is added.
+- [ADR 0185](0185-the-scratch-census-counts-peer-roots-and-names-only-the-exceptions.md) ruling 3, the words "A stale registration is counted in the summary and not named a second time." An unlocked missing root is still counted and not named; the collective prune remedy and the unreadable-root line stand. A locked root is now named.

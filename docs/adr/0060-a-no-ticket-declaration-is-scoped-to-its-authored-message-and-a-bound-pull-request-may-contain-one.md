@@ -129,3 +129,7 @@ declares fails, which is decision 2 and the one case the corpus does not contain
 The CLAUDE.md paragraph naming the allowed forms drops its pull-request-scoped clause. `CONTEXT.md`
 redefines **Declared no-binding** off the message rather than the merge and adds **Authored
 message**, since decision 2 named a unit the glossary had no word for.
+
+## Supersedes
+
+- [ADR 0051](0051-a-binding-owns-its-line-and-an-empty-plan-is-a-finding-rather-than-a-valid-result.md) ruling 7, the words "A pull request that legitimately binds no ticket declares it, with a reason." The declaration still needs a reason; its scope is one authored message.

@@ -23,6 +23,8 @@ That is [#499](https://github.com/mshamblin5150-code/clinical-skills/issues/499)
 
 Where two ratified records define one `CONTEXT.md` term differently, the record with the **higher number** owns it.
 
+*Superseded 2026-08-31.* The words "the record with the **higher number** owns it." are superseded by [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md) ruling 9. The number rule stays the default tie-break; the clinician may override it when the older concept is the load-bearing one.
+
 The ground is how ADR numbers are handed out. `tools/adr_next.py` allocates the next free number at the moment a grilling writes its record, so the number is chronological by construction. And a grilling session is not an isolated act: it sweeps the tracker, reads the open tickets and posts on them before it rules. **The later session has read the earlier one's ticket and the earlier one has not read the later one's.** In the clinician's words, *"by the time i get to a later adr i am more informed, so that one wins."*
 
 So the rule is not a tie-break by convenience. It selects the reading taken with more of the tracker in view, and it is decidable from the two file names without reading either record.

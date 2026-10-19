@@ -10,6 +10,8 @@ measurement retired the fix the model implied.
 The clinician ruled on 2026-08-23: **a document destined for a paste box carries its
 heading formatting as direct run properties, and everything else is left alone.**
 
+*Superseded 2026-09-07.* The words "a document destined for a paste box carries its heading formatting as direct run properties" are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 3. The measurement that the sanitizer keeps tags only stands.
+
 ## What was measured
 
 **Word to clipboard**, Word 16.0, four variants of one document differing only in how the

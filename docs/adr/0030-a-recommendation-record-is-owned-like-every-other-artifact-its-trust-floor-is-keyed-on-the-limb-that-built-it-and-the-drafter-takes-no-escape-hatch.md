@@ -58,6 +58,8 @@ Every figure below was re-derived on `2b67a19` with the freshness gate reporting
 
 **Trust-check the resolver's directory scan too.** Rejected. `threshold_draft._record_path` globs every `recs-*.json` and loads each to match on the `source` filename; a strict read there makes one stale neighbor in a shared directory a hard failure for every topic. The peek answers *which file is about this document*, and the answer to that from an untrusted record is still only ever a path.
 
+*Superseded 2026-08-25.* The words "a strict read there makes one stale neighbor in a shared directory a hard failure for every topic" are superseded by [ADR 0034](0034-a-recommendation-record-is-resolved-by-exact-name-at-both-read-sites-and-the-directory-scan-hints-rather-than-selects.md) ruling 1. Only this ground is falsified. Ruling 7 stands; an untrusted record still yields only a path.
+
 **Restore `CLAUDE.md`'s closure sentence to unqualified truth.** Rejected. That sentence stood unqualified and false for the whole life of the recs artifact and no test failed, which is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s and [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s subject. Making it true again restores the mechanism that produced this ticket.
 
 **Correct ADR 0018 in place.** Rejected. [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md) permits correcting a ratified record's *facts*; 0018's title is its ruling, not a fact.

@@ -151,6 +151,8 @@ chosen replaces that sentence rather than sitting beside it.
 *"Every worktree still needs its own `--repair`, and nothing will ask."* This is the thing that
 asks, and the mirror is graded by nothing else.
 
+*Corrected 2026-10-19.* On 2026-09-08, [ADR 0152](0152-the-skills-mirror-is-repaired-at-session-start-and-its-orphans-are-drained.md) observed 23 copied skill entries and zero junctions in the desktop application's worktrees, so this closure claim did not hold for them on the day it was ruled. Its inference that `post-checkout` never ran was not an observation; [ADR 0426](0426-a-desktop-worktree-session-is-served-the-main-checkout-s-skills-so-the-main-checkout-is-fast-forwarded-at-a-worktree-session-s-start.md) records the hook's repair in a desktop worktree on 2026-10-19. The hook decision stands.
+
 ### 6. The repoint's completion is a grep, and ratified records are left alone
 
 After the move, `git grep -c "practicum-case-study/reference/"` outside `docs/adr/` and `fixtures/`

@@ -435,3 +435,7 @@ malformed, and the header was fixed without the count being re-derived. The figu
 ruling is rewritten. Found by the exhaustive tracker sweep from #538's grilling, which also found
 [#535](https://github.com/mshamblin5150-code/clinical-skills/issues/535)'s body header carrying the
 same figure from this line.)*
+
+## Supersedes
+
+- [ADR 0052](0052-a-codification-year-is-provenance-and-the-snapshot-behind-it-is-declared-unreached.md) ruling 7, the words "binding one prose limit among the module's many is *these are the limits* in a different hat" Only this ground is falsified. Ruling 7 stands; the second addendum's ruling 9 records the consequence.

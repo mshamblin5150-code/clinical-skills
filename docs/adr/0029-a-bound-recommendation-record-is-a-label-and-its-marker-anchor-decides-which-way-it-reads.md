@@ -87,3 +87,7 @@ All figures below were taken 2026-08-24 against `C:/codeing/guidelines-src`, whi
 **Two figures here are measured against pre-[#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446) records and will move when it lands**: the 83% mid-word rate and the median-5-character backoff cost. Rerouting the reader to `rebuild_text` restores missing spaces, so word boundaries become commoner and the backoff loses less — the two compose in the helpful direction, and this fix cannot be made wrong by that one. The marker-anchor split is a count of which pattern matched and is spacing-independent, so #446 cannot move it.
 
 **Correcting the 46 registry cells asserts nothing about those topics being ready.** They stay `unread`. What changes is only that the stated reason stops naming a blocker that measurement shows does not exist.
+
+## Supersedes
+
+- [ADR 0007](0007-a-threshold-sheet-is-drafted-per-topic-and-its-snippets-are-gated-against-the-record.md) the words "each row's `rec`, `page`, `class` and verbatim `snippet`, every one lifted from the record rather than composed", Exact sources still get a filled snippet; judgment cells stay blank.

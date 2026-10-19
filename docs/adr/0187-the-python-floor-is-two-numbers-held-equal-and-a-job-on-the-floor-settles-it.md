@@ -389,3 +389,4 @@ there.
 - [ADR 0139](0139-a-floor-is-cited-by-api-and-symbol-and-coordinates-are-ratcheted-to-zero.md) ruling 3, the words "The committed check asserts the evidence exists, never how much of it there is". The repository walk now derives the floor; API-and-symbol citation and coordinate ratchet remain.
 
 - [ADR 0139](0139-a-floor-is-cited-by-api-and-symbol-and-coordinates-are-ratcheted-to-zero.md) ruling 4, the words "The wider floor derivation is filed rather than folded in". The separately filed derivation is now supplied; its declared vocabulary ceiling remains.
+- [ADR 0002](0002-ci-runs-the-suite-at-the-merge.md) the words "the floor is 3.10", The `windows-latest` maintainer job and its reasoning stand.

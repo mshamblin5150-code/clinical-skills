@@ -1,6 +1,11 @@
 # A grounding claim names what was read and a falsified record is marked
 
-**Measured at:** 00bad566273963c75dc536b9005c8ccc5473d95d
+**Measured at:** 865101dac8f588a866bb23dfd39aadf48ed9c68d
+
+**Correction, 2026-10-19:** the declaration above is re-declared only for removing the
+`## Supersedes` section the #1518 repair added. ADR 0390 ruling 5 classifies that pair as
+neither and restores ADR 0145's correction opening; no ruling here changes. The original
+measurements below remain observations at `00bad566273963c75dc536b9005c8ccc5473d95d`.
 
 [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md)
 line 9 grounds its in-text legal form on *"guide consensus across seven independent university
@@ -310,7 +315,3 @@ complete**, which is this repository's own recurring shape arriving in a record 
 claim nobody re-derived. Every one of the six comments was a tracker sweep, which is the mechanism
 built to catch exactly what this session missed — and two of them had already found findings this
 session re-derived independently, hours of work that reading them first would have saved.
-
-## Supersedes
-
-- [ADR 0145](0145-the-republished-date-element-is-shared-grammar-keyed-on-its-second-element.md) ruling 5, the words "APA publishes no legal reference examples". The statute-root separation and the corrected precision figure stand.

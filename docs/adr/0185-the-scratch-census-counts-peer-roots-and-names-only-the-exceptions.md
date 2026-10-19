@@ -116,6 +116,8 @@ walked away, which is the one event worth a line.
 An unreadable peer root is named. A stale registration is counted in the summary and not named a
 second time.
 
+*Superseded 2026-09-15.* The words "A stale registration is counted in the summary and not named a second time." are superseded by [ADR 0237](0237-a-missing-worktree-git-reports-as-locked-is-a-locked-registration-and-the-prune-remedy-is-qualified.md) ruling 1. An unlocked missing root is still counted and not named; the collective prune remedy and the unreadable-root line stand. A locked root is now named.
+
 **Stale collapses on ruling 1's own test.** A directory that is gone holds nothing, and the filesystem
 establishes that without a matcher. Its remedy is also collective — one `git worktree prune` clears
 every one of them — so a line per stale root is N copies of one instruction. With four worktree

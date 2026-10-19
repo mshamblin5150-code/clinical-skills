@@ -58,6 +58,8 @@ The fold made **zero** difference to either, so the diabetes misses are not typo
 
 It holds for a reason that is checkable rather than promised: **the draft emits blanks where the judgment lives.** `quantity` and `population` are the cells a reader has to choose, and a guessed population is worse than a blank one — it is the field that decides whether a threshold applies to the patient at all, which is `guidelines_catalog.py --draft`'s own ruling about the same column. What the draft fills is what a machine can settle: the `## Sources` rows, and each row's `rec`, `page`, `class` and verbatim `snippet`, every one lifted from the record rather than composed.
 
+*Superseded 2026-08-24.* The words "each row's `rec`, `page`, `class` and verbatim `snippet`, every one lifted from the record rather than composed" are superseded by [ADR 0029](0029-a-bound-recommendation-record-is-a-label-and-its-marker-anchor-decides-which-way-it-reads.md) ruling 2. Exact sources still get a filled snippet; judgment cells stay blank.
+
 **The auditor stays a stranger to the thing it grades.** That is why the split is structural rather than tidiness: a module that both scaffolds a sheet and grades it can, at some future edit, come to agree with itself — the same reason a run's own grader cannot verify it, which this repo rules on in four places.
 
 ## The cost this accepts

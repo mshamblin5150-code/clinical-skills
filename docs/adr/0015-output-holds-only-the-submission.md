@@ -5,6 +5,8 @@
 
 The clinician ruled it on 2026-08-23. **A file goes under `output/` if and only if it was handed in. Everything a run produced *about* the submission is provenance and lives in the run directory.**
 
+*Superseded 2026-09-08.* The words "A file goes under `output/` if and only if it was handed in." are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 4. Provenance stays in the run directory.
+
 ## Amended 2026-09-08 — a paste-target submission includes its source and renders
 
 [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) replaced the discussion-post Word paste with HTML loaded through Canvas's raw editor. That route exposed an assumption in the original biconditional: it was written for an upload target, where the submitted artifact is one file. A paste target hands in no file even though the run must retain the exact submitted bytes for comparison.

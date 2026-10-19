@@ -245,9 +245,12 @@ sentence, which is a factual claim this session falsified by reading the documen
 - **Keying it on whether a document holds no clinical quantity by design.** A reading, not a cell;
   not derivable from the catalog, which build item 1 requires.
 - **`errata` as a declared non-source.** It carries a full revised dose table; the orphaned parent
-  that tempts the ruling is a corpus-membership fact rather than a form fact. *(ADR 0062 dissolved
+  that tempts the ruling is a corpus-membership fact rather than a form fact.
+
+*Superseded 2026-08-29.* *(ADR 0062 dissolved
   the orphan and measured the table as redundant against the parent now in the corpus. The ruling
-  stands; this ground is narrower than it reads.)*
+  stands; this ground is narrower than it reads.)* The words "It carries a full revised dose table" are superseded by [ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md) ruling 7. Only this ground is falsified. Ruling 2 stands.
+
 - **`web-capture` as a declared non-source.** Holds a schedule; suppressing it would drop three
   topics' only material.
 - **Parking the row at `unread`.** Makes ADR 0057 ruling 4's completion condition permanently

@@ -18,6 +18,7 @@ import tarfile
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from markdown_read import paragraphs, unfenced_lines
 
 
 DECLARED_LIMITS = (
@@ -27,11 +28,57 @@ DECLARED_LIMITS = (
     "or merely mentions it is a reader's classification, never a matcher verdict.",
     "Live historical coverage checks pair identities through the report's last ADR; "
     "it does not certify the historical bytes. Use --revision for that binding.",
+    "Revision mode checks banner-disposition spelling and class, not the existence "
+    "of a retirement banner that may postdate those bytes; live coverage and the "
+    "supersession binding check the banner itself.",
 )
 RECORD = re.compile(r"^(\d{4})-.+\.md$")
 TEXT_CITATION = re.compile(r"\bADR\s+(\d{4})\b")
 PATH_CITATION = re.compile(r"(?<![\w-])(\d{4})-[\w-]+\.md\b")
 CLASSIFICATIONS = frozenset(("overturned", "ground falsified", "neither", "unsure"))
+BANNER_DISPOSITION = "adr-0343-banner"
+
+
+def banner_population(records: dict[str, str]) -> tuple[set[str], set[tuple[str, str]]]:
+    """Read banner targets and explicit pair declarations without classifying prose."""
+    banners, declarations = set(), set()
+    for name, text in records.items():
+        text = "\n".join(unfenced_lines(text))
+        prefix = re.split(r"^## ", text, maxsplit=1, flags=re.M)[0]
+        if any(
+            re.match(r"^\*Superseded \d{4}-\d{2}-\d{2}\.\*", paragraph)
+            and re.search(r"\bevery ruling\b", paragraph, re.I)
+            and re.search(r"\[ADR 0343\]\(0343-[^()\s]+\.md\)\s+ruling \d+", paragraph)
+            for _, paragraph in paragraphs(prefix)
+        ):
+            banners.add(name[:4])
+        section = re.search(r"^## Supersedes\s*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+        if section:
+            declarations.update((name[:4], target) for target in re.findall(
+                r"^- \[ADR (\d{4})\]\(\d{4}-[^()\s]+\.md\)", section.group(1), re.M
+            ))
+    return banners, declarations
+
+
+def banner_disposition_findings(banners: set[str] | None, declarations, rows) -> list[str]:
+    """Check later banner proof only when the supplied population is live."""
+    findings = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        key = (row.get('later'), row.get('earlier'))
+        if not all(isinstance(value, str) for value in key):
+            findings.append("classification pair IDs must be strings")
+            continue
+        disposition = row.get('disposition')
+        if disposition is not None:
+            if (disposition != BANNER_DISPOSITION
+                    or row.get('classification') != 'overturned'
+                    or (banners is not None and key[1] not in banners)):
+                findings.append(f"{key[0]} -> {key[1]}: invalid banner disposition")
+        elif banners is not None and key[1] in banners and key not in declarations and row.get('classification') in ('overturned', 'ground falsified'):
+            findings.append(f"{key[0]} -> {key[1]}: no declaration or banner disposition")
+    return findings
 
 
 def normalize_legacy_opening(original: str, source: str) -> str | None:
@@ -188,12 +235,14 @@ def derive_records(sources: list[tuple[str, bytes | Exception]]) -> dict:
                 "citation_lines": sorted(evidence["lines"]),
             })
     binding = json.dumps(records, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    banners, declarations = banner_population({identities[number]: text for number, text in texts.items()})
     return {
         "schema": 1,
         "records_read": len(records), "distinct_pairs": len(pairs),
         "unread_remainder": unread, "declared_limits": list(DECLARED_LIMITS),
         "records_sha256": hashlib.sha256(binding).hexdigest(),
         "records": records, "pairs": pairs,
+        "banner_records": sorted(banners), "declaration_pairs": sorted(declarations),
     }
 
 
@@ -280,6 +329,10 @@ def classification_findings(population: dict, classification: dict, *, historica
             findings.append(f"classification has no evidence quotes: {key[0]} -> {key[1]}")
     for later, earlier in sorted(expected - seen):
         findings.append(f"missing classification: {later} -> {earlier}")
+    findings.extend(banner_disposition_findings(
+        None if population.get('revision') is not None else set(population.get('banner_records', [])),
+        {tuple(pair) for pair in population.get('declaration_pairs', [])}, rows,
+    ))
     return findings
 
 
