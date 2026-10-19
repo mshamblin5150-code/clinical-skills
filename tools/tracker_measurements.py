@@ -45,7 +45,8 @@ DECLARED_LIMITS = (
     "Whether a load-bearing figure names its measured population and matcher is a reader-owned rule and is not graded.",
     "The gate cannot distinguish a fresh re-derivation from an author who writes the current SHA without re-deriving.",
     "The declaration is opt-in; a record with no own-line Measured at label is not graded.",
-    "The staged-ADR reader compares with branch HEAD and therefore fires on branch drift.",
+    "The staged-ADR reader accepts pre-commit HEAD or its first parent because no hook signal distinguishes an amend; it still fires on branch drift and leaves which value is correct to the post-commit and committed-ADR audits.",
+    "The post-commit mode reads only ADRs the named commit touched; whether the hook runs during a rebase is not established.",
     "Docstrings and CLAUDE.md prose are outside the tracker-record and staged-ADR readers.",
     "The ADR annotation-only exception proves preservation and supersession binding, not the semantic truth of an annotation's account.",
 )
@@ -338,11 +339,19 @@ def _annotation_only_proof(root: Path, relative: str, base: str, revision: str,
         return False
 
 
-def _grade_adr(root: Path, relative: str, body: str, base: str, revision: str) -> tuple[Finding, ...]:
-    findings = grade(body, relative, base)
-    if (findings and all(finding.rule == STALE_BASE for finding in findings)
-            and _annotation_only_proof(root, relative, base, revision, body)):
+def _grade_adr(root: Path, relative: str, body: str, base: str, revision: str,
+               alternate_base: str = "") -> tuple[Finding, ...]:
+    bases = (base, alternate_base) if alternate_base else (base,)
+    grades = tuple(grade(body, relative, candidate) for candidate in bases)
+    if any(not findings for findings in grades):
         return ()
+    findings = grades[0]
+    if (findings and all(finding.rule == STALE_BASE for finding in findings)
+            and any(_annotation_only_proof(root, relative, candidate, revision, body)
+                    for candidate in bases)):
+        return ()
+    if alternate_base:
+        return tuple(finding._replace(expected=" or ".join(bases)) for finding in findings)
     return findings
 
 
@@ -371,15 +380,64 @@ def grade_staged_adrs(root: Path = REPO_ROOT) -> AdrScan:
         )
     except GitPathError as error:
         raise SourceError("staged ADR population unreadable") from error
-    expected = current_head(root) if relatives else ""
+    expected, parent = "", ""
+    if relatives:
+        expected, _stamp, parent = _commit_info(root, "HEAD")
     declarations = 0
     findings: list[Finding] = []
     for relative in relatives:
         body = _staged_text(root, relative)
         if any(line.startswith(LABEL) for line in body.splitlines()):
             declarations += 1
-        findings.extend(_grade_adr(root, relative, body, expected, ":"))
+        findings.extend(_grade_adr(root, relative, body, expected, ":", parent))
     return AdrScan(len(relatives), declarations, tuple(findings))
+
+
+def _commit_info(root: Path, revision: str) -> tuple[str, datetime, str]:
+    try:
+        completed = subprocess.run(
+            ["git", "show", "--no-patch", "--format=%H%x00%cI%x00%P",
+             "--end-of-options", revision, "--"],
+            cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+    except OSError as error:
+        raise SourceError(f"ADR commit unreadable: {revision}") from error
+    fields = completed.stdout.strip().split("\0")
+    if (completed.returncode or len(fields) != 3
+            or re.fullmatch(r"[0-9a-fA-F]{40}", fields[0]) is None):
+        raise SourceError(f"ADR commit unreadable: {revision}")
+    try:
+        stamp = datetime.fromisoformat(fields[1].replace("Z", "+00:00"))
+    except ValueError as error:
+        raise SourceError(f"ADR commit unreadable: {revision}") from error
+    parents = fields[2].split()
+    return fields[0], stamp, parents[0] if parents else ""
+
+
+def grade_commit(revision: str, root: Path = REPO_ROOT) -> CommittedAdrScan:
+    """Audit only surviving ADRs touched by one commit, against its first parent."""
+    commit, stamp, parent = _commit_info(root, revision)
+    try:
+        relatives = tuple(sorted(read_path_records(
+            root, "diff-tree", "--root", "--no-commit-id", "-r", "--name-only",
+            "--no-renames", "--diff-filter=ACM", "-z",
+            *((parent, commit) if parent else (commit,)), "--", "docs/adr/*.md",
+        )))
+    except GitPathError as error:
+        raise SourceError("commit ADR population unreadable") from error
+    declarations = 0
+    findings: list[Finding] = []
+    eligible = len(relatives) if stamp >= CUTOFF else 0
+    for relative in relatives if eligible else ():
+        body = _committed_text(root, commit, relative)
+        if not any(line.startswith(LABEL) for line in body.splitlines()):
+            continue
+        declarations += 1
+        if not parent:
+            findings.append(Finding(CURRENT_BASE_UNREADABLE, relative, "", ""))
+        else:
+            findings.extend(_grade_adr(root, relative, body, parent, commit))
+    return CommittedAdrScan(len(relatives), eligible, declarations, tuple(findings))
 
 
 def _last_touch(root: Path, relative: str) -> tuple[str, datetime, str]:
@@ -506,12 +564,16 @@ def format_report(
     )
     if findings:
         lines.extend(("", "  each finding:"))
-        lines.extend(f"    {row.rule} {row.locator}" for row in findings)
+        lines.extend(
+            f"    {row.rule} {row.locator}"
+            + (f" expected {row.expected}" if row.rule == STALE_BASE else "")
+            for row in findings
+        )
     return "\n".join(lines)
 
 
 USAGE = (
-    "usage: tracker_measurements.py [--staged-adrs | "
+    "usage: tracker_measurements.py [--staged-adrs | --commit <revision> | "
     "--github-event <event.json> --event-name <name>]"
 )
 
@@ -526,6 +588,12 @@ def main(argv: list[str], *, root: Path = REPO_ROOT) -> int:
                 scan.records,
                 scan.declarations,
                 eligible=scan.eligible,
+            )
+        elif len(argv) == 2 and argv[0] == "--commit":
+            scan = grade_commit(argv[1], root)
+            report = format_report(
+                scan.findings, f"ADRs touched by commit {argv[1]}",
+                scan.records, scan.declarations, eligible=scan.eligible,
             )
         elif argv == ["--staged-adrs"]:
             scan = grade_staged_adrs(root)

@@ -216,6 +216,134 @@ class StagedAdrsUseTheCheckoutHead(unittest.TestCase):
         )
 
 
+class AmendDeclarationsAtTheCommand(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.git("init", "--initial-branch=main")
+        self.git("config", "user.name", "Fixture Writer")
+        self.git("config", "user.email", "fixture@example.invalid")
+        self.git("commit", "--allow-empty", "-m", "base")
+        self.base = self.git("rev-parse", "HEAD").stdout.strip()
+        self.adr = self.root / "docs/adr/0197-example.md"
+        self.adr.parent.mkdir(parents=True)
+
+    def git(self, *args):
+        return StagedAdrsUseTheCheckoutHead._git(self.root, *args)
+
+    def stage(self, sha, words="Example words."):
+        self.adr.write_text(f"# Example\n\n**Measured at:** {sha}\n\n{words}\n", encoding="utf-8")
+        self.git("add", ".")
+
+    def command(self, *args):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = measurements.main(list(args), root=self.root)
+        return status, stdout.getvalue() + stderr.getvalue()
+
+    def test_amend_redeclaring_at_its_parent_passes_both_commands(self):
+        self.stage(self.base)
+        self.assertEqual(0, self.command("--staged-adrs")[0])
+        self.git("commit", "-m", "new ADR")
+        self.stage(self.base, "Edited words.")
+        # Control: the unpatched staged command refuses this ordinary amend.
+        self.assertEqual(0, self.command("--staged-adrs")[0])
+        self.git("commit", "--amend", "-m", "edited ADR")
+        self.assertEqual(0, self.command()[0])
+
+    def test_plain_commit_using_parent_passes_staged_but_exact_audit_reports_it(self):
+        self.git("commit", "--allow-empty", "-m", "advance tip")
+        self.stage(self.base)
+        self.assertEqual(0, self.command("--staged-adrs")[0])
+        self.git("commit", "-m", "one base too far back")
+        status, report = self.command("--commit", "HEAD")
+        self.assertEqual(1, status)
+        self.assertIn(measurements.STALE_BASE, report)
+        self.assertEqual(1, self.command()[0])
+        stale_commit = self.git("rev-parse", "HEAD").stdout.strip()
+        self.stage(stale_commit)
+        self.git("commit", "-m", "fresh declaration")
+        self.assertEqual(0, self.command("--commit", "HEAD")[0])
+        self.assertEqual(1, self.command("--commit", stale_commit)[0])
+
+    def test_neither_candidate_is_refused_and_both_candidates_are_reported(self):
+        self.git("commit", "--allow-empty", "-m", "advance tip")
+        tip = self.git("rev-parse", "HEAD").stdout.strip()
+        self.stage(STALE)
+        status, report = self.command("--staged-adrs")
+        self.assertEqual(1, status)
+        self.assertIn(self.base, report)
+        self.assertIn(tip, report)
+
+    def test_commit_mode_refuses_unreadable_revision_and_accepts_no_adr_changes(self):
+        self.assertEqual(2, self.command("--commit", "missing-revision")[0])
+        self.assertEqual(2, self.command("--commit", "--all")[0])
+        self.assertEqual(0, self.command("--commit", "HEAD")[0])
+
+    def test_commit_mode_excludes_deleted_adrs_and_reports_root_without_parent(self):
+        self.stage(self.base)
+        tree = self.git("write-tree").stdout.strip()
+        root_commit = self.git("commit-tree", tree, "-m", "root with declaration").stdout.strip()
+        status, report = self.command("--commit", root_commit)
+        self.assertEqual(1, status)
+        self.assertIn(measurements.CURRENT_BASE_UNREADABLE, report)
+        self.git("commit", "-m", "new ADR")
+        self.git("rm", "docs/adr/0197-example.md")
+        self.git("commit", "-m", "remove ADR")
+        self.assertEqual(0, self.command("--commit", "HEAD")[0])
+
+    def test_merge_mode_grades_the_first_parent_and_ignores_unrelated_old_adrs(self):
+        self.stage(STALE)
+        self.git("commit", "-m", "existing stale ADR")
+        self.git("checkout", "-b", "side")
+        self.git("commit", "--allow-empty", "-m", "side commit")
+        self.git("checkout", "main")
+        base = self.git("rev-parse", "HEAD").stdout.strip()
+        self.git("merge", "--no-ff", "--no-commit", "side")
+        self.adr = self.adr.with_name("0198-merge.md")
+        self.stage(base)
+        self.git("commit", "-m", "merge with ADR")
+        status, report = self.command("--commit", "HEAD")
+        self.assertEqual(0, status)
+        self.assertIn("records read 1", report)
+        self.assertEqual(1, self.command()[0])
+
+    def test_post_commit_hook_reports_without_refusing_and_uses_checkout_tool(self):
+        hooks = self.root / "owning-hooks"
+        hooks.mkdir()
+        hook = hooks / "post-commit"
+        hook.write_bytes((REPO_ROOT / "tools/hooks/post-commit").read_bytes())
+        hook.chmod(0o755)
+        self.git("config", "core.hooksPath", hooks.as_posix())
+        tools = self.root / "tools"
+        tools.mkdir()
+        # The hook lives elsewhere; its command must resolve from this checkout.
+        (tools / "tracker_measurements.py").write_text(
+            "import sys\nfrom pathlib import Path\n"
+            f"sys.path.insert(0, {str(REPO_ROOT / 'tools')!r})\n"
+            "from tracker_measurements import main\n"
+            "raise SystemExit(main(sys.argv[1:], root=Path.cwd()))\n",
+            encoding="utf-8",
+        )
+        self.git("commit", "--allow-empty", "-m", "advance tip")
+        self.stage(self.base)
+        result = self.git("commit", "-m", "advisory finding")
+        self.assertIn(measurements.STALE_BASE, result.stderr)
+        result = self.git("commit", "--allow-empty", "-m", "unrelated")
+        self.assertNotIn("publication measurements", result.stderr)
+        self.stage(self.git("rev-parse", "HEAD").stdout.strip())
+        result = self.git("commit", "-m", "clean declaration")
+        self.assertIn("findings 0", result.stderr)
+        (tools / "tracker_measurements.py").write_text(
+            "import sys\nprint('fixture scan unavailable', file=sys.stderr)\nraise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        self.stage(self.git("rev-parse", "HEAD").stdout.strip())
+        result = self.git("commit", "-m", "unreadable advisory still permits commit")
+        self.assertIn("fixture scan unavailable", result.stderr)
+
+
 class SupersessionOnlyAdrProof(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -260,6 +388,18 @@ class SupersessionOnlyAdrProof(unittest.TestCase):
         # Tracker publications retain their existing current-base check.
         self.assertEqual([measurements.STALE_BASE],
                          [row.rule for row in measurements.grade(self.original, "issue", CURRENT)])
+
+    def test_annotation_amend_can_prove_preservation_against_tip_parent(self):
+        self.write(self.old_path, self.original.replace("Old words.", "Draft words."))
+        self.commit("draft edit to replace by amend")
+        self.annotate()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            self.assertEqual(0, measurements.main(["--staged-adrs"], root=self.root))
+        self.git("commit", "--amend", "-m", "annotations only")
+        with redirect_stdout(stdout):
+            self.assertEqual(0, measurements.main(["--commit", "HEAD"], root=self.root))
+            self.assertEqual(0, measurements.main([], root=self.root))
 
     def test_changed_measurement_declaration_or_arbitrary_body_is_refused(self):
         for body in (
@@ -310,6 +450,7 @@ class SupersessionOnlyAdrProof(unittest.TestCase):
         original = self.original + "\n" + legacy + "\n"
         self.write(self.old_path, original)
         self.commit("historical legacy marker")
+        self.git("commit", "--allow-empty", "-m", "retain legacy in both candidate bases")
         normalized = legacy.replace("Superseded grounding marked", "Superseded")
         self.annotate(self.original + "\n" + normalized + "\n")
         self.assertEqual((), measurements.grade_staged_adrs(self.root).findings)
@@ -348,6 +489,7 @@ class SupersessionOnlyAdrProof(unittest.TestCase):
         legacy = '*Corrected 2099-04-17.* The words "Old words." were replaced by [ADR 0280](0280-new.md) ruling 1. The measurement remains historical.'
         self.write(self.old_path, self.original + "\n" + legacy + "\n")
         self.commit("dated historical correction")
+        self.git("commit", "--allow-empty", "-m", "retain correction in both candidate bases")
         normalized = legacy.replace("*Corrected ", "*Superseded ", 1)
         self.annotate(self.original + "\n" + normalized + "\n")
         self.assertEqual((), measurements.grade_staged_adrs(self.root).findings)

@@ -133,9 +133,10 @@ EOF
         fi
 
         # **The next refusing check.** #961. A staged ADR that opts into the
-        # publication-base declaration must still name this pre-commit HEAD.
-        # The command reads the index rather than the worktree, and a branch
-        # advance therefore refuses until the measurement is re-derived.
+        # publication-base declaration names pre-commit HEAD or its first parent
+        # (ADR 0425), since hooks cannot distinguish an amend. The index is read,
+        # not the worktree. Post-commit reports which base was actually correct;
+        # CI keeps the full exact audit. Branch drift still fires the check.
         if git diff --cached --name-only --no-renames --diff-filter=ACM \
             | grep -Eq '^docs/adr/[^/]*\.md$'; then
             "$python" "$repo_root/tools/tracker_measurements.py" --staged-adrs >&2 || status=1
