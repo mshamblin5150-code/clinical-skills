@@ -178,7 +178,8 @@ class ModuleRootProperty(unittest.TestCase):
                     f"{path.name}:{line}" for line in account_owned_literal_joins(source)
                 )
 
-        self.assertEqual(len(population), 50)
+        # #1890 adds a checkout-local committed CI pin, not account-owned state.
+        self.assertEqual(len(population), 51)
         self.assertEqual(offenders, [])
 
 

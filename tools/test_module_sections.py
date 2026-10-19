@@ -127,6 +127,7 @@ DECLARED_SECTIONS = {
     "procedure_codes_build": "Procedure-code database",
     "procedure_codes_lookup": "Procedure-code database",
     "python_floor": "Continuous integration",
+    "maintainer_python": "Continuous integration",
     "reference_scan": "Reference scan",
     "reference_class_census": "Reference-class census",
     "refusal_scan": "Refusal scan",

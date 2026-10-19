@@ -205,6 +205,9 @@ changing write. Its coverage boundary is `refutation_apply.DECLARED_LIMITS`.
 
 ### Console codec
 
+**Correction, 2026-10-19:** `maintainer_python.py` is a direct command; its command path calls
+`use_utf8()` then `require_python_floor()` before comparing the local interpreter with the CI pin.
+
 **Correction, 2026-10-12:** `refutation_apply.py` is a direct command whose command path calls
 `use_utf8()` then `require_python_floor()`.
 
@@ -3187,7 +3190,7 @@ Covered by `tools/test_scratch_census.py` and the root-shape mutant guard in `to
 
 ### Continuous integration
 
-`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The maintainer job at Python `3.14` runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`. Neither job installs anything. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
+`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The pinned maintainer job runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`, and the floating Python `3.14` canary runs the same suite. No job installs dependencies. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
 
@@ -3201,7 +3204,7 @@ Covered by `tools/test_scratch_census.py` and the root-shape mutant guard in `to
 
 That was the sharpest risk in the ticket and it is answered rather than closed: `scratch/` is gitignored PHI that must never reach a runner, so **in CI the corpus layer is dead on every run that will ever happen**, and the `--all` mode leaves the path layer inapplicable too. Two of three layers dark, on the rule that matters most. It is scanned anyway because the shape layer caught a real date of birth on #64, and because **CI is not the weak configuration — it is the ordinary one**: agents commit from worktrees, where the corpus layer is already dead ([#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)).
 
-**`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason: it matches the machine every commit here is made from.
+**`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. The maintainer job reads its exact Python release from `.github/maintainer-python-version`; the floating Python `3.14` canary reports failures from newer releases before the maintainer upgrades, under [ADR 0431](docs/adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md). Both tracker jobs read that same pin. At commit time, `python tools/maintainer_python.py` prints an advisory if the local interpreter differs or the pin cannot be read, and stays silent on a match.
 
 **"No consumer runs these tools" was written here and in ADR 0002 and it is false.** [AGENTS.md](AGENTS.md) says `icd10-cpt` and — since #46 — `clinical-note` both look codes up by running `tools/icd10_lookup.py`, so *"an agent that cannot run the script is working from recall."* **A consumer runs Python on the critical path.** On the ICD lookup path, `icd10_lookup.py`, `icd10_build.py`, and `console_codec.py` take the future import, do not call `zip(strict=)`, and parse at 3.7. `practicum-case-study` also requires the separate `render_scan.py` path through `run_grader` and runtime PyMuPDF. So **there are consumer and tooling floors here, and this job measures neither.**
 
@@ -3213,8 +3216,8 @@ file, closed over local imports. The tooling number is a ratchet over every trac
 clean static walk cannot establish. Every command path calls `require_python_floor()` immediately
 after `use_utf8()`, so an older interpreter gets one legible line and exit 2 instead of a traceback.
 
-The floor job now runs the full suite on that declared consumer floor. The separate Python `3.14`
-job still matches the maintainer's machine and retains every merge, PHI-shape, threshold and tracker
+The floor job now runs the full suite on that declared consumer floor. The separate pinned maintainer
+job matches the maintainer's machine and retains every merge, PHI-shape, threshold and tracker
 check above. The two floors are allowed to diverge in the object; if the tooling ratchet ever rises,
 the single floor job must split rather than hiding the difference behind a prose edit. The three
 `contextlib.chdir` calls that had silently raised the tooling floor to 3.11 were replaced with
