@@ -193,6 +193,11 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
+        "drug intent prose negation scope",
+        "Only not, no, denies, denied, without, negative for, and never negate following intent words, through the next comma, semicolon, or period. And and but do not end the scope; double negation is read as a single negation.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "writer self-grade independence and comparison",
         "Descriptor-words agreement is a reading; separation from private self-records is declared, not enforced. The report-only comparison regrades supplied records against the current paired files, not a historical saved grade.",
         run_grader.EvidenceDisposition.DECLARED_READING,
@@ -714,6 +719,7 @@ DRUG_REACTION_PATTERN = r"\b(?:adverse effect|reaction|side effect)\b"
 DRUG_SELF_HARM_PATTERN = r"\b(?:self[- ]harm|suicid(?:e|al))\b"
 DRUG_INTENTIONAL_PATTERN = r"(?<!\bnon-)\bintentional\b"
 DRUG_ASSAULT_PATTERN = r"\b(?:assault(?:ed)?|assailant)\b"
+DRUG_NEGATION_PATTERN = r"\b(?:not|no|denies|denied|without|negative for|never)\b"
 DRUG_HEDGE_PATTERN = r"\b(?:possible|possibly|suspected|perhaps|may have been)\b"
 DRUG_UNDETERMINED_PATTERN = r"\b(?:intent cannot be determined|undetermined intent)\b"
 DRUG_POISONING_PATTERN = (
@@ -735,9 +741,11 @@ def _drug_column_agrees(column: str, agreeing_words: str, subject_code: str = ""
         re.search(DRUG_PROPER_USE_PATTERN, words)
         and re.search(DRUG_REACTION_PATTERN, words)
     )
-    self_harm = bool(re.search(DRUG_SELF_HARM_PATTERN, words))
-    intentional = bool(re.search(DRUG_INTENTIONAL_PATTERN, words))
-    assault = bool(re.search(DRUG_ASSAULT_PATTERN, words))
+    # Intent alone reads the unnegated spans; exposure and use keep their words.
+    intent_words = re.sub(DRUG_NEGATION_PATTERN + r"[^,;.]*", "", words)
+    self_harm = bool(re.search(DRUG_SELF_HARM_PATTERN, intent_words))
+    intentional = bool(re.search(DRUG_INTENTIONAL_PATTERN, intent_words))
+    assault = bool(re.search(DRUG_ASSAULT_PATTERN, intent_words))
     hedged_intent = bool(
         re.search(DRUG_HEDGE_PATTERN, words)
         and (self_harm or intentional or assault)
@@ -1316,8 +1324,11 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "assault takes Undetermined first; then self-harm or intentional without assault takes "
     "Intentional self-harm; then assault takes Assault; otherwise intent defaults to "
     "Accidental (unintentional), so hedged self-harm or assault agrees only with undetermined. "
-    "ADR 0383's flat-denial rule awaits #1636; the current intent patterns still read "
-    "negated intent words as affirmative. A differential "
+    f"Before testing intent, negation `{DRUG_NEGATION_PATTERN}` removes following self-harm, "
+    "intentional and assault signals up to the next comma, semicolon or period, and nothing "
+    "before the cue. Negation is applied before hedging; a hedge needs a surviving intent "
+    "signal. Once poisoning is established, a flat denial of every intent signal agrees "
+    "only with Accidental (unintentional). A differential "
     "code is read against the diagnosis considered by its entry. A history condition takes a present-tense code only when it coexists at this encounter "
     "and required or affected this visit's care, treatment, or management. Personal-history "
     "and status codes require an effect on current care. Filled reasoning earns a code only "

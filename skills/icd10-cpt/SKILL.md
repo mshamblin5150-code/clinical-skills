@@ -295,9 +295,7 @@ self-harm* and *no assault* all take the accidental stem. A denial is one of *no
 *denied*, *without*, *negative for* or *never*, and it covers only the intent words after it, up to
 the next comma, semicolon or period. So *no vomiting, intentional overdose* keeps its intent, and
 *intentional overdose; patient denies* stays self-harm, because the clinician's unhedged word is the
-determination. Until [#1636](https://github.com/mshamblin5150-code/clinical-skills/issues/1636) is
-built, `anchor_scan.py` reads such a denial as asserting intent and reports the accidental column as
-a finding; code accidental anyway, as
+determination, as
 [ADR 0383](../../docs/adr/0383-a-flat-denial-of-intent-is-accidental-and-a-negation-reaches-forward-to-the-end-of-its-clause.md)
 rules.
 
