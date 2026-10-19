@@ -155,7 +155,8 @@ evidence without printing private values. The complete boundary belongs to `meda
 `run_record_reader.read_tool_record` distinguishes missing tool-written records from unreadable
 bytes or schema; the caller supplies the decoder. The UpToDate logs and new readback command use it.
 
-Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
+This section documents command implementations for maintainers. Consumer requirements belong
+to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.
 
 ### Heredoc write guard
 

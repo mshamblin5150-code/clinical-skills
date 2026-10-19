@@ -62,6 +62,25 @@ class Disclosure(unittest.TestCase):
         (self.run / outbound_search.PULLS).write_text('{"search_id":', encoding="utf-8")
         self.assertEqual((2, ""), self.block())
 
+    def test_wrong_shape_search_record_cannot_disappear_from_the_population(self):
+        for row in ({}, {"search_id": "lost", "passed": True},
+                    {"query": "cough", "passed": True}):
+            with self.subTest(row=row):
+                (self.run / outbound_search.SEARCHES).write_text(json.dumps(row) + "\n")
+                self.assertEqual((2, ""), self.block())
+
+    def test_unterminated_failed_pull_tail_is_unread_not_an_empty_population(self):
+        self.note.write_text(NOTE + "\nFILLED [thresholds/hypertension aha-2025; uptodate pull failed\n", encoding="utf-8")
+        self.assertEqual((2, ""), self.block())
+
+    def test_mismatched_search_displays_whether_sent_words_passed_identifier_check(self):
+        (self.run / outbound_search.SEARCHES).write_text(json.dumps({"search_id": "search-a", "passed": True, "query": "cough"}) + "\n")
+        for passed in (True, False):
+            (self.run / outbound_search.PULLS).write_text(json.dumps({"search_id": "search-a", "outcome": "mismatched", "query_readback": "cough stray", "sent_query_passed": passed}) + "\n")
+            status, text = self.block()
+            self.assertEqual(0, status)
+            self.assertIn("sent-query identifier check: " + ("passed" if passed else "refused"), text)
+
     def test_shown_block_cannot_grow_extra_details(self):
         self.assertFalse(uptodate_block.shown_matches(EMPTY + "- invented detail\n", EMPTY))
 
@@ -85,6 +104,27 @@ class Disclosure(unittest.TestCase):
                         else:
                             with self.assertRaisesRegex(approval_record.ApprovalRecordError, "UpToDate"):
                                 approve()
+
+    def test_unreadable_transcript_records_incomplete_approval(self):
+        with mock.patch.object(approval_record, "_main_transcripts", return_value=([], True)), mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
+            approval_record.approve(self.run, skill="clinical-note", submission="note", sources=(self.note,),
+                grader_args=(str(self.run),), content_approved=True, clinician_reply="Approved.")
+        item = json.loads((self.run / approval_record.RECORD).read_text())["items"][0]
+        self.assertEqual("incomplete", item["pregrade_status"])
+        self.assertEqual("unreadable", item["shown_text_verification"])
+
+    def test_disclosure_must_be_after_sources_and_before_reply_in_codex_chat(self):
+        transcript = self.run / "session.jsonl"
+        for timestamp, expected in (("1970-01-01T00:00:00Z", "not found"),
+                                    ("2100-01-01T10:00:00Z", "verified"),
+                                    ("2100-01-01T12:00:00Z", "not found")):
+            with self.subTest(timestamp=timestamp):
+                transcript.write_text(json.dumps({"type": "response_item", "timestamp": timestamp,
+                    "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": EMPTY}]}}) + "\n")
+                with mock.patch.object(aar_scan, "discover_transcripts", return_value=aar_scan.TranscriptDiscovery((transcript,), 1, 0, 0, 1)):
+                    from datetime import datetime
+                    result = approval_record.verify_uptodate_block(self.run, (self.note,), datetime.fromisoformat("2100-01-01T11:00:00+00:00").timestamp())
+                    self.assertEqual(expected, result.state)
 
 
 if __name__ == "__main__":

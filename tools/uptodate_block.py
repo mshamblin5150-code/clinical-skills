@@ -53,7 +53,10 @@ def render(run: Path, notes: tuple[Path, ...]) -> str:
             pull = joined[0]
             bound.add((sheet, row, dump))
             conflicts.append(f"{note.name} | thresholds/{sheet} {row} | {topic}, updated {updated}, {dump} | {pull['difference']}")
-        for match in FALLBACK.finditer(text):
+        fallbacks = tuple(FALLBACK.finditer(text))
+        if len(re.findall(r";\s*uptodate pull failed", text, re.I)) != len(fallbacks):
+            raise ValueError("UpToDate failed-pull tail is unreadable")
+        for match in fallbacks:
             if not any(pull.get("outcome") == "failed" for pull in pulls):
                 raise ValueError("failed conflict tail has no failed-pull record")
             conflicts.append(f"{note.name} | {match[1]} | sheet kept; uptodate pull failed")
@@ -66,7 +69,8 @@ def render(run: Path, notes: tuple[Path, ...]) -> str:
             elif (pull["sheet"], pull["row"], pull["dump_id"]) not in bound:
                 raise ValueError("UpToDate conflict live pull is absent from note tails")
     failures = [f"{pull['search_id']} | {pull['decision']} | {pull['instrument']}" for pull in pulls if pull.get("outcome") == "failed"]
-    mismatches = [f"{pull['search_id']} | {pull['query_readback']}" for pull in pulls if pull.get("outcome") == "mismatched"]
+    mismatches = [f"{pull['search_id']} | {pull['query_readback']} | sent-query identifier check: {'passed' if pull['sent_query_passed'] else 'refused'}"
+                  for pull in pulls if pull.get("outcome") == "mismatched"]
     lines = []
     for heading, entries in zip(HEADINGS, (conflicts, failures, mismatches)):
         lines.append(f"{heading}: {len(entries) if entries else 'none'}")

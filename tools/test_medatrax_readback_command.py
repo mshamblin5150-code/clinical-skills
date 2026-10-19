@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,6 +46,7 @@ class ReadbackCommand(unittest.TestCase):
         self.assertFalse(medatrax_posting.completion_gate(self.run, "shift", batch=True)[0])
 
     def test_no_write_for_stray_line_bad_patient_or_malformed_duration(self):
+        clean = copy.deepcopy(self.payload)
         for mutate in (
             lambda: self.payload.update(posted="time\nstray copied line"),
             lambda: self.payload["visits"][0].update(patient=1),
@@ -52,10 +54,22 @@ class ReadbackCommand(unittest.TestCase):
             lambda: self.payload["time_log"].update(minutes=60),
         ):
             with self.subTest(mutate=mutate):
-                self.setUp()
+                self.payload = copy.deepcopy(clean)
                 mutate()
                 self.assertEqual(2, self.invoke("write"))
                 self.assertFalse((self.run / "reread.md").exists())
+
+    def test_standalone_output_note_and_no_requested_time_log(self):
+        note = self.run / "note-3.md"
+        output = self.run / "output" / "encounter.md"
+        output.parent.mkdir()
+        note.rename(output)
+        self.payload["time_log"] = None
+        self.input.write_text(json.dumps(self.payload), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(0, medatrax_posting.main(["write", "--run", str(self.run), "--submission", "note", "--notes", str(output), "--input", str(self.input)]))
+            self.assertEqual(0, medatrax_posting.main(["check", "--run", str(self.run), "--submission", "note", "--notes", str(output)]))
+        self.assertIn("TIME-LOG: not requested", (self.run / "reread.md").read_text())
 
     def test_hand_edited_stray_line_and_whole_hours_are_refused_before_aar(self):
         self.assertEqual(0, self.invoke("write"))

@@ -74,6 +74,14 @@ def records(path: Path) -> list[dict]:
         rows = [json.loads(line) for line in text.splitlines() if line.strip()]
         if any(not isinstance(row, dict) for row in rows):
             raise ValueError("record line must be an object")
+        for row in rows:
+            if not isinstance(row.get("search_id"), str) or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", row["search_id"]) is None:
+                raise ValueError("record needs a search id")
+            if path.name == SEARCHES:
+                if row.get("passed") is not True or not isinstance(row.get("query"), str) or not row["query"].strip():
+                    raise ValueError("search record needs a passed query")
+            elif not valid_outcome(row):
+                raise ValueError("pull record needs a complete outcome")
         return rows
     return read_tool_record(path, decode) or []
 
@@ -126,7 +134,8 @@ def valid_outcome(row: dict) -> bool:
     if outcome == "failed":
         return all(isinstance(row.get(key), str) and bool(row[key].strip()) for key in ("decision", "instrument"))
     if outcome == "mismatched":
-        return isinstance(row.get("query_readback"), str) and bool(row["query_readback"].strip())
+        return (isinstance(row.get("query_readback"), str) and bool(row["query_readback"].strip())
+                and type(row.get("sent_query_passed")) is bool)
     return False
 
 
