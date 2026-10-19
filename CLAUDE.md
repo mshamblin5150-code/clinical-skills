@@ -1924,6 +1924,16 @@ owning checkout, `python tools/install_run_status_guard.py` installs the same ho
 user-level Codex Stop hooks by absolute owning-checkout path. Repeating the command replaces only
 its own registration.
 
+### Unreadable hook payloads
+
+The command guards and end-of-turn checks read harness payloads through
+`hook_payload.read_payload` under ADR 0392. Each guard declares its raw trigger
+and unreadable posture in its own limits object; the shared reader's boundary
+belongs to `hook_payload.DECLARED_LIMITS`. A guard added later joins through that
+reader. `tools/test_hook_payload.py` drives the installed command entry points
+with planted unreadable payloads. Host display of the emitted warning fields
+requires a live harness observation; command output alone does not establish it.
+
 ### Browser tab hook
 
 The browser-tab `PreToolUse` hook is registered without an `if` condition in

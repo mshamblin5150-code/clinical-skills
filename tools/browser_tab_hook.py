@@ -20,6 +20,7 @@ import sys
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 
 
@@ -102,6 +103,7 @@ PAGE_ACTIONS = frozenset(
 )
 
 DECLARED_LIMITS = (
+    ('Unreadable harness payload', 'Unreadable payloads refuse when raw tabId is absent unless a family tab-listing or tab-opening tool is named; otherwise allow with both notes. Escaped or split names evade the raw search, and a batch with tabId in only one action passes it.'),
     (
         "schema snapshot currency",
         "a new or renamed browser tool is not classified until its reviewed schema is added",
@@ -206,12 +208,21 @@ def handle(payload: Mapping[str, Any]) -> int:
     return 0
 
 
+def _raw_trigger(raw: str) -> bool:
+    exempt = (
+        family + roles[role]
+        for family, roles in BROWSER_TOOL_ROLES.items()
+        for role in ("context", "create")
+    )
+    return "tabId" not in raw and not any(name in raw for name in exempt)
+
+
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, OSError):
+    payload, response = read_payload("Browser tab guard", _raw_trigger)
+    if payload is None:
+        print(json.dumps(response))
         return 0
-    return handle(payload if isinstance(payload, dict) else {})
+    return handle(payload)
 
 
 if __name__ == "__main__":

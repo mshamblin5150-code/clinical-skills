@@ -17,6 +17,7 @@ import sys
 import tempfile
 from typing import Any, Mapping
 
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 
 
@@ -64,6 +65,7 @@ ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
+    'Unreadable hook payloads always allow the stop with a systemMessage warning that the turn was not graded; no raw trigger is applied.',
     "Material reachable only through a link or junction is not entered and does not make a run touched.",
     "A run is in scope when a tool-call input names its directory, a readable durable approval record names an approved item, and either a file beneath it changed after the transcript's session start (excluding run-status.json) or the walk cannot establish no change.",
     "When no session start can be read, the session falls back to the transcript mention rule.",
@@ -74,7 +76,7 @@ DECLARED_LIMITS = (
     "Waiting-status truth beyond complete and the presence of a stopped reason remains a clinician reading.",
     "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
     "Malformed transcript rows and unreadable approval records cannot establish an open approved run.",
-    "An unreadable hook payload or a missing transcript path allows the stop without grading.",
+    "A missing transcript path allows the stop without grading.",
 )
 
 
@@ -536,11 +538,9 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
 
 
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-    except (UnicodeError, json.JSONDecodeError, OSError):
-        payload = {}
-    response = handle(payload if isinstance(payload, dict) else {})
+    payload, response = read_payload('run_status_stop_hook')
+    if payload is not None:
+        response = handle(payload)
     if response:
         json.dump(response, sys.stdout, ensure_ascii=False)
     return 0

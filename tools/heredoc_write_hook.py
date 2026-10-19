@@ -11,10 +11,12 @@ import sys
 import command_reader
 import repo_root
 import shell_reader
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 
 
 DECLARED_LIMITS = (
+    ('Unreadable harness payload', 'Unreadable payloads refuse only on raw << together with scratch or output; otherwise allow with both notes. Escaped or split literals can evade the raw search.'),
     ("Python bodies are a floor", "Only literal open calls and pathlib file writes are read; "
      "computed paths, aliases, and arbitrary Python execution are outside the read."),
     ("Unresolvable targets are unread", "Variables, substitutions, unknown command folders, "
@@ -200,11 +202,9 @@ def handle(payload: dict) -> dict:
 
 
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-        response = handle(payload) if isinstance(payload, dict) else {}
-    except (ValueError, OSError, TypeError):
-        response = {}
+    payload, response = read_payload('heredoc_write_hook', lambda raw: "<<" in raw and ("scratch" in raw or "output" in raw))
+    if payload is not None:
+        response = handle(payload)
     print(json.dumps(response))
     return 0
 

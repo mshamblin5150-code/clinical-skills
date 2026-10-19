@@ -9,6 +9,7 @@ import re
 import sys
 from typing import Any, Mapping
 
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 
 
@@ -38,6 +39,7 @@ RETRACT_REASON = (
 )
 
 DECLARED_LIMITS = (
+    'Unreadable hook payloads always allow the stop with a systemMessage warning that the turn was not graded; no raw trigger is applied.',
     "A skill load is recognized only in a completed Codex command record whose parsed command classifies the SKILL.md path as a read.",
     "A renamed grilling skill is not active until its SKILL.md directory name is added.",
     "Malformed or unreadable transcript rows cannot establish that grilling is active.",
@@ -219,11 +221,9 @@ def handle(
 
 
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, OSError):
-        payload = {}
-    response = handle(payload if isinstance(payload, dict) else {})
+    payload, response = read_payload('grilling_stop_hook')
+    if payload is not None:
+        response = handle(payload)
     if response:
         json.dump(response, sys.stdout, ensure_ascii=False)
     return 0
