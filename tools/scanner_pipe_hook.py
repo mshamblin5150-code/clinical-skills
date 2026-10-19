@@ -9,10 +9,12 @@ import shlex
 import sys
 
 import command_reader
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 
 
 DECLARED_LIMITS = (
+    ('Unreadable harness payload', 'Unreadable payloads refuse only on raw | together with a guarded tools/*.py filename; otherwise allow with both notes. Escaped or split literals can evade the raw search.'),
     ('PowerShell is not read or refused',
      'ADR 0299 measured PowerShell 7.6.6 on 2026-10-08: cmdlet filters '
      'preserved $LASTEXITCODE and conditional status; findstr lost them. '
@@ -148,11 +150,9 @@ def handle(payload: dict) -> dict:
 
 
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-        response = handle(payload) if isinstance(payload, dict) else {}
-    except (ValueError, OSError, TypeError):
-        response = {}
+    payload, response = read_payload('scanner_pipe_hook', lambda raw: "|" in raw and any(path.name in raw for path in Path(__file__).parent.glob("*.py")))
+    if payload is not None:
+        response = handle(payload)
     print(json.dumps(response))
     return 0
 

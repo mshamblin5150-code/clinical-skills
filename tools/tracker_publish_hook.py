@@ -71,6 +71,7 @@ from command_reader import (
     UnclassifiedApiCall, Unreadable, extract,
 )
 from tracker_publish_marker import record_run
+from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
 from tracker_records import TrackerRecord, from_command, from_graphql
 from tracker_bodies import ordinary_paragraph_prose
@@ -88,6 +89,7 @@ AAR_RULES = (AAR_QUOTATION_RULE,)
 AAR_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NOT_REACHED = (
+    ('Unreadable harness payload', 'Unreadable payloads refuse only on raw gh; otherwise allow with both notes. Escaped or split literals can evade the raw search.'),
     ("run material behind links is not compared", "Links and junctions are not entered; their count is reported without denying publication."),
     (
         "the GitHub web UI bypasses the hook",
@@ -1120,15 +1122,8 @@ def main(argv: list[str] | None = None) -> int:
     if arguments:
         print("tracker pre-publish: unsupported arguments", file=sys.stderr)
         return 2
-    try:
-        payload = json.load(sys.stdin)
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        response = _hook_response(
-            None,
-            "tracker pre-publish HOOK FAILURE: "
-            f"Unreadable body ({type(exc).__name__})",
-        )
-    else:
+    payload, response = read_payload('tracker_publish_hook', lambda raw: "gh" in raw)
+    if payload is not None:
         response = _handle(payload)
     print(json.dumps(response, sort_keys=True))
     return 0

@@ -2328,7 +2328,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(status, 0)
         write_marker.assert_called_once_with()
         self.assertIn(
-            "HOOK FAILURE",
+            "unreadable hook payload",
             json.loads(stdout.getvalue())["hookSpecificOutput"]["additionalContext"],
         )
 
@@ -2546,6 +2546,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
             {
+                'Unreadable harness payload',
                 'a commit outside a session does not run the marker',
                 'a failed tracker readback leaves the publication context-blind',
                 'a stock discriminator clause can satisfy the verdict form check',
