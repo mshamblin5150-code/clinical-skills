@@ -51,6 +51,8 @@ def refusal(query: str, profile: Path) -> str | None:
         return "search must be one nonempty line"
     if any(character.isdigit() for character in query):
         return "digits are refused"
+    # ADR 0415 ruling 6 widens these shared patterns to digit boundaries,
+    # including T-joined dates. This pretyping refusal inherits that boundary.
     if DATE_WORD.search(query) or any(pattern.search(query) for pattern in (phi_scan.NUMERIC_CORPUS_DATE, phi_scan.ISO_CORPUS_DATE, phi_scan.WRITTEN_CORPUS_DATE)):
         return "date shapes are refused"
     if phi_scan.missing_corpus_sources():
