@@ -1,6 +1,6 @@
 # The threshold sheet gate refuses a control character anywhere in a sheet and a suite test covers every reference and skill file
 
-**Measured at:** 72133a636d1678814c7701bbbe9a2c569bd2fd09
+**Measured at:** 6743fa0f15c51c02eaa8921650800b57d042369d
 
 [#1861](https://github.com/mshamblin5150-code/clinical-skills/issues/1861) was filed from the
 grilling of #1755 under
