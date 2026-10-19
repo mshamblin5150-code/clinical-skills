@@ -708,38 +708,52 @@ NEOPLASM_COLUMNS = (
 )
 
 
-def _drug_column_agrees(column: str, agreeing_words: str) -> bool:
+DRUG_UNDERDOSING_PATTERN = r"\b(?:taking|took|take|using|used) less\b|\bstopp?ed\b.*\bon (?:his|her|their) own\b"
+DRUG_PROPER_USE_PATTERN = r"\b(?:properly administered|as prescribed|correctly prescribed)\b"
+DRUG_REACTION_PATTERN = r"\b(?:adverse effect|reaction|side effect)\b"
+DRUG_SELF_HARM_PATTERN = r"\b(?:self[- ]harm|suicid(?:e|al))\b"
+DRUG_INTENTIONAL_PATTERN = r"(?<!\bnon-)\bintentional\b"
+DRUG_ASSAULT_PATTERN = r"\b(?:assault(?:ed)?|assailant)\b"
+DRUG_HEDGE_PATTERN = r"\b(?:possible|possibly|suspected|perhaps|may have been)\b"
+DRUG_UNDETERMINED_PATTERN = r"\b(?:intent cannot be determined|undetermined intent)\b"
+DRUG_POISONING_PATTERN = (
+    r"\b(?:overdose|poisoning|ingestion|got into|wrong (?:drug|substance|route)|"
+    r"nonprescribed|with alcohol)\b"
+)
+TOXIC_EFFECT_PREFIXES = tuple(f"T{number}" for number in range(51, 66))
+
+
+def _drug_column_agrees(column: str, agreeing_words: str, subject_code: str = "") -> bool:
     words = agreeing_words.lower()
+    toxic_effect = subject_code.replace(".", "").upper().startswith(
+        TOXIC_EFFECT_PREFIXES
+    )
     underdosing = bool(
-        re.search(r"\b(?:taking|took|take|using|used) less\b|\bstopp?ed\b.*\bon (?:his|her|their) own\b", words)
+        re.search(DRUG_UNDERDOSING_PATTERN, words)
     )
     adverse = bool(
-        re.search(r"\b(?:properly administered|as prescribed|correctly prescribed)\b", words)
-        and re.search(r"\b(?:adverse effect|reaction|side effect)\b", words)
+        re.search(DRUG_PROPER_USE_PATTERN, words)
+        and re.search(DRUG_REACTION_PATTERN, words)
     )
-    self_harm = bool(re.search(r"\b(?:self[- ]harm|suicid(?:e|al))\b", words))
-    intentional = bool(re.search(r"(?<!\bnon-)\bintentional\b", words))
-    assault = bool(re.search(r"\b(?:assault(?:ed)?|assailant)\b", words))
+    self_harm = bool(re.search(DRUG_SELF_HARM_PATTERN, words))
+    intentional = bool(re.search(DRUG_INTENTIONAL_PATTERN, words))
+    assault = bool(re.search(DRUG_ASSAULT_PATTERN, words))
     hedged_intent = bool(
-        re.search(r"\b(?:possible|possibly|suspected|perhaps|may have been)\b", words)
+        re.search(DRUG_HEDGE_PATTERN, words)
         and (self_harm or intentional or assault)
     )
     undetermined = bool(
-        re.search(r"\b(?:intent cannot be determined|undetermined intent)\b", words)
+        re.search(DRUG_UNDETERMINED_PATTERN, words)
         or hedged_intent
     )
-    poisoning = bool(
-        re.search(
-            r"\b(?:overdose|poisoning|ingestion|got into|wrong (?:drug|substance|route)|"
-            r"nonprescribed|with alcohol)\b",
-            words,
-        )
+    poisoning = toxic_effect or bool(
+        re.search(DRUG_POISONING_PATTERN, words)
     )
 
     expected = None
-    if underdosing:
+    if underdosing and not toxic_effect:
         expected = "Underdosing"
-    elif adverse:
+    elif adverse and not toxic_effect:
         expected = "Adverse effect"
     elif poisoning and undetermined:
         expected = "Poisoning Undetermined"
@@ -969,7 +983,7 @@ def _route_status(
     if not normalized.startswith(stem):
         return RouteStatus.INVALID
     final_step = resolved[-1][0].rsplit(" > ", 1)[-1]
-    if final_step in DRUG_COLUMNS and not _drug_column_agrees(final_step, agreeing_words):
+    if final_step in DRUG_COLUMNS and not _drug_column_agrees(final_step, agreeing_words, normalized):
         return RouteStatus.INVALID
     if final_step in NEOPLASM_COLUMNS and not _neoplasm_column_agrees(final_step, agreeing_words):
         return RouteStatus.INVALID
@@ -1281,9 +1295,27 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "behavior takes unspecified behavior; uncertain behavior needs indeterminate "
     "pathology; malignant, secondary, in-situ, and benign columns need stated behavior "
     "or a morphology routed there; and a named benign morphology does not wait for "
-    "tissue. For drug-table routes, distinguish poisoning, proper-use adverse effect, "
-    "and underdosing; unstated poisoning intent defaults to accidental, while hedged "
-    "self-harm or assault agrees only with undetermined. A differential "
+    "tissue. For drug-table routes, the following exact patterns search agreeing_words "
+    "case-insensitively: "
+    f"underdosing `{DRUG_UNDERDOSING_PATTERN}`; proper use `{DRUG_PROPER_USE_PATTERN}` "
+    f"together with reaction `{DRUG_REACTION_PATTERN}`; medicine poisoning `{DRUG_POISONING_PATTERN}`; "
+    f"self-harm `{DRUG_SELF_HARM_PATTERN}`; intentional `{DRUG_INTENTIONAL_PATTERN}`; "
+    f"assault `{DRUG_ASSAULT_PATTERN}`; hedge `{DRUG_HEDGE_PATTERN}`; "
+    f"undetermined intent `{DRUG_UNDETERMINED_PATTERN}`. "
+    f"For subject-code prefixes {', '.join(TOXIC_EFFECT_PREFIXES)}, the substance route "
+    "establishes exposure and no poisoning word is required; only intent chooses among "
+    "the four Poisoning columns, with no adverse-effect or underdosing branch. "
+    "Whether the exposure caused harm remains the reader's judgment. For medicine codes, "
+    "underdosing takes precedence, then proper use together with reaction takes Adverse effect, "
+    "otherwise the current check requires the medicine poisoning pattern. ADR 0430's "
+    "code-set or quoted column-ground treatment for medicines awaits #1889; toxicity alone "
+    "settles no medicine column, and check the medication list and history for proper use. "
+    "For poisoning, undetermined intent or a hedge together with self-harm, intentional or "
+    "assault takes Undetermined first; then self-harm or intentional without assault takes "
+    "Intentional self-harm; then assault takes Assault; otherwise intent defaults to "
+    "Accidental (unintentional), so hedged self-harm or assault agrees only with undetermined. "
+    "ADR 0383's flat-denial rule awaits #1636; the current intent patterns still read "
+    "negated intent words as affirmative. A differential "
     "code is read against the diagnosis considered by its entry. A history condition takes a present-tense code only when it coexists at this encounter "
     "and required or affected this visit's care, treatment, or management. Personal-history "
     "and status codes require an effect on current care. Filled reasoning earns a code only "
