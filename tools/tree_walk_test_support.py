@@ -15,11 +15,11 @@ def denied_listing(directory: Path):
     if os.name != "nt":
         raise unittest.SkipTest("Windows icacls directory denial")
     principal = subprocess.run(
-        ["whoami"], capture_output=True, text=True, check=True
+        ["whoami"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True
     ).stdout.strip()
     result = subprocess.run(
         ["icacls", str(directory), "/deny", f"{principal}:(RD)", "/Q"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if result.returncode:
         raise unittest.SkipTest(f"icacls denial unavailable: {result.stderr.strip()}")
@@ -35,7 +35,7 @@ def denied_listing(directory: Path):
     finally:
         restored = subprocess.run(
             ["icacls", str(directory), "/remove:d", principal, "/Q"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         if restored.returncode:
             raise AssertionError(f"could not restore fixture ACL: {restored.stderr.strip()}")
@@ -54,7 +54,7 @@ def junctions(root: Path, target: Path) -> tuple[Path, ...]:
         path = root / name
         result = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(path), str(destination)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         if result.returncode:
             raise AssertionError(f"junction fixture failed: {result.stderr.strip()}")
