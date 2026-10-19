@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import tree_walk
+
 import json
 import os
 from dataclasses import dataclass
@@ -62,7 +64,8 @@ ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
-    "A run is in scope when a tool-call input names its directory and a file beneath it changed after the transcript's session start, excluding run-status.json, and a readable durable approval record names an approved item.",
+    "Material reachable only through a link or junction is not entered and does not make a run touched.",
+    "A run is in scope when a tool-call input names its directory, a readable durable approval record names an approved item, and either a file beneath it changed after the transcript's session start (excluding run-status.json) or the walk cannot establish no change.",
     "When no session start can be read, the session falls back to the transcript mention rule.",
     "A relative run path resolves against the hook process's working directory, which can differ from the command's working directory.",
     "A reply stating the status of a run this session only read is not checked.",
@@ -165,13 +168,22 @@ def _tool_inputs(record: Mapping[str, object]) -> tuple[str, ...]:
 
 def _changed_after(run: Path, started: float) -> bool:
     try:
+        walked = tree_walk.walk_files(run)
+    except FileNotFoundError:
+        # A command string can yield a nonexistent whole-command path as well
+        # as the actual run argument; it establishes no named run directory.
+        return False
+    except OSError:
+        return True
+    if walked.unreadable_directories:
+        return True
+    try:
         return any(
-            path.is_file() and path != run / STATE_RECORD
-            and path.stat().st_mtime > started
-            for path in run.rglob("*")
+            path != run / STATE_RECORD and path.stat().st_mtime > started
+            for path in walked.files
         )
     except OSError:
-        return False
+        return True
 
 
 def _run_mentions(value: str) -> tuple[Path, ...]:

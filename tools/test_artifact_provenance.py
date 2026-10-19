@@ -56,6 +56,7 @@ class ArtifactIdentityTables(unittest.TestCase):
                 "tools/prose_bind.py",
             },
             "extraction": {
+                "tools/tree_walk.py",
                 "tools/guidelines_extract.py",
                 "tools/page_text.py",
                 "tools/pdf_engine.py",
@@ -63,12 +64,14 @@ class ArtifactIdentityTables(unittest.TestCase):
                 "tools/artifact_provenance.py",
             },
             "index": {
+                "tools/tree_walk.py",
                 "tools/guidelines_index.py",
                 "tools/guidelines_index_artifact.py",
                 "tools/guidelines_manifest.py",
                 "tools/artifact_provenance.py",
             },
             "recs": {
+                "tools/tree_walk.py",
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
                 "tools/page_text.py",
@@ -79,16 +82,19 @@ class ArtifactIdentityTables(unittest.TestCase):
         }
         expected_floor = {
             "extraction": {
+                "tools/tree_walk.py",
                 "tools/guidelines_extract.py",
                 "tools/page_text.py",
                 "tools/pdf_engine.py",
                 "tools/guidelines_manifest.py",
             },
             "index": {
+                "tools/tree_walk.py",
                 "tools/guidelines_index.py",
                 "tools/guidelines_manifest.py",
             },
             "recs": {
+                "tools/tree_walk.py",
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
                 "tools/page_text.py",

@@ -308,6 +308,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
+from tree_walk import corpus_files
 from repo_root import InsideCheckout, ensure_outside_checkout
 
 UNSUPPRESSED_LINES = ("failure", "not-graded")
@@ -1681,7 +1682,7 @@ def orphaned_outputs(out_root: Path, records: list[Record]) -> list[Path]:
     the directory, not the manifest, and would pick the stale copy up.
     """
     claimed = {(out_root / record.output) for record in records if record.output}
-    return sorted(path for path in out_root.rglob("*.txt") if path not in claimed)
+    return sorted(path for path in corpus_files(out_root, "*.txt") if path not in claimed)
 
 
 def split_census_summary(records: list[Record], limit: int = 12) -> list[str]:
@@ -1807,7 +1808,7 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     if pdf_engine.engine_version() is None:
         raise _not_graded(pdf_engine.LEGACY_REQUIRE_MESSAGE)
 
-    pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
+    pdfs = sorted(corpus_files(source_root, "*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:
         raise _not_graded(f"no PDFs under {source_root}")
 
@@ -1959,7 +1960,7 @@ def main(argv: list[str]) -> int:
     try:
         with artifact_lock.hold(out_root, "extracting guideline text"):
             return _run(args, source_root, out_root)
-    except artifact_lock.ArtifactBusy as busy:
+    except (artifact_lock.ArtifactBusy, OSError) as busy:
         if _quiet_keeps("not-graded"):
             print(str(busy), file=sys.stderr)
         return 2

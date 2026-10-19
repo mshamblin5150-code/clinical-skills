@@ -206,6 +206,74 @@ class RunStatusContract(unittest.TestCase):
             if path.is_file():
                 os.utime(path, (1, 1))
 
+    def test_native_denied_subdirectory_requires_a_status_line(self):
+        from tree_walk_test_support import denied_listing
+        self.make_run_old()
+        denied = self.run / "secret-identifier"
+        denied.mkdir()
+        self.write_session(self.start_record(), command_record(self.run))
+        with denied_listing(denied):
+            response = self.grade("Finished.")
+        self.assertEqual("block", response["decision"])
+        self.assertNotIn(denied.name, response["reason"])
+
+    def check_links_do_not_touch_run(self, *, native):
+        from tree_walk_test_support import junctions
+        self.make_run_old()
+        target = self.root / "linked-target"
+        target.mkdir()
+        (target / "changed.txt").touch()
+        if native:
+            junctions(self.run, target)
+        else:
+            try:
+                (self.run / "link").symlink_to(target, target_is_directory=True)
+            except OSError as failure:
+                self.skipTest(str(failure))
+        self.write_session(self.start_record(), command_record(self.run))
+        self.assertEqual({}, self.grade("Read only."))
+
+    def test_native_junctions_do_not_touch_run(self):
+        self.check_links_do_not_touch_run(native=True)
+
+    def test_symbolic_link_does_not_touch_run(self):
+        self.check_links_do_not_touch_run(native=False)
+
+    def test_unreadable_subdirectory_requires_a_status_line(self):
+        self.make_run_old()
+        denied = self.run / "private-folder"
+        denied.mkdir()
+        self.write_session(self.start_record(), command_record(self.run))
+        scandir = os.scandir
+        def read(path):
+            if Path(path) == denied:
+                raise PermissionError("private-folder")
+            return scandir(path)
+        with mock.patch("tree_walk.os.scandir", side_effect=read):
+            response = self.grade("Finished.")
+            self.assertEqual("block", response["decision"])
+            self.assertEqual({}, self.grade(f"Run status: {self.run.name} \u2014 stopped - restore access"))
+        self.assertNotIn(denied.name, response["reason"])
+
+    def test_failed_file_stat_requires_a_status_line(self):
+        self.make_run_old()
+        self.write_session(self.start_record(), command_record(self.run))
+        source = self.run / "working.md"
+        source.touch()
+        original = Path.stat
+        def read(path, *args, **kwargs):
+            if path == source:
+                raise PermissionError("private-file")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(Path, "stat", read):
+            self.assertEqual("block", self.grade("Finished.")["decision"])
+        def vanished(path, *args, **kwargs):
+            if path == source:
+                raise FileNotFoundError("vanished")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(Path, "stat", vanished):
+            self.assertEqual("block", self.grade("Finished.")["decision"])
+
     def test_read_only_read_binds_nothing(self) -> None:
         self.make_run_old()
         record = {"type": "assistant", "message": {"role": "assistant", "content": [

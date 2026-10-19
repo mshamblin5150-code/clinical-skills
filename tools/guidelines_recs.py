@@ -141,6 +141,8 @@ nothing installed and **nothing a consumer runs imports this at all**.
 
 from __future__ import annotations
 
+from tree_walk import corpus_files
+
 import argparse
 import hashlib
 import json
@@ -1363,7 +1365,7 @@ def build_sweep(
     """Write one doc-id record per corpus PDF and the sweep manifest."""
     documents: list[dict[str, str]] = []
     pdfs = sorted(
-        source.rglob("*.pdf"),
+        corpus_files(source, "*.pdf"),
         key=lambda path: path.relative_to(source).as_posix(),
     )
     for path in pdfs:
@@ -1443,7 +1445,7 @@ def compare_marker_readers(path: Path, doc_id: str) -> tuple[int, int, int]:
 def compare_reader_corpus(root: Path) -> tuple[int, int, int]:
     """Print changed documents and return document, changed, and record totals."""
 
-    paths = sorted(root.rglob("*.pdf"), key=lambda path: path.relative_to(root).as_posix())
+    paths = sorted(corpus_files(root, "*.pdf"), key=lambda path: path.relative_to(root).as_posix())
     changed_documents = 0
     changed_records = 0
     for path in paths:
@@ -1517,7 +1519,11 @@ def main(argv: list[str]) -> int:
     if args.compare_readers and args.pdf.is_dir():
         if args.doc_id:
             parser.error("--doc-id cannot be used with a corpus directory")
-        documents, changed_documents, changed_records = compare_reader_corpus(args.pdf)
+        try:
+            documents, changed_documents, changed_records = compare_reader_corpus(args.pdf)
+        except OSError as failure:
+            print(str(failure), file=sys.stderr)
+            return 2
         if not documents:
             print(f"no PDFs under {args.pdf}", file=sys.stderr)
             return 2

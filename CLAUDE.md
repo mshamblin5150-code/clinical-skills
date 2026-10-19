@@ -1000,6 +1000,9 @@ not a `run_grader` member because it grades a committed registry rather than a p
 
 ### Reference-class census
 
+The shared walk never enters child links. Every report states `links not entered`
+and `subfolders unreadable`, including zero; an unreadable subfolder exits 2.
+
 The account-wide companion to *Reference scan* measures which declared APA source-class buckets appear in working and finished coursework. It imports that scanner's document reader and classifier, so the per-run row and the corpus report cannot assign one entry to different buckets.
 
 ```bash
@@ -1334,6 +1337,11 @@ gate. Exit 0 completes a stage or a clean review, 1 is a review finding, and 2 m
 or invocation could not complete. The complete ceiling belongs to `case_video.DECLARED_LIMITS`.
 
 ### Coursework project context
+
+Before recording a first draft observation, the context and voice-model identity
+writes use the shared walk. An unreadable subfolder exits 2 without saving the
+observation; restore read access and rerun. Links are not entered, and their
+count prints at write time without changing the saved observation.
 
 Before first prose, the five coursework skills write and confirm the purpose-named
 `project-context.md`, retrieve every place owed by the account registry at
@@ -1879,6 +1887,11 @@ rows.
 
 ### Approved run status guard
 
+The shared walk treats a named run as touched when a subfolder cannot be listed
+or a listed file cannot be checked for changes. The usual keyed `Run status:`
+line is then required. Child links are not entered; this hook has no report
+surface for their count, so its limits object names that boundary.
+
 `tools/run_status_stop_hook.py` enforces one keyed terminal `Run status:` line per touched approved
 run. Its `RUN_KINDS` table names each posting skill's durable approval record and terminal grader;
 the approval record names the skill, so shared discussion directories and clinical run prefixes do
@@ -1924,6 +1937,11 @@ boundary belongs to `browser_tab_hook.DECLARED_LIMITS`; this section points at
 that object and copies none of its rows.
 
 ### Tracker publish hook
+
+The AAR quotation check uses the shared walk and denies publication if a run
+subfolder cannot be listed or a compared file cannot be read. Its report gives
+unread subfolder and file counts, never names, and says to restore read access
+and retry. `links not entered` prints on the same report; links do not deny.
 
 The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
@@ -2186,6 +2204,11 @@ object and copies none of its rows.
 It reports paths and status words, never file contents, so its output is safe to paste. `--verbose` names the differing files and still prints none of them; the reason beside one is a fixed string held in the module and never anything read out of the file. Covered by `tools/test_skills_mirror.py`, which builds throwaway checkouts in a temp directory and never inspects or repairs the real one. **The one thing it reads from the tree is this section**, because the reason words are stated in the module docstring *and* here, and [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s lesson is that a prose edit to either copy fails nothing — so a test derives both words from the module and asserts this section names them.
 
 ### Spelling scan
+
+Folder mode uses the shared walk and always prints `links not entered` and an
+unread count. A subfolder it cannot list or a source file it cannot open exits 2;
+spelling findings still print. Links are not entered. Other modes keep their
+existing populations and statuses.
 
 Standing rule 4 — American English, always — with a command in front of it. The table lives in [clinical-note](skills/clinical-note/SKILL.md) under *Conventions*; `tools/spelling_scan.py` is that table made runnable, and `tools/test_spelling_scan.py` parses the skill's copy and asserts the two agree, so the scanner cannot start holding a different answer than the file a reader opens.
 
@@ -2462,6 +2485,10 @@ Covered by `tools/test_cdc_percentile.py`, which tests the calculator against CD
 
 ### Guideline text extraction
 
+The corpus producers and readers use the shared walk: child links are not entered,
+their count prints on every walk, and an unreadable subfolder exits 2. Restore
+read access and retry before treating a corpus build or comparison as complete.
+
 The society guideline PDFs are the source for everything in the #80 series, and nothing downstream reads a PDF — they read the `.txt` this produces.
 
 ```bash
@@ -2575,6 +2602,9 @@ Its parsers are covered by `tools/test_guidelines_extract.py` against committed 
 **The ACIP excerpt has now been wrong in both directions, and the reason is the same one both times: the shape is the test.** It first put the browser print timestamp on a line of its own; that was corrected to the folded form because `pypdf` welds the page title in after the stamp, and the classifier had been passing the fixture while finding zero print-captures in the corpus. #83 moved the extractor to PyMuPDF, the four header parts land on four lines again, and the fixture was corrected back — **rebuilt from the real file on 2026-08-16 rather than edited into the shape expected**, which is precisely what the previous round failed to do. All three ACIP files re-checked as `print-capture` afterwards — the name that class carried until #185 renamed it `web-capture`, and re-checked under the new name on 2026-08-19.
 ### Split census
 
+The source walk never enters child links and always prints `links not entered`,
+including zero. A subfolder it cannot list exits 2; restore read access and retry.
+
 The extractor above infers a space where the geometry says a word ends. This audits those
 inferences with the extractor's **current** rule rather than with a saved verdict.
 
@@ -2626,6 +2656,10 @@ python tools/uspstf_table.py "C:/codeing/guidelines-text"
 Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in `tools/testdata/uspstf/` — one per document layout the corpus contains — and **never against the shipped table**, for `test_icd10.py`'s reason. The excerpts are public domain; author names, affiliations and correspondence addresses are stripped from them anyway.
 
 ### Guideline catalog
+
+The catalog's shared manifest reader reports `links not entered` on every walk
+and refuses an unreadable extracted-text subfolder. The command exits 2 for
+that incomplete corpus rather than presenting a smaller catalog as complete.
 
 `reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class, stated citation. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
@@ -2735,6 +2769,10 @@ The catalog documents a `class` column and `guidelines_search.py --class` filter
 
 ### Guideline full-text index
 
+Source enumeration and manifest validation use the shared walk, always printing
+`links not entered`, including zero. An unreadable extracted-text subfolder
+exits 2; restore read access and retry before building or accepting the index.
+
 Candidate selection across the society corpus needs search. `tools/guidelines_index.py` builds an SQLite FTS5 index over the extracted text, and `tools/guidelines_search.py` queries it.
 
 ```bash
@@ -2807,6 +2845,10 @@ Its output is guideline text, so nothing here is PHI and standing rule 1 is not 
 Covered by `tools/test_guidelines.py` — one file for the pair, the way `tools/test_icd10.py` covers its builder and reader together — which builds a throwaway text directory and a throwaway index in a temp directory the way `tools/test_skills_mirror.py` builds throwaway checkouts. It never reads the real corpus or the real index: one is a copyrighted PDF corpus outside the repo, the other is a build artifact that may not exist on the machine running the tests.
 
 ### Recommendation extraction
+
+The recommendation sweep and reader comparison use the shared source walk.
+Each prints `links not entered`, including zero, and exits 2 for a subfolder
+it cannot list. Links are excluded without changing the command's status.
 
 The index finds a page. This reads a guideline's **recommendations** into machine-readable records, and it is [#83](https://github.com/mshamblin5150-code/clinical-skills/issues/83) gate 2's input.
 

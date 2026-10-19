@@ -14,6 +14,7 @@ from types import MappingProxyType
 from pathlib import Path
 
 from repo_root import scratch_path, output_root, scratch_root
+from tree_walk import WalkResult, is_link, walk_files
 
 
 TRAILING_DATE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
@@ -89,7 +90,11 @@ def voice_records_directory(run: Path, key: str) -> Path:
     return run / RECORDS_DIRECTORY / stem
 
 
-def draft_files(run: Path, key: str, start: Path | None = None) -> tuple[Path, ...]:
+class DraftWalkUnreadable(OSError):
+    """An incomplete walk must never become a permanent first observation."""
+
+
+def draft_files(run: Path, key: str, start: Path | None = None, *, reports: list[str] | None = None) -> tuple[Path, ...]:
     """Enumerate mapped prose and keyed staging in both relevant scratch roots."""
     submission_keys(key)
     stem = voice_records_directory(run, key).name
@@ -106,25 +111,82 @@ def draft_files(run: Path, key: str, start: Path | None = None) -> tuple[Path, .
     else:
         raise ValueError("submission has no mapped coursework first-prose location")
     found = set()
+    unreadable = 0
+    links = 0
+    run_read = walk_files(run) if run.exists() else WalkResult()
+    unreadable += run_read.unreadable_directories
+    links += run_read.links_not_entered
     for template in FIRST_PROSE[skill]:
         pattern = template.format(key=key, stem=stem)
         if pattern.startswith("output/"):
             candidates = (output_root(start) / pattern.removeprefix("output/"),)
         else:
-            candidates = run.glob(pattern)
+            if "**/" in pattern:
+                prefix, filename = pattern.split("**/", 1)
+                candidates = (
+                    path for path in run_read.files
+                    if path.relative_to(run).as_posix().startswith(prefix)
+                    and path.match(filename)
+                )
+            else:
+                candidates = (path for path in run_read.files if path.relative_to(run).as_posix() == pattern)
         found.update(path.resolve() for path in candidates if path.is_file())
     committing = (start or Path(__file__).resolve().parent).resolve().parent / "scratch"
     for root in {committing, scratch_root(start)}:
-        for folder in (scratch_path(root, "sessions")).glob("*/" + key):
-            found.update(path.resolve() for path in folder.rglob("*") if path.is_file())
+        sessions = scratch_path(root, "sessions")
+        if not sessions.exists():
+            continue
+        # This is bounded selection of sessions/<sitting>/<key>, not a recursive
+        # walk of unrelated sittings' contents. Failed selection cannot establish
+        # that a matching key is absent.
+        try:
+            sittings = list(sessions.iterdir())
+        except OSError:
+            unreadable += 1
+            continue
+        for sitting in sittings:
+            if is_link(sitting):
+                links += 1
+                continue
+            if not sitting.is_dir():
+                continue
+            try:
+                entries = list(sitting.iterdir())
+            except OSError:
+                unreadable += 1
+                continue
+            for folder in entries:
+                if folder.name != key:
+                    continue
+                if is_link(folder):
+                    links += 1
+                    continue
+                if not folder.is_dir():
+                    continue
+                try:
+                    read = walk_files(folder)
+                except OSError:
+                    unreadable += 1
+                    continue
+                unreadable += read.unreadable_directories
+                links += read.links_not_entered
+                found.update(path.resolve() for path in read.files)
+    if reports is not None:
+        reports.append(f"draft links not entered: {links}")
+    if unreadable:
+        raise DraftWalkUnreadable(
+            f"{unreadable} draft subfolder(s) unreadable; restore access and rerun\n"
+            f"draft links not entered: {links}"
+        )
     return tuple(sorted(found))
 
 
-def observe_draft(run: Path, key: str, previous: dict) -> dict:
+def observe_draft(run: Path, key: str, previous: dict, *, reports: list[str] | None = None) -> dict:
     """Keep the first observation even when subsequent retrieval refreshes."""
     observations = dict(previous)
+    validate_observations(observations)
     if key not in observations:
-        observations[key] = {"paths": [str(path) for path in draft_files(run, key)]}
+        observations[key] = {"paths": [str(path) for path in draft_files(run, key, reports=reports)]}
     validate_observations(observations)
     return observations
 

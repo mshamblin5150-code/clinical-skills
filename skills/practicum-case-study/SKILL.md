@@ -1855,7 +1855,6 @@ Then walk this list, by eye — none of it is mechanical:
 **The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
 
 - A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.
-- The output submission lookup refuses extra live-junction matches or a dangling-junction miss, can loop on an ancestor junction, and accepts one visible document when a second same-name document lies beneath a folder it cannot list.
 - A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.
 - A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.
 - A well-formed verdict cannot prove that its reader opened or read the draft.

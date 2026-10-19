@@ -19,6 +19,15 @@ DECLARED_LIMITS = (
     "the walk is a momentary read; an entry replaced after its link check can change what is reached",
 )
 
+# ADR 0432: comparisons intentionally enter mirrors made from junctions.
+# Session start uses the same comparison, so it needs no separate exception.
+RECURSIVE_WALK_EXCEPTIONS = {
+    ("skills_mirror.py", "_differing_files"): (
+        "Copy-stale and session-start comparisons must enter the canonical "
+        "skills and mirror junctions; skills_mirror.NOT_REACHED declares the boundary."
+    ),
+}
+
 
 @dataclass(frozen=True)
 class WalkResult:
@@ -66,3 +75,15 @@ def walk_files(root: Path) -> WalkResult:
                 raise
             unreadable += 1
     return WalkResult(tuple(files), unreadable, links)
+
+
+def corpus_files(root: Path, pattern: str = "*") -> tuple[Path, ...]:
+    """Read a corpus completely or refuse, reporting excluded links every time."""
+    result = walk_files(root)
+    print(f"links not entered {result.links_not_entered}")
+    if result.unreadable_directories:
+        raise OSError(
+            f"corpus subfolders unreadable: {result.unreadable_directories}; "
+            "restore read access and retry"
+        )
+    return tuple(path for path in result.files if path.match(pattern))

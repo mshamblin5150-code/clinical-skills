@@ -24,6 +24,7 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+from tree_walk import corpus_files
 from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
@@ -80,7 +81,7 @@ def default_catalog_root() -> Path:
 
 def _files(root: Path, pattern: str = "*") -> tuple[dict[str, str | int], ...]:
     rows = []
-    for path in sorted(root.rglob(pattern), key=lambda item: item.relative_to(root).as_posix()):
+    for path in sorted(corpus_files(root, pattern), key=lambda item: item.relative_to(root).as_posix()):
         if not path.is_file() or path.name == ARTIFACT_RECORD:
             continue
         rows.append(

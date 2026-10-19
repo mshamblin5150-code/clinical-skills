@@ -19,6 +19,8 @@ Nothing is written, so no result or lexicon cache can outlive the rule that made
 
 from __future__ import annotations
 
+from tree_walk import corpus_files
+
 import argparse
 import collections
 import re
@@ -168,7 +170,7 @@ def _scan_document(path: str) -> Census:
 
 
 def _pdfs(source: Path) -> list[Path]:
-    return sorted(source.rglob("*.pdf"), key=lambda path: path.relative_to(source).as_posix())
+    return sorted(corpus_files(source, "*.pdf"), key=lambda path: path.relative_to(source).as_posix())
 
 
 def scan_corpus(source: Path, workers: int | None = None) -> Census:
@@ -294,7 +296,12 @@ def main(argv: list[str] | None = None) -> int:
     if not args.source.is_dir():
         print(f"no corpus at {args.source}", file=sys.stderr)
         return 2
-    if not _pdfs(args.source):
+    try:
+        pdfs = _pdfs(args.source)
+    except OSError as error:
+        print(f"not scanned: {error}", file=sys.stderr)
+        return 2
+    if not pdfs:
         print(f"no PDF files under {args.source}", file=sys.stderr)
         return 2
     if pdf_engine.engine_version() is None:

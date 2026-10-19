@@ -319,8 +319,8 @@ class Evidence(unittest.TestCase):
 class ARunDirectory(unittest.TestCase):
     """Grading a run's output, which is the only thing that exercises the rule."""
 
-    # spelling-scan: mentions 3
-    def test_markdown_is_collected_recursively_and_nothing_else_is(self):
+    # spelling-scan: mentions 2
+    def test_folder_mode_reads_contents_and_every_filename(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             (root / "notes").mkdir()
@@ -328,12 +328,15 @@ class ARunDirectory(unittest.TestCase):
             (root / "notes" / "case-02.md").write_text("pearly gray", encoding="utf-8")
             (root / "notes" / "log.txt").write_text("grey", encoding="utf-8")
 
-            report = scan.scan(scan.markdown_under([root]), scan.read_file)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
 
-        self.assertEqual([f.form for f in report.findings], ["grey"])
-        self.assertEqual(report.evidence.occurrences, 0)
+        self.assertEqual(status, 1)
+        self.assertIn("case-01.md:1", output.getvalue())
+        self.assertNotIn("log.txt:1", output.getvalue())
 
-    # spelling-scan: mentions 2
+    # spelling-scan: mentions 1
     def test_a_run_directory_is_never_read_as_the_run_record(self):
         """Even one laid out with the record's own path inside it."""
         with tempfile.TemporaryDirectory() as raw:
@@ -341,9 +344,85 @@ class ARunDirectory(unittest.TestCase):
             root.mkdir(parents=True)
             (root / "case-01.md").write_text("no dyspnoea", encoding="utf-8")
 
-            report = scan.scan(scan.markdown_under([root]), scan.read_file)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
 
-        self.assertEqual([f.form for f in report.findings], ["dyspnoea"])
+        self.assertEqual(status, 1)
+        self.assertIn("case-01.md:1", output.getvalue())
+
+    def test_unreadable_subdirectory_exits_two_without_a_clean_claim(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            denied = root / "denied"
+            denied.mkdir()
+            import os
+            scandir = os.scandir
+
+            def read(path):
+                if Path(path) == denied:
+                    raise PermissionError("private directory")
+                return scandir(path)
+
+            output = io.StringIO()
+            with mock.patch("os.scandir", side_effect=read), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
+        self.assertEqual(status, 2)
+        self.assertIn("unread 1", output.getvalue())
+        self.assertNotIn("no listed British spelling found", output.getvalue())
+
+    def test_unreadable_file_exits_two_without_traceback(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            path = root / "note.md"
+            path.touch()
+            output = io.StringIO()
+            with mock.patch.object(scan, "read_file", side_effect=PermissionError), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
+        self.assertEqual(status, 2)
+        self.assertIn("unread 1", output.getvalue())
+
+    def test_folder_mode_counts_symbolic_links_without_entering(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            real = root / "real"
+            real.mkdir()
+            (real / "note.md").write_text("clean prose", encoding="utf-8")
+            try:
+                (root / "link").symlink_to(real, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(str(error))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
+        self.assertEqual(status, 0)
+        self.assertIn("links not entered 1", output.getvalue())
+
+    def test_folder_mode_refuses_real_windows_listing_denial(self):
+        from tree_walk_test_support import denied_listing
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            denied = root / "denied"
+            denied.mkdir()
+            output = io.StringIO()
+            with denied_listing(denied), contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
+        self.assertEqual(status, 2)
+        self.assertIn("unread 1", output.getvalue())
+
+    def test_folder_mode_counts_all_windows_junction_shapes(self):
+        from tree_walk_test_support import junctions
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            real = root / "real"
+            real.mkdir()
+            (real / "note.md").write_text("clean prose", encoding="utf-8")
+            junctions(root, real)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                status = scan.main([str(root)])
+        self.assertEqual(status, 0)
+        self.assertIn("links not entered 3", output.getvalue())
 
 
 class Output(unittest.TestCase):

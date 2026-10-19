@@ -27,6 +27,7 @@ from console_codec import require_python_floor, use_utf8
 import reference_scan
 import repo_root
 import scratch_census
+from tree_walk import walk_files
 
 USAGE = "usage: reference_class_census.py"
 TEXT_SUFFIXES = frozenset({".md", ".txt"})
@@ -53,6 +54,8 @@ class RootRead:
     candidate_documents: int
     documents: tuple[reference_scan.Document, ...]
     unreadable_documents: int
+    subfolders_unreadable: int = 0
+    links_not_entered: int = 0
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,8 @@ class Census:
     entries: int
     bucket_counts: tuple[reference_scan.BucketCount, ...]
     undecidable_remainder: int
+    subfolders_unreadable: int = 0
+    links_not_entered: int = 0
 
 def read_text_file(path: Path) -> FileRead:
     """Detect a likely reference list independently, then run the extractor."""
@@ -93,7 +98,8 @@ def read_root(root: Path) -> RootRead | None:
     text_files = 0
     candidates = 0
     unreadable = 0
-    for path in root.rglob("*"):
+    read = walk_files(root)
+    for path in read.files:
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         text_files += 1
@@ -102,7 +108,8 @@ def read_root(root: Path) -> RootRead | None:
         unreadable += int(found.unreadable)
         if found.document is not None:
             documents.append(found.document)
-    return RootRead(text_files, candidates, tuple(documents), unreadable)
+    return RootRead(text_files, candidates, tuple(documents), unreadable,
+                    read.unreadable_directories, read.links_not_entered)
 
 
 def scan_corpus(checkout: Path) -> Census:
@@ -116,6 +123,8 @@ def scan_corpus(checkout: Path) -> Census:
     text_files = 0
     candidate_documents = 0
     documents_unreadable = 0
+    subfolders_unreadable = 0
+    links_not_entered = 0
     for root in roots:
         try:
             found = read_root(root)
@@ -128,6 +137,8 @@ def scan_corpus(checkout: Path) -> Census:
         text_files += found.text_files
         candidate_documents += found.candidate_documents
         documents_unreadable += found.unreadable_documents
+        subfolders_unreadable += found.subfolders_unreadable
+        links_not_entered += found.links_not_entered
         documents.extend(found.documents)
 
     classified = tuple(
@@ -151,6 +162,8 @@ def scan_corpus(checkout: Path) -> Census:
             for item in bucket_counts
             if item.state == reference_scan.COVERAGE_UNDECIDABLE
         ),
+        subfolders_unreadable=subfolders_unreadable,
+        links_not_entered=links_not_entered,
     )
 
 
@@ -159,6 +172,8 @@ def format_report(census: Census) -> str:
         f"checkouts enumerated              {census.checkouts}",
         f"roots read                        {census.roots_read}",
         f"roots unreadable                  {census.roots_unreadable}",
+        f"subfolders unreadable             {census.subfolders_unreadable}",
+        f"links not entered                 {census.links_not_entered}",
         f"text files considered             {census.text_files}",
         f"reference-list candidates         {census.candidate_documents}",
         f"candidate documents read          {census.documents}",
@@ -186,13 +201,16 @@ def main(argv: list[str]) -> int:
         print("checkouts enumerated              0")
         print("roots read                        0")
         print("roots unreadable                  0")
+        print("subfolders unreadable             0")
+        print("links not entered                 0")
         print(f"NOT SCANNED: {error}", file=sys.stderr)
         return 2
     print(format_report(result))
-    if result.roots_unreadable or result.documents_unreadable:
+    if result.roots_unreadable or result.documents_unreadable or result.subfolders_unreadable:
         print(
             "NOT SCANNED: "
             f"{result.roots_unreadable} corpus root(s) and "
+            f"{result.subfolders_unreadable} subfolder(s) and "
             f"{result.documents_unreadable} candidate document(s) unreadable",
             file=sys.stderr,
         )

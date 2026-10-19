@@ -4879,6 +4879,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "guidelines_currency.py",
                 "coverage_registry.py",
                 "guidelines_manifest.py",
+                "tree_walk.py",
                 "guidelines_recs.py",
                 "page_text.py",
                 "pdf_engine.py",

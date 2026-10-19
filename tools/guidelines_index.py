@@ -82,6 +82,7 @@ from typing import Iterator
 from console_codec import require_python_floor, use_utf8
 import guidelines_manifest
 from guidelines_manifest import MANIFEST_NAME
+from tree_walk import corpus_files
 from repo_root import ensure_outside_checkout, main_repo_root
 
 SCHEMA_VERSION = 1
@@ -217,7 +218,7 @@ def _sources(text_dir: Path) -> dict[str, _FormFeedFile]:
     """
     return {
         path.relative_to(text_dir).with_suffix("").as_posix(): _FormFeedFile(path)
-        for path in sorted(text_dir.rglob("*.txt"))
+        for path in sorted(corpus_files(text_dir, "*.txt"))
     }
 
 
@@ -429,7 +430,7 @@ def main(argv: list[str]) -> int:
             args.database,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
-    except (artifact_lock.ArtifactBusy, FileNotFoundError, ValueError) as failure:
+    except (artifact_lock.ArtifactBusy, OSError, ValueError) as failure:
         print(str(failure), file=sys.stderr)
         return 2
 
