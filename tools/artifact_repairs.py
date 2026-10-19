@@ -11,17 +11,20 @@ import argparse
 import json
 import re
 import sys
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
 import note_grammar
+import artifact_lock
 import worksheet_grammar as worksheet
 from run_grader import EvidenceDisposition
 from console_codec import use_utf8, require_python_floor
 
 POPULATIONS = ("worksheet-codes", "entry-status", "differential-items",
-               "differential-verdicts", "note-codes")
+               "differential-text", "note-codes")
 SECTIONS = ("preamble", "S", "O", "A", "P", "tail", "worksheet")
 DECLARED_LIMITS = (
     ("clinical prose outside protected populations",
@@ -29,6 +32,15 @@ DECLARED_LIMITS = (
      EvidenceDisposition.DECLARED_READING),
     ("recorded scope and portal evidence",
      "Records do not prove the brief authorized the scope or that portal values were copied truthfully.",
+     EvidenceDisposition.DECLARED_READING),
+    ("a scope recorded too narrow",
+     "Begin proves the scope preceded the change, not that it covered the needed repair.",
+     EvidenceDisposition.DECLARED_READING),
+    ("whether a pass followed its brief",
+     "The lock refuses overlapping writers but cannot identify a pass writing alone.",
+     EvidenceDisposition.DECLARED_READING),
+    ("whether clinician acceptance was informed",
+     "A verified whole reply does not establish the reading behind the acceptance.",
      EvidenceDisposition.DECLARED_READING),
 )
 
@@ -44,7 +56,10 @@ def read_json(path: Path) -> dict:
     return payload
 
 
-def scope_record(payload: dict) -> dict:
+def scope_record(payload: dict, *, legacy: bool = False) -> dict:
+    if legacy:
+        payload = {**payload, "fields": ["differential-text" if v == "differential-verdicts" else v
+                                         for v in payload["fields"]]}
     if set(payload) != {"fields", "sections"}:
         raise ValueError("scope requires fields and sections")
     for key, vocabulary in (("fields", POPULATIONS), ("sections", SECTIONS)):
@@ -79,7 +94,7 @@ def populations(text: str, kind: str) -> dict:
                                     worksheet.entry_is_for_entry(text, entries, i))
                                    for i, m in enumerate(entries)) + sorted((system, code, False) for system, code in refused),
             "differential-items": differential_entries,
-            "differential-verdicts": worksheet.differential_prose(text),
+            "differential-text": worksheet.differential_prose(text),
         }
     parsed = differential_scan.read_note(text)
     # Slots are read note-wide, including MDM; a verdict cannot escape by moving
@@ -107,7 +122,7 @@ def populations(text: str, kind: str) -> dict:
     return {
         "note-codes": codes,
         "differential-items": sorted((entry.label, entry.code) for entry in parsed.entries if not entry.conclusion),
-        "differential-verdicts": sorted(verdicts),
+        "differential-text": sorted(verdicts),
     }
 
 
@@ -140,7 +155,7 @@ def ledger(run: Path) -> dict:
     return read_json(path) if path.exists() else {"files": {}}
 
 
-def write_ledger(run: Path, payload: dict) -> None:
+def _write_ledger(run: Path, payload: dict) -> None:
     path = ledger_path(run)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f"{uuid4().hex}.json")
@@ -148,31 +163,105 @@ def write_ledger(run: Path, payload: dict) -> None:
     temporary.replace(path)
 
 
+def write_ledger(run: Path, payload: dict) -> None:
+    with artifact_lock.hold(ledger_path(run), "write repair ledger"):
+        _write_ledger(run, payload)
+
+
+@contextmanager
+def transaction(run: Path):
+    # Keep the read, retained evidence and replacement under the same lock.
+    with artifact_lock.hold(ledger_path(run), "record artifact repair"):
+        payload = ledger(run)
+        yield payload
+        _write_ledger(run, payload)
+
+
 def place(run: Path, artifact: Path, kind: str) -> None:
-    payload = ledger(run)
-    key = str(artifact.resolve())
-    if key in payload["files"]:
-        raise ValueError("placement already recorded; use a repair")
-    payload["files"][key] = {"kind": kind, "placement": digest(artifact), "repairs": []}
-    write_ledger(run, payload)
+    if not artifact.is_absolute() or kind not in {"note", "worksheet"}:
+        raise ValueError("an absolute artifact path and valid kind are required")
+    with transaction(run) as payload:
+        key = str(artifact.resolve())
+        if key in payload["files"]:
+            raise ValueError("placement already recorded; use a repair")
+        payload["files"][key] = {"kind": kind, "placement": digest(artifact), "repairs": []}
 
 
-def record_repair(run: Path, before: Path, after: Path, scope: dict) -> dict:
-    payload = ledger(run)
-    record = payload["files"][str(after.resolve())]
-    expected = record["repairs"][-1]["after"] if record["repairs"] else record["placement"]
-    if digest(before) != expected:
-        raise ValueError("before copy does not end the recorded chain")
-    result = compare(before, after, scope, record["kind"])
-    retained = ledger_path(run).parent / uuid4().hex
-    retained.mkdir()
-    (retained / "before.md").write_bytes(before.read_bytes())
-    (retained / "after.md").write_bytes(after.read_bytes())
-    record["repairs"].append({"before": digest(before), "after": digest(after),
-                              "scope": scope, "copies": str(retained.relative_to(run)),
-                              "comparison": result})
-    write_ledger(run, payload)
+def file_record(payload: dict, artifact: Path) -> dict:
+    if not artifact.is_absolute():
+        raise ValueError("an absolute artifact path is required")
+    return payload["files"][str(artifact.resolve())]
+
+
+def retained_copies(run: Path, record: dict) -> Path:
+    copies = (run / record["copies"]).resolve()
+    if not copies.is_relative_to(ledger_path(run).parent.resolve()):
+        raise ValueError("copies outside retained repair directory")
+    return copies
+
+
+def begin(run: Path, artifact: Path, scope: dict) -> None:
+    scope = scope_record(scope)
+    with transaction(run) as payload:
+        record = file_record(payload, artifact)
+        if record.get("pending"):
+            raise ValueError("an open begin already exists")
+        expected = record["repairs"][-1]["after"] if record["repairs"] else record["placement"]
+        content = artifact.read_bytes()
+        if sha256(content).hexdigest() != expected:
+            raise ValueError("file does not end the recorded chain; begin must precede the change")
+        retained = ledger_path(run).parent / uuid4().hex
+        retained.mkdir(parents=True)
+        (retained / "before.md").write_bytes(content)
+        record["pending"] = {"id": retained.name, "before": expected, "scope": scope,
+                             "copies": str(retained.relative_to(run))}
+
+
+def record_repair(run: Path, after: Path) -> dict:
+    with transaction(run) as payload:
+        record = file_record(payload, after)
+        pending = record.get("pending")
+        if not pending:
+            raise ValueError("compare requires an open begin")
+        retained = retained_copies(run, pending)
+        before = retained / "before.md"
+        if digest(before) != pending["before"]:
+            raise ValueError("begin snapshot changed")
+        # Compare the retained after bytes, so the measured and hashed bytes agree.
+        snapshot = retained / "after.md"
+        snapshot.write_bytes(after.read_bytes())
+        result = compare(before, snapshot, pending["scope"], record["kind"])
+        record["repairs"].append({**pending, "after": digest(snapshot), "comparison": result,
+                                  "recorded_at": datetime.now(timezone.utc).timestamp()})
+        del record["pending"]
     return result
+
+
+def rescope(run: Path, artifact: Path, repair_id: str, scope: dict, reply: str) -> None:
+    from approval_record import verify_clinician_reply
+
+    scope = scope_record(scope)
+    with transaction(run) as payload:
+        record = file_record(payload, artifact)
+        repair = next(r for i, r in enumerate(record["repairs"])
+                      if r.get("id", str(i)) == repair_id)
+        if (repair["comparison"]["verdict"] != "fail"
+                or any(a["supersedes"] == repair_id for a in record.get("acceptances", []))):
+            raise ValueError("re-scope requires an unaccepted failed comparison")
+        old_scope = scope_record(repair["scope"], legacy=True)
+        if any(not set(old_scope[k]) <= set(scope[k]) for k in scope):
+            raise ValueError("re-scope cannot narrow the recorded scope")
+        copies = retained_copies(run, repair)
+        sources = (copies / "before.md", copies / "after.md")
+        result = compare(*sources, scope, record["kind"])
+        if result["verdict"] != "pass":
+            raise ValueError("re-scope still excludes changed populations")
+        verification = verify_clinician_reply(run, reply, sources, after=repair.get("recorded_at"))
+        if verification.state != "verified":
+            raise ValueError("clinician acceptance was not verified")
+        record.setdefault("acceptances", []).append({
+            "supersedes": repair_id, "scope": scope, "comparison": result,
+            "clinician_reply": reply, "reply_matched_at": verification.matched_at})
 
 
 def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) -> tuple[bool, str]:
@@ -192,15 +281,16 @@ def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) 
                 failures += 1
                 continue
             expected = record["placement"]
-            for repair in record["repairs"]:
-                copies = (run / repair["copies"]).resolve()
-                if not copies.is_relative_to(ledger_path(run).parent.resolve()):
-                    raise ValueError("copies outside retained repair directory")
+            accepted = accepted_repairs(run, record)
+            if record.get("pending"):
+                failures += 1
+            for i, repair in enumerate(record["repairs"]):
+                copies = retained_copies(run, repair)
                 before, after = copies / "before.md", copies / "after.md"
-                measured = compare(before, after, repair["scope"], record["kind"])
+                measured = compare(before, after, scope_record(repair["scope"], legacy=True), record["kind"])
                 if (repair["before"] != expected or digest(before) != repair["before"]
-                        or digest(after) != repair["after"] or measured != repair["comparison"]
-                        or measured["verdict"] != "pass"):
+                        or digest(after) != repair["after"] or measured != normalized_comparison(repair["comparison"])
+                        or (measured["verdict"] != "pass" and repair.get("id", str(i)) not in accepted)):
                     failures += 1
                 expected = repair["after"]
             if digest(path) != expected:
@@ -210,14 +300,52 @@ def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) 
     return bool(failures), f"the repair hash chain: {'finding' if failures else 'clean'} - {failures} broken chain(s)"
 
 
+def normalized_comparison(result: dict) -> dict:
+    return {**result, **{k: ["differential-text" if v == "differential-verdicts" else v
+                           for v in result[k]] for k in ("changed", "violations")}}
+
+
+def accepted_repairs(run: Path, record: dict) -> set[str]:
+    from approval_record import verify_clinician_reply
+
+    accepted = set()
+    repairs = {r.get("id", str(i)): r for i, r in enumerate(record["repairs"])}
+    for acceptance in record.get("acceptances", []):
+        key = acceptance["supersedes"]
+        repair = repairs[key]
+        if key in accepted or repair["comparison"]["verdict"] != "fail":
+            raise ValueError("invalid supersession target")
+        scope = scope_record(acceptance["scope"])
+        old_scope = scope_record(repair["scope"], legacy=True)
+        if any(not set(old_scope[k]) <= set(scope[k]) for k in scope):
+            raise ValueError("supersession narrows scope")
+        copies = retained_copies(run, repair)
+        sources = (copies / "before.md", copies / "after.md")
+        measured = compare(*sources, scope, record["kind"])
+        verification = verify_clinician_reply(run, acceptance["clinician_reply"], sources,
+                                              after=repair.get("recorded_at"))
+        if (measured != acceptance["comparison"] or measured["verdict"] != "pass"
+                or verification.state != "verified"
+                or verification.matched_at != acceptance["reply_matched_at"]):
+            raise ValueError("supersession evidence does not verify")
+        accepted.add(key)
+    return accepted
+
+
 def repairs_report(run: Path) -> str:
     lines = ["REPAIRS"]
     for key, record in ledger(run)["files"].items():
-        for repair in record["repairs"]:
-            copies = run / repair["copies"]
-            result = compare(copies / "before.md", copies / "after.md", repair["scope"], record["kind"])
+        accepted = accepted_repairs(run, record)
+        for i, repair in enumerate(record["repairs"]):
+            copies = retained_copies(run, repair)
+            result = compare(copies / "before.md", copies / "after.md", scope_record(repair["scope"], legacy=True), record["kind"])
             sections = [name + (" (outside scope)" if name in result["outside_scope"] else "") for name in result["sections"]]
-            lines.append(f"{Path(key).name} | scope={','.join(repair['scope']['fields'] + repair['scope']['sections']) or 'none'} | {result['verdict']} | sections={','.join(sections) or 'none'}")
+            status = result["verdict"]
+            if status == "fail":
+                status += " (superseded by clinician acceptance)" if repair.get("id", str(i)) in accepted else " (awaiting clinician ruling)"
+            lines.append(f"{Path(key).name} | repair={repair.get('id', str(i))} | scope={','.join(repair['scope']['fields'] + repair['scope']['sections']) or 'none'} | {status} | sections={','.join(sections) or 'none'}")
+        if record.get("pending"):
+            lines.append(f"{Path(key).name} | open begin; comparison not run")
     return "\n".join(lines if len(lines) > 1 else lines + ["none"])
 
 
@@ -228,11 +356,19 @@ def main(argv: list[str]) -> int:
     placement.add_argument("run", type=Path)
     placement.add_argument("artifact", type=Path)
     placement.add_argument("--kind", choices=("note", "worksheet"), required=True)
+    start = commands.add_parser("begin")
+    start.add_argument("run", type=Path)
+    start.add_argument("artifact", type=Path)
+    start.add_argument("--scope", type=Path, required=True)
+    acceptance = commands.add_parser("re-scope", help="retain clinician acceptance of a failed comparison")
+    acceptance.add_argument("run", type=Path)
+    acceptance.add_argument("artifact", type=Path)
+    acceptance.add_argument("--repair", required=True)
+    acceptance.add_argument("--scope", type=Path, required=True)
+    acceptance.add_argument("--clinician-reply", required=True)
     comparison = commands.add_parser("compare")
     comparison.add_argument("run", type=Path)
-    comparison.add_argument("--before", type=Path, required=True)
     comparison.add_argument("--after", type=Path, required=True)
-    comparison.add_argument("--scope", type=Path, required=True)
     comparison.add_argument("--show", action="store_true")
     report = commands.add_parser("report", help="private REPAIRS block for the go-ahead")
     report.add_argument("run", type=Path)
@@ -243,13 +379,22 @@ def main(argv: list[str]) -> int:
             print("placement recorded: 1")
         elif args.command == "report":
             print(repairs_report(args.run))
+        elif args.command == "begin":
+            begin(args.run, args.artifact, scope_record(read_json(args.scope)))
+            print("repair scope and before copy recorded: 1")
+        elif args.command == "re-scope":
+            rescope(args.run, args.artifact, args.repair, scope_record(read_json(args.scope)), args.clinician_reply)
+            print("clinician acceptance recorded: 1")
         else:
-            result = record_repair(args.run, args.before, args.after, scope_record(read_json(args.scope)))
+            result = record_repair(args.run, args.after)
             print(f"protected populations changed: {len(result['changed'])}; unnamed changes: {len(result['violations'])}")
             if args.show:
                 print(json.dumps(result, indent=2))
             return int(result["verdict"] != "pass")
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+    except artifact_lock.ArtifactBusy as failure:
+        print(str(failure), file=sys.stderr)
+        return 2
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, StopIteration):
         print("repair record: unreadable or invalid", file=sys.stderr)
         return 2
     return 0

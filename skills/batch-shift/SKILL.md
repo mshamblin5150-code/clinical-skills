@@ -191,6 +191,8 @@ disambiguator**. If those fields do not settle which fitting row belongs to the 
 unresolved multiple-row match for step 7's pre-approval questions. **Only when no row fits** may the
 run request a portal lookup; a rejected first row does not establish that the map has no match.
 
+Every note-pass brief states: passes never run `artifact_repairs.py`; the orchestrator places each returned note and worksheet. Before dispatching a repair pass, the orchestrator records its permitted fields and sections with [standing rule 6](../../AGENTS.md#standing-rules)'s `begin` command. It compares the returned file against that retained scope and before copy. A failed comparison goes in the go-ahead's private `REPAIRS` block as awaiting the clinician's ruling; only a verified clinician acceptance can supersede it.
+
 Write each pass's complete working note — body and tier blocks together — into the owning
 checkout's `scratch/runs/shift-<date>/` by [standing rule 6's write route](../../AGENTS.md#standing-rules):
 copy it under a temporary name and rename it to `note-N.md`. Its private coding worksheet enters
@@ -286,7 +288,7 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptor
 
 A missing self-record blocks the brief. A note sent back is a **Repair pass** under
 [ADR 0294](../../docs/adr/0294-an-orchestrator-s-per-note-claims-and-every-repair-pass-are-derived-from-the-record.md):
-retain its brief, bounded scope record, and passing placement/repair hash chain before grading again.
+retain its brief and pre-dispatch `begin` record, then have the orchestrator compare the returned file before grading again. Its chain must pass or carry the clinician-accepted re-scope under [standing rule 6](../../AGENTS.md#standing-rules).
 Give the blind reader only the brief, with the self-record separation instruction in icd10-cpt;
 Follow [icd10-cpt's retry rule](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 On the blind grade below, append `--self-record` with

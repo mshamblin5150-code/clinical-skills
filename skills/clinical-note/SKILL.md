@@ -1587,7 +1587,7 @@ Then run
 nothing and requires the derived copy to split into all four note sections. Record a refusal as
 a finding and correct it through [standing rule 6](../../AGENTS.md)'s staging and repair-chain
 route; a non-authoring context runs this **Grader handoff** on the correction again before the
-note is shown.
+note is shown. The orchestrator records `begin` before dispatching a repair and runs `compare` on return; passes never run `artifact_repairs.py`. Failed comparisons remain in the private `REPAIRS` block awaiting the clinician's ruling.
 Before its one explicit go-ahead, open Patient Detail
 read-only for a matched returning patient and compare its displayed age and sex with the encounter
 opener. Put any age or sex disagreement, any unresolved multiple-row match from step 5, each
