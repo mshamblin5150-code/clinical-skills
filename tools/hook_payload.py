@@ -14,20 +14,22 @@ import sys
 DECLARED_LIMITS = (
     "Raw literal searches cannot see escaped, split, or otherwise rewritten triggers.",
     "A failed stream read supplies no raw text and allows with a warning.",
-    "A parsed object is passed to the guard; tool-specific field validation remains its responsibility.",
+    "A parsed object is passed to the guard unless its optional field validator rejects it; "
+    "rejected fields use the same original-raw-text policy as unreadable JSON.",
     "Response fields are tested as emitted JSON; their display by a host is not established here.",
 )
 
 
 def read_payload(
     guard: str, trigger: Callable[[str], bool] | None = None,
+    *, validate: Callable[[dict], bool] | None = None,
 ) -> tuple[dict | None, dict]:
     """Return a parsed object or a visible unreadable outcome for this event."""
     raw = None
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw)
-        if isinstance(payload, dict):
+        if isinstance(payload, dict) and (validate is None or validate(payload)):
             return payload, {}
     except (ValueError, OSError, UnicodeError, TypeError, RecursionError):
         pass

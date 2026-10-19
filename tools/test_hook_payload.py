@@ -9,6 +9,7 @@ import unittest
 
 TOOLS = Path(__file__).resolve().parent
 COMMAND_GUARDS = {
+    "backslash_pair_hook": (chr(92) * 4, "a" + chr(92) * 4 + "b", chr(92), "plain"),
     "heredoc_write_hook": ("<< scratch", "<< output", "<< public", "scratch"),
     "scanner_pipe_hook": ("| specificity_scan.py", "| differential_scan.py", "| missing-file.py", "specificity_scan.py"),
     "tracker_publish_hook": ("gh issue create", "echo gh", "git status", "GH"),
