@@ -231,9 +231,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--replace", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.batch and args.notes:
+            raise ValueError("batch mode always reads the complete numbered note population")
         paths = tuple(args.notes) if args.notes else note_paths(args.run, batch=args.batch)
         if not paths:
             raise ValueError("could not identify the note population")
+        if not args.batch and len(paths) != 1:
+            raise ValueError("standalone mode needs exactly one note")
         if args.batch and any(NOTE_NUMBER.fullmatch(path.name) is None for path in paths):
             raise ValueError("batch notes must have numbered filenames")
         target = args.run / "reread.md"

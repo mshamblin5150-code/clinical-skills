@@ -71,6 +71,20 @@ class ReadbackCommand(unittest.TestCase):
             self.assertEqual(0, medatrax_posting.main(["check", "--run", str(self.run), "--submission", "note", "--notes", str(output)]))
         self.assertIn("TIME-LOG: not requested", (self.run / "reread.md").read_text())
 
+    def test_explicit_notes_cannot_claim_a_partial_batch_or_multiple_standalone_notes(self):
+        second = self.run / "note-4.md"
+        second.write_bytes(b"another approved note")
+        self.input.write_text(json.dumps(self.payload), encoding="utf-8")
+        for selection in (("--batch", "--notes", str(self.run / "note-3.md")),
+                          ("--notes", str(self.run / "note-3.md"), str(second))):
+            with self.subTest(selection=selection), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                (self.run / "reread.md").unlink(missing_ok=True)
+                if selection[0] == "--notes":
+                    self.payload["visits"].append({**self.payload["visits"][0], "patient": 4})
+                    self.input.write_text(json.dumps(self.payload), encoding="utf-8")
+                self.assertEqual(2, medatrax_posting.main(["write", "--run", str(self.run), "--submission", "shift", "--input", str(self.input), *selection]))
+                self.assertFalse((self.run / "reread.md").exists())
+
     def test_hand_edited_stray_line_and_whole_hours_are_refused_before_aar(self):
         self.assertEqual(0, self.invoke("write"))
         path = self.run / "reread.md"
