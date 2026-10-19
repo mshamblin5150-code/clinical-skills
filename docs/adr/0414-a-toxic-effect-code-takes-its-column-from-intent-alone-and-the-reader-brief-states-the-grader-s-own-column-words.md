@@ -1,13 +1,14 @@
 # A toxic effect code takes its column from intent alone and the reader brief states the grader's own column words
 
-**Measured at:** 31b048a1a6dad7d1b01fc2da89db67caf00902ad
+**Measured at:** 5c27cfd9e13965fc4926ce9b53c877f530e4be1c
 
 [#1814](https://github.com/mshamblin5150-code/clinical-skills/issues/1814) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift). A blind
 descriptor-agreement reader cited a Table of Drugs and Chemicals route for a venom code, its own
 self-check passed, and `tools/anchor_scan.py --agreement-read` refused the route. On retry the
-reader fell back to `descriptor words`. Grilled 2026-10-18 against `main` at the commit above, where
-the freshness gate read `FRESH`. The clinician ruled every point below in that session, one question
+reader fell back to `descriptor words`. Grilled 2026-10-18 against `main` at `31b048a1`, where
+the freshness gate read `FRESH`. The commit above adds only a draft of this record and its glossary
+entry to that base. The clinician ruled every point below in that session, one question
 at a time. **Nothing is built here; this is the record the build reads.**
 
 ## Measured before ruling
@@ -59,6 +60,11 @@ poisoning word to separate. The route start still checks mechanically that the n
 substance. Whether the note describes harm from it stays the reader's judgment, as every later step
 of a route already is.
 
+This extends ADR 0248 ruling 6 and overturns none of it. That ruling's definitions separate
+poisoning, adverse effect and underdosing, which are the three columns a medicine has. It says
+nothing about a substance whose only columns are the four intents, and every medicine route keeps
+its definitions word for word.
+
 A closed list of toxic-effect words, such as toxic reaction, sting, bite, envenomation or exposure,
 was declined: a correct label outside it, such as carbon monoxide from exhaust, still fails, which
 is the rewording [ADR 0412](0412-a-matcher-a-note-pass-satisfies-by-rewording-is-retired-and-a-uspstf-citation-names-its-topic-by-copying-the-sheet-title.md)
@@ -93,11 +99,19 @@ was declined as another hand-grown list.
 
 ## Coordination
 
-ADR 0383's build ([#1636](https://github.com/mshamblin5150-code/clinical-skills/issues/1636)) and
-ADR 0412 ruling 2 both edit `_drug_column_agrees` or `AGREEMENT_READER_INSTRUCTIONS`, and neither is
-built at the commit above. Whichever lands second keeps the other's words. Ruling 2's generated
-sentence carries ADR 0383's flat-denial rule once that build lands, and ADR 0383's negation cues
-stay a closed list of their own.
+ADR 0383's build ([#1636](https://github.com/mshamblin5150-code/clinical-skills/issues/1636)),
+ADR 0412 ruling 2 ([#1812](https://github.com/mshamblin5150-code/clinical-skills/issues/1812)) and
+[ADR 0374](0374-a-code-waits-on-a-pending-test-only-for-what-its-result-would-establish-and-the-reader-may-say-why-it-does-not.md)
+([#1591](https://github.com/mshamblin5150-code/clinical-skills/issues/1591)) and
+[ADR 0389](0389-the-coding-readers-carry-reader-remarks-to-the-clinical-go-ahead.md)
+([#1702](https://github.com/mshamblin5150-code/clinical-skills/issues/1702)) all edit
+`_drug_column_agrees` or `AGREEMENT_READER_INSTRUCTIONS`, and none is built at the commit above.
+Whichever lands later keeps the others' words and their pinned phrases in
+`test_reader_rules_have_one_source_and_all_new_rules_in_first_brief`. Ruling 2's generated sentence
+carries ADR 0383's flat-denial rule once that build lands, and ADR 0383's negation cues stay a
+closed list of their own. That test also refuses any sentence of the brief appearing verbatim in
+`skills/icd10-cpt/SKILL.md` or `skills/batch-shift/SKILL.md`, so the skill's statement of ruling 1
+is worded differently from the brief's.
 
 ## Build checklist
 
