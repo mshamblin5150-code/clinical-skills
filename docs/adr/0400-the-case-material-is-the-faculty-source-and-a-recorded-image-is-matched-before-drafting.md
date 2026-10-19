@@ -59,6 +59,8 @@ declined because the Module 3 error stays reachable.
 
 ## Ruling 2 — the record names the faculty source, and the capture has its own line
 
+*Superseded 2026-10-19.* The words "A new optional header line names the clinician's transcription file" are widened by [ADR 0424](0424-a-case-video-is-captured-by-a-local-two-pass-transcription-and-slide-frame-tool-and-never-by-auto-captions.md) ruling 7 and ruling 8: the line names whichever capture the run used, the Case video capture or his typed capture, and the route that produced it. The line's existence, its fingerprint, its working-material label and the address form of `CASE-MATERIAL` still stand.
+
 `CASE-MATERIAL` takes either a faculty file path, opened and fingerprinted as now, or the course
 site's address of the page carrying the case video. A new optional header line names the
 clinician's transcription file, fingerprinted and labeled as working material. An address cannot
@@ -81,6 +83,8 @@ the same kind of video case. A shared rule plus a restatement was declined as tw
 drift with nothing failing.
 
 ## Ruling 4 — a narration-only datum is confirmed by the clinician
+
+*Superseded 2026-10-19.* The words "the run quotes the course site's auto-caption with its timestamp, marks it unconfirmed" are replaced by [ADR 0424](0424-a-case-video-is-captured-by-a-local-two-pass-transcription-and-slide-frame-tool-and-never-by-auto-captions.md) ruling 2 and ruling 3. No auto-caption is quoted or relied on; the narration comes from the Case video capture, or from the clinician's typed capture when the capture cannot run. That the clinician confirms a narration-only datum before it is quoted or used to fault anyone still stands, narrowed to that record's confirmation list.
 
 Where a datum the work depends on exists only in a case video's narration, the run quotes the
 course site's auto-caption with its timestamp, marks it unconfirmed, and the clinician confirms or
