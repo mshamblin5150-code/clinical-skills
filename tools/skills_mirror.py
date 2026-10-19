@@ -168,6 +168,16 @@ NOT_REACHED = (
         "not files reached through an unnamed import or another indirect path.",
     ),
     (
+        "instruction files Git ignores",
+        "The run-relevant citation read opens only files Git lists under skills, "
+        "tracked or new but not ignored; an ignored instruction contributes no citation.",
+    ),
+    (
+        "citations whose letters are not single UTF-8 bytes",
+        "Replacement decoding reports invalid UTF-8 files but cannot recover tool "
+        "citations from UTF-16 or other encodings whose ASCII letters span bytes.",
+    ),
+    (
         "when origin/main was last checked",
         "The timestamp comes from the cached ref's last movement; a fetch that found "
         "nothing records no movement.",
@@ -197,6 +207,12 @@ class RepairResult(NamedTuple):
     failures: list[str]
 
 
+class RunRelevantPaths(NamedTuple):
+    paths: list[str]
+    read_with_replacement: int
+    unopenable: int
+
+
 class BaseDistance(NamedTuple):
     branch: str
     behind: int
@@ -204,6 +220,8 @@ class BaseDistance(NamedTuple):
     run_behind: int
     run_ahead: int
     moved_at: datetime.datetime
+    read_with_replacement: int = 0
+    unopenable: int = 0
 
 
 class BaseReadFailed(Exception):
@@ -254,22 +272,33 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def run_relevant_paths(root: Path) -> list[str]:
-    """Pathspec for what a clinical run reads, derived from its instructions."""
-    prose = [root / "AGENTS.md"]
-    skills = root / CANONICAL
-    if skills.is_dir():
-        prose.extend(path for path in skills.rglob("*") if path.is_file())
-
+def run_relevant_paths(root: Path) -> RunRelevantPaths:
+    """Read instructions Git lists, preserving readable citations and read counts."""
+    listed = _git_read(
+        root, "run-relevant path-set",
+        "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "skills",
+    )
+    prose = {"AGENTS.md", *filter(None, listed.split("\0"))}
     cited_tools = set()
-    for path in prose:
-        if not path.is_file():
+    replaced = unopenable = 0
+    for relative in sorted(prose):
+        try:
+            data = (root / relative).read_bytes()
+        except OSError:
+            unopenable += 1
             continue
-        for name in TOOL_PATH.findall(path.read_text(encoding="utf-8")):
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            text = data.decode("utf-8", errors="replace")
+            replaced += 1
+        for name in TOOL_PATH.findall(text):
             if not name.startswith("test_"):
                 cited_tools.add(f"tools/{name}")
 
-    return sorted({"AGENTS.md", "reference", "skills", *cited_tools})
+    return RunRelevantPaths(
+        sorted({"AGENTS.md", "reference", "skills", *cited_tools}), replaced, unopenable,
+    )
 
 
 def utc_now() -> datetime.datetime:
@@ -369,7 +398,7 @@ def read_base_distance(root: Path) -> BaseDistance:
         raise BaseReadFailed("raw distance", branch, moved_at) from exc
     try:
         relevant_paths = run_relevant_paths(root)
-    except (OSError, UnicodeError) as exc:
+    except (BaseReadFailed, OSError, UnicodeError) as exc:
         raise BaseReadFailed(
             "run-relevant path-set", branch, moved_at
         ) from exc
@@ -383,7 +412,7 @@ def read_base_distance(root: Path) -> BaseDistance:
                 "--count",
                 "origin/main...HEAD",
                 "--",
-                *relevant_paths,
+                *relevant_paths.paths,
             )
         )
     except BaseReadFailed as exc:
@@ -397,6 +426,8 @@ def read_base_distance(root: Path) -> BaseDistance:
         run_behind,
         run_ahead,
         moved_at,
+        relevant_paths.read_with_replacement,
+        relevant_paths.unopenable,
     )
 
 
@@ -423,7 +454,7 @@ def _run_changes(value: int) -> str:
     return f"{value} {verb} what a clinical run reads"
 
 
-def render_base_distance(reading: BaseDistance, now: datetime.datetime) -> str:
+def _render_base_distances(reading: BaseDistance, now: datetime.datetime) -> str:
     age = _age_words(reading.moved_at, now)
     if reading.ahead:
         lines = [
@@ -451,6 +482,18 @@ def render_base_distance(reading: BaseDistance, now: datetime.datetime) -> str:
         f"base: {reading.branch} -- no newer commit known;\n"
         f"      origin/main last moved {age}"
     )
+
+
+def render_base_distance(reading: BaseDistance, now: datetime.datetime) -> str:
+    line = _render_base_distances(reading, now)
+    counts = []
+    if reading.read_with_replacement:
+        counts.append(f"{reading.read_with_replacement} file(s) read with replacement")
+    if reading.unopenable:
+        counts.append(f"{reading.unopenable} file(s) could not be opened")
+    if counts:
+        line += "; " + "; ".join(counts)
+    return line
 
 
 def base_context(root: Path) -> str:

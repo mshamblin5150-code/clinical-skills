@@ -2155,8 +2155,11 @@ hook did not fire rather than that another check established the mirror was clea
 The same session-start context reports **Base distance** in both directions against the cached
 `origin/main`. Its population is the raw commit distance; its finding is the subset touching
 `skills/`, `reference/`, `AGENTS.md`, or a non-test `tools/*.py` path those instructions name. That
-tool subset is derived from the tree on every reading. The line also states when the cached ref last
-moved. It never fetches, never prints a clean verdict, and never changes the advisory exit status.
+tool subset is derived on every reading from the files Git lists under `skills/`, tracked or new
+but not ignored. A file that is not clean UTF-8 is read with replacement; its ASCII tool citations
+still contribute. The line names files read with replacement and files that could not be opened
+when either count is nonzero, alongside the distances and when the cached ref last moved. It never
+fetches, never prints a clean verdict, and never changes the advisory exit status.
 The mirror's retained pre-repair record remains about the mirror; the base line is context only.
 [#979](https://github.com/mshamblin5150-code/clinical-skills/issues/979).
 
