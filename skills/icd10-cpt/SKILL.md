@@ -443,6 +443,9 @@ python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-rea
 python tools/refusal_scan.py <run>/worksheets --stem <stem>
 ```
 
+An informational line is never a reason to change note text. Leave ordinary clinical prose as written when the line names a token; correct the token only when it is a mistyped code.
+
+
 Run the refusal command when the pass's worksheet carries refusal records and require exit 0
 before handoff. With none, record that this check has no subjects. It reads only that stem.
 `refusal_scan.ROWS` owns its checks and `refusal_scan.DECLARED_LIMITS` owns its complete

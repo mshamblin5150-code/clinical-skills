@@ -212,6 +212,10 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run
 python tools/refusal_scan.py <run>/worksheets --stem note-N
 ```
 
+An informational line is never a reason to change note text. Leave ordinary clinical prose as written when the line names a token; correct the token only when it is a mistyped code.
+
+USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the title from the shipped sheet; grade and year are compared, while the population stays in the writer's words and needs a reader. Follow [clinical-note’s Guideline sheets](../clinical-note/SKILL.md#guideline-sheets) for the approval-date exemption, undated-year fallback and reported-only contradictions.
+
 A repair pass re-runs this step's self-grade command against its own
 `agreement-self/note-N.json`, never the shift-wide agreement record.
 

@@ -956,15 +956,109 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
             with patch.object(ds, "USPSTF_ROWS", ds._uspstf_index()):
                 status, report, error = self.run_command(
                     "FILLED·proposed   1. Vaccination review "
-                    "[uspstf: grade D, adults, 2020]"
+                    "[uspstf: Vaccination; grade D, adults, 2020]"
                 )
 
+        self.assertEqual(status, 1, error)
+        self.assertIn("row 24 - guideline tail violations  1", report)
+
+    def test_topic_citation_does_not_depend_on_the_counseling_label(self):
+        title = "Behavioral Weight Loss Interventions to Prevent Obesity-Related Morbidity and Mortality in Adults"
+        for label in ("Healthy diet counseling", "Nutrition counseling for weight loss", "Weight counseling"):
+            status, report, error = self.run_command(
+                f"FILLED·proposed   1. {label} [uspstf: {title}; grade B, adults with BMI 30 or higher, 2018]"
+            )
+            self.assertEqual(status, 0, error)
+            self.assertIn("guideline tails checked against source evidence  1", report)
+        for title, grade, year, reason in (
+            ("Invented topic", "B", "2018", "names no shipped topic"),
+            (title, "D", "2018", "grade and year do not match"),
+            (title, "B", "2024", "grade and year do not match"),
+            ("Preexposure Prophylaxis to Prevent Acquisition of HIV", "A", "2019", "grade and year do not match"),
+        ):
+            status, report, error = self.run_command(
+                f"FILLED·proposed   1. Healthy diet counseling [uspstf: {title}; grade {grade}, adults, {year}]", "--show"
+            )
+            self.assertEqual(status, 1, error)
+            self.assertIn(reason, report)
+
+    def test_title_folds_only_case_and_whitespace_and_accepts_i_statement(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Screening [uspstf: screening  FOR HIV infection; grade A, paraphrased population, 2019]"
+        )
         self.assertEqual(status, 0, error)
-        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Screening [uspstf: Statin Use for the Primary Prevention of Cardiovascular Disease in Adults; I statement, older adults, 2022]"
+        )
+        self.assertEqual(status, 0, error)
+        self.assertIn("guideline tails checked against source evidence  1", report)
+
+    def test_undated_sheet_row_is_compared_on_grade_and_counted_separately(self):
+        sheet = self.root / "uspstf.md"
+        sheet.write_text(
+            "## Recommendations\n\n| Rh(D) incompatibility | Screen | A | pregnancy | not stated | x | x | x | x |\n",
+            encoding="utf-8",
+        )
+        with patch.object(ds, "USPSTF_SHEET", sheet):
+            with patch.object(ds, "USPSTF_ROWS", ds._uspstf_index()):
+                for grade, expected in (("A", 0), ("D", 1)):
+                    status, report, error = self.run_command(
+                        f"FILLED·proposed   1. Screening [uspstf: Rh(D) incompatibility; grade {grade}, pregnancy, 2004]"
+                    )
+                    self.assertEqual(status, expected, error)
+                    self.assertIn("Rh(D) citations: year not compared - the sheet states none  1", report)
+                    self.assertIn("guideline tails checked against source evidence  0", report)
+
+    def test_untitled_citation_is_exempt_only_before_approval_cutoff(self):
+        key = "differential_scan:uspstf-title-required"
+        cutoff, moment = ds.completion_checks.registry()[key]
+        self.assertEqual(moment, "approval")
+        from datetime import timedelta
+        for observed, expected in ((cutoff - timedelta(seconds=1), 0), (cutoff, 1), (cutoff + timedelta(seconds=1), 1), (None, 1)):
+            token = ds.completion_checks.MOMENTS.set({"approval": observed})
+            try:
+                from contextlib import nullcontext
+                with patch.object(ds.completion_checks, "grading", lambda *args: nullcontext()):
+                    status, report, error = self.run_command(
+                        "FILLED·proposed   1. HIV screening [uspstf: grade A, adults, 2019]"
+                    )
+            finally:
+                ds.completion_checks.MOMENTS.reset(token)
+            self.assertEqual(status, expected, error)
+            self.assertIn(f"USPSTF citations not graded before the check start  {1 if expected == 0 else 0}", report)
+
+    def test_mixed_approval_dates_are_applied_to_each_note(self):
+        from contextlib import nullcontext
+        from datetime import timedelta
+        cutoff, _ = ds.completion_checks.registry()["differential_scan:uspstf-title-required"]
+        text = self.DIFFERENTIAL + "FILLED·proposed   1. HIV screening [uspstf: grade A, adults, 2019]\nFLAG              none\n"
+        for filename in ("case-01.md", "case-02.md", "case-03.md"):
+            (self.root / filename).write_text(text, encoding="utf-8")
+        token = ds.completion_checks.ITEM_MOMENTS.set({"case-01.md": cutoff - timedelta(seconds=1), "case-02.md": cutoff})
+        try:
+            output = io.StringIO()
+            with patch.object(ds.completion_checks, "grading", lambda *args: nullcontext()), redirect_stdout(output), redirect_stderr(io.StringIO()):
+                status = ds.main([str(self.root), "--show"])
+        finally:
+            ds.completion_checks.ITEM_MOMENTS.reset(token)
+        self.assertEqual(status, 1, output.getvalue())
+        self.assertIn("USPSTF citations not graded before the check start  1", output.getvalue())
+        self.assertIn("row 24 - guideline tail violations  2", output.getvalue())
+        self.assertIn("case-02.md:", output.getvalue())
+        self.assertIn("case-03.md:", output.getvalue())
+
+    def test_malformed_tail_is_read_but_never_counted_as_compared(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Weight target [thresholds/hypertension: gibberish]"
+        )
+        self.assertEqual(status, 1, error)
+        self.assertIn("guideline tails checked against source evidence  0", report)
+        self.assertIn("other tails not compared  1", report)
+        self.assertIn("guideline tails read  1", report)
 
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
         status, report, _ = self.run_command(
-            "FILLED·proposed   1. HIV screening [uspstf: grade A, adolescents and adults aged 15 to 65 years, 2019]\n"
+            "FILLED·proposed   1. HIV screening [uspstf: Screening for HIV Infection; grade A, adolescents and adults aged 15 to 65 years, 2019]\n"
             "FILLED·proposed   2. Weight target [thresholds/hypertension: aha-2025 Class 1, adults-overweight, >=5% of body weight]"
         )
 
@@ -1071,7 +1165,7 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
     def test_a_tail_on_a_continuation_line_is_a_finding(self):
         status, report, _ = self.run_command(
             "FILLED·proposed   1. HIV screening\n"
-            "                  [uspstf: grade A, adolescents and adults aged 15 to 65 years, 2019]"
+            "                  [uspstf: Screening for HIV Infection; grade A, adolescents and adults aged 15 to 65 years, 2019]"
         )
 
         self.assertEqual(status, 1)
@@ -1079,7 +1173,7 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
 
     def test_a_uspstf_tuple_that_is_not_in_the_sheet_is_a_finding(self):
         status, report, _ = self.run_command(
-            "FILLED·proposed   1. HIV screening [uspstf: grade D, adolescents and adults aged 15 to 65 years, 2019]"
+            "FILLED·proposed   1. HIV screening [uspstf: Screening for HIV Infection; grade D, adolescents and adults aged 15 to 65 years, 2019]"
         )
 
         self.assertEqual(status, 1)
@@ -1093,13 +1187,13 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("row 24 - guideline tail violations  1", report)
 
-    def test_a_false_no_uspstf_row_is_a_finding(self):
+    def test_a_false_no_uspstf_row_is_reported_never_graded(self):
         status, report, _ = self.run_command(
             "FILLED·proposed   1. HIV screening [uspstf: no row]"
         )
 
-        self.assertEqual(status, 1)
-        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertEqual(status, 0)
+        self.assertIn("label contradictions: 2 counted, never-graded", report)
 
     def test_a_no_row_claim_with_no_sheet_topic_match_is_a_candidate(self):
         status, report, _ = self.run_command(
@@ -1125,11 +1219,11 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         status, report, _ = self.run_command(mutated, "--show")
 
         self.assertEqual(control_status, 0, control_report)
-        self.assertEqual(status, 1, report)
-        self.assertIn("row 24 - guideline tail violations  1", report)
+        self.assertEqual(status, 0, report)
+        self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertRegex(
             report,
-            r"line 6\s+ROW 24\s+recalled, no shipped sheet contradicts a shipped topic",
+            r"line 6 label/topic, never-graded:.* -> hypertension screening",
         )
 
     def test_a_no_shipped_sheet_claim_without_a_topic_join_stays_a_candidate(self):
@@ -1284,7 +1378,7 @@ class TheDescriptorAgreementFixtureIsDivergentForRow24(unittest.TestCase):
         self.assertEqual(status, 1, stdout.getvalue() + stderr.getvalue())
         self.assertEqual(
             reasons,
-            {"malformed threshold verdict", "malformed guideline tail"},
+            {"malformed threshold verdict", "malformed guideline tail", "USPSTF citation requires a copied topic title"},
         )
         findings = [finding for note in notes for finding in note.guideline_findings]
         refused_shapes = (
@@ -2109,9 +2203,10 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
     def test_one_committed_uspstf_tail_mutation_fires_row_24_through_main(self):
         """Plant one wrong grade in a clean committed note; leave the record untouched."""
         text = next(note for note in run_grader.read_run_directory(self.RUN) if "[uspstf: grade A" in note)
+        text = text.replace("[uspstf: grade A", "[uspstf: Screening for HIV Infection; grade A", 1)
         control = ds.read_note(text)
         baseline = len(control.guideline_findings)
-        mutated = text.replace("[uspstf: grade A", "[uspstf: grade D", 1)
+        mutated = text.replace("[uspstf: Screening for HIV Infection; grade A", "[uspstf: Screening for HIV Infection; grade D", 1)
         self.assertNotEqual(mutated, text, "the committed note offered no grade-A tail")
 
         with tempfile.TemporaryDirectory() as name:
@@ -2364,7 +2459,7 @@ class MedatraxSubmissionFingerprint(unittest.TestCase):
 
 def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
     return attribution_kit.ArtifactAttributionInput(
-        "A:\n\nDifferential:\n1. Viral upper respiratory infection - J06.9: favored.\n\nFILLED·proposed   1. HIV screening [uspstf: grade D, adolescents and adults aged 15 to 65 years, 2019]\nFLAG              none\n",
+        "A:\n\nDifferential:\n1. Viral upper respiratory infection - J06.9: favored.\n\nFILLED·proposed   1. HIV screening [uspstf: Screening for HIV Infection; grade D, adolescents and adults aged 15 to 65 years, 2019]\nFLAG              none\n",
         "row 24 - guideline tail violations",
         worksheets=False,
     )
