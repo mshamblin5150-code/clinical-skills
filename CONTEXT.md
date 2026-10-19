@@ -1244,6 +1244,10 @@ _Avoid_: tracked walk, ls-files walk, repository walk
 An enumeration of what a directory holds on disk at the moment it is read, a file not yet staged included. Distinct from an **index walk**, which is blind to that file until it is staged; choosing between them is a decision about which window a check covers, not a spelling.
 _Avoid_: glob walk, directory listing, tree walk
 
+**Walk exception**:
+A recursive folder walk that is excused from the shared rule every other walk follows — never step through a link, and count every folder that could not be opened — and is named on one list with the reason it differs. The reason has to be true of what the walk does: a walk that steps through links on purpose qualifies, and a walk that merely looks safe does not. Distinct from a declared limit, which states what a walk that follows the rule still cannot see.
+_Avoid_: exempt walk, allowlisted walk, raw walk
+
 **Adoption**:
 A module's actual use of the shared runner and its conformance kit — importing `run_grader`, and its test module binding `grader_conformance.for_module`. It is what a **declared member** is graded on, and it is not shape: shape is the source pattern a population walk can recognize, so a walk over shape answers *is there a grader here nobody declared* while a walk over adoption answers *is there a name here nobody wired up*. Neither walk sees the other's case, which is why both are kept.
 _Avoid_: migration, membership, compliance, conformance

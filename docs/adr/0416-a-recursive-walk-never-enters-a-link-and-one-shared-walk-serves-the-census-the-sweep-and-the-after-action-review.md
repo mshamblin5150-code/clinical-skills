@@ -94,6 +94,10 @@ states that the copy-stale comparison and ADR 0407's session-start walk enter ju
 and surface a dangling one as a difference. `run_relevant_paths` needs no limit: it walks a tracked
 tree.
 
+*Superseded 2026-10-19.* The words "`checks_ledger.DECLARED_LIMITS` states that its submission lookup refuses on both junction shapes, does not terminate on an ancestor junction, and accepts the one visible document when a second same-name document sits beneath a folder it cannot list." are superseded by [ADR 0432](0432-every-recursive-walk-in-tools-adopts-the-shared-walk-or-is-a-named-exception-and-each-walk-s-verdict-fails-closed-on-a-folder-it-could-not-read.md) ruling 2. The submission lookup adopts the shared walk and refuses over a folder it could not open, so the limit row is retired whole. `aar_scan`'s adoption and the `skills_mirror` comparison rows stand.
+
+*Superseded 2026-10-19.* The words "`run_relevant_paths` needs no limit" are superseded by [ADR 0432](0432-every-recursive-walk-in-tools-adopts-the-shared-walk-or-is-a-named-exception-and-each-walk-s-verdict-fails-closed-on-a-folder-it-could-not-read.md) ruling 10. The function walks `skills/` on disk rather than a tracked tree, so it adopts the shared walk, and an unopenable folder or a link not entered leaves the session-start base line not established. The `skills_mirror` comparison rows stand.
+
 ## Ruling 5 — #1685 and #1841 are one build
 
 The shared module is built in the same change as ADR 0386's census repair, with the census as its
