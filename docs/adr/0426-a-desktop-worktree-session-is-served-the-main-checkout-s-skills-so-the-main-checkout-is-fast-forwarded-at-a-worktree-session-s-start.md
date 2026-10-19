@@ -69,6 +69,8 @@ was declined because the recorded defect is lag, and detection leaves the stale 
 skill-running sessions off the desktop app's worktree option was declined as a change to how the
 clinician works that would need its own measurement.
 
+*Superseded 2026-10-19.* The words "Making the worktree's own skill folder exist earlier was declined because a desktop session never reads it." are superseded by [ADR 0429](0429-a-bridged-worktree-session-reads-its-own-worktree-s-configuration-and-takes-the-same-fast-forward-and-line-as-a-desktop-session.md) ruling 2. That ground holds for desktop sessions only; a bridged session reads its own folder when it exists at start, and the earlier fix is declined there on that ruling's ground instead. The fast-forward, its guards and the fetch cap stand.
+
 ## Ruling 2 — one line always, the warning only on a difference
 
 Every worktree session start contributes one plain line. When the fast-forward ran, the line names
