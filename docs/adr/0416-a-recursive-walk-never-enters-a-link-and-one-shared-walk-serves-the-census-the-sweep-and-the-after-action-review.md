@@ -1,10 +1,10 @@
 # A recursive walk never enters a link and one shared walk serves the census the sweep and the after-action review
 
-**Measured at:** 44a9557ad5cdbb6345ff951a123b2f824631310e
+**Measured at:** dda02009b178dee0f6dcfea4f2e067aab3c30682
 
 [#1841](https://github.com/mshamblin5150-code/clinical-skills/issues/1841) was filed from the
 tracker sweep closing #1685's grilling on 2026-10-16. Grilled 2026-10-18 against `main` at
-`31b048a1`, where the measurements below were taken. The commit above adds only a draft of this
+`31b048a1`, where the measurements below were taken. The commit above adds only drafts of this
 record to `main` at `1b98c073`, which differs from that base only by ADRs 0413 to 0415 and their
 glossary entries, and the freshness gate read `FRESH` there. The clinician ruled every point below in that session, one question at a time. **Nothing is
 built here; this is the record the build reads.**
@@ -30,6 +30,15 @@ its `unread` count covers files it opened and failed to read, never directories 
 | `checks_ledger._submission_document` over `output_root()` | a second match, so it refuses | no match, so it refuses | does not terminate |
 | `skills_mirror` copy-stale comparison and ADR 0407's session-start walk | entered on purpose; the mirror is made of junctions | surfaces as a difference | not reached by a served skill tree |
 | `skills_mirror.run_relevant_paths` over `skills/` | a tracked tree; Git holds no junction | none | none |
+
+**The `checks_ledger` row is narrower than it reads, and the sweep closing this grilling found it.**
+An unreadable folder is not a junction shape. Planted on 2026-10-19 under Python 3.14.4, with one
+`stem.md` in a readable folder and a second one level beneath a folder denied to the current user,
+`rglob("stem.md")` returned 1 match, so the exactly-one lookup accepts the visible document without a
+word. A second document directly inside the denied folder was still found, because a literal name is
+checked without listing that folder. The clinician ruled that this record keeps ruling 4 and states
+the case in the limit, and that whether the lookup should adopt the shared walk belongs to
+[#1896](https://github.com/mshamblin5150-code/clinical-skills/issues/1896).
 
 **Link detection has a floor trap.** `os.path.isjunction` and `DirEntry.is_junction` exist only on
 Python 3.12 and later, against a consumer and tooling floor of 3.10. `skills_mirror._is_link` already
@@ -79,7 +88,8 @@ dangling one and the ancestor loop.
 
 The remaining candidates are declared rather than rebuilt, each in its own limits object with the
 reason from the table above. `checks_ledger.DECLARED_LIMITS` states that its submission lookup refuses
-on both junction shapes and does not terminate on an ancestor junction. `skills_mirror.NOT_REACHED`
+on both junction shapes, does not terminate on an ancestor junction, and accepts the one visible
+document when a second same-name document sits beneath a folder it cannot list. `skills_mirror.NOT_REACHED`
 states that the copy-stale comparison and ADR 0407's session-start walk enter junctions deliberately
 and surface a dangling one as a difference. `run_relevant_paths` needs no limit: it walks a tracked
 tree.
@@ -99,13 +109,36 @@ against; #1685 carries a comment pointing here.
 has the sweep count a drug page by its `Topic <N> Version <N.N>` line. That build and this one edit
 `sweep_unfiled`; whichever lands second keeps both changes.
 
+The same rule holds for the other unbuilt records the sweep found sharing a file with this build:
+ADR 0387 (#1693) and ADR 0396 (#1759) edit `aar_scan`'s
+extract report, as do the open builds on #1601 and #1855; #1588's build edits `checks_ledger`'s
+posted-reading path beside `_submission_document`; and [ADR 0407](0407-a-worktree-session-that-started-without-its-skill-mirror-is-told-its-skills-came-from-the-owning-checkout.md)
+adds the session-start comparison to `skills_mirror`. If this build lands before ADR 0407's, the
+session-start row of ruling 4 is written by whichever of the two lands second, because a limit row for
+a walk that does not exist yet would describe nothing. That comparison must not adopt the shared
+walk: it reaches every served file through the owning mirror's junction, so the shared walk would
+read none of them.
+
+**`aar_scan`'s remainder is an equality, so ruling 4 needs a named part.** The extract writes
+`UNREAD-REMAINDER` as the sum of named component fields, and the grade refuses `coverage-mismatch`
+unless the remainder equals that sum. Unreadable subdirectories therefore enter as a new named
+component field in both the extract and the equality, or every extract with one would fail its own
+grade. `discover_transcripts` already counts transcripts it failed to `stat` or read in
+`TranscriptDiscovery.unread`, and the extract never prints that count. On ruling 2's terms an
+unreadable transcript is a failed read, so it joins the remainder as its own named component in the
+same build.
+
 ## What this does not reach
 
 A file the walk could list but whose type or name it misreads is outside this record, as it is
 outside ADR 0386. Material reachable only through a live link appears in no count. A subdirectory
 deleted during a walk is counted as unreadable and not distinguished from a permission failure.
 `checks_ledger` and the deliberate `skills_mirror` walks keep their ancestor-junction exposure as a
-declared limit. Recursive walks outside `tools/` are not read.
+declared limit. The candidate walks came from #1841's list, not from a census of `tools/`. The sweep
+closing this grilling counted every recursive walk in non-test `tools/` and found thirteen more with
+the same two gaps, over account trees and the guideline corpus; they are filed as
+[#1896](https://github.com/mshamblin5150-code/clinical-skills/issues/1896), and this record rules on
+none of them.
 
 ## Build checklist
 
@@ -120,14 +153,23 @@ declared limit. Recursive walks outside `tools/` are not read.
   `unread`; add a links-not-entered count to `SweepReport` and print it on every run; keep links out
   of `examined`.
 - `tools/aar_scan.py`: `discover_transcripts` and `_memory_files` use the shared walk; the extract
-  report prints links not entered and folds unreadable subdirectories into its unread remainder.
+  report prints links not entered; unreadable subdirectories and `TranscriptDiscovery.unread` each
+  enter the unread remainder as a named component field, and the `coverage-mismatch` equality adds
+  both.
 - `tools/checks_ledger.py`: add the submission-lookup row to `DECLARED_LIMITS`.
 - `CLAUDE.md` **Scratch census**, **UpToDate evidence store** and **After-action review**, and
   `docs/agents/scratch.md`: name the new counts without copying any limits object.
-- Tests: the module's tests carry ADR 0386's list. The sweep: a live junction to a sibling is counted
+- Coordination: whichever of this build and each record named under *Coordination* lands second
+  keeps both changes.
+- Tests: ADR 0386's list is split by subject. The walk's own behavior (a live junction not entered,
+  a dangling one counted, an ancestor junction terminating, an unreadable subdirectory counted) is
+  tested in the shared module's tests; the census consequences (the `files beneath` line, the
+  hold-back of a worktree, the exit-2 remedy, peer-root classing) stay in `test_scratch_census.py`. The sweep: a live junction to a sibling is counted
   once as a link and its target's files are not examined; a dangling junction is counted as a link
   rather than dropped; an ancestor junction terminates; an unreadable
   subdirectory makes the sweep exit 2; the links-not-entered count prints at zero. `aar_scan`: a
-  dangling junction under a transcript root is counted and an ancestor junction terminates. A
+  dangling junction under a transcript root is counted, an ancestor junction terminates, and an
+  extract with one unreadable subdirectory grades without `coverage-mismatch`. `checks_ledger`: a
+  test pins the documented wrong-document case so the limit row stays true. A
   symbolic-link mutant runs everywhere and junction tests skip off Windows. The link test passes on
   3.10, where `isjunction` is absent, through the reparse-point limb.
