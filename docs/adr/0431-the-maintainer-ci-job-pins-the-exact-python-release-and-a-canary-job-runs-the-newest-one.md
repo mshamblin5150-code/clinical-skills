@@ -1,6 +1,6 @@
 # The maintainer CI job pins the exact Python release and a canary job runs the newest one
 
-**Measured at:** 592067b0598e89b7fae3429b31459b713ce157e8
+**Measured at:** 0ee4d850268bd7276b40e6d9cac0c76ea630c8ea
 
 [#1890](https://github.com/mshamblin5150-code/clinical-skills/issues/1890) was filed from the
 tracker sweep closing #1818's grilling. It found that the maintainer job in
@@ -85,6 +85,15 @@ work on a Python release the maintainer has not installed. Marking the canary `c
 was declined because the checkmark stays green and the early warning is easy to miss. Letting it
 block like any check was declined because it makes #1818's stall a policy. Running it only on a
 schedule and on pushes to `main` was declined because the warning would land where nobody checks.
+
+**Correction, 2026-10-19:** this ruling describes "the merge practice ADR 0382 relies on, that a merge
+waits until every check succeeds" as standing. It is a habit nothing enforces, and the merges did
+not follow it: of the 200 pull requests merged 2026-10-09 through 2026-10-19, 104 merged before both
+`checks.yml` jobs had completed and 48 of the other 96 merged over a red result.
+[ADR 0437](0437-a-merge-does-not-wait-for-ci-and-a-red-main-is-handled-by-its-ticket.md) rules that
+no mechanism makes a merge wait. The ruling is unchanged: a red canary does not hold a merge, and
+nothing else does either. Found by #1926's closing tracker sweep. The `Measured at` line moved to
+that grilling's base; no file under `tools/` or `.github/` changed between the two.
 
 ## Build checklist
 
