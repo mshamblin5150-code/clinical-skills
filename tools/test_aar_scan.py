@@ -406,6 +406,9 @@ class CommandModes(SyntheticSnapshotCase):
             "  transcripts skipped by time     0\n"
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                0\n"
+            "  transcripts unread              0\n"
+            "  unreadable directories          0\n"
+            "  links not entered               0\n"
             "  sittings begun after extract    0\n"
             "  unowned browser page actions    0 (reported, not graded)\n"
             "  tab creation parses: tabs_create_mcp  0\n"
@@ -474,6 +477,9 @@ class CommandModes(SyntheticSnapshotCase):
             "  transcripts skipped by time     0\n"
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                1\n"
+            "  transcripts unread              0\n"
+            "  unreadable directories          0\n"
+            "  links not entered               0\n"
             "  private extract written         post-1.extract.md\n"
             "  review record filename          post-1.md\n"
             "unread remainder 0\n",
@@ -960,6 +966,65 @@ class EntryKindsAreBound(unittest.TestCase):
 
 
 class ScanBasedSittingDiscovery(SyntheticSnapshotCase):
+    def test_discovery_counts_a_transcript_it_cannot_read(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            good = root / "good.jsonl"
+            bad = root / "bad.jsonl"
+            write_transcript(good)
+            bad.write_text("not json\n", encoding="utf-8")
+            with (
+                mock.patch.object(aar_scan, "is_live_run", return_value=True),
+                mock.patch.object(aar_scan, "transcript_roots", return_value=(root,)),
+                mock.patch.object(aar_scan, "_raw_contains", return_value=True),
+            ):
+                discovery = aar_scan.discover_transcripts(root, good)
+            self.assertEqual(discovery.paths, (good.resolve(),))
+            self.assertEqual(discovery.unread, 1)
+
+    def test_transcript_links_are_counted_without_being_entered(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = root / "sessions"
+            sessions.mkdir()
+            transcript = sessions / "main.jsonl"
+            write_transcript(transcript)
+            try:
+                (sessions / "ancestor").symlink_to(sessions, target_is_directory=True)
+                (sessions / "dangling").symlink_to(root / "absent", target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symbolic links unavailable: {exc}")
+            with (
+                mock.patch.object(aar_scan, "is_live_run", return_value=True),
+                mock.patch.object(aar_scan, "transcript_roots", return_value=(sessions,)),
+            ):
+                discovery = aar_scan.discover_transcripts(root, transcript)
+            self.assertEqual(discovery.paths, (transcript.resolve(),))
+            self.assertEqual(discovery.found, 1)
+            self.assertEqual(discovery.links_not_entered, 2)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junctions")
+    def test_transcript_junctions_are_counted_without_being_entered(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = root / "sessions"
+            sessions.mkdir()
+            transcript = sessions / "main.jsonl"
+            write_transcript(transcript)
+            for name, target in (("ancestor", sessions), ("dangling", root / "absent")):
+                subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(sessions / name), str(target)],
+                    check=True, capture_output=True,
+                )
+            with (
+                mock.patch.object(aar_scan, "is_live_run", return_value=True),
+                mock.patch.object(aar_scan, "transcript_roots", return_value=(sessions,)),
+            ):
+                discovery = aar_scan.discover_transcripts(root, transcript)
+            self.assertEqual(discovery.paths, (transcript.resolve(),))
+            self.assertEqual(discovery.found, 1)
+            self.assertEqual(discovery.links_not_entered, 2)
+
     def test_two_identifierless_codex_rollouts_form_one_readable_extract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1165,6 +1230,50 @@ class ScanBasedSittingDiscovery(SyntheticSnapshotCase):
 
 
 class SubmissionRecord(SyntheticSnapshotCase):
+    def test_walk_failures_are_named_in_extract_and_remainder_equality(self) -> None:
+        original_walk = aar_scan.tree_walk.walk_files
+
+        def memory_with_unread_directory(root: Path) -> aar_scan.tree_walk.WalkResult:
+            walk = original_walk(root)
+            if root == self.memory.parent:
+                return aar_scan.tree_walk.WalkResult(walk.files, 1, 2)
+            return walk
+
+        with (
+            mock.patch.object(aar_scan.tree_walk, "walk_files", side_effect=memory_with_unread_directory),
+            mock.patch.object(aar_scan, "discover_transcripts", return_value=aar_scan.TranscriptDiscovery(
+                paths=(self.transcript,), found=2, skipped_by_time=0,
+                skipped_by_byte_search=0, read=1, unread=1,
+                unreadable_directories=1, links_not_entered=1,
+            )),
+        ):
+            fields, _ = self.extract()
+        self.assertEqual(fields["TRANSCRIPTS-UNREAD"], "1")
+        self.assertEqual(fields["UNREADABLE-DIRECTORIES"], "2")
+        self.assertEqual(fields["LINKS-NOT-ENTERED"], "3")
+        self.assertEqual(fields["UNREAD-REMAINDER"], "3")
+        self.write_clean(extract=False)
+        scan = aar_scan.survey(self.run, self.submission)
+        self.assertNotIn("coverage-mismatch", [finding.kind for finding in scan.findings])
+        self.assertEqual(scan.unread_remainder, 3)
+        self.assertEqual(scan.links_not_entered, 3)
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual((status, stderr), (2, ""), stdout)
+        self.assertIn("unreadable directories          2", stdout)
+
+    def test_memory_snapshot_never_enters_a_link(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir()
+        hidden = outside / "hidden.md"
+        hidden.write_text("not landing evidence", encoding="utf-8")
+        try:
+            (self.memory.parent / "linked").symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symbolic links unavailable: {exc}")
+        with mock.patch.object(aar_scan, "_tracked_files", return_value=()):
+            baseline = aar_scan.snapshot(self.memory)
+        self.assertEqual(set(baseline), {str(self.memory.resolve())})
+
     def test_extract_names_the_review_file_for_first_rebuilt_and_later_rounds(self) -> None:
         original_key = self.submission
         self.submission = "response-x.md"

@@ -224,6 +224,13 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
+        "submission-lookup-recursion",
+        "The output submission lookup refuses extra live-junction matches or a dangling-junction miss, "
+        "can loop on an ancestor junction, and accepts one visible document when a second "
+        "same-name document lies beneath a folder it cannot list.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
         "page-fingerprint-origin",
         "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
         EvidenceDisposition.BEHAVIOR,

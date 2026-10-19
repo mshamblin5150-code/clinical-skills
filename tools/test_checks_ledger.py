@@ -366,6 +366,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     """Bind each behavior row to its blind-spot test and positive control."""
 
     HANDLERS = {
+        "submission-lookup-recursion": (
+            "SubmissionLookupBoundary.test_unreadable_folder_can_hide_a_second_document",
+            "SubmissionLookupBoundary.test_two_visible_documents_refuse",
+        ),
         "page-fingerprint-origin": (
             "ComposerAttachmentOutcome.test_page_fingerprint_has_clean_mismatch_and_missing_controls",
             "ComposerAttachmentOutcome.test_attachment_bytes_have_clean_missing_and_mismatch_controls",
@@ -1921,6 +1925,38 @@ class ComposerAttachmentOutcome(unittest.TestCase):
             status, report, _err = self.grade_submission(path)
         self.assertEqual(1, status)
         self.assertIn("posted-attachment", report)
+
+
+class SubmissionLookupBoundary(unittest.TestCase):
+    def test_two_visible_documents_refuse(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "nested").mkdir()
+            (root / "study.md").touch()
+            (root / "nested" / "study.md").touch()
+            with mock.patch.object(checks.repo_root, "output_root", return_value=root):
+                with self.assertRaises(checks.run_grader.SourceError):
+                    checks._submission_document("study")
+
+    def test_unreadable_folder_can_hide_a_second_document(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            visible = root / "study.md"
+            visible.touch()
+            hidden = root / "denied" / "nested"
+            hidden.mkdir(parents=True)
+            (hidden / "study.md").touch()
+            import os
+            scandir = os.scandir
+
+            def read(path):
+                if Path(path) == hidden.parent:
+                    raise PermissionError("denied")
+                return scandir(path)
+
+            with mock.patch.object(checks.repo_root, "output_root", return_value=root), mock.patch("os.scandir", side_effect=read):
+                self.assertEqual(checks._submission_document("study"), visible)
+            self.assertTrue(any(row.key == "submission-lookup-recursion" for row in checks.DECLARED_LIMITS))
 
 
 if __name__ == "__main__":

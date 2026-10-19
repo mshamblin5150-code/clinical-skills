@@ -18,6 +18,46 @@ import docx_read
 import uptodate_store as store
 
 
+class SweepWalkBoundary(unittest.TestCase):
+    def test_links_are_reported_without_examining_their_material(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "scan"
+            source.mkdir()
+            target = root / "target"
+            target.mkdir()
+            (target / "topic.txt").write_text(topic("Target"), encoding="utf-8")
+            try:
+                (source / "linked").symlink_to(target, target_is_directory=True)
+                (source / "dangling").symlink_to(root / "absent", target_is_directory=True)
+                (source / "ancestor").symlink_to(source, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(str(error))
+            report = store.sweep_unfiled(source, root / "store")
+            self.assertEqual(report.examined, 0)
+            self.assertEqual(report.topic_bodies, 0)
+            self.assertEqual(report.links_not_entered, 3)
+
+    def test_unreadable_subdirectory_refuses_and_zero_links_print(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "denied").mkdir()
+            from tree_walk import os as walk_os
+            scandir = walk_os.scandir
+
+            def read(path):
+                if Path(path) == root / "denied":
+                    raise PermissionError("denied")
+                return scandir(path)
+
+            output = io.StringIO()
+            with mock.patch("tree_walk.os.scandir", side_effect=read), contextlib.redirect_stdout(output):
+                status = store.main(["--store", str(root / "store"), "sweep", str(root)])
+            self.assertEqual(status, 2)
+            self.assertIn("files unread: 1", output.getvalue())
+            self.assertIn("0 links not entered", output.getvalue())
+
+
 def topic(title: str, *, updated: str = "Jan 09, 2026") -> str:
     return f"""{title}
 

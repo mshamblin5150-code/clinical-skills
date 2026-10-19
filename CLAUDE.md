@@ -1065,6 +1065,10 @@ without requiring Word or PyMuPDF.
 
 ### After-action review
 
+Transcript and memory discovery report links not entered and unreadable subdirectories.
+Unreadable subdirectories and unread transcripts are named parts of the unread remainder.
+The shared walk's boundary belongs to `tree_walk.DECLARED_LIMITS`.
+
 `tools/aar_scan.py` is the deterministic half of `/AAR`, required by [#814](https://github.com/mshamblin5150-code/clinical-skills/issues/814) for every skill in `aar_scan.SCOPED_SKILLS` at a submission's terminal step. `aar_scan.COMPLETION_GRADERS` is the complete skill-to-grader pairing; this section copies neither set.
 
 ```bash
@@ -2835,6 +2839,9 @@ Covered by `tools/test_guidelines_recs.py`, which builds synthetic tables in tha
 
 ### UpToDate evidence store
 
+The sweep reports links not entered on every run. An unreadable subdirectory joins
+its unread count and exits 2. The shared walk's boundary belongs to `tree_walk.DECLARED_LIMITS`.
+
 `tools/outbound_search.py check <query> --run <directory> --search-id <id>` is the
 real-encounter pretyping boundary; `pull` links each live pull to a passed search. Exit 2
 refuses the action, and exit 0 records it. The owning workflow is
@@ -3060,6 +3067,11 @@ recs-*.json
 **One rule that is deliberately absent**: a bare `*.sqlite`. It would catch a stray index anywhere and it would also hide `reference/icd10cm-2026.sqlite`, which is committed on purpose. `TheNetDoesNotSwallowWhatIsCommitted` walks `git ls-files` and asserts no tracked file is ignored, so a wider pattern fails rather than quietly hiding one.
 
 ### Scratch census
+
+Every file-count line reports subdirectories that could not be read and links not entered,
+including zero counts. Links count as entries; deep read failures qualify the count without
+changing the top-level grade. Either keeps a peer root from being called empty, and an
+unreadable subdirectory holds back pre-removal. The shared boundary belongs to `tree_walk.DECLARED_LIMITS`.
 
 *The scratch root* above states the rule. This is the rule made runnable, and since #466 it runs
 unconditionally on every commit.
