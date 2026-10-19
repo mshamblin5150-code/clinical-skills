@@ -1887,6 +1887,11 @@ rows.
 
 ### Approved run status guard
 
+The shared walk treats a named run as touched when a subfolder cannot be listed
+or a listed file cannot be checked for changes. The usual keyed `Run status:`
+line is then required. Child links are not entered; this hook has no report
+surface for their count, so its limits object names that boundary.
+
 `tools/run_status_stop_hook.py` enforces one keyed terminal `Run status:` line per touched approved
 run. Its `RUN_KINDS` table names each posting skill's durable approval record and terminal grader;
 the approval record names the skill, so shared discussion directories and clinical run prefixes do
@@ -1932,6 +1937,11 @@ boundary belongs to `browser_tab_hook.DECLARED_LIMITS`; this section points at
 that object and copies none of its rows.
 
 ### Tracker publish hook
+
+The AAR quotation check uses the shared walk and denies publication if a run
+subfolder cannot be listed or a compared file cannot be read. Its report gives
+unread subfolder and file counts, never names, and says to restore read access
+and retry. `links not entered` prints on the same report; links do not deny.
 
 The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
@@ -2592,6 +2602,9 @@ Its parsers are covered by `tools/test_guidelines_extract.py` against committed 
 **The ACIP excerpt has now been wrong in both directions, and the reason is the same one both times: the shape is the test.** It first put the browser print timestamp on a line of its own; that was corrected to the folded form because `pypdf` welds the page title in after the stamp, and the classifier had been passing the fixture while finding zero print-captures in the corpus. #83 moved the extractor to PyMuPDF, the four header parts land on four lines again, and the fixture was corrected back — **rebuilt from the real file on 2026-08-16 rather than edited into the shape expected**, which is precisely what the previous round failed to do. All three ACIP files re-checked as `print-capture` afterwards — the name that class carried until #185 renamed it `web-capture`, and re-checked under the new name on 2026-08-19.
 ### Split census
 
+The source walk never enters child links and always prints `links not entered`,
+including zero. A subfolder it cannot list exits 2; restore read access and retry.
+
 The extractor above infers a space where the geometry says a word ends. This audits those
 inferences with the extractor's **current** rule rather than with a saved verdict.
 
@@ -2643,6 +2656,10 @@ python tools/uspstf_table.py "C:/codeing/guidelines-text"
 Covered by `tools/test_uspstf_table.py`, which runs against six page excerpts in `tools/testdata/uspstf/` — one per document layout the corpus contains — and **never against the shipped table**, for `test_icd10.py`'s reason. The excerpts are public domain; author names, affiliations and correspondence addresses are stripped from them anyway.
 
 ### Guideline catalog
+
+The catalog's shared manifest reader reports `links not entered` on every walk
+and refuses an unreadable extracted-text subfolder. The command exits 2 for
+that incomplete corpus rather than presenting a smaller catalog as complete.
 
 `reference/guidelines-catalog.md` is **committed**, and lists the guideline corpus one row per document: society, filename, title, topic, population, year, page count, class, stated citation. The mostly society-copyrighted PDFs at `C:/codeing/guidelines-src` **stay outside this repo** — that limb of [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) is settled rather than deferred, though the ticket itself is still open on the index. The catalog exists because the corpus cannot be navigated by reading it, and choosing *which document* is a metadata problem rather than a retrieval one.
 
@@ -2752,6 +2769,10 @@ The catalog documents a `class` column and `guidelines_search.py --class` filter
 
 ### Guideline full-text index
 
+Source enumeration and manifest validation use the shared walk, always printing
+`links not entered`, including zero. An unreadable extracted-text subfolder
+exits 2; restore read access and retry before building or accepting the index.
+
 Candidate selection across the society corpus needs search. `tools/guidelines_index.py` builds an SQLite FTS5 index over the extracted text, and `tools/guidelines_search.py` queries it.
 
 ```bash
@@ -2824,6 +2845,10 @@ Its output is guideline text, so nothing here is PHI and standing rule 1 is not 
 Covered by `tools/test_guidelines.py` — one file for the pair, the way `tools/test_icd10.py` covers its builder and reader together — which builds a throwaway text directory and a throwaway index in a temp directory the way `tools/test_skills_mirror.py` builds throwaway checkouts. It never reads the real corpus or the real index: one is a copyrighted PDF corpus outside the repo, the other is a build artifact that may not exist on the machine running the tests.
 
 ### Recommendation extraction
+
+The recommendation sweep and reader comparison use the shared source walk.
+Each prints `links not entered`, including zero, and exits 2 for a subfolder
+it cannot list. Links are excluded without changing the command's status.
 
 The index finds a page. This reads a guideline's **recommendations** into machine-readable records, and it is [#83](https://github.com/mshamblin5150-code/clinical-skills/issues/83) gate 2's input.
 
