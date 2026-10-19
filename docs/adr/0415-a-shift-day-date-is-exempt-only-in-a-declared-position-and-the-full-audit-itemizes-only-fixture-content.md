@@ -1,6 +1,6 @@
 # A shift-day date is exempt only in a declared position and the full audit itemizes only fixture content
 
-**Measured at:** 0bd3d566198a63206267fffbaa01ae4155dfe008
+**Measured at:** 346cb62d61268a2620d517f707ea3e1be0597c1e
 
 [#1839](https://github.com/mshamblin5150-code/clinical-skills/issues/1839) was filed from the
 tracker sweep that closed #1657's grilling. `python tools/phi_scan.py --all` reports so many
@@ -25,6 +25,16 @@ the freshness gate read `FRESH`. Its rulings are ruling 7 below, which extends r
 `tracker_scan --history`. At the commit above, the audit's totals re-derive unchanged at 1,460 date
 lines across 323 files. The welded-date census re-derives unchanged at 196 lines, 189 of them silent,
 in 13 files, with the same four row figures. This session wrote its own digit-bounded reader for it.
+
+[#1928](https://github.com/mshamblin5150-code/clinical-skills/issues/1928), filed from the tracker
+sweep that closed #1921's grilling, was grilled on 2026-10-19 against `main` at the commit above,
+where the freshness gate read `FRESH`. Its rulings are recorded in ADR 0438, not here; this record
+gains only the pointer under ruling 7. At the commit above, the audit's totals re-derive unchanged at
+1,460 date lines across 323 files and 119 name lines. The history scan's ruling-7 baseline re-derives
+unchanged at 3,377 blobs carrying 20,029 date findings, among 9,084 reachable text blobs rather than
+9,080 because `main` has moved. That session's own digit-bounded reader finds the welded-date census's
+196 lines in 13 files; its split of silent lines is not comparable to this record's and is not
+restated. The per-position rows and the census's four row figures were not re-run.
 
 **No date value, file line or line number from the scan appears in this record, and none may be
 added.** A line coordinate in a tracked file points at the date on that line, and the date then says
@@ -253,6 +263,8 @@ not single out a real date. No exemption at all, because it would leave the hist
 24,000 findings once ruling 6 is built, which is #1839's problem on another surface. Trusting the
 single label for fixture content, because a fixture blob saved byte-for-byte under another name
 would have its dates counted instead of graded, silently, in the one class that decides the result.
+
+[#1928](https://github.com/mshamblin5150-code/clinical-skills/issues/1928), ruled on 2026-10-19, gives `--history`'s `corpus-name` and shape findings their route to a clean result: a verdict row keyed on the exact blob, and a pointer to the harvest review. That is recorded in [ADR 0438](0438-a-history-scan-finding-in-an-old-file-version-takes-a-verdict-keyed-on-that-exact-version-and-an-agent-may-rule-one-the-public-repository-reaches.md), not here.
 
 ## Build checklist
 
