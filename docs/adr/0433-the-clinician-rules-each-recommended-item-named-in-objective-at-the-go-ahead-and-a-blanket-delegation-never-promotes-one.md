@@ -1,6 +1,6 @@
 # The clinician rules each recommended item named in Objective at the go-ahead and a blanket delegation never promotes one
 
-**Measured at:** 0bd3d566198a63206267fffbaa01ae4155dfe008
+**Measured at:** 05dfc863374c3b165782b29f09b0d1575bdc3a4f
 
 [#1596](https://github.com/mshamblin5150-code/clinical-skills/issues/1596) was ruled in
 [ADR 0380](0380-a-pass-may-grammar-check-its-own-note-and-a-prior-run-is-a-record-not-a-template.md)
@@ -56,9 +56,14 @@ ruling 4 is written into clinical-note's proposal rules, it is such a rule.
 In `skills/batch-shift/SKILL.md` step 7, the orchestrating context runs `tools/differential_scan.py`
 over every note as a **Grader handoff**, a non-authoring run, before the Review sheet. The go-ahead
 lists each matched pair, a `FILLED·proposed` item whose name appears in that note's Objective
-section, beside its note, and the clinician confirms or corrects each one. A standalone clinical-note
+section, beside its note, and the clinician confirms or corrects each one. The list is in the
+go-ahead chat message, as step 7 already lists each note's interpreted abdominal locations and as
+ADR 0417 ruling 3 places the coverage lines, never on the Review sheet. A standalone clinical-note
 go-ahead lists the same pairs beside the coverage line ADR 0417 already shows. The count line keeps
-the words `never graded` so `reader_remarks.coverage_lines` carries it. The pair reading of ADR 0380
+the words `never graded`, which `reader_remarks.coverage_lines` carries once ADR 0417 ruling 4's
+selector change is built; on this commit it matches `not graded` and not `never graded`. As with the
+abdominal locations, the clinician's corrections are incorporated before approval, and an approval
+confirms each listed pair it does not correct. The pair reading of ADR 0380
 ruling 5 is unchanged: a proposed test the Plan writes as an actual order is allowed, and a
 recommendation that reached Objective as given or ordered is a defect.
 
@@ -115,6 +120,10 @@ build also edits. With these rulings no decision in the build spec remains, so t
 
 Ruling 1's pair listing reaches names written alike, the limit ADR 0380 ruling 5 already declares.
 A clinician confirming a pair at the go-ahead is a reading, not a check the scanner can verify.
+At a batch go-ahead the pair listing is a skill instruction only: ADR 0417 ruling 2 verifies the
+coverage lines of the paired completion grader, and `aar_scan.COMPLETION_GRADERS` pairs batch-shift
+with `filled_vitals_census`, so the shown-and-verified check does not reach `differential_scan`'s
+count line on a shift. Widening that pairing is not ruled here.
 Ruling 3 remains a written rule with no mechanical check that a brief opened the subject list.
 Ruling 4 relies on the delegate quoting ruling 4; `delegated_answers.py` grades the record's shape
 and does not decide that the quoted rule governs. The coordination with ADRs 0405, 0406, 0409,
@@ -123,14 +132,23 @@ other's text.
 
 ## Build checklist
 
-Read with ADR 0380's checklist, which this amends:
+Read with ADR 0380's checklist, which this amends. Its batch-shift step 7 "writes nothing"
+rewording is not built: ADR 0385 ruling 1 superseded it.
 
 - `skills/batch-shift/SKILL.md` step 7: the non-authoring `differential_scan.py` run over every note
   and the per-pair go-ahead listing (ruling 1).
 - `skills/clinical-note/SKILL.md` go-ahead: the same pair listing beside ADR 0417's coverage line
   (ruling 1).
 - `tools/differential_scan.py`: the Objective count line carries `never graded` (ruling 1), reading
-  the item's own name and never a tail's drug-page title, as #1596's 2026-10-18 sweep recorded.
+  the item's own name and never a tail's drug-page title, as #1596's 2026-10-18 sweep recorded. The
+  line reaches the go-ahead only with ADR 0417 ruling 4's `reader_remarks.py` selector change; the
+  later build keeps both.
+- The batch run's note population (ruling 1): `--note` takes one path and `--submission` resolves
+  only a standalone note, so the step-7 handoff runs once per numbered note or the build gives the
+  scanner the batch population. It never reads `shift-summary.md`, `delegated-answers.md` or
+  `reread.md` as notes, which is #1805's trap ruled in ADR 0406.
+- `AGENTS.md`'s terminal-grader sentence still names `filled_vitals_census.py` alone for batch-shift;
+  the step-7 handoff is not a terminal grader and the build says so where that sentence stands.
 - ADR 0427's fill builder: Interaction Level against the reference scale (ruling 2).
 - `AGENTS.md` standing rule 6: the prior-run sentence with its named sources (ruling 3).
 - `skills/clinical-note/SKILL.md` delegated-answer rule: a blanket delegation never promotes a
