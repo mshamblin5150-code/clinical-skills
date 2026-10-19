@@ -54,7 +54,8 @@ under `.claude/skills-orphaned/<name>/<UTC stamp>/`, and then relinks the entry.
 subagent payload returns without inspecting or writing because its parent already owns
 the repair. Its context also reports the checkout's base distance from the cached
 `origin/main`, including the derived run-relevant subset and when that ref last moved.
-The report is local and advisory: it never fetches and never changes the hook's status.
+The Base distance read remains local and advisory. Worktree starts additionally refresh
+the main checkout and compare its served files; neither changes the hook's status.
 Hook output is JSON carrying `hookSpecificOutput.additionalContext`; plain stdout text
 does not reach the model.
 
@@ -133,9 +134,9 @@ NOT_REACHED = (
         "as a difference; an ancestor junction can prevent termination.",
     ),
     (
-        "the state of another checkout's mirror",
-        "Inspection is confined to the selected checkout; neither the main checkout "
-        "nor a sibling worktree is read.",
+        "a sibling checkout's mirror",
+        "Ordinary inspection is confined to the selected checkout. Session start "
+        "also reads the main checkout's served mirror, never other sibling mirrors.",
     ),
     (
         "the state after another worktree is materialized",
@@ -186,6 +187,35 @@ NOT_REACHED = (
         "the state of the issue tracker",
         "Commit distance reads repository refs only and does not inspect tracker "
         "records that may have changed independently.",
+    ),
+    (
+        "link traversal in the session-start comparison",
+        "The comparison deliberately enters the main mirror's junctions through "
+        "_differing_files; dangling served files differ, and an ancestor loop may not terminate.",
+    ),
+    (
+        "skill edits after the startup snapshot",
+        "The file comparison cannot observe an edit followed by an invocation later in the session.",
+    ),
+    (
+        "the current session's loaded skill text",
+        "The 2026-10-19 CLI trials returned different live-edit outcomes; desktop reload "
+        "was not driven. Refreshes promise the next session, not reliable current-session replacement.",
+    ),
+    (
+        "another agent on a clean main checkout",
+        "The fast-forward can move files beneath that agent; guards see tracked edits only. "
+        "They do not lock out concurrent checkout changes after the guard read.",
+    ),
+    (
+        "Claude Code configuration and worktree creation behavior",
+        "Desktop and bridged source premises are the dated ADR 0426/0429 measurements. "
+        "Terminal-created sessions, the unexplained /aar route, bridge creation timing, "
+        "and changes to Claude Code's configuration loading are not verified here.",
+    ),
+    (
+        "a bridged session's branch-specific skill text",
+        "The report redirects differences but does not make the bridge's skill folder exist earlier.",
     ),
 )
 
@@ -827,6 +857,85 @@ def hook_response(context: str) -> dict:
     }
 
 
+def refresh_main_checkout(root: Path) -> str:
+    """Fetch within the startup budget, then move only a clean main branch."""
+    try:
+        subprocess.run(
+            ["git", "fetch", "origin", "main"], cwd=root,
+            capture_output=True, check=True, timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        return "main checkout declined: fetch timed out; skill files not measured"
+    except (OSError, subprocess.CalledProcessError):
+        return "main checkout declined: fetch failed; skill files not measured"
+    try:
+        target = _git(root, "rev-parse", "origin/main")
+        changed = len(git_paths.read_path_records(
+            root, "diff", "--name-only", "-z", "HEAD", target, "--", "skills/",
+        ))
+        if _git(root, "rev-parse", "--abbrev-ref", "HEAD") != "main":
+            reason = "not on main"
+        elif _git(root, "status", "--porcelain", "--untracked-files=no"):
+            reason = "tracked files have uncommitted edits"
+        else:
+            try:
+                _git(root, "merge-base", "--is-ancestor", "HEAD", target)
+            except subprocess.CalledProcessError:
+                reason = "main cannot fast-forward"
+            else:
+                _git(root, "merge", "--ff-only", target)
+                return (f"main checkout fast-forwarded to {target}; "
+                        f"{changed} skill file(s) changed")
+        return f"main checkout declined: {reason}; {changed} skill file(s) differ from origin/main"
+    except (OSError, subprocess.CalledProcessError, git_paths.GitPathError):
+        return "main checkout declined: Git read or fast-forward failed; skill files not measured"
+
+
+def worktree_session_context(root: Path, payload: dict) -> tuple[Path, list[str]] | None:
+    """Resolve both session kinds through cwd's common Git directory (ADRs 0426/0429)."""
+    cwd = payload.get("cwd")
+    if not isinstance(cwd, str) or not cwd:
+        return None
+    try:
+        session = Path(_git(Path(cwd), "rev-parse", "--show-toplevel")).resolve()
+        common = Path(_git(session, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+        git_dir = Path(_git(session, "rev-parse", "--absolute-git-dir"))
+        if common.resolve() == git_dir.resolve():
+            return None
+        owner = common.resolve().parent
+        script_common = Path(_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+        if script_common.resolve() != common.resolve():
+            return None
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+    kind = "bridged" if root == session else "desktop"
+    refreshed = refresh_main_checkout(owner)
+    try:
+        names = skill_names(session)
+        if not names:
+            raise OSError("empty skill population")
+        count = 0
+        for name in names:
+            if not (session / CANONICAL / name).is_dir():
+                raise OSError("unread skill directory")
+            different, extra = _differing_files(session / CANONICAL / name, owner / MIRROR / name)
+            count += len(different) + len(extra)
+        comparison = f"{count} served skill file(s) differ"
+    except (OSError, git_paths.GitPathError):
+        count = None
+        comparison = "served skill files not measured"
+    line = (f"Worktree skills ({kind}): {session}; served from {owner / MIRROR}; "
+            f"{refreshed}; {comparison}. Updates serve the next session.")
+    lines = [line]
+    if count:
+        lines.append(
+            f"WARNING: Read each skill from {session / CANONICAL}/<name>/ "
+            "rather than the invocation's base directory."
+        )
+    return owner, lines
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Check that .claude/skills/ links to skills/, and repair it.",
@@ -861,14 +970,19 @@ def main(argv=None) -> int:
             return 0
 
     root = args.root.resolve() if args.root else repo_root()
+    worktree_context = worktree_session_context(root, payload) if args.session_start else None
+    worktree_lines = worktree_context[1] if worktree_context else []
+    if worktree_context and worktree_context[0] != root:
+        record_report(worktree_context[0], worktree_lines)
 
     try:
         entries = inspect(root)
     except git_paths.GitPathError:
         if args.session_start:
             stamp = _utc_stamp()
-            record_report(root, [POPULATION_NOT_READ], stamp=stamp)
+            record_report(root, [POPULATION_NOT_READ, *worktree_lines], stamp=stamp)
             context = f"{POPULATION_NOT_READ}\n\n{base_context(root)}"
+            context = "\n".join([context, *worktree_lines])
             if _quiet_keeps("session-start-artifact"):
                 print(json.dumps(hook_response(context)))
             return 0
@@ -879,7 +993,7 @@ def main(argv=None) -> int:
     if args.session_start:
         stamp = _utc_stamp()
         report = render(entries, root, verbose=True)
-        record_report(root, report, stamp=stamp)
+        record_report(root, [*report, *worktree_lines], stamp=stamp)
         broken = [entry for entry in entries if not entry.ok]
         failures = []
         if not entries:
@@ -896,6 +1010,7 @@ def main(argv=None) -> int:
             context_lines.extend(f"FAILED  {failure}" for failure in failures)
             context = "\n".join(context_lines)
         context = f"{context}\n\n{base_context(root)}"
+        context = "\n".join([context, *worktree_lines])
         if _quiet_keeps("session-start-artifact"):
             print(json.dumps(hook_response(context)))
         # SessionStart is advisory. Returning success is what lets Claude Code
