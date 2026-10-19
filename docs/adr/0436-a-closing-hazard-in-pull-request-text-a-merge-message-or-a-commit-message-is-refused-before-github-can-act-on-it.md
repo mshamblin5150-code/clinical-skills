@@ -1,6 +1,6 @@
 # A closing hazard in pull request text, a merge message, or a commit message is refused before GitHub can act on it
 
-**Measured at:** 0bd3d566198a63206267fffbaa01ae4155dfe008
+**Measured at:** 0ee4d850268bd7276b40e6d9cac0c76ea630c8ea
 
 [#1916](https://github.com/mshamblin5150-code/clinical-skills/issues/1916) was filed from the
 grilling of [#1879](https://github.com/mshamblin5150-code/clinical-skills/issues/1879), 2026-10-19.
@@ -113,6 +113,15 @@ must wait for CI touches [ADR 0002](0002-ci-runs-the-suite-at-the-merge.md)'s ad
 time cost of every merge, so it goes to its own ticket labeled `grilling`, with its own measurement.
 Ruling it here was declined because it would settle that posture on evidence gathered for a
 different question.
+
+**Correction, 2026-10-19:** this record says twice that #1915's suite failed. Its `suite + PHI shape
+layer` job failed on the `Closing keyword scan, pull request` step alone; the `Test suite` step
+passed, read from the job's step conclusions, and the push run on the merge commit `7020e852`
+succeeded. The tree that landed was green, and the closing hazard was the only harm. The rulings
+are unchanged. Found by #1926's grilling, whose answer to ruling 5 is
+[ADR 0437](0437-a-merge-does-not-wait-for-ci-and-a-red-main-is-handled-by-its-ticket.md). The
+`Measured at` line moved to that grilling's base; no file under `tools/` or `.github/` changed
+between the two.
 
 ## Ruling 6. This build and #1602's are independent
 
