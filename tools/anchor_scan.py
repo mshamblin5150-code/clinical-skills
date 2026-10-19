@@ -491,6 +491,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=bool(scan.findings),
         coverage_failed=not scan.subjects or bool(scan.unread_remainder),
         diagnostics=tuple(diagnostics),
+        reports=(run_grader.run_records_report(source.directory),),
     )
 
 
@@ -544,7 +545,7 @@ def _markdown_files(directory: Path) -> dict[str, Path]:
     return {
         path.stem: path
         for path in sorted(directory.glob("*.md"))
-        if path.name.lower() != "readme.md"
+        if path.is_file() and not run_grader.is_run_record(path)
     }
 
 
@@ -1541,7 +1542,8 @@ def _run_agreement(argv: list[str]) -> int:
     if args.agreement_brief:
         anchor_findings = _anchor_findings(pairs)
         brief = json.dumps(
-            _brief_payload(pairs, unread, full_pair_count, args.stem, len(anchor_findings)),
+            {**_brief_payload(pairs, unread, full_pair_count, args.stem, len(anchor_findings)),
+             "run_records": run_grader.run_records_report(args.worksheets, args.notes)},
             indent=2, ensure_ascii=True,
         )
         if args.output is None:
@@ -1563,12 +1565,17 @@ def _run_agreement(argv: list[str]) -> int:
 
     assert args.agreement_read is not None
     try:
-        result = _grade_agreement(pairs, unread, args.agreement_read)
+        result = _grade_agreement(pairs, unread, args.agreement_read,
+                                  set(args.stem) if args.stem else None)
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"descriptor agreement read: unread record ({error})")
         return 2
     print(_agreement_report(pairs, result.findings, result.unread,
                             result.unread_routes, result.excluded_code_tokens, args.show))
+    print(run_grader.run_records_report(args.worksheets, args.notes))
+    if result.out_of_scope_rows:
+        print(f"  agreement rows outside requested stems: {result.out_of_scope_rows}")
+        print("  A scoped read takes that stem's own agreement-self/<stem>.json.")
     metric: int | str = "not measured"
     if args.self_record is not None:
         try:
@@ -1591,10 +1598,11 @@ class AgreementRead:
     excluded_code_tokens: list[str]
     passed: set[tuple[str, str]]
     failed: set[tuple[str, str]]
+    out_of_scope_rows: int = 0
 
 
 def _grade_agreement(pairs: list[AgreementPair], unread: int,
-                     paths: list[Path]) -> AgreementRead:
+                     paths: list[Path], requested: set[str] | None = None) -> AgreementRead:
     record_pairs: dict[str, dict] = {}
     for path in paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1720,7 +1728,9 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         findings.extend(binding_findings)
         excluded_code_tokens.extend(pair_excluded_tokens)
 
-    return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed)
+    out_of_scope = len(set(record_pairs) - requested) if requested is not None else 0
+    return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed,
+                         out_of_scope)
 
 
 def main(argv: list[str]) -> int:

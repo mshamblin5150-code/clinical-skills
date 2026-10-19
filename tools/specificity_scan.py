@@ -886,7 +886,7 @@ def _grade(
         findings_failed=findings_failed or aar_failed or chain_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
-        reports=tuple(reports) + (aar_report, chain_report),
+        reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report),
     )
 
 

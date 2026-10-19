@@ -212,6 +212,9 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run
 python tools/refusal_scan.py <run>/worksheets --stem note-N
 ```
 
+A repair pass re-runs this step's self-grade command against its own
+`agreement-self/note-N.json`, never the shift-wide agreement record.
+
 Run the refusal command when that worksheet carries refusal records; exit 0 is required before
 handoff. It reads only the pass's own worksheet. With no refusal records, record that this check
 has no subjects and apply the self-grade gate above.

@@ -781,7 +781,7 @@ def grade(
     scan = replace(scan, attribution=locate(tuple(artifacts)))
     paths = medatrax_posting.note_paths(directory, batch=True) or tuple(
         path for path in sorted(directory.glob("*.md"))
-        if path.name.casefold() not in {"readme.md", "reread.md", "shift-summary.md"}
+        if path.is_file() and not run_grader.is_run_record(path)
     )
     summary_failed, summary_incomplete, summary_report = shift_summary.check(
         directory, paths, bool(parsed.value("--submission")), parsed.show
@@ -881,7 +881,7 @@ def grade(
         findings_failed=findings_failed or outbound_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
-        reports=(summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
+        reports=(run_grader.run_records_report(directory), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")

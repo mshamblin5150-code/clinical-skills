@@ -1251,6 +1251,35 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             self.assertEqual(0, scan.main(args))
             self.assertEqual(2, scan.main([*args, "--stem", "absent"]))
 
+    def test_scoped_read_explains_rows_from_another_stem(self):
+        record = self.clean_record()
+        record["pairs"].append({"stem": "case-02", "codes": []})
+        record_path = Path(self.raw.name) / "shift-wide.json"
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                "--agreement-read", str(record_path), "--stem", "case-01"])
+        self.assertEqual(2, status)
+        self.assertIn("agreement rows outside requested stems: 1", output.getvalue())
+        self.assertIn("agreement-self/<stem>.json", output.getvalue())
+        self.assertEqual(["unread remainder 1"],
+                         re.findall(r"^unread remainder \d+$", output.getvalue(), re.MULTILINE))
+
+    def test_agreement_modes_set_aside_run_records_without_losing_pairs(self):
+        for name in ("README.md", "shift-summary.md", "delegated-answers.md", "reread.md"):
+            (self.notes / name).write_text("Run record.\n", encoding="utf-8")
+            (self.worksheets / name).write_text("Run record.\n", encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"])
+        self.assertEqual(0, status)
+        brief = json.loads(output.getvalue())
+        self.assertEqual(["case-01"], [pair["stem"] for pair in brief["pairs"]])
+        status, report = self.grade(self.clean_record())
+        self.assertEqual(0, status)
+        self.assertIn("set aside as run records: 4", report)
+
     def test_batch_writer_can_defer_only_missing_cpt_pages(self):
         record = self.clean_record()
         with patch("procedure_codes_lookup.cpt_descriptors_verified", return_value=False):
