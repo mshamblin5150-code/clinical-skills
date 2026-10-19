@@ -1,6 +1,6 @@
 # The builders refuse a control character in an outbound artifact rather than carry or delete it
 
-**Measured at:** 7821ce1f7dbc98555b246eaa0bef65105c700f3d
+**Measured at:** ec18431044cf65df2a87435c24b050a38ccd5545
 
 [#1859](https://github.com/mshamblin5150-code/clinical-skills/issues/1859) was filed from the
 grilling of #1755 under
