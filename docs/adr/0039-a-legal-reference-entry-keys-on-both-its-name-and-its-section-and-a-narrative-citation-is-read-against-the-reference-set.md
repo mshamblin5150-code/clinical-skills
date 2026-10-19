@@ -56,6 +56,8 @@ The stricter branch — name alone, so a section-form citation becomes `unresolv
 
 **The in-text form is deliberately not policed, and the asymmetry with ruling 5 is the reason.** There is no evidence faculty mark the in-text spelling; there is direct evidence they mark the entry shape.
 
+*Superseded 2026-10-19.* The paragraph beginning "The in-text form is deliberately not policed" is superseded by [ADR 0419](0419-a-legal-citation-in-section-form-resolves-to-its-entry-and-is-refused-for-its-form.md) ruling 2: a section-form legal citation is now refused for its form, on the *Publication Manual*'s legal chapter. The rest of this ruling stands, and [ADR 0419](0419-a-legal-citation-in-section-form-resolves-to-its-entry-and-is-refused-for-its-form.md) ruling 1 restores the name and section keys it rules after the #976 build removed them.
+
 **This does not widen `author_key`**, which #497 forbids. The widening is in what a legal *entry* yields, not in how any string is keyed.
 
 ## Ruling 3 — a narrative citation is read against the reference set, by a reverse key walk

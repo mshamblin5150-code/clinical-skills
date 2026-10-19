@@ -483,7 +483,7 @@ A reference for enacted or codified law, including a session law, a statute or a
 _Avoid_: citation entry, code cite, regulation cite, statute entry
 
 **Legal citation**:
-An in-text reference to enacted or codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+An in-text reference to enacted or codified law, spelled with the legal source's name and year. The section is a locator, not what names the source: a citation spelled with the section alone still points at its entry, but it is the wrong form.
 _Avoid_: code citation, section reference
 
 **Section number**:

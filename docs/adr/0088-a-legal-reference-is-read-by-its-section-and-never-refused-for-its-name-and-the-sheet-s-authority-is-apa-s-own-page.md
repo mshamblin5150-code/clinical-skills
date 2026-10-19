@@ -51,6 +51,8 @@ So `reference_scan` cannot see that spelling and therefore can never honestly pr
 
 *Superseded 2026-09-08.* The words "Resolving it needs ADR 0039's reverse key walk, which requires a whole-phrase key this module does not have." are superseded by [ADR 0150](0150-the-narrative-author-phrase-stops-at-a-sentence-boundary-and-a-leading-article-is-ignored-quote-aware.md) ruling 7. Legal entries remain excluded from uncited-entry because section citations resolve on resolution_keys which that row does not read.
 
+*Superseded 2026-10-19.* The words "The entry is excluded from the row, and the exclusion is declared in `NOT_REACHED`." are superseded by [ADR 0419](0419-a-legal-citation-in-section-form-resolves-to-its-entry-and-is-refused-for-its-form.md) ruling 3. A named legal entry takes part in `uncited-entry`, because its name citations are now read; an entry with no name stays outside the row.
+
 ## Ruling 3 — a legal entry with no regulation name is a reported defect here too
 
 `discussion_artifact.legal_reference_lacks_name` is imported, not reinvented. The predicate exists, is ruled under ADR 0039 ruling 5, and is already correct.
@@ -74,6 +76,8 @@ Ruling 2's exclusion is a `NOT_REACHED` row, and a test binds that object to `ap
 A sub-count beside the two already there, and one sentence saying a legal entry is outside `uncited-entry`. Both print whether or not the draft holds a legal entry.
 
 [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258) ruled the conditional form out in as many words: a reader who learns to read a qualifier reads its absence as the stronger claim. The house pattern is already uniform — `phi_scan`'s scope row, `checks_ledger`'s graded-row names, `differential_scan`'s coverage line, and the `UpToDate entries` and `entries carrying a DOI` sub-counts this one sits beside.
+
+*Superseded 2026-10-19.* The words "one sentence saying a legal entry is outside `uncited-entry`" are superseded by [ADR 0419](0419-a-legal-citation-in-section-form-resolves-to-its-entry-and-is-refused-for-its-form.md) ruling 3. The sentence now states that a named legal entry takes part in that row; the legal sub-count and the every-run form stand.
 
 ## Ruling 6 — the sheet's authority is APA's own page, and the library-guide caveat is retired
 
