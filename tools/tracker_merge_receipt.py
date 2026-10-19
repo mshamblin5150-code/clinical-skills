@@ -18,8 +18,10 @@ Exit 0 means the plan contains a binding or a reasoned no-ticket declaration.
 Exit 1 means the plan is empty or a reference-shaped line was declined. Exit 2
 means the input could not establish a completed merge into ``main``. Use
 ``--check-plan`` before merge to grade bindings without requiring merge data.
-The command opens no socket and mutates nothing; its JSON-lines output is the
+The ordinary planner opens no socket and mutates nothing; its JSON-lines output is the
 bounded plan consumed by ``.github/workflows/tracker.yml``.
+``--check-premature-close`` reads labels for whole-ticket bindings and exits
+0 when clean, 1 for a grilling ticket, or 2 when labels could not be read.
 
 What a clean run does not establish is owned by ``NOT_REACHED`` below rather
 than copied into this docstring or ``CLAUDE.md``.
@@ -42,6 +44,12 @@ import tracker_event_checks
 
 
 NOT_REACHED = (
+    (
+        "premature-close labels are a check-time snapshot",
+        "Only owned-line whole-ticket bindings are checked, using the grilling "
+        "label at check time. Later label changes and merges without a fresh "
+        "pull-request check are not reached; the label cannot prove a ruling is finished.",
+    ),
     (
         "a well-formed binding can name the wrong ticket",
         "A well-formed binding can still name the wrong ticket; a clean run "
@@ -247,8 +255,10 @@ def _text(record: dict[str, Any], field: str, source: str) -> str:
     return value or ""
 
 
-def _artifact_sources(document: dict[str, Any]) -> list[ArtifactText]:
+def _artifact_sources(document: dict[str, Any], *, include_title: bool = False) -> list[ArtifactText]:
     sources = [ArtifactText("body", "body", _text(document, "body", "body"))]
+    if include_title:
+        sources.insert(0, ArtifactText("title", "title", _text(document, "title", "title")))
     commits = document.get("commits", [])
     if commits is None:
         commits = []
@@ -299,9 +309,9 @@ def _bindings(document: dict[str, Any]) -> list[Binding]:
     return sorted({line.binding for line in _binding_lines(document)})
 
 
-def _binding_lines(document: dict[str, Any]) -> list[BindingLine]:
+def _binding_lines(document: dict[str, Any], *, include_title: bool = False) -> list[BindingLine]:
     found = []
-    for source in _artifact_sources(document):
+    for source in _artifact_sources(document, include_title=include_title):
         for number, line in enumerate(source.text.splitlines(), start=1):
             if match := REFERENCE.fullmatch(line):
                 found.extend(
@@ -309,6 +319,62 @@ def _binding_lines(document: dict[str, Any]) -> list[BindingLine]:
                     for binding in _match_bindings(match)
                 )
     return found
+
+
+def whole_ticket_bindings(document: Any) -> frozenset[int]:
+    """Read whole-ticket targets through the receipt grammar on all PR surfaces."""
+    if not isinstance(document, dict):
+        raise ValueError("GitHub JSON must be an object")
+    return frozenset(
+        line.binding.ticket
+        for line in _binding_lines(document, include_title=True)
+        if line.binding.claim == f"Closes #{line.binding.ticket}"
+    )
+
+
+def premature_close_remedy(ticket: int) -> str:
+    return (
+        f"use Part of #{ticket} on its own line after checking whether another "
+        "session holds in flight; if the grill is really over, remove the "
+        "grilling label first"
+    )
+
+
+def check_premature_close(document: Any) -> int:
+    """Read each distinct whole-ticket target once; report findings and unread labels."""
+    findings = 0
+    unread = 0
+    for ticket in sorted(whole_ticket_bindings(document)):
+        try:
+            completed = subprocess.run(
+                ["gh", "issue", "view", str(ticket), "--json", "labels"],
+                text=True, encoding="utf-8", errors="replace", capture_output=True,
+                check=False,
+            )
+            if completed.returncode != 0:
+                raise ValueError("label lookup failed")
+            record = json.loads(completed.stdout)
+            labels = record.get("labels") if isinstance(record, dict) else None
+            if not isinstance(labels, list) or any(
+                not isinstance(label, dict) or not isinstance(label.get("name"), str)
+                for label in labels
+            ):
+                raise ValueError("invalid labels")
+        except (OSError, UnicodeError, subprocess.SubprocessError, ValueError):
+            unread += 1
+            print(f"tracker-merge-receipt: NOT GRADED: labels for #{ticket} unread", file=sys.stderr)
+            continue
+        if any(label["name"] == "grilling" for label in labels):
+            findings += 1
+            print(
+                f"tracker-merge-receipt: premature close: #{ticket}; "
+                + premature_close_remedy(ticket), file=sys.stderr,
+            )
+    print(
+        f"tracker-merge-receipt: premature closes {findings}; unread labels {unread}",
+        file=sys.stderr,
+    )
+    return 2 if unread else 1 if findings else 0
 
 
 def assess_plan(document: Any) -> PlanAssessment:
@@ -622,15 +688,21 @@ def main(argv: list[str] | None = None) -> int:
         help="grade and idempotently publish a completed JSON-lines receipt plan",
     )
     parser.add_argument("path", help="gh pr view JSON, or - for stdin")
+    parser.add_argument(
+        "--check-premature-close", action="store_true",
+        help="refuse whole-ticket bindings on grilling tickets using live labels",
+    )
     args = parser.parse_args(argv)
 
-    if args.check_plan and args.publish_plan:
-        parser.error("--check-plan and --publish-plan are mutually exclusive")
+    if sum((args.check_plan, args.publish_plan, args.check_premature_close)) > 1:
+        parser.error("--check-plan, --publish-plan and --check-premature-close are mutually exclusive")
 
     try:
         if args.publish_plan:
             return publish_plan(args.path)
         document = _read(args.path)
+        if args.check_premature_close:
+            return check_premature_close(document)
         assessment = assess_plan(document)
         rows = [] if args.check_plan else plan_receipts(document)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:

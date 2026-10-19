@@ -95,6 +95,14 @@ jobs:
             git log -1 --format=%B | python tools/closing_keyword_scan.py -
           }
 
+      - name: Premature close scan, pull request
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          python tools/tracker_merge_receipt.py --check-premature-close $pr
+
       - name: Receipt plan scan, advisory
         if: github.event_name == 'pull_request'
         continue-on-error: true

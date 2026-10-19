@@ -86,6 +86,41 @@ def fetched_records(
     }
 
 
+class PrematureCloseAtPublication(unittest.TestCase):
+    def test_only_whole_bindings_in_pr_fields_refuse_and_unread_labels_allow(self):
+        cases = [
+            ("gh pr edit 88 --title 'Closes #1602'", ("grilling",), False, True),
+            ("gh pr create --body 'Closes #1602'", (), False, False),
+            ("gh pr create --body 'Part of #1602'", ("grilling",), False, False),
+            ("gh pr create --body 'Closes #1602'", ("grilling",), True, False),
+            ("gh pr create --body 'Ordinary body'", ("grilling",), False, False),
+            ("gh issue comment 1602 --body 'Closes #1602'", ("grilling",), False, False),
+        ]
+        for command, labels, offline, denied in cases:
+            with (
+                self.subTest(command=command, offline=offline),
+                mock.patch.object(hook, "current_index", return_value=(phi_scan.build_index(set(), set()), ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "fetch_readback", return_value=fetched_records(1602, labels), side_effect=OSError("offline") if offline else None),
+            ):
+                grade = hook.grade_command(command)
+            self.assertEqual(grade.denied, denied, grade.report)
+            if offline:
+                self.assertIn("premature-close: NOT GRADED", grade.report)
+
+    def test_pr_create_refuses_a_grilling_ticket_using_the_batched_readback(self):
+        with (
+            mock.patch.object(hook, "current_index", return_value=(phi_scan.build_index(set(), set()), ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=fetched_records(1602, ("grilling",))) as fetch,
+        ):
+            grade = hook.grade_command("gh pr create --title 'A change' --body 'Closes #1602'")
+        self.assertTrue(grade.denied)
+        self.assertIn("premature-close", grade.report)
+        self.assertIn("Part of #1602", grade.report)
+        fetch.assert_called_once_with(frozenset({1602}))
+
+
 class RefreshDefaultBranchNamesTheRefItReads(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -2546,6 +2581,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
             {
+                "premature-close grading stops at the published PR fields and current readback",
                 'Unreadable harness payload',
                 'a commit outside a session does not run the marker',
                 'a failed tracker readback leaves the publication context-blind',

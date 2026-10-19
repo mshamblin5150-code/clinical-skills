@@ -64,6 +64,7 @@ import tracker_measurements
 import tracker_branch_scope
 import tracker_filed_from
 import tracker_readback
+import tracker_merge_receipt
 import command_reader
 import shell_reader
 from command_reader import (
@@ -89,6 +90,13 @@ AAR_RULES = (AAR_QUOTATION_RULE,)
 AAR_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NOT_REACHED = (
+    (
+        "premature-close grading stops at the published PR fields and current readback",
+        "Only gh pr create/edit title and body whole-ticket bindings are checked. "
+        "Commit messages are not read. A failed or unresolved label read is NOT "
+        "GRADED and allows on this rule; labels changed after readback and whether "
+        "a ruling is really finished are not established.",
+    ),
     ('Unreadable harness payload', 'Unreadable payloads refuse only on raw gh; otherwise allow with both notes. Escaped or split literals can evade the raw search.'),
     ("run material behind links is not compared", "Links and junctions are not entered; their count is reported without denying publication."),
     (
@@ -976,6 +984,7 @@ def grade_command(command: str) -> CommandGrade | None:
         publication_number=extracted.number,
     )
     issue = None
+    records = {}
     readback_lines: tuple[str, ...]
     if citations:
         try:
@@ -990,6 +999,7 @@ def grade_command(command: str) -> CommandGrade | None:
             json.JSONDecodeError,
             ValueError,
         ):
+            records = {}
             readback_lines = (
                 "tracker readback: FETCH FAILED; context-blind -- current "
                 "record state and labels were not read",
@@ -1017,6 +1027,23 @@ def grade_command(command: str) -> CommandGrade | None:
     ):
         analyses.append(_missing_issue_create_analysis())
     analyses.append(quotation)
+    if route in (("pr", "create"), ("pr", "edit")):
+        document = {publication.field: publication.text for publication in extracted.publications}
+        premature_findings = []
+        premature_lines = []
+        for ticket in sorted(tracker_merge_receipt.whole_ticket_bindings(document)):
+            target = _issue_context(records.get(ticket))
+            if target is None:
+                premature_lines.append(
+                    f"premature-close: NOT GRADED: labels for #{ticket} unread"
+                )
+            elif "grilling" in target.labels:
+                premature_findings.append(Finding("premature-close", 1, "title/body", "deny"))
+                premature_lines.append(
+                    f"deny: premature-close: #{ticket}; remedy: "
+                    + tracker_merge_receipt.premature_close_remedy(ticket)
+                )
+        analyses.append(Analysis(tuple(premature_findings), "\n".join(premature_lines)))
 
     lines = [
         f"tracker pre-publish: {publication.field} read from {publication.origin}"
