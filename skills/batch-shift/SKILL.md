@@ -214,6 +214,7 @@ python tools/refusal_scan.py <run>/worksheets --stem note-N
 
 An informational line is never a reason to change note text. Leave ordinary clinical prose as written when the line names a token; correct the token only when it is a mistyped code.
 
+USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the title from the shipped sheet; grade and year are compared, while the population stays in the writer's words and needs a reader. Follow [clinical-note’s Guideline sheets](../clinical-note/SKILL.md#guideline-sheets) for the approval-date exemption, undated-year fallback and reported-only contradictions.
 
 A repair pass re-runs this step's self-grade command against its own
 `agreement-self/note-N.json`, never the shift-wide agreement record.
@@ -537,5 +538,3 @@ python tools/filled_vitals_census.py <the run directory> --submission shift-<dat
 
 An exit of 0 must include `the after-action review: clean` and `the Medatrax posted reading: clean`.
 An absent or malformed review, missing fingerprint, or note changed after the reading is a finding.
-
-USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the whole topic title from `reference/guidelines-uspstf.md`; case and whitespace are folded for comparison. Grade and year are compared; the population stays in the writer's words and its applicability needs a reader. A sheet year of `not stated` permits only a grade comparison, labeled separately. `[uspstf: no row]` keeps its form. A citation without a topic title is a finding for approvals at or after the new check's start; earlier approvals are not graded. The report separates compared tails, grade-only citations, exempt citations, no-row tails and other tails not compared.

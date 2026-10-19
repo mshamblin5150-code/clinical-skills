@@ -1047,6 +1047,15 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertIn("case-02.md:", output.getvalue())
         self.assertIn("case-03.md:", output.getvalue())
 
+    def test_malformed_tail_is_read_but_never_counted_as_compared(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Weight target [thresholds/hypertension: gibberish]"
+        )
+        self.assertEqual(status, 1, error)
+        self.assertIn("guideline tails checked against source evidence  0", report)
+        self.assertIn("other tails not compared  1", report)
+        self.assertIn("guideline tails read  1", report)
+
     def test_sheet_backed_uspstf_and_threshold_tails_are_clean(self):
         status, report, _ = self.run_command(
             "FILLED·proposed   1. HIV screening [uspstf: Screening for HIV Infection; grade A, adolescents and adults aged 15 to 65 years, 2019]\n"

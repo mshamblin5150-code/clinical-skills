@@ -865,7 +865,7 @@ def _topic_words(text: str) -> set[str]:
 
 
 def _lexical_subject_topic_names(item: str, topics: tuple[str, ...]) -> set[str]:
-    """Return topic names making the one high-confidence lexical join."""
+    """Return lexical label/topic pointers for a reader; these never grade a tail."""
     words = _topic_words(item)
     decisive: set[str] = set()
     for topic in topics:
@@ -881,7 +881,7 @@ def _lexical_subject_topic_names(item: str, topics: tuple[str, ...]) -> set[str]
 
 
 def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
-    """High-confidence lexical joins only; synonym-shaped misses stay candidates."""
+    """Lexical topic pointers for no-row verdicts, never citation validation."""
     topic_names = _lexical_subject_topic_names(item, tuple(row[0] for row in USPSTF_ROWS))
     return [row for row in USPSTF_ROWS if row[0] in topic_names]
 
@@ -1143,10 +1143,10 @@ def _guideline_floor(
                     ThresholdSheetFailure(sheet, str(parsed_sheet.why_not)),
                 )
                 continue
-            checked += 1
             rows = parsed_sheet.rows
             verdict = verdict.strip()
             if verdict.casefold() == "sheet does not settle it":
+                checked += 1
                 subject_signals = _threshold_signal_values(subject.replace(",", ""))
                 subject_words = _topic_words(subject)
                 contradicts = any(
@@ -1172,6 +1172,7 @@ def _guideline_floor(
                     GuidelineFinding(item.line, "malformed threshold verdict", item.text)
                 )
                 continue
+            checked += 1
             if not rows:
                 findings.append(
                     GuidelineFinding(

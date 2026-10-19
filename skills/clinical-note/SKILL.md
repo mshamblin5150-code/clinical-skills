@@ -528,7 +528,6 @@ python tools/refusal_scan.py <run>/worksheets --stem <stem>
 
 An informational line is never a reason to change note text. Leave ordinary clinical prose as written when the line names a token; correct the token only when it is a mistyped code.
 
-
 For this standalone run, exit 0 gates creation of the blind agreement brief. Run the refusal
 command when the worksheet carries refusal records and require exit 0 before handoff; with none,
 record that the check has no subjects. A batch encounter
@@ -695,9 +694,6 @@ Grounded, and expected:
 - **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes. The Allergies field fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
 
-USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the whole topic title from `reference/guidelines-uspstf.md`; case and whitespace are folded for comparison. Grade and year are compared; the population stays in the writer's words and its applicability needs a reader. A sheet year of `not stated` permits only a grade comparison, labeled separately. `[uspstf: no row]` keeps its form. A citation without a topic title is a finding for approvals at or after the new check's start; earlier approvals are not graded. The report separates compared tails, grade-only citations, exempt citations, no-row tails and other tails not compared.
-
-
 **Normal filled examinations use the clinician's saved language.** For an unmentioned, clinically normal system, write that system's saved normal-exam line from `scratch/medatrax-profile.md` under `Normal examination`. A system with no saved line is written for this encounter. Use `GI`, never `Abdomen`, as the examination label. A given abnormality replaces the conflicting normal clause for that system; never append a normal respiratory clause to diminished or adventitious breath sounds, or a normal orientation clause to altered mentation.
 
 **A new cetirizine instruction is daily and ongoing.** When the shorthand starts Zyrtec or cetirizine without a complete sig, write `cetirizine 10 mg PO daily, ongoing`; do not convert it to a short nightly course. Every active final diagnosis maps to an outpatient pharmacologic action or an explicit nonpharmacologic or no-medication decision. A dose administered in clinic is not by itself a complete outpatient pharmacologic plan when the diagnosed condition still needs treatment after discharge.
@@ -777,6 +773,8 @@ If yes it is clinical and it stays. If no it is describing this skill's own work
 **It fails twice over, and the second failure is the worse one.** Nothing in the shorthand says a reconciliation was not done — this file infers that from an absent `meds:` line, and inferring it is correct. Writing it into the note turns that inference into a documented claim about the visit, under the clinician's name. The inference belongs in `FILLED·asserted`, which is where a preceptor can rule on it. Drift row 12. Issue #28.
 
 ## Guideline sheets
+
+USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the whole topic title from `reference/guidelines-uspstf.md`; case and whitespace are folded for comparison. Grade and year are compared; the population stays in the writer's words and its applicability needs a reader. A sheet year of `not stated` permits only a grade comparison, labeled separately. `[uspstf: no row]` keeps its form. A citation without a topic title is a finding for approvals at or after the new check's start; earlier approvals are not graded. The report separates compared tails, grade-only citations, exempt citations, no-row tails and other tails not compared.
 
 Guideline artifacts ship in this repo, and where one covers what a Plan item asserts, it is **consulted rather than recalled**. This is the [icd10-cpt](../icd10-cpt/SKILL.md) code-set arrangement arriving one document over: a fact this repo holds is looked up, and a fact it does not hold says so. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 
