@@ -55,7 +55,7 @@ def claude_assistant_record(message: str) -> dict[str, object]:
 class RunStatusContract(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.run = self.root / "scratch" / "runs" / "nur-5042-module-5-course-assignment"
         self.run.mkdir(parents=True)
         self.artifact = self.root / "assignment.pptx"

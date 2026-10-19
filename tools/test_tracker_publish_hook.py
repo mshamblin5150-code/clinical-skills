@@ -2860,7 +2860,7 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
         index = phi_scan.build_index(set(), set())
         for failure_kind in ("directory", "file"):
             with self.subTest(failure_kind=failure_kind), tempfile.TemporaryDirectory() as temporary:
-                run = Path(temporary) / "run"
+                run = Path(temporary).resolve() / "run"
                 body = run / "aar" / "publications" / "ticket.md"
                 body.parent.mkdir(parents=True)
                 body.write_text("Short safe maintenance body.", encoding="utf-8")
