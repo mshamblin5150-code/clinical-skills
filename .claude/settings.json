@@ -6,6 +6,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/backslash_pair_hook.py\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
             "command": "python \"$CLAUDE_PROJECT_DIR/tools/scanner_pipe_hook.py\"",
             "timeout": 30
           }
