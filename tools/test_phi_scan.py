@@ -73,6 +73,55 @@ class DeclaredDatePositions(unittest.TestCase):
         text = f"| broken |\n| x | x | x | {self.DATE} |"
         self.assertIn("corpus-date", [f.rule for f in scan(text, "reference/guidelines-catalog-audit.md")])
 
+    def test_real_tracked_position_members_with_substituted_dates(self):
+        """Independent cell/token reads pin the grammar to its public sources.
+
+        Only synthetic dates reach the scanner or assertion output. These are
+        representative members, not a census of every declared-position line.
+        """
+        root = Path(__file__).resolve().parents[1]
+        examples = {}
+        paths = ["reference/guidelines-catalog-audit.md",
+                 "skills/_shared/reference/apa7-coverage.md",
+                 "reference/completion-check-starts.tsv"]
+        paths.extend(p.relative_to(root).as_posix()
+                     for p in (root / "reference/thresholds").glob("*.md"))
+        for path in paths:
+            for line in (root / path).read_text(encoding="utf-8").splitlines():
+                cells = [cell.strip() for cell in line.split("|")]
+                replacements = []
+                label = None
+                if path == paths[0] and len(cells) == 8:
+                    label, replacements = "confirmed_date", [cells[5]]
+                elif path == paths[1] and len(cells) > 5 and cells[3] == "read-root":
+                    label, replacements = "checked", [cells[4]]
+                elif path == paths[2] and "\t" in line:
+                    label, replacements = "start", [line.split("\t")[1][:10]]
+                elif path.startswith("reference/thresholds/"):
+                    if line.startswith("DATE: "):
+                        label, replacements = "DATE", [line[6:]]
+                    elif line.startswith("citations resolved against "):
+                        label, replacements = "citations", [line.rsplit(" on ", 1)[-1]]
+                    else:
+                        for cell in cells:
+                            words = cell.split()
+                            if len(words) == 4 and words[0] == "read" and words[2] == "blind":
+                                label, replacements = "read/blind", [words[1].rstrip(";"), words[3]]
+                if label is None or label in examples:
+                    continue
+                try:
+                    for value in replacements:
+                        CalendarDate.fromisoformat(value)
+                except ValueError:
+                    continue
+                for value in replacements:
+                    line = line.replace(value, self.DATE)
+                examples[label] = (path, line)
+        self.assertEqual(set(examples), {"confirmed_date", "checked", "start", "DATE", "citations", "read/blind"})
+        for label, (path, line) in examples.items():
+            with self.subTest(position=label):
+                self.assertFalse(any(f.rule == "corpus-date" for f in scan(line, path)))
+
     def test_digit_boundaries_read_welded_dates_but_not_longer_numbers(self):
         for rendered in (self.DATE, "04/17/1988", "April 17, 1988", "17 April 1988"):
             for suffix in ("T12:34:56", "_"):
