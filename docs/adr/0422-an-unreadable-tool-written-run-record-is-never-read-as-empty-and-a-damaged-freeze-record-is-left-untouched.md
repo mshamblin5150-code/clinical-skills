@@ -1,6 +1,6 @@
 # An unreadable tool-written run record is never read as empty and a damaged freeze record is left untouched
 
-**Measured at:** 041549595aa36f02a0e62b3934724a8265bd911c
+**Measured at:** a65ac5ce722cc2645934c11a894b1f78ea99dc74
 
 [#1860](https://github.com/mshamblin5150-code/clinical-skills/issues/1860) found two readers that
 treat a damaged record written by a committed tool as an empty one: the freeze in `frozen_grade`,
@@ -8,7 +8,10 @@ which then writes the file back holding only its new entry, and the `run_status_
 read, which then demands no `Run status:` line. [ADR 0395](0395-a-hand-written-run-record-is-read-through-one-shared-reader-that-refuses-a-control-character-by-line-or-field.md)
 ruling 6 filed the ticket and left this class outside its own scope, because these writers escape
 every control character and the defect is fail-open handling of any unreadable JSON. Grilled
-2026-10-19 against `main` at the commit above, where the freshness gate read `FRESH`. The clinician
+2026-10-19 against `main` at `04154959`, where the freshness gate read `FRESH`, and every measurement
+below was taken again at the commit above, which adds only the first draft of this record to `main`
+at `6bcd6249`; that base adds only ADR 0421 and its glossary entry, and nothing
+between those two bases touches a module named here. The clinician
 ruled every point below in that session.
 
 This record overturns nothing. It adds a second reader to the module ADR 0395 ordered, and it
