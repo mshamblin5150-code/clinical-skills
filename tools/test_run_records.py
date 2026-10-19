@@ -14,7 +14,7 @@ import run_grader
 
 class RunRecords(unittest.TestCase):
     def unclassified_names(self, text):
-        names = set(re.findall(r"`([A-Za-z0-9_-]+\.md)`", text))
+        names = set(re.findall(r"`([^`/\\\r\n:]+\.md)`", text))
         classified = {f"{stem}.md".casefold() for stem in run_grader.RUN_RECORD_STEMS}
         classified.update(name.casefold() for name in run_grader.NON_RUN_MARKDOWN_NAMES)
         return {name for name in names if name.casefold() not in classified
@@ -30,6 +30,8 @@ class RunRecords(unittest.TestCase):
 
     def test_inventory_catches_a_new_run_record_but_does_not_read_unquoted_names(self):
         self.assertEqual({"new-record.md"}, self.unclassified_names("Write `new-record.md`."))
+        self.assertEqual({"review.v2.md"}, self.unclassified_names("Write `review.v2.md`."))
+        self.assertEqual({"review copy.md"}, self.unclassified_names("Write `review copy.md`."))
         self.assertEqual(set(), self.unclassified_names("Write new-record.md."))
 
     def test_record_names_leave_arbitrarily_named_notes_in_the_shared_reader(self):

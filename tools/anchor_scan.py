@@ -1604,6 +1604,7 @@ class AgreementRead:
 def _grade_agreement(pairs: list[AgreementPair], unread: int,
                      paths: list[Path], requested: set[str] | None = None) -> AgreementRead:
     record_pairs: dict[str, dict] = {}
+    out_of_scope = 0
     for path in paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
         supplied_pairs = payload["pairs"]
@@ -1614,6 +1615,8 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
                 unread += 1
                 continue
             stem = row["stem"]
+            if requested is not None and stem not in requested:
+                out_of_scope += 1
             if stem in record_pairs or not isinstance(row.get("codes"), list):
                 unread += 1
                 continue
@@ -1728,7 +1731,6 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         findings.extend(binding_findings)
         excluded_code_tokens.extend(pair_excluded_tokens)
 
-    out_of_scope = len(set(record_pairs) - requested) if requested is not None else 0
     return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed,
                          out_of_scope)
 

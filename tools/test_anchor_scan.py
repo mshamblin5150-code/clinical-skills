@@ -1280,6 +1280,24 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         self.assertEqual(0, status)
         self.assertIn("set aside as run records: 4", report)
 
+    def test_scoped_read_counts_malformed_and_duplicate_outside_rows(self):
+        record = self.clean_record()
+        record["pairs"].extend([
+            {"stem": "case-02", "codes": None},
+            {"stem": "case-03", "codes": []},
+            {"stem": "case-03", "codes": []},
+        ])
+        path = Path(self.raw.name) / "outside-rows.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                "--agreement-read", str(path), "--stem", "case-01"])
+        self.assertEqual(2, status)
+        self.assertIn("agreement rows outside requested stems: 3", output.getvalue())
+        self.assertIn("unread remainder 3", output.getvalue())
+        self.assertIn("agreement-self/<stem>.json", output.getvalue())
+
     def test_batch_writer_can_defer_only_missing_cpt_pages(self):
         record = self.clean_record()
         with patch("procedure_codes_lookup.cpt_descriptors_verified", return_value=False):
