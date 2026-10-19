@@ -1269,6 +1269,7 @@ class WorktreeSessionStart(TempCheckout):
         self.assertIn("main checkout fast-forwarded to " + git(self.root, "rev-parse", "origin/main"), context)
         self.assertIn("1 skill file(s) changed", context)
         self.assertIn("1 served skill file(s) differ", context)
+        self.assertIn("of 2 compared; unread remainder 0", context)
         self.assertIn("WARNING: Read each skill", context)
         report = next((self.root / sm.REPORTS).glob("*.txt")).read_text(encoding="utf-8")
         self.assertIn(str(self.worktree), report)
@@ -1279,7 +1280,7 @@ class WorktreeSessionStart(TempCheckout):
         context = self.start()
         self.assertIn("declined: tracked files have uncommitted edits; 1 skill file(s) differ", context)
         self.assertIn("0 served skill file(s) differ", context)
-        self.assertNotIn("WARNING", context)
+        self.assertIn("WARNING", context)
 
     def test_other_branch_declines_even_when_it_matches_origin(self):
         git(self.root, "checkout", "publisher")
@@ -1332,6 +1333,15 @@ class WorktreeSessionStart(TempCheckout):
         sm.link(self.worktree / sm.MIRROR / "clinical-note", self.worktree / sm.CANONICAL / "clinical-note")
         self.assertIn("Worktree skills (desktop)", self.start())
 
+    def test_dangling_served_junction_is_a_difference(self):
+        mirror = self.root / sm.MIRROR / "clinical-note"
+        if os.name == "nt":
+            os.rmdir(mirror)
+        else:
+            mirror.unlink()
+        sm.link(mirror, self.root / "gone")
+        self.assertIn("1 served skill file(s) differ", self.start())
+
     def test_bridged_start_repairs_its_own_mirror_and_reports_at_the_owner(self):
         context = self.start(script_root=self.worktree)
         self.assertIn("Worktree skills (bridged)", context)
@@ -1356,9 +1366,21 @@ class WorktreeSessionStart(TempCheckout):
 
     def test_equal_trees_still_report_zero_without_warning(self):
         git(self.worktree, "merge", "--ff-only", "origin/main")
+        git(self.root, "merge", "--ff-only", "origin/main")
         context = self.start()
         self.assertIn("0 served skill file(s) differ", context)
         self.assertNotIn("WARNING", context)
+
+    def test_a_failed_subdirectory_read_cannot_report_a_clean_comparison(self):
+        original_walk = os.walk
+        def partial_walk(directory, **kwargs):
+            if Path(directory).is_relative_to(self.worktree):
+                kwargs["onerror"](PermissionError("unreadable subtree"))
+            return original_walk(directory, **kwargs)
+        with patch.object(os, "walk", side_effect=partial_walk):
+            context = self.start()
+        self.assertIn("served skill files not measured", context)
+        self.assertNotIn("unread remainder 0", context)
 
 
 class SessionStartRegistration(unittest.TestCase):

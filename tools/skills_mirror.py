@@ -231,6 +231,17 @@ class Difference(NamedTuple):
     reason: str
 
 
+class FileComparison(NamedTuple):
+    differs: list[Difference]
+    extra: list[str]
+    population: int
+
+
+class MainRefresh(NamedTuple):
+    summary: str
+    changed: int | None
+
+
 class RepairResult(NamedTuple):
     repaired: int
     drained: list[Path]
@@ -285,6 +296,8 @@ def difference_reason(canonical_file: Path, mirror_file: Path) -> str | None:
     only ever names a difference the byte check has already found, which is what
     keeps `copy-stale` byte-exact.
     """
+    if not canonical_file.is_file() or not mirror_file.is_file():
+        return CONTENT
     if filecmp.cmp(canonical_file, mirror_file, shallow=False):
         return None
     if _normalized(canonical_file.read_bytes()) == _normalized(mirror_file.read_bytes()):
@@ -598,8 +611,8 @@ def skill_names(root: Path) -> list[str]:
 
 def _differing_files(
     canonical: Path, mirror: Path,
-) -> tuple[list[Difference], list[str]]:
-    """(one Difference per file that differs or is missing, files only in the mirror).
+) -> FileComparison:
+    """Differences, mirror-only files, and the union of the enumerated file paths.
 
     The second list is the population repair drains before relinking. A file present
     only in the copy is either someone's stray edit or work that never reached
@@ -611,14 +624,19 @@ def _differing_files(
     differs: list[Difference] = []
     extra: list[str] = []
 
-    canonical_rel = {
-        p.relative_to(canonical).as_posix()
-        for p in canonical.rglob("*") if p.is_file()
-    }
-    mirror_rel = {
-        p.relative_to(mirror).as_posix()
-        for p in mirror.rglob("*") if p.is_file()
-    }
+    def unread(error):
+        raise error
+
+    populations = []
+    for directory in (canonical, mirror):
+        paths = set()
+        if directory.exists():
+            for parent, _, files in os.walk(directory, followlinks=True, onerror=unread):
+                for filename in files:
+                    path = Path(parent) / filename
+                    paths.add(path.relative_to(directory).as_posix())
+        populations.append(paths)
+    canonical_rel, mirror_rel = populations
 
     for rel in sorted(canonical_rel - mirror_rel):
         differs.append(Difference(rel, CONTENT))
@@ -629,7 +647,7 @@ def _differing_files(
         if reason is not None:
             differs.append(Difference(rel, reason))
 
-    return sorted(differs), extra
+    return FileComparison(sorted(differs), extra, len(canonical_rel | mirror_rel))
 
 
 class Entry:
@@ -693,7 +711,7 @@ def inspect(root: Path) -> list[Entry]:
         # .claude/skills/, or it is a link aimed at another checkout -- a worktree
         # pointing back at the main tree reads current today and diverges the moment
         # the branch does. Both answer with the wrong file; only the repair differs.
-        differs, extra = _differing_files(canonical, mirror)
+        differs, extra, _ = _differing_files(canonical, mirror)
         if _is_link(mirror):
             entries.append(Entry(name, FOREIGN, differs, extra, target=resolved))
         else:
@@ -857,7 +875,7 @@ def hook_response(context: str) -> dict:
     }
 
 
-def refresh_main_checkout(root: Path) -> str:
+def refresh_main_checkout(root: Path) -> MainRefresh:
     """Fetch within the startup budget, then move only a clean main branch."""
     try:
         subprocess.run(
@@ -865,9 +883,9 @@ def refresh_main_checkout(root: Path) -> str:
             capture_output=True, check=True, timeout=5,
         )
     except subprocess.TimeoutExpired:
-        return "main checkout declined: fetch timed out; skill files not measured"
+        return MainRefresh("main checkout declined: fetch timed out; skill files not measured", None)
     except (OSError, subprocess.CalledProcessError):
-        return "main checkout declined: fetch failed; skill files not measured"
+        return MainRefresh("main checkout declined: fetch failed; skill files not measured", None)
     try:
         target = _git(root, "rev-parse", "origin/main")
         changed = len(git_paths.read_path_records(
@@ -884,11 +902,11 @@ def refresh_main_checkout(root: Path) -> str:
                 reason = "main cannot fast-forward"
             else:
                 _git(root, "merge", "--ff-only", target)
-                return (f"main checkout fast-forwarded to {target}; "
-                        f"{changed} skill file(s) changed")
-        return f"main checkout declined: {reason}; {changed} skill file(s) differ from origin/main"
+                return MainRefresh(f"main checkout fast-forwarded to {target}; "
+                                   f"{changed} skill file(s) changed", changed)
+        return MainRefresh(f"main checkout declined: {reason}; {changed} skill file(s) differ from origin/main", changed)
     except (OSError, subprocess.CalledProcessError, git_paths.GitPathError):
-        return "main checkout declined: Git read or fast-forward failed; skill files not measured"
+        return MainRefresh("main checkout declined: Git read or fast-forward failed; skill files not measured", None)
 
 
 def worktree_session_context(root: Path, payload: dict) -> tuple[Path, list[str]] | None:
@@ -916,19 +934,21 @@ def worktree_session_context(root: Path, payload: dict) -> tuple[Path, list[str]
         if not names:
             raise OSError("empty skill population")
         count = 0
+        population = 0
         for name in names:
             if not (session / CANONICAL / name).is_dir():
                 raise OSError("unread skill directory")
-            different, extra = _differing_files(session / CANONICAL / name, owner / MIRROR / name)
+            different, extra, files = _differing_files(session / CANONICAL / name, owner / MIRROR / name)
             count += len(different) + len(extra)
-        comparison = f"{count} served skill file(s) differ"
+            population += files
+        comparison = f"{count} served skill file(s) differ of {population} compared; unread remainder 0"
     except (OSError, git_paths.GitPathError):
         count = None
         comparison = "served skill files not measured"
     line = (f"Worktree skills ({kind}): {session}; served from {owner / MIRROR}; "
-            f"{refreshed}; {comparison}. Updates serve the next session.")
+            f"{refreshed.summary}; {comparison}. Updates serve the next session.")
     lines = [line]
-    if count:
+    if count or refreshed.changed:
         lines.append(
             f"WARNING: Read each skill from {session / CANONICAL}/<name>/ "
             "rather than the invocation's base directory."
