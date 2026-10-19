@@ -1,6 +1,6 @@
 # A shift-day date is exempt only in a declared position and the full audit itemizes only fixture content
 
-**Measured at:** a4bceb366d43a32debe4f685673aa5dddb43dc17
+**Measured at:** 98bb35f336bdc053c4a3305dbdfc41c67590740d
 
 [#1839](https://github.com/mshamblin5150-code/clinical-skills/issues/1839) was filed from the
 tracker sweep that closed #1657's grilling. `python tools/phi_scan.py --all` reports so many
@@ -12,11 +12,12 @@ below were re-derived at `1b98c073` when ruling 2's list was amended. The clinic
 this is the record the build reads.**
 
 [#1894](https://github.com/mshamblin5150-code/clinical-skills/issues/1894), filed from the tracker
-sweep that closed this record's grilling, was grilled on 2026-10-19 against `main` at the commit
-above, where the freshness gate read `FRESH`. Its rulings are folded in below: one position added to
-ruling 2, and ruling 6. At that commit the audit's totals re-derive unchanged at 1,460 date lines
-across 323 files, and the welded-date census under *Measured before ruling* was taken there. The
-per-position rows of the census table were not re-run.
+sweep that closed this record's grilling, was grilled on 2026-10-19 against `main` at `592067b0`.
+Its rulings are folded in below: one position added to ruling 2, and ruling 6. At the commit above,
+where the freshness gate read `FRESH`, the audit's totals re-derive unchanged at 1,460 date lines
+across 323 files, and the welded-date census under *Measured before ruling* was re-derived there
+with the same figures it had at `a4bceb36`. The per-position rows of the census table were not
+re-run.
 
 **No date value, file line or line number from the scan appears in this record, and none may be
 added.** A line coordinate in a tracked file points at the date on that line, and the date then says
@@ -223,6 +224,9 @@ refuses to treat as a clean read.
   read. For the start-date position, a positive control on a `T`-joined row and on a date-only row,
   a mutant with the date in the `check` cell still refused, and a `T`-joined date in an ordinary
   test string still refused at commit.
+- `tools/outbound_search.py`: its pretyping refusal reads `phi_scan`'s three date patterns
+  directly, so ruling 6 widens it too, in the safe direction. Name that in the build and add one
+  control: a query carrying a `T`-joined corpus date is refused.
 - `CLAUDE.md`: the *PHI pre-commit hook* section's audit sentence states that `--all` itemizes
   fixture-content dates and counts the rest, and names the declared positions by their object
   rather than copying them.
@@ -233,6 +237,13 @@ refuses to treat as a clean read.
   already records it as one.
 - **The tracker surfaces.** Ruling 2's positions are keyed on tracked file paths; `tracker_scan`'s
   issue, comment and review records and `tracker_publish_hook`'s publications gain no position.
+- **The git-history surfaces.** `tracker_scan --history` scans every reachable blob through
+  `phi_scan.scan_file_text` under a `blob <id> <path>` label, never under the tracked path, so no
+  ruling-2 position can match a blob; the APA `checked` cell is already unexempt there. Once ruling 6
+  is built, the start-table dates in every historical version of that file, and the welded test and
+  report dates, are read in `--history` with no exemption. Recorded from the tracker sweep closing
+  #1894's grilling, 2026-10-19; how many findings that adds was not measured, and whether that
+  surface should honor positions is a decision this record does not make.
 - **A date in an exempt position that is not what the position says.** Ruling 2's accepted cost.
 - **The 119 name lines.** `--all` keeps exiting 1 on them until the harvested strings are ruled.
 - **A date rendering none of the three patterns reads.** Ruling 6 changes where a date may sit

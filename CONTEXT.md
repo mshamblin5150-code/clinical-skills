@@ -641,7 +641,7 @@ Everything a fixture set carries except its prose about itself — its README an
 _Avoid_: run record (as the general term), fixture files, test data
 
 **Declared date position**:
-A place this repository's own rules require a date to be written and that can hold nothing but the date — a registry's date-read cell, the time a completion check starts grading, or the date opening a ruling or correction marker. A date that falls on a shift day is not a finding there, because the position, not the value, establishes what surrounds it. Distinct from a date matched by value against a list of public dates, which establishes nothing.
+A place this repository's own rules require a date to be written and that cannot hold patient text — a registry's date-read cell, the time a completion check starts grading, or the date opening a ruling or correction marker. A date that falls on a shift day is not a finding there, because the position, not the value, establishes what surrounds it. Distinct from a date matched by value against a list of public dates, which establishes nothing.
 _Avoid_: allowlisted date, exempt date, public date
 
 **Preserved run record**:
