@@ -576,6 +576,10 @@ _Avoid_: evidence folder, shared reference, cache, library
 A search of the clinician's live UpToDate account made for a real encounter, so its words leave the machine. It carries clinical terms, at most one population word and at most one sex word, and nothing else the encounter supplied, and it is checked before it is typed, because once typed it has reached a third party. Distinct from a search of the **Evidence store**, which stays local, and from a coursework search, whose case carries no patient.
 _Avoid_: live lookup, patient search, UpToDate query
 
+**Outbound artifact**:
+The exact text or file made from a run's source for a system outside the repository, such as the **Entry copy** typed into Medatrax, the **Plain-text build** or HTML posted to Canvas, or a Word document or deck handed in. Damage in it is fixed in the source and the artifact made again, never edited in place. Distinct from a **Hand-written run record**, which stays in the run, and from a **Submission**, which is only what a course marks.
+_Avoid_: deliverable, output, export
+
 **Drug page**:
 A drug monograph the clinician's UpToDate account serves from its separate drug database rather than as a clinical topic. It names no author and carries no review or update date, so it is identified by its own version line and the date it was read, and it stays current for one year from that read. It may fill a gap and may be cited in coursework, but it never overrides a threshold sheet, because it summarizes labeling and expert opinion rather than weighing the guidelines a sheet distills. Distinct from a **Topic sheet** and from a clinical topic, both of which are dated by the publisher.
 _Avoid_: Lexidrug entry, drug topic, monograph topic, drug information topic
@@ -637,7 +641,7 @@ The immutable evidence of what one run produced, retained byte for byte apart fr
 _Avoid_: fixture, sample output, test result
 
 **Hand-written run record**:
-A record in a run's working directory that an agent writes itself, rather than one a committed tool writes, and that a grader later reads for its fields. It is where damage from a hand-typed path lands, so it is read under one rule wherever it sits. Distinct from a deliverable, which is the work handed in or entered, and from a record a tool writes, whose writer controls every character.
+A record in a run's working directory that an agent writes itself, rather than one a committed tool writes, and that a grader later reads for its fields. It is where damage from a hand-typed path lands, so it is read under one rule wherever it sits. Distinct from an **Outbound artifact**, which is the work handed in or entered, and from a record a tool writes, whose writer controls every character.
 _Avoid_: scratch file, working file, log, ledger (as the general term)
 
 **Divergent run**:
