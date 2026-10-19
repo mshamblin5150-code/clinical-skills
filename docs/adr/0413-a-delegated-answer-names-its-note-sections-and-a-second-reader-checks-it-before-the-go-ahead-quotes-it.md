@@ -1,6 +1,6 @@
 # A delegated answer names its note sections and a second reader checks it before the go-ahead quotes it
 
-**Measured at:** 31b048a1a6dad7d1b01fc2da89db67caf00902ad
+**Measured at:** e5f9c6bda146de2abb2323e2e793accec8db1d84
 
 [#1813](https://github.com/mshamblin5150-code/clinical-skills/issues/1813) was filed from the
 after-action review of a `batch-shift` run (NUR5144 clinic shift). The clinician
@@ -40,7 +40,9 @@ wording and runs before the pre-approval questions are settled. The non-authorin
 **A transcript check for shown text already exists.** `approval_record.verify_shown_text` confirms
 that approved text appeared in main-session assistant messages between the sources' last change and
 the clinician's reply, for `approval_record.SHOWN_TEXT_SKILLS` only; `batch-shift` and
-`clinical-note` are outside it.
+`clinical-note` are outside it. [ADR 0408](0408-the-go-ahead-uptodate-block-and-the-medatrax-posted-reading-are-written-by-committed-tools-and-checked-before-they-are-relied-on.md)
+ruling 3, ratified and not yet built, already adds a transcript comparison in
+`approval_record.approve` for those two skills' go-ahead UpToDate block.
 
 ## Ruling 1 — the go-ahead quotes the recorded answers, word for word
 
@@ -114,7 +116,9 @@ changed answer and a stale verdict would share one set of bytes.
 `approval_record` extends its shown-text transcript check to the `ANSWER:` lines of a
 `batch-shift` or `clinical-note` run that has a `delegated-answers.md`. An answer line absent from
 the window between the record's last change and the clinician's reply is a finding; an unreadable
-transcript records as unverified, as it does today. Leaving the quote as a written instruction was
+transcript records as unverified, never clean. The check shares ADR 0408 ruling 3's transcript
+window and unreadable-transcript route, so whichever build lands second extends one read rather
+than adding a second. Leaving the quote as a written instruction was
 declined because it would rest the link between what was checked and what was read on the author
 following an instruction, which this run showed is the failure. `verify_shown_text`'s recognition
 ceiling applies unchanged: it proves the words were shown, not that they were read.
@@ -131,8 +135,11 @@ graded` on these rows rather than failing over records it was never asked to wri
   and each section is one that note carries; read `answer-reader/read.json`, its fingerprints, and
   the no-second-context declaration; report verdicts, unread answers, and disagreements; replace
   the "naming at the go-ahead" row of `DECLARED_LIMITS` and add the reader's reading boundary.
+  Resolve the named note through ADR 0406's run reader, which sets `delegated-answers.md` aside;
+  `medatrax_posting.note_paths` does not yet, so a record could name itself as its note.
 - `tools/approval_record.py`: confirm every recorded `ANSWER:` line appears in the shown-text
-  window for `batch-shift` and `clinical-note` runs with a delegated-answer record.
+  window for `batch-shift` and `clinical-note` runs with a delegated-answer record, through the
+  same window ADR 0408 ruling 3's block comparison reads.
 - `reference/completion-check-starts.tsv`: one row per new check, compared with approval.
 - `skills/clinical-note/SKILL.md`: the delegated-answer paragraph states the two new lines, the
   reader brief and its record, the hold on a disagreement, the no-second-context wording, and that
@@ -151,3 +158,7 @@ graded` on these rows rather than failing over records it was never asked to wri
 - **Whether the clinician read the quoted answers.** Ruling 8 proves they were shown.
 - **An unrecorded delegation.** A run that writes no `delegated-answers.md` still reads as having
   none, as `delegated_answers.DECLARED_LIMITS` already states.
+- **The delegated status item outside the record.** `skills/clinical-note/SKILL.md` and
+  `skills/batch-shift/SKILL.md` have the go-ahead name a delegated earlier-visit status item in
+  prose. Rulings 1, 3 and 8 reach it only where the run recorded it as a `## QUESTION:` record;
+  whether that item must always be recorded is not ruled here.
