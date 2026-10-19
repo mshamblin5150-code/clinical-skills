@@ -304,7 +304,7 @@ class BaseDistanceGitTests(TempCheckout):
 
         def fail_listing(command, **kwargs):
             if command[1] == "ls-files":
-                raise subprocess.CalledProcessError(1, command)
+                return subprocess.CompletedProcess(command, 1, stdout=b"", stderr=b"failed")
             return real_run(command, **kwargs)
 
         with patch.object(sm.subprocess, "run", side_effect=fail_listing):
@@ -314,6 +314,7 @@ class BaseDistanceGitTests(TempCheckout):
         self.assertIn("origin/main last moved", line)
 
     def test_the_read_uses_only_the_declared_local_git_commands(self):
+        """The listing covers tracked and untracked, unignored instructions."""
         self.make_git_checkout()
         real_run = subprocess.run
         with patch.object(sm.subprocess, "run", wraps=real_run) as run:
@@ -342,10 +343,10 @@ class BaseDistanceGitTests(TempCheckout):
                 "origin/main...HEAD",
             ],
         )
-        self.assertEqual(
-            commands[2],
+        run.assert_any_call(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard",
              "-z", "--", "skills"],
+            cwd=self.root, input=None, capture_output=True, check=False,
         )
         self.assertEqual(
             commands[3],
