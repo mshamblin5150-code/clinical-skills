@@ -5,6 +5,8 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +21,26 @@ import uptodate_store as store
 
 
 class SweepWalkBoundary(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows junctions")
+    def test_native_junction_boundaries_leave_sweep_clean(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "scan"
+            source.mkdir()
+            target = root / "sibling"
+            target.mkdir()
+            (target / "topic.txt").write_text(topic("Sibling"), encoding="utf-8")
+            for name, destination in (("live", target), ("dangling", root / "absent"), ("ancestor", source)):
+                result = subprocess.run(["cmd", "/c", "mklink", "/J", str(source / name), str(destination)], capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = store.main(["--store", str(root / "store"), "sweep", str(source)])
+            self.assertEqual(status, 0)
+            self.assertIn("files examined: 0", output.getvalue())
+            self.assertIn("3 links not entered", output.getvalue())
+            self.assertIn("0 topic body/bodies", output.getvalue())
+
     def test_links_are_reported_without_examining_their_material(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
