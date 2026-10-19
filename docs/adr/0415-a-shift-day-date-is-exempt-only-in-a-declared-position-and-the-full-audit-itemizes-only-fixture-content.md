@@ -1,14 +1,14 @@
 # A shift-day date is exempt only in a declared position and the full audit itemizes only fixture content
 
-**Measured at:** 31b048a1a6dad7d1b01fc2da89db67caf00902ad
+**Measured at:** 1b98c073528a8bd0074a6ba589715228132759fc
 
 [#1839](https://github.com/mshamblin5150-code/clinical-skills/issues/1839) was filed from the
 tracker sweep that closed #1657's grilling. `python tools/phi_scan.py --all` reports so many
 `corpus-date` lines in tracked prose that a date which really accompanies patient text would read
 exactly like the rest. The ticket's comment later drove the commit-time half: the pre-commit hook
 refused this repository's own ADR 0407 over one ruling-adjacent date in an ordinary sentence.
-Grilled 2026-10-18 against `main` at the commit above, where the freshness gate read `FRESH`. The
-clinician ruled every point below in that session, one question at a time. **Nothing is built here;
+Grilled 2026-10-18 against `main` at `31b048a1`, where the freshness gate read `FRESH`; the figures
+below were re-derived at the commit above when ruling 2's list was amended. The clinician ruled every point below in that session, one question at a time. **Nothing is built here;
 this is the record the build reads.**
 
 **No date value, file line or line number from the scan appears in this record, and none may be
@@ -35,9 +35,9 @@ with its own grammar.
 | `reference/thresholds/*.md`, the `read <date>; blind <date>` cell | 258 |
 | `reference/thresholds/*.md`, the `citations resolved against <path> on <date>` line | 73 |
 | `reference/thresholds/*.md`, the `DATE: <date>` line | 44 |
-| A dated ruling or correction marker anywhere (the openers listed in ruling 2) | 156 |
+| A dated ruling or correction marker anywhere (the openers listed in ruling 2) | 157 |
 | A file under `fixtures/` other than a `README.md` or `assertions.md` | 1 |
-| Everything else: ordinary prose and test strings | 605 |
+| Everything else: ordinary prose and test strings | 604 |
 
 That last row includes 77 lines in fixture-set `README.md` and `assertions.md` files, which are
 dated measurement and claim prose about a run, and 164 under `tools/`, mostly test strings. **No
@@ -79,8 +79,17 @@ The positions are exactly these, and only the date token in each is masked:
   same declaration without changing what it matches.
 - A **dated ruling or correction marker** in any tracked file outside fixture content: a date
   directly after `## Ruled `, `## Addendum, `, `Grilled `, `Grilled on `, `**Correction, `,
-  `**Corrected `, `**Corrected in place `, `*(Corrected `, `*(Corrected in place ` or
-  `*Superseded `. The text after the date stays scanned.
+  `**Corrected `, `**Corrected in place `, `*(Corrected `, `*(Corrected in place `, `*Corrected `,
+  `*Corrected in place `, `*Superseded `, `*Superseded in part ` or `*Superseded grounding marked `.
+  The text after the date stays scanned.
+
+**Corrected in place 2026-10-19:** the clinician ruled that the marker list also takes
+`*Corrected `, `*Corrected in place `, `*Superseded in part ` and `*Superseded grounding marked `.
+As first recorded it named only the double-asterisk and parenthesized correction forms and the bare
+`*Superseded `, which left out the single-asterisk correction form used across 17 ADR files, one of
+them carrying a shift-day date the scan flags. The census matcher had the same omission, which is
+why its marker row moved by one. Found by the tracker sweep closing this record's grilling
+([#1839](https://github.com/mshamblin5150-code/clinical-skills/issues/1839)).
 
 Record fields in tests and skill examples (`READ:`, `POSTED:`, `"measured_on":`) are **not**
 positions. Their dates are arbitrary test values, and the same field shape is the shape a real run
