@@ -1,14 +1,17 @@
 # A legal citation in section form resolves to its entry and is refused for its form
 
-**Measured at:** 972ebf8dcc047457d0abb5b0e26c167f8960abb8
+**Measured at:** db02f093a2c6bb5df72c0ce3a54c64b4e8f54e18
 
 [#1850](https://github.com/mshamblin5150-code/clinical-skills/issues/1850) was filed from
 [#1706](https://github.com/mshamblin5150-code/clinical-skills/issues/1706)'s grilling under
 [ADR 0390](0390-an-overturned-passage-with-no-ruling-number-is-located-by-its-exact-quote-and-a-repair-s-mislabeled-opening-is-restored.md)
 ruling 9. It reports that commit `6c75ba62`, the #976 build, removed the section key
 [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md)
-ruling 2 requires, and that no record says so. Grilled 2026-10-19 against `main` at the commit
-above, where the freshness gate read `FRESH`. The clinician ruled every point below in that
+ruling 2 requires, and that no record says so. Grilled 2026-10-19 against `main` at `972ebf8d`,
+where the freshness gate read `FRESH` and the measurements below were taken. The commit above
+adds only the first draft of this record, its markers and its glossary edit to `main` at
+`7821ce1f`, which differs from that base only by ADR 0417; ADR 0417 touches no module or record
+measured here. The clinician ruled every point below in that
 session, one question at a time. **Nothing is built here; this is the record the build reads.**
 
 ## Measured before ruling
