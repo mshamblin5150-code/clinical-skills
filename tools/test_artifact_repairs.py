@@ -169,7 +169,7 @@ class RepairChain(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.run = Path(self.temp.name) / "scratch" / "runs" / "synthetic-repairs"
+        self.run = Path(self.temp.name).resolve() / "scratch" / "runs" / "synthetic-repairs"
         self.run.mkdir(parents=True)
         self.note = self.run / "note-1.md"
         self.note.write_text(NOTE, encoding="utf-8")
