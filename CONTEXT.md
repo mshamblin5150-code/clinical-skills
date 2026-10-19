@@ -1280,6 +1280,10 @@ _Avoid_: semantic agreement, topical support, anchor match, related anchor
 An ICD-10-CM code in T51 through T65, which the Table of Drugs and Chemicals gives a non-medicine substance such as a venom, a gas, alcohol or a household chemical. Its descriptor says toxic effect rather than poisoning, and its substance has no adverse-effect or underdosing column, so the substance a **Descriptor agreement** route starts on is the exposure and the column follows the note's intent alone. Distinct from a medicine poisoning code in T36 through T50, where poisoning and a proper-use adverse effect are different codes and the note's words must say which.
 _Avoid_: poisoning code, chemical poisoning, envenomation code
 
+**Column ground**:
+The note's own words, quoted from anywhere in the note, that show how a medicine was taken: misused, taken as prescribed, or taken less than prescribed. It decides a medicine code's Table of Drugs and Chemicals column when the code label and the index entry it matched do not, and a code that rests on one is counted apart from a code the code set settled. Whether the quoted words describe this medicine is a reader's judgment. A note with no such words supports no column. Distinct from the **Code label**, whose words must reach the code's descriptor, and from a **Toxic effect code**, whose column follows intent alone.
+_Avoid_: column evidence, misuse words, intent evidence
+
 **Coexisting condition**:
 A condition from the patient's history that the note shows required or affected this visit's care, treatment or management. Only such a condition is coded as present, and only it reaches the note's preexisting-diagnoses line. Filled content shows the effect only by changing something concrete in this visit; a filled home medication never shows it, because the medication was filled on account of the condition it would vouch for. Distinct from the past medical history, which records every condition the patient carries whether or not this visit touched it.
 _Avoid_: active problem, addressed condition, comorbidity, chronic condition
