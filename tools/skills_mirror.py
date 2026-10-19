@@ -630,7 +630,11 @@ def _differing_files(
     populations = []
     for directory in (canonical, mirror):
         paths = set()
-        if directory.exists():
+        try:
+            directory.stat()
+        except FileNotFoundError:
+            pass
+        else:
             for parent, _, files in os.walk(directory, followlinks=True, onerror=unread):
                 for filename in files:
                     path = Path(parent) / filename

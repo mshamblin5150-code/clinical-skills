@@ -1382,6 +1382,18 @@ class WorktreeSessionStart(TempCheckout):
         self.assertIn("served skill files not measured", context)
         self.assertNotIn("unread remainder 0", context)
 
+    def test_an_unreadable_served_root_is_not_treated_as_absent(self):
+        original_stat = Path.stat
+        served = self.root / sm.MIRROR / "clinical-note"
+        def denied(path, **kwargs):
+            if path == served and kwargs.get("follow_symlinks", True):
+                raise PermissionError("unreadable served root")
+            return original_stat(path, **kwargs)
+        with patch.object(Path, "stat", denied):
+            context = self.start()
+        self.assertIn("served skill files not measured", context)
+        self.assertNotIn("unread remainder 0", context)
+
 
 class SessionStartRegistration(unittest.TestCase):
     """This proves tracked registration, not that Claude Code fires the hook."""
