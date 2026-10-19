@@ -1720,7 +1720,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(aar_report, posting_report, chain_report, delegated_report, outbound_report),
+        reports=(run_grader.run_records_report(source.directory), aar_report, posting_report, chain_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")

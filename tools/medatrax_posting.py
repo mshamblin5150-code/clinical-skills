@@ -15,7 +15,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from discussion_artifact import PostedReading, read_posted_readings
-from run_grader import EvidenceDisposition
+from run_grader import EvidenceDisposition, RUN_RECORD_STEMS, is_run_record
 
 
 NOTE_NUMBER = re.compile(r"note-(?P<number>\d+)\.md", re.IGNORECASE)
@@ -27,7 +27,8 @@ DECLARED_LIMITS = (
     ),
     (
         "standalone note population",
-        "A standalone fingerprint requires exactly one top-level Markdown file after README.md and reread.md are excluded.",
+        "A standalone fingerprint requires exactly one top-level Markdown file after the shared "
+        "run-record list is excluded: " + ", ".join(f"{stem}.md" for stem in RUN_RECORD_STEMS) + ".",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -44,7 +45,7 @@ def note_paths(run: Path, *, batch: bool) -> tuple[Path, ...]:
     candidates = tuple(
         path
         for path in run.glob("*.md")
-        if path.is_file() and path.name.casefold() not in {"readme.md", "reread.md", "shift-summary.md"}
+        if path.is_file() and not is_run_record(path)
     )
     if batch:
         numbered = tuple(

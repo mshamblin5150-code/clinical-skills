@@ -25,6 +25,24 @@ TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
 NOT_GRADED = "not graded"
 UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
+RUN_RECORD_STEMS = ("README", "shift-summary", "delegated-answers", "reread")
+NON_RUN_MARKDOWN_NAMES = ("coverage.md", "SOAP.md")
+
+
+def is_run_record(path: Path) -> bool:
+    """Classify only the declared record names, ignoring case."""
+    return path.stem.casefold() in {stem.casefold() for stem in RUN_RECORD_STEMS}
+
+
+def run_records_report(*directories: Path) -> str:
+    """Name set-aside files using only the declared, pasteable vocabulary."""
+    present = {
+        path.stem.casefold()
+        for directory in directories for path in directory.glob("*.md")
+        if path.is_file() and is_run_record(path)
+    }
+    names = [f"{stem}.md" for stem in RUN_RECORD_STEMS if stem.casefold() in present]
+    return f"set aside as run records: {len(names)}" + (f" ({', '.join(names)})" if names else "")
 
 
 def format_unread_remainder(count: int) -> str:
@@ -57,9 +75,16 @@ DECLARED_LIMITS = (
     (
         "run artifacts read through read_run_directory or read_run_artifacts",
         "Members that call either shared run reader open only top-level files matching "
-        "*.md (case-insensitively on Windows) whose stem is not README; artifacts "
+        "*.md (case-insensitively on Windows), setting aside "
+        + ", ".join(RUN_RECORD_STEMS) + "; artifacts "
         "in subdirectories and files with other extensions are not read.",
         EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "run-record name inventory",
+        "The skill inventory reads only backticked bare name.md tokens in batch-shift/SKILL.md, "
+        "clinical-note/, and icd10-cpt/SKILL.md; a name written without backticks is not read.",
+        EvidenceDisposition.DECLARED_READING,
     ),
 )
 WALK_CEILING = DECLARED_LIMITS[0][1]
@@ -575,13 +600,13 @@ def attribute_scans(
 
 
 def read_run_artifacts(directory: Path) -> list[RunArtifact]:
-    """Read a run directory's Markdown artifacts in name order, excluding README."""
+    """Read top-level Markdown in name order, setting aside declared run records."""
 
     try:
         return [
             RunArtifact(path, path.read_text(encoding="utf-8", errors="replace"))
             for path in sorted(directory.glob("*.md"))
-            if path.is_file() and path.stem.lower() != "readme"
+            if path.is_file() and not is_run_record(path)
         ]
     except OSError as failure:
         raise SourceError(

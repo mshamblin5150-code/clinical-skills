@@ -495,6 +495,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=bool(scan.findings),
         coverage_failed=not scan.notes_with_block or bool(scan.unread_remainder),
         diagnostics=tuple(diagnostics),
+        reports=(run_grader.run_records_report(source.directory),),
     )
 
 
