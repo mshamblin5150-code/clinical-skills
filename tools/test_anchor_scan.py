@@ -79,10 +79,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_five_declared_readings_and_ten_behaviors(self):
+    def test_the_partition_is_five_declared_readings_and_eleven_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(5, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(10, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(11, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -98,6 +98,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
         "E/M descriptor agreement": "TheReportCarriesNoCode.test_every_report_prints_the_excluded_em_count",
         "note-side ICD-10 database membership": "AgreementModes.test_vitamin_b12_in_final_diagnosis_is_counted_but_not_bound",
+        "drug intent prose negation scope": "AgreementModes.test_drug_intent_negation_has_punctuation_only_boundaries",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -959,7 +960,9 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                        "could only replace the code with a more specific one",
                        "'without complications' or 'uncomplicated'",
                        "open or pending workup refuses only the complication's code",
-                       "none (pending: <test> could only add <what>)"):
+                       "none (pending: <test> could only add <what>)",
+                       "Negation is applied before hedging", "a flat denial of every intent signal",
+                       "up to the next comma, semicolon or period"):
             self.assertIn(phrase, instructions)
         self.assertNotIn("section", instructions)
 
@@ -1929,6 +1932,72 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         )
         return self.grade({"pairs": [{"stem": "case-01", "codes": [record]}]}, show=True)
 
+    def test_poisoning_flat_denial_agrees_only_with_accidental(self):
+        words = "acetaminophen overdose, denies suicidal intent"
+        status, report = self.drug_read(
+            words, "T39.1X1A",
+            "Acetaminophen > Poisoning Accidental (unintentional) -> code T39.1X1",
+        )
+        self.assertEqual(0, status, report)
+
+    def assert_drug_intent_columns(self, cases):
+        for words, expected in cases:
+            substance, stem = (
+                ("Acetaminophen", "T39.1X") if "acetaminophen" in words
+                else ("Ibuprofen", "T39.31")
+            )
+            for variant in (words, words.upper(), words.title()):
+                for number, column in enumerate(scan.DRUG_COLUMNS, start=1):
+                    with self.subTest(words=variant, column=column):
+                        status, report = self.drug_read(
+                            variant, f"{stem}{number}A",
+                            f"{substance} > {column} -> code {stem}{number}",
+                        )
+                        self.assertEqual(0 if number == expected else 1, status, report)
+
+    def test_poisoning_negation_and_surviving_intent_through_agreement_read(self):
+        # #1889 will replace ingestion's current poisoning-word route with a
+        # counted column ground; the intent choices here remain ADR 0383's.
+        self.assert_drug_intent_columns((
+            ("ibuprofen ingestion, not intentional", 1),
+            ("ibuprofen ingestion, denies self-harm", 1),
+            ("acetaminophen overdose, denies suicidal intent", 1),
+            ("ibuprofen ingestion, no suicidal ideation", 1),
+            ("ibuprofen ingestion, no assault", 1),
+            ("ibuprofen ingestion, without suicidal intent", 1),
+            ("ibuprofen ingestion, negative for self-harm", 1),
+            ("ibuprofen ingestion, never intentional", 1),
+            ("ibuprofen overdose, denied self-harm", 1),
+            ("ibuprofen ingestion, no vomiting, intentional overdose", 2),
+            ("intentional ibuprofen overdose; patient denies", 2),
+            ("acetaminophen ingestion, possibly intentional self-harm; patient denies", 4),
+            ("ibuprofen overdose, possibly intentional but denies self-harm", 4),
+            ("ibuprofen overdose, possibly not intentional self-harm", 1),
+            ("ibuprofen overdose, no self-harm; assault", 3),
+        ))
+
+    def test_drug_intent_negation_has_punctuation_only_boundaries(self):
+        self.assert_drug_intent_columns((
+            ("ibuprofen overdose, denies nausea but intentional overdose", 1),
+            ("ibuprofen overdose, denies nausea and intentional overdose", 1),
+            ("ibuprofen overdose, not not intentional", 1),
+            ("ibuprofen overdose, denies nausea, intentional overdose", 2),
+            ("ibuprofen overdose, denies nausea; intentional overdose", 2),
+            ("ibuprofen overdose, denies nausea. intentional overdose", 2),
+            ("ibuprofen overdose, intentionally denies nausea", 1),
+            ("ibuprofen overdose, cannot rule out intentional self-harm", 2),
+            ("ibuprofen overdose, nobody reported assault", 3),
+        ))
+
+    def test_toxic_effect_negation_uses_the_same_intent_rule(self):
+        for column, digit in zip(scan.DRUG_COLUMNS[:4], "1234"):
+            with self.subTest(column=column):
+                status, report = self.drug_read(
+                    "hornet sting, denies self-harm", f"T63.45{digit}A",
+                    f"Hornet (sting) > {column} -> code T63.45{digit}",
+                )
+                self.assertEqual(0 if digit == "1" else 1, status, report)
+
     def test_toxic_effect_sting_chain_needs_no_poisoning_word(self):
         route = (
             "Sting (venomous) (with allergic or anaphylactic shock) -> see Table of Drugs "
@@ -1977,6 +2046,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
             "DRUG_POISONING_PATTERN", "DRUG_UNDERDOSING_PATTERN", "DRUG_PROPER_USE_PATTERN",
             "DRUG_REACTION_PATTERN", "DRUG_SELF_HARM_PATTERN", "DRUG_INTENTIONAL_PATTERN",
             "DRUG_ASSAULT_PATTERN", "DRUG_HEDGE_PATTERN", "DRUG_UNDETERMINED_PATTERN",
+            "DRUG_NEGATION_PATTERN",
         ):
             with self.subTest(pattern=name):
                 self.assertIn(getattr(scan, name), instructions)
