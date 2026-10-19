@@ -62,7 +62,7 @@ class SweepWalkBoundary(unittest.TestCase):
 
     def test_unreadable_subdirectory_refuses_and_zero_links_print(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "denied").mkdir()
             from tree_walk import os as walk_os
             scandir = walk_os.scandir

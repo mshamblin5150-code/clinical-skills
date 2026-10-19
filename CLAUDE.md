@@ -2153,9 +2153,10 @@ python tools/skills_mirror.py --repair   # relink everything
 
 **Read the mirror and you may be reading a retired rule.** A junction that has become a copy looks exactly like a working install — same names, same files, same frontmatter — and it answers with whatever the skill said the day the copy was made. `.claude/skills/clinical-note/SKILL.md` in one worktree still carried *a known hypertensive seen for a productive cough gets a hypertensive pressure and a raised respiratory rate* after #23 removed it, and had no drift row 14. An agent that opened it instead of `skills/clinical-note/SKILL.md` would have followed the rule the ticket existed to delete.
 
-**`git worktree` is how that happens here.** It materializes `.claude/` by copying, and the copy
-follows the junctions instead of recreating them, so a fresh worktree initially holds frozen
-instructions. `post-checkout` now recognizes the null previous object id Git supplies for a new
+**Worktree sessions have two configuration sources.** Desktop sessions read hooks and skills
+from the main checkout; bridged sessions run their worktree's hooks and can fall back to the main
+checkout's skills when their own mirror is absent at startup. The desktop app's measured copy
+kept real folders and left an empty folder for a junction. `post-checkout` recognizes the null previous object id Git supplies for a new
 worktree and runs `skills_mirror.py --repair --quiet` there. Ordinary branch switches do nothing.
 The pre-commit hook still runs the advisory report; neither hook changes a successful Git
 operation's exit status.
@@ -2169,6 +2170,13 @@ Mirror-only files are moved, never deleted, to
 `.claude/skills-orphaned/<name>/<UTC stamp>/` before the entry is relinked. Both locations are
 per-checkout and gitignored. The settings test proves registration only; silence still means the
 hook did not fire rather than that another check established the mirror was clean. [#820](https://github.com/mshamblin5150-code/clinical-skills/issues/820).
+
+For a linked worktree named by the payload's `cwd`, both session kinds also contribute the
+**Worktree skills** line defined in `skills_mirror.py`. It reports the guarded main-checkout
+refresh and the worktree-to-served-file comparison, with a redirection warning on differences.
+The main checkout retains that same line and the session worktree path in its mirror report.
+The existing mirror repair continues to act on the checkout running the script.
+The live-text probe is recorded in [the build measurement](docs/agents/worktree-skill-live-text-probe.md).
 
 The same session-start context reports **Base distance** in both directions against the cached
 `origin/main`. Its population is the raw commit distance; its finding is the subset touching

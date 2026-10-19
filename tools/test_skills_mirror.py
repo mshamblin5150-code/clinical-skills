@@ -1242,6 +1242,159 @@ class TheReasonWordsAreStatedInOnePlaceAndDescribedInAnother(unittest.TestCase):
             self.assertIn(line, section)
 
 
+class WorktreeSessionStart(TempCheckout):
+    def setUp(self):
+        super().setUp()
+        self.make_git_checkout(branch="publisher")
+        self.remote = self.root / "remote.git"
+        git(self.root, "init", "--bare", str(self.remote))
+        git(self.root, "remote", "add", "origin", str(self.remote))
+        git(self.root, "push", "origin", "main")
+        self.worktree = self.root / "session"
+        git(self.root, "worktree", "add", "-b", "session", str(self.worktree), "main")
+        self.commit("skills/clinical-note/reference.md", "new rule\n", "new instruction")
+        git(self.root, "push", "origin", "HEAD:main")
+        git(self.root, "checkout", "main")
+
+    def start(self, script_root=None, cwd=None):
+        output = io.StringIO()
+        with patch("sys.stdin", io.StringIO(json.dumps({"cwd": str(cwd or self.worktree)}))):
+            with redirect_stdout(output):
+                code = sm.main(["--session-start", "--root", str(script_root or self.root)])
+        self.assertEqual(code, 0)
+        return json.loads(output.getvalue())["hookSpecificOutput"]["additionalContext"]
+
+    def test_desktop_start_fast_forwards_and_reports_skill_file_counts(self):
+        context = self.start()
+        self.assertIn("main checkout fast-forwarded to " + git(self.root, "rev-parse", "origin/main"), context)
+        self.assertIn("1 skill file(s) changed", context)
+        self.assertIn("1 served skill file(s) differ", context)
+        self.assertIn("of 2 compared; unread remainder 0", context)
+        self.assertIn("WARNING: Read each skill", context)
+        report = next((self.root / sm.REPORTS).glob("*.txt")).read_text(encoding="utf-8")
+        self.assertIn(str(self.worktree), report)
+        self.assertIn("1 skill file(s) changed", report)
+
+    def test_dirty_main_declines_with_the_difference_count(self):
+        (self.root / "AGENTS.md").write_text("dirty\n", encoding="utf-8")
+        context = self.start()
+        self.assertIn("declined: tracked files have uncommitted edits; 1 skill file(s) differ", context)
+        self.assertIn("0 served skill file(s) differ", context)
+        self.assertIn("WARNING", context)
+
+    def test_other_branch_declines_even_when_it_matches_origin(self):
+        git(self.root, "checkout", "publisher")
+        context = self.start()
+        self.assertIn("declined: not on main; 0 skill file(s) differ", context)
+
+    def test_diverged_main_is_preserved(self):
+        self.commit("AGENTS.md", "local\n", "local change")
+        context = self.start()
+        self.assertIn("declined: main cannot fast-forward; 1 skill file(s) differ", context)
+        self.assertEqual(git(self.root, "log", "-1", "--format=%s"), "local change")
+
+    def test_failed_fetch_does_not_claim_a_zero(self):
+        git(self.root, "remote", "set-url", "origin", str(self.root / "absent.git"))
+        context = self.start()
+        self.assertIn("declined: fetch failed; skill files not measured", context)
+
+    def test_fetch_timeout_is_bounded_and_unmeasured(self):
+        real_run = subprocess.run
+        def timed_out(command, **kwargs):
+            if command[:3] == ["git", "fetch", "origin"]:
+                self.assertEqual(kwargs["timeout"], 5)
+                raise subprocess.TimeoutExpired(command, 5)
+            return real_run(command, **kwargs)
+        with patch.object(subprocess, "run", side_effect=timed_out):
+            context = self.start()
+        self.assertIn("declined: fetch timed out; skill files not measured", context)
+
+    def test_detached_main_is_declined_with_a_measured_count(self):
+        git(self.root, "checkout", "--detach")
+        context = self.start()
+        self.assertIn("declined: not on main; 1 skill file(s) differ", context)
+
+    def test_staged_edits_prevent_fast_forward(self):
+        (self.root / "AGENTS.md").write_text("staged\n", encoding="utf-8")
+        git(self.root, "add", "AGENTS.md")
+        context = self.start()
+        self.assertIn("declined: tracked files have uncommitted edits", context)
+
+    def test_absent_served_skill_counts_all_worktree_files(self):
+        mirror = self.root / sm.MIRROR / "clinical-note"
+        if os.name == "nt":
+            os.rmdir(mirror)
+        else:
+            mirror.unlink()
+        context = self.start()
+        self.assertIn("1 served skill file(s) differ", context)
+
+    def test_present_worktree_mirror_still_gets_the_line(self):
+        sm.link(self.worktree / sm.MIRROR / "clinical-note", self.worktree / sm.CANONICAL / "clinical-note")
+        self.assertIn("Worktree skills (desktop)", self.start())
+
+    def test_dangling_served_junction_is_a_difference(self):
+        mirror = self.root / sm.MIRROR / "clinical-note"
+        if os.name == "nt":
+            os.rmdir(mirror)
+        else:
+            mirror.unlink()
+        sm.link(mirror, self.root / "gone")
+        self.assertIn("1 served skill file(s) differ", self.start())
+
+    def test_bridged_start_repairs_its_own_mirror_and_reports_at_the_owner(self):
+        context = self.start(script_root=self.worktree)
+        self.assertIn("Worktree skills (bridged)", context)
+        self.assertEqual(status_of(self.worktree, "clinical-note").status, sm.LINKED)
+        report = next((self.root / sm.REPORTS).glob("*.txt")).read_text(encoding="utf-8")
+        self.assertIn(str(self.worktree), report)
+
+    def test_main_start_has_no_refresh_line_or_fetch(self):
+        git(self.root, "remote", "set-url", "origin", str(self.root / "absent.git"))
+        context = self.start(cwd=self.root)
+        self.assertNotIn("Worktree skills", context)
+        self.assertNotIn("fetch failed", context)
+        self.assertNotEqual(git(self.root, "rev-parse", "HEAD"), git(self.root, "rev-parse", "origin/main"))
+
+    def test_sibling_file_differences_and_missing_served_files_are_counted(self):
+        (self.worktree / "skills" / "clinical-note" / "sibling.md").write_text("branch rule\n", encoding="utf-8")
+        make_skill(self.root, "owner-only")
+        sm.link(self.root / sm.MIRROR / "owner-only", self.root / sm.CANONICAL / "owner-only")
+        context = self.start()
+        self.assertIn("2 served skill file(s) differ", context)
+
+
+    def test_equal_trees_still_report_zero_without_warning(self):
+        git(self.worktree, "merge", "--ff-only", "origin/main")
+        git(self.root, "merge", "--ff-only", "origin/main")
+        context = self.start()
+        self.assertIn("0 served skill file(s) differ", context)
+        self.assertNotIn("WARNING", context)
+
+    def test_a_failed_subdirectory_read_cannot_report_a_clean_comparison(self):
+        original_walk = os.walk
+        def partial_walk(directory, **kwargs):
+            if Path(directory).is_relative_to(self.worktree):
+                kwargs["onerror"](PermissionError("unreadable subtree"))
+            return original_walk(directory, **kwargs)
+        with patch.object(os, "walk", side_effect=partial_walk):
+            context = self.start()
+        self.assertIn("served skill files not measured", context)
+        self.assertNotIn("unread remainder 0", context)
+
+    def test_an_unreadable_served_root_is_not_treated_as_absent(self):
+        original_stat = Path.stat
+        served = self.root / sm.MIRROR / "clinical-note"
+        def denied(path, **kwargs):
+            if path == served and kwargs.get("follow_symlinks", True):
+                raise PermissionError("unreadable served root")
+            return original_stat(path, **kwargs)
+        with patch.object(Path, "stat", denied):
+            context = self.start()
+        self.assertIn("served skill files not measured", context)
+        self.assertNotIn("unread remainder 0", context)
+
+
 class SessionStartRegistration(unittest.TestCase):
     """This proves tracked registration, not that Claude Code fires the hook."""
 

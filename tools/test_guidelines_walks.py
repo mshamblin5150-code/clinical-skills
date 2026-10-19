@@ -26,7 +26,7 @@ class CorpusWalkTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
+        self.base = Path(self.temporary.name).resolve()
         self.root = self.base / "corpus"
         self.root.mkdir()
         (self.root / "manifest.json").write_text("[]", encoding="utf-8")
