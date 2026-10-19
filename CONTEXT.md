@@ -624,6 +624,14 @@ _Avoid_: recency, freshness, last updated, currency
 A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
 _Avoid_: test data, sample, example
 
+**Fixture content**:
+Everything a fixture set carries except its prose about itself — its README and its assertions — so a run's notes, worksheets, records and inputs, including kinds not yet seen. It is the only tracked place patient text can sit, which is why a date found there is read one line at a time. Distinct from a **preserved run record**, which is one kind of fixture content, and from a set's README or assertions, which are prose about a run.
+_Avoid_: run record (as the general term), fixture files, test data
+
+**Declared date position**:
+A place this repository's own rules require a date to be written and that can hold nothing but the date — a registry's date-read cell, or the date opening a ruling or correction marker. A date that falls on a shift day is not a finding there, because the position, not the value, establishes what surrounds it. Distinct from a date matched by value against a list of public dates, which establishes nothing.
+_Avoid_: allowlisted date, exempt date, public date
+
 **Preserved run record**:
 The immutable evidence of what one run produced, retained byte for byte apart from its declared redactions. It is not edited to repair a stale reference, because that would falsify the run rather than fix it.
 _Avoid_: fixture, sample output, test result
