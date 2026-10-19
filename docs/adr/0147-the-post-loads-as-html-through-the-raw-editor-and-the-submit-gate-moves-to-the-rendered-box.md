@@ -201,16 +201,6 @@ looking like an oversight.
 4. The clinician is shown the captures **and told the box is loaded and unsubmitted**, so he can
    look at the live page rather than at an image the agent produced.
 
-*Superseded 2026-09-12.* The ground "A reply is short and typed, and a deck upload shows a filename" is falsified by [ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md) ruling 2. Reply and course-assignment keep one gate; post keeps two gates and nonclean reading returns to clinician. The original dated account is retained: *(Corrected in place 2026-09-12, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
-terms, by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
-[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
-ruling 2. `discussion-reply` no longer types, so **and typed** describes the route at the time of
-ruling and not the current one. The exemption stands on length alone. ADR 0190 ruling 2 put the
-second gate to the clinician on that changed premise and he declined it, ruling instead that the
-reply's pre-submit readback becomes a graded comparison of the editor's serialized HTML against the
-built `.html`, with a non-clean comparison returning to him. The residue — that no reader who is not
-the author sees the loaded box before submit — is declared in that record rather than closed.)*
-
 5. **Gate 2** authorizes submit, and nothing else does.
 
 The clinician's ground, in his words: *"i need to see what i am asking you to do before i ever agree
@@ -231,6 +221,16 @@ fifteen thousand characters of clipboard work is not.
 `discussion-reply` and `course-assignment` keep one gate. A reply is short and typed, and a deck
 upload shows a filename; neither loads fifteen kilobytes of markup into a box where a silent drop is
 invisible.
+
+*Superseded 2026-09-12.* The ground "A reply is short and typed, and a deck upload shows a filename" is falsified by [ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md) ruling 2. Reply and course-assignment keep one gate; post keeps two gates and nonclean reading returns to clinician. The original dated account is retained: *(Corrected in place 2026-09-12, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
+[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
+ruling 2. `discussion-reply` no longer types, so **and typed** describes the route at the time of
+ruling and not the current one. The exemption stands on length alone. ADR 0190 ruling 2 put the
+second gate to the clinician on that changed premise and he declined it, ruling instead that the
+reply's pre-submit readback becomes a graded comparison of the editor's serialized HTML against the
+built `.html`, with a non-clean comparison returning to him. The residue — that no reader who is not
+the author sees the loaded box before submit — is declared in that record rather than closed.)*
 
 ## Ruling 7 — the fallback is declared at gate 1, the route never switches after a bad reading, and there is no third rung
 
