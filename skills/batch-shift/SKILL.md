@@ -294,8 +294,11 @@ the same complete path list for the report-only self-pass/blind-fail count.
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json --show
 ```
+
+Apply [icd10-cpt's private report and column-ground remark handoff](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+to this shown read before the Review-sheet go-ahead.
 
 Exit 0 is required before the roll-up is complete. An unpaired note or worksheet, an unread code,
 or a difference between the note's submitted code populations and the saved worksheet stops the

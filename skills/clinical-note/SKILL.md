@@ -543,8 +543,12 @@ omit `--rendered-descriptors` when the set is verified and no record exists.
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json --show
 ```
+
+Handle the shown report and carry its generated column-ground remarks as
+[icd10-cpt's descriptor-agreement step](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+requires before the standalone go-ahead.
 
 Completion requires exit 0. That read also binds, in both directions, the note's preexisting and
 final codes, differential codes, welded `NOT CODED:` codes, and rendered procedure lines to their

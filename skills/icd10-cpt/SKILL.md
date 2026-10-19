@@ -284,13 +284,26 @@ undetermined. These substances have no adverse-effect or underdosing branch. The
 still decides whether the documented exposure caused harm; the route cannot establish that.
 [ADR 0414](../../docs/adr/0414-a-toxic-effect-code-takes-its-column-from-intent-alone-and-the-reader-brief-states-the-grader-s-own-column-words.md).
 The blind brief derives the check's exact column patterns from the constants it uses.
-Medicine columns have the separate code-set and quoted-ground ruling in
-[ADR 0430](../../docs/adr/0430-a-medicine-code-s-drug-column-is-settled-by-the-code-set-where-it-can-and-otherwise-by-a-counted-reader-quoted-ground.md);
-until [#1889](https://github.com/mshamblin5150-code/clinical-skills/issues/1889) is built,
-the check still requires its existing medicine word patterns. A missing pattern does not
-overturn that ruling or justify rewording the note to clear the check.
+For `T36`–`T50`, a column name in the diagnosis label, an affirmative poisoning intent,
+or the matched main index entry's own column referral can establish the family.
+The Overdose, Medicine poisoning, Wrong drug, and Adverse effect main entries carry such
+referrals; a choice below Ingestion or Intoxication does not. Neither *toxicity* nor a
+denial of intent establishes a family. Proper-use-with-reaction and took-less wording
+continue to establish adverse effect and underdosing, respectively.
 
-A flat denial of intent also takes accidental: *ibuprofen ingestion, not intentional*, *denies
+When those checks cannot settle it, put a **Column ground** in `column_ground`: an exact
+note quotation explaining how the medicine was taken, drawn from any part of the note.
+Use `none` when there is no quotation; an unsettled column without one fails. The check
+tests the quotation's presence, while the reader decides whether it concerns this drug.
+Proper-use or took-less words in the diagnosis label or quotation refuse poisoning;
+an unrelated medication line elsewhere does not. Read the history and medication list
+before selecting that quotation. The report separately counts columns depending on this
+judgment and emits a `READER-REMARK:` entry naming each code and its quoted ground.
+Carry those entries into the clinical go-ahead's numbered `READER REMARKS` block;
+the general coding-reader approval transport remains the separate #1702 build.
+[ADR 0430](../../docs/adr/0430-a-medicine-code-s-drug-column-is-settled-by-the-code-set-where-it-can-and-otherwise-by-a-counted-reader-quoted-ground.md).
+
+A flat denial of intent takes accidental once poisoning is established: *ibuprofen ingestion, not intentional*, *denies
 self-harm* and *no assault* all take the accidental stem. A denial is one of *not*, *no*, *denies*,
 *denied*, *without*, *negative for* or *never*, and it covers only the intent words after it, up to
 the next comma, semicolon or period. So *no vomiting, intentional overdose* keeps its intent, and
@@ -472,8 +485,15 @@ After the writer gate, build and grade the independent blind read:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json --show
 ```
+
+Keep this shown report private: its findings and generated remarks contain note text.
+Before the clinical go-ahead, read every `READER-REMARK:` entry it emits and place
+each code and quoted column ground in the numbered `READER REMARKS` block beside
+the note or Review sheet, with a change made or a proposal to leave it. A count alone
+does not carry the ground. This display step applies even while #1702's general
+coding-reader approval enforcement remains unbuilt.
 
 The brief supplies the complete note with its tier block and each code's number, official
 descriptor, system, and role. It supplies no worksheet quotation.

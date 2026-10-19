@@ -69,12 +69,13 @@ import re
 import sys
 from collections import Counter, defaultdict
 from contextlib import closing
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from functools import cache
 from pathlib import Path
 
 import run_grader
+import reader_remarks
 from block_scan import ASSERTED, read_block
 from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
@@ -190,6 +191,11 @@ DECLARED_LIMITS = (
     (
         "real poisoning descriptor agreement",
         "No committed real note carries a T36-T65 poisoning code; drug-column behavior has synthetic controls only.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "medicine column ground relevance",
+        "A column ground must be verbatim note text, but whether it describes this medicine is the reader's judgment. Proper use outside the label and ground is not checked.",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -721,57 +727,105 @@ DRUG_INTENTIONAL_PATTERN = r"(?<!\bnon-)\bintentional\b"
 DRUG_ASSAULT_PATTERN = r"\b(?:assault(?:ed)?|assailant)\b"
 DRUG_NEGATION_PATTERN = r"\b(?:not|no|denies|denied|without|negative for|never)\b"
 DRUG_HEDGE_PATTERN = r"\b(?:possible|possibly|suspected|perhaps|may have been)\b"
-DRUG_UNDETERMINED_PATTERN = r"\b(?:intent cannot be determined|undetermined intent)\b"
+DRUG_UNDETERMINED_PATTERN = r"\b(?:intent cannot be determined|undetermined)\b"
 DRUG_POISONING_PATTERN = (
-    r"\b(?:overdose|poisoning|ingestion|got into|wrong (?:drug|substance|route)|"
-    r"nonprescribed|with alcohol)\b"
+    r"\bpoisoning\b"
 )
+DRUG_ACCIDENTAL_PATTERN = r"\b(?:accidental|unintentional|non-?intentional)\b"
+DRUG_ADVERSE_PATTERN = r"\badverse effect\b"
+DRUG_UNDERDOSING_NAME_PATTERN = r"\bunderdosing\b"
 TOXIC_EFFECT_PREFIXES = tuple(f"T{number}" for number in range(51, 66))
+MEDICINE_PREFIXES = tuple(f"T{number}" for number in range(36, 51))
 
 
-def _drug_column_agrees(column: str, agreeing_words: str, subject_code: str = "") -> bool:
+class ColumnBasis(Enum):
+    MECHANICAL = "mechanical"
+    GROUND = "reader ground"
+    MISSING = "missing ground"
+    INVALID = "contrary evidence"
+
+
+def _medicine_column(subject: AgreementSubject) -> str | None:
+    code = subject.code.replace(".", "").upper()
+    if (subject.system == "ICD-10" and code.startswith(MEDICINE_PREFIXES)
+            and len(code) > 5 and code[5] in "123456"):
+        return DRUG_COLUMNS[int(code[5]) - 1]
+    return None
+
+
+def _first_column_pointer(route: str) -> str:
+    """Only a referral on the matched main entry can settle a column."""
+    first = _index_route_catalog().get(route.split(" | ", 1)[0])
+    if first is None or " > " in first[0] or first[0].lower() == "toxicity":
+        return ""
+    referral = (first[2] or first[3]).lower()
+    if "table of drugs and chemicals" not in referral:
+        return ""
+    if re.search(r"\bpoisoning\b", referral):
+        return "poisoning"
+    if "with 6th character 5" in referral or "adverse effect" in referral:
+        return "adverse effect"
+    return ""
+
+
+def _drug_column_basis(column: str, agreeing_words: str, subject_code: str = "",
+                       column_ground: str = "none", route: str = "") -> ColumnBasis:
     words = agreeing_words.lower()
-    toxic_effect = subject_code.replace(".", "").upper().startswith(
-        TOXIC_EFFECT_PREFIXES
-    )
-    underdosing = bool(
-        re.search(DRUG_UNDERDOSING_PATTERN, words)
-    )
-    adverse = bool(
-        re.search(DRUG_PROPER_USE_PATTERN, words)
-        and re.search(DRUG_REACTION_PATTERN, words)
-    )
-    # Intent alone reads the unnegated spans; exposure and use keep their words.
+    toxic_effect = subject_code.replace(".", "").upper().startswith(TOXIC_EFFECT_PREFIXES)
+    ground = "" if column_ground == "none" else column_ground.lower()
+    # Intent belongs to the label; the ground supplies how the medicine was taken.
     intent_words = re.sub(DRUG_NEGATION_PATTERN + r"[^,;.]*", "", words)
     self_harm = bool(re.search(DRUG_SELF_HARM_PATTERN, intent_words))
     intentional = bool(re.search(DRUG_INTENTIONAL_PATTERN, intent_words))
     assault = bool(re.search(DRUG_ASSAULT_PATTERN, intent_words))
-    hedged_intent = bool(
-        re.search(DRUG_HEDGE_PATTERN, words)
-        and (self_harm or intentional or assault)
-    )
-    undetermined = bool(
-        re.search(DRUG_UNDETERMINED_PATTERN, words)
-        or hedged_intent
-    )
-    poisoning = toxic_effect or bool(
-        re.search(DRUG_POISONING_PATTERN, words)
-    )
-
+    undetermined = bool(re.search(DRUG_UNDETERMINED_PATTERN, intent_words) or (
+        re.search(DRUG_HEDGE_PATTERN, words) and (self_harm or intentional or assault)
+    ))
+    underdosing = bool(re.search(DRUG_UNDERDOSING_PATTERN, words))
+    proper = bool(re.search(DRUG_PROPER_USE_PATTERN, words))
+    adverse = proper and bool(re.search(DRUG_REACTION_PATTERN, words))
+    pointer = "" if toxic_effect else _first_column_pointer(route)
     expected = None
-    if underdosing and not toxic_effect:
-        expected = "Underdosing"
-    elif adverse and not toxic_effect:
-        expected = "Adverse effect"
-    elif poisoning and undetermined:
-        expected = "Poisoning Undetermined"
-    elif poisoning and (self_harm or (intentional and not assault)):
-        expected = "Poisoning Intentional self-harm"
-    elif poisoning and assault:
-        expected = "Poisoning Assault"
-    elif poisoning:
-        expected = "Poisoning Accidental (unintentional)"
-    return column == expected
+    if not toxic_effect:
+        if column.startswith("Poisoning") and (
+            proper or underdosing or re.search(DRUG_PROPER_USE_PATTERN, ground)
+            or re.search(DRUG_UNDERDOSING_PATTERN, ground)
+        ):
+            return ColumnBasis.INVALID
+        if underdosing or re.search(DRUG_UNDERDOSING_NAME_PATTERN, words):
+            expected = "Underdosing"
+        elif adverse or re.search(DRUG_ADVERSE_PATTERN, words) or pointer == "adverse effect":
+            expected = "Adverse effect"
+    poisoning = toxic_effect or bool(
+        re.search(DRUG_POISONING_PATTERN, words) or pointer == "poisoning"
+        or re.search(DRUG_ACCIDENTAL_PATTERN, intent_words)
+        or self_harm or intentional or assault or undetermined
+    )
+    rests_on_ground = expected is None and not poisoning
+    if rests_on_ground:
+        if not ground:
+            return ColumnBasis.MISSING
+        if not column.startswith("Poisoning"):
+            return ColumnBasis.GROUND
+    if expected is None:
+        if undetermined:
+            expected = "Poisoning Undetermined"
+        elif self_harm or (intentional and not assault):
+            expected = "Poisoning Intentional self-harm"
+        elif assault:
+            expected = "Poisoning Assault"
+        else:
+            expected = "Poisoning Accidental (unintentional)"
+    if column != expected:
+        return ColumnBasis.INVALID
+    return ColumnBasis.GROUND if rests_on_ground else ColumnBasis.MECHANICAL
+
+
+def _drug_column_agrees(column: str, agreeing_words: str, subject_code: str = "",
+                        column_ground: str = "none", route: str = "") -> bool:
+    return _drug_column_basis(column, agreeing_words, subject_code, column_ground, route) in {
+        ColumnBasis.MECHANICAL, ColumnBasis.GROUND,
+    }
 
 
 def _neoplasm_column_agrees(column: str, agreeing_words: str) -> bool:
@@ -864,8 +918,8 @@ def _reference_matches(
 
     # A placeholder delegates its omitted detail to the next path. The words
     # before it still have to identify the destination family.
-    placeholder = bool(re.search(r"\bby (?:site|type|substance|animal)\b", lower))
-    lower = re.sub(r"\bby (?:site|type|substance|animal)(?:\b.*)?$", "", lower)
+    placeholder = bool(re.search(r"\bby (?:site|type|substance|animal|drug)\b", lower))
+    lower = re.sub(r"\bby (?:site|type|substance|animal|drug)(?:\b.*)?$", "", lower)
     # Character and range instructions constrain the subject code rather than
     # spelling a destination path.
     instruction = False
@@ -954,6 +1008,7 @@ def _route_status(
     route: str,
     agreeing_words: str,
     encounter_evidence: str = "",
+    column_ground: str = "none",
 ) -> RouteStatus:
     if route == "descriptor words":
         return RouteStatus.VALID
@@ -991,7 +1046,9 @@ def _route_status(
     if not normalized.startswith(stem):
         return RouteStatus.INVALID
     final_step = resolved[-1][0].rsplit(" > ", 1)[-1]
-    if final_step in DRUG_COLUMNS and not _drug_column_agrees(final_step, agreeing_words, normalized):
+    if final_step in DRUG_COLUMNS and not _drug_column_agrees(
+        final_step, subject.support or agreeing_words, normalized, column_ground, route
+    ):
         return RouteStatus.INVALID
     if final_step in NEOPLASM_COLUMNS and not _neoplasm_column_agrees(final_step, agreeing_words):
         return RouteStatus.INVALID
@@ -1281,7 +1338,7 @@ NO_WAIT_PENDING_PATTERN = re.compile(
 AGREEMENT_READER_INSTRUCTIONS = (
     "Writer self-records exist privately; do not read them or request their text as a retry hint. "
     "For every code, record agreeing_words, route, encounter_evidence, "
-    "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
+    "open_status_evidence, column_ground, threshold, and waits_on_result; use 'none' when absent. "
     "Writers and blind readers quote open_status_evidence verbatim from the note. "
     "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
     "string. Route is the literal 'descriptor words' or exact index output; join a "
@@ -1297,7 +1354,7 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "official four-source index path; topical relation is insufficient. An index code "
     "may be the subject code's stem, but every tabular-added character still needs note "
     "evidence for laterality, site detail, placeholders, and encounter character. Ignore "
-    "word order within a cross-reference; fill by-site, by-type, and by-substance "
+    "word order within a cross-reference; fill by-site, by-type, by-substance, and by-drug "
     "placeholders from the next path; and satisfy character or code-range instructions "
     "with the subject code. Keep a real route with a still-unmatched cross-reference so "
     "the scanner can place it in the named unread remainder. For Neoplasm Table routes, "
@@ -1309,6 +1366,8 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "case-insensitively: "
     f"underdosing `{DRUG_UNDERDOSING_PATTERN}`; proper use `{DRUG_PROPER_USE_PATTERN}` "
     f"together with reaction `{DRUG_REACTION_PATTERN}`; medicine poisoning `{DRUG_POISONING_PATTERN}`; "
+    f"accidental `{DRUG_ACCIDENTAL_PATTERN}`; adverse-effect name `{DRUG_ADVERSE_PATTERN}`; "
+    f"underdosing name `{DRUG_UNDERDOSING_NAME_PATTERN}`; "
     f"self-harm `{DRUG_SELF_HARM_PATTERN}`; intentional `{DRUG_INTENTIONAL_PATTERN}`; "
     f"assault `{DRUG_ASSAULT_PATTERN}`; hedge `{DRUG_HEDGE_PATTERN}`; "
     f"undetermined intent `{DRUG_UNDETERMINED_PATTERN}`. "
@@ -1316,10 +1375,19 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "establishes exposure and no poisoning word is required; only intent chooses among "
     "the four Poisoning columns, with no adverse-effect or underdosing branch. "
     "Whether the exposure caused harm remains the reader's judgment. For medicine codes, "
-    "underdosing takes precedence, then proper use together with reaction takes Adverse effect, "
-    "otherwise the current check requires the medicine poisoning pattern. ADR 0430's "
-    "code-set or quoted column-ground treatment for medicines awaits #1889; toxicity alone "
-    "settles no medicine column, and check the medication list and history for proper use. "
+    "the label's column name or affirmative intent settles its family; underdosing takes "
+    "precedence, then proper use together with reaction takes Adverse effect. "
+    "A Table of Drugs and Chemicals poisoning or adverse-effect pointer on the first main "
+    "entry also settles the family: Overdose, overdosage (drug), Medicine poisoning, "
+    "Wrong drug (by accident) (given in error), or Adverse effect. A pointer on a subentry "
+    "does not settle it. Toxicity and a flat denial of intent settle no medicine column. "
+    "Otherwise quote column_ground verbatim from anywhere in the note showing how the "
+    "medicine was taken; no ground is a finding. Check the medication list and history "
+    "for proper use before quoting misuse. Proper-use and took-less patterns search only "
+    "the label and ground and refuse poisoning there. Whether the ground concerns this "
+    "drug remains the reader's judgment. Every column relying on a ground is counted and "
+    "the check generates a reader remark naming its code and quoted ground for the clinical "
+    "go-ahead's READER REMARKS block. "
     "For poisoning, undetermined intent or a hedge together with self-harm, intentional or "
     "assault takes Undetermined first; then self-harm or intentional without assault takes "
     "Intentional self-harm; then assault takes Assault; otherwise intent defaults to "
@@ -1634,6 +1702,9 @@ def _run_agreement(argv: list[str]) -> int:
         return 2
     print(_agreement_report(pairs, result.findings, result.unread,
                             result.unread_routes, result.excluded_code_tokens, args.show))
+    print(f"  medicine columns resting on reader ground  {len(result.column_remarks)}")
+    if args.show:
+        print(reader_remarks.report(tuple(result.column_remarks)))
     print(run_grader.run_records_report(args.worksheets, args.notes))
     if result.out_of_scope_rows:
         print(f"  agreement rows outside requested stems: {result.out_of_scope_rows}")
@@ -1661,6 +1732,7 @@ class AgreementRead:
     passed: set[tuple[str, str]]
     failed: set[tuple[str, str]]
     out_of_scope_rows: int = 0
+    column_remarks: list[reader_remarks.Remark] = field(default_factory=list)
 
 
 def _grade_agreement(pairs: list[AgreementPair], unread: int,
@@ -1691,6 +1763,7 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
     excluded_code_tokens: list[str] = []
     passed: set[tuple[str, str]] = set()
     failed: set[tuple[str, str]] = set()
+    column_remarks: list[reader_remarks.Remark] = []
     for pair in pairs:
         findings.extend(_anchor_findings([pair]))
         filled_home_medications = [
@@ -1751,6 +1824,20 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
                 continue
             words = record["agreeing_words"]
             route = record["route"]
+            ground = record.get("column_ground", "none")
+            if not isinstance(ground, str) or not ground:
+                unread += 1
+                continue
+            if ground != "none" and ground not in pair.note:
+                findings.append(f"{pair.stem}: {subject.key} column ground is not note text")
+            column = _medicine_column(subject)
+            basis = None
+            if column is not None:
+                basis = _drug_column_basis(column, subject.support, subject.code, ground, route)
+                if basis is ColumnBasis.MISSING:
+                    findings.append(f"{pair.stem}: {subject.key} has no column ground")
+                elif basis is ColumnBasis.INVALID:
+                    findings.append(f"{pair.stem}: {subject.key} column contradicts its label or ground")
             if not isinstance(words, str) or not words or words == "none":
                 if subject.role == "procedure":
                     unread += 1
@@ -1761,7 +1848,7 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
             elif words not in subject.support:
                 findings.append(f"{pair.stem}: {subject.key} agreeing words are from the wrong place")
             route_status = _route_status(
-                subject, route, words, record["encounter_evidence"]
+                subject, route, words, record["encounter_evidence"], ground
             )
             if route == "none" or route_status is RouteStatus.INVALID:
                 if subject.role != "procedure":
@@ -1777,6 +1864,11 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
                         record["encounter_evidence"],
                     )
                 )
+            if basis is ColumnBasis.GROUND and route_status is RouteStatus.VALID and ground in pair.note:
+                column_remarks.append(reader_remarks.Remark(
+                    f"AGREEMENT: {pair.stem}",
+                    f'{subject.code}: {column} rests on reader column ground: "{ground}"',
+                ))
             if (
                 _requires_encounter_evidence(subject)
                 and record["encounter_evidence"] == "none"
@@ -1799,7 +1891,7 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         excluded_code_tokens.extend(pair_excluded_tokens)
 
     return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed,
-                         out_of_scope)
+                         out_of_scope, column_remarks)
 
 
 def main(argv: list[str]) -> int:
