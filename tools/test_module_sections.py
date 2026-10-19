@@ -58,6 +58,7 @@ DECLARED_SECTIONS = {
     "case_video": "Case video capture",
     "memory_index": "Memory index",
     "scanner_pipe_hook": "Scanner pipe guard",
+    "backslash_pair_hook": "Backslash pair guard",
     "install_scanner_pipe_guard": "Scanner pipe guard",
     "adr_next": "ADR number allocation",
     "adr_supersession_population": "ADR supersession binding",
