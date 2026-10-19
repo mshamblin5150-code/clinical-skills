@@ -318,7 +318,7 @@ def completion_gate(run: Path, submission: str | None, drafts: dict[str, bytes |
     return False, f"{EXPECTED_ROW}: clean; frames read {sum(c[0] for c in counts)}; confirmations {sum(c[1] for c in counts)}"
 
 
-def apply_completion_gate(grade, run: Path, submission: str | None, drafts: dict[str, str]):
+def apply_completion_gate(grade, run: Path, submission: str | None, drafts: dict[str, bytes | str]):
     failed, report = completion_gate(run, submission, drafts)
     return replace(grade, findings_failed=grade.findings_failed or failed, reports=grade.reports + (report,))
 

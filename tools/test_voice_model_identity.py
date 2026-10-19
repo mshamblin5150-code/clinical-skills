@@ -17,6 +17,7 @@ import imagery_proposals
 import project_context
 import lms_attachments
 import case_video
+import artifact_lock_test_support
 
 
 class RecordWriter(unittest.TestCase):

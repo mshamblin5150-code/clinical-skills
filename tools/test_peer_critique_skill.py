@@ -12,6 +12,7 @@ import peer_critique_scan
 import project_context
 import lms_attachments
 import case_video
+import artifact_lock_test_support
 import voice_model_identity
 import voice_read
 from prose_bind import NAMING, ProseBind, bind

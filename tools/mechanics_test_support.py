@@ -8,6 +8,7 @@ from datetime import timedelta
 from unittest import mock
 
 import completion_checks
+import artifact_lock_test_support  # Keep focused coursework-command runs isolated too.
 
 _active = completion_checks.active
 

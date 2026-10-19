@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 import case_video
+import artifact_lock_test_support
 import artifact_lock
 from prose_bind import NAMING, bind
 

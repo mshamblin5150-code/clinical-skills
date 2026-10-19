@@ -9,6 +9,7 @@ from hashlib import sha256
 from pathlib import Path
 import tempfile
 import unittest
+import artifact_lock_test_support
 
 import aar_scan
 import course_assignment_scan
