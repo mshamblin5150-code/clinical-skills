@@ -1,14 +1,16 @@
 # The extract-and-rebuild output is one report whose remainder figure is the rebuilt grade's
 
-**Measured at:** 7821ce1f7dbc98555b246eaa0bef65105c700f3d
+**Measured at:** acaf672586f0bd62ac01550df43ffab8b6cdeb09
 
 [#1855](https://github.com/mshamblin5150-code/clinical-skills/issues/1855) found that
 `aar_scan.py --extract --rebuild-round <n>` can print two `unread remainder N` lines with nothing
 saying which population each counts. [ADR 0393](0393-the-unread-remainder-is-one-line-per-report-that-counts-each-member-once-and-names-a-nonzero-population.md)
 ruling 3 left this command to that ticket because nobody had measured whether the output is one
-report printed with two figures or two reports in one run. Grilled 2026-10-19 against `main` at the
-commit above, where the freshness gate read `FRESH`; the clinician ruled every point below in that
-session.
+report printed with two figures or two reports in one run. Grilled 2026-10-19 against `main` at
+`7821ce1f`, where the freshness gate read `FRESH`. Both measurements below were taken there and
+taken again at the commit above, which adds only the first draft of this record to `main` at
+`5270598f`; nothing between those two bases touches `aar_scan` or `run_grader`. The clinician
+ruled every point below in that session.
 
 This record settles the case ADR 0393 deferred. It overturns nothing in that record.
 
