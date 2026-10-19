@@ -644,6 +644,10 @@ _Avoid_: fixture, sample output, test result
 A record in a run's working directory that an agent writes itself, rather than one a committed tool writes, and that a grader later reads for its fields. It is where damage from a hand-typed path lands, so it is read under one rule wherever it sits. Distinct from an **Outbound artifact**, which is the work handed in or entered, and from a record a tool writes, whose writer controls every character.
 _Avoid_: scratch file, working file, log, ledger (as the general term)
 
+**Tool-written run record**:
+A record in a run's working directory that a committed tool writes and later reads back, such as an approval, a frozen grade or a submission gate. Its writer controls every character, so damage to it means a crash, a hand edit or a race rather than defective content, and a record of it that exists but cannot be read is never taken to hold nothing. Distinct from a **hand-written run record**, which an agent writes itself, and from a missing record, which may legitimately mean nothing has been recorded yet.
+_Avoid_: state file, cache, metadata (as the general term)
+
 **Divergent run**:
 A **preserved run record** whose output departs from the skill as that skill is written, so a grader's finding against it is a correct verdict rather than a defect in the grader. The classes are named where the record lives, and the record is never edited to pass — editing it would falsify the run and destroy the evidence the divergence is made of. Distinct from a **fixture**, which is built to be graded clean, and from a grader bug, which is what a finding against conforming output would be.
 _Avoid_: bad run, failing fixture, broken output, noncompliant
