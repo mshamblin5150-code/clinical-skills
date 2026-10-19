@@ -1209,6 +1209,8 @@ def _code_labels(note: str, subject: AgreementSubject) -> set[str]:
         line = line.split(":", 1)[0]
         previous_end = 0
         for token in ICD_TOKEN.finditer(line):
+            if not _database_descriptor("ICD-10", token.group().upper()):
+                continue
             if token.group().upper() == subject.code:
                 before = line[previous_end:token.start()]
                 pin = re.search(r"[ \t]+-[ \t]+[*_]*$", before)
@@ -1341,7 +1343,7 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "code-and-descriptor half of the welded NOT CODED: clause naming a refused code, never "
     "its reason. For entry and differential codes, stay within that code's complete label: "
     "from the beginning of the line (after a heading or list marker), or after the preceding "
-    "code token, up to the hyphen pinning this code. Retain hedges and joining words and "
+    "code token that resolves in the committed ICD-10-CM code set, including a category heading, up to the hyphen pinning this code. Code-shaped tokens outside that set, such as B12 and A1C, are label text. Retain hedges and joining words and "
     "leave out the rationale following the colon. For CPT or HCPCS, quote the line documenting "
     "the act done in this encounter. "
     "Record agreeing_words as 'none' when the code's label does not state or reach its "

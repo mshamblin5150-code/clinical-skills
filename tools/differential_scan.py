@@ -12,8 +12,8 @@ an invented Assessment heading.
 **Drift row 24's mechanical floor** reads every physical ``FILLED·proposed``
 opener, including an unnumbered one, and checks same-line guideline tails against
 the shipped USPSTF and threshold sheets or filed UpToDate topics wherever a direct join is mechanical. A
-``recalled, no shipped sheet`` verdict is a finding when the subject joins a topic
-registered with an artifact; an undecidable join stays a candidate. A known
+``recalled, no shipped sheet`` or ``uspstf: no row`` label match is reported,
+never graded. USPSTF citations name an exact copied topic; population stays reader-owned. A known
 screening, counseling, immunization, vaccination, target, cutoff or threshold
 subject without a tail is a finding. Any other absent tail is a candidate outside
 the exit status, because the scanner cannot decide whether that item rests on a
@@ -389,6 +389,13 @@ DRAFT_SOURCE_CLASSES = {"draft"}
 # second place for it to go stale.
 NOT_VALIDATED_AGAINST = (
     (
+        "USPSTF topic choice and population applicability",
+        "Copied titles match exactly after case and whitespace folding. Grade and year are compared, "
+        "or grade alone when the sheet states no year. Whether the named topic and the writer's "
+        "population fit the item and patient remains a reader's judgment. Lexical no-row and "
+        "no-shipped-sheet contradictions are pointers, never graded.",
+    ),
+    (
         "the aggregate of the exit-2 limbs",
         "Each way of not having scanned is separately correct and "
         "separately documented above, and none of them says what they come to "
@@ -513,6 +520,12 @@ class GuidelineFloor:
     source_classes_read: int
     source_class_tails: int
     parse_failures: tuple[ThresholdSheetFailure, ...]
+    grade_only: int
+    not_graded: int
+    no_row: int
+    other_uncompared: int
+    tails_read: int
+    contradictions: tuple[GuidelineCandidate, ...]
 
 
 @dataclass(frozen=True)
@@ -538,6 +551,12 @@ class Note:
     ranking_findings: tuple[RankingFinding, ...] = ()
     proposed_items: tuple[ProposedItem, ...] = ()
     guideline_tails_checked: int = 0
+    guideline_grade_only: int = 0
+    guideline_not_graded: int = 0
+    guideline_no_row: int = 0
+    guideline_other_uncompared: int = 0
+    guideline_tails_read: int = 0
+    guideline_contradictions: tuple[GuidelineCandidate, ...] = ()
     guideline_findings: tuple[GuidelineFinding, ...] = ()
     guideline_candidates: tuple[GuidelineCandidate, ...] = ()
     draft_backed_citations: tuple[GuidelineCandidate, ...] = ()
@@ -584,6 +603,12 @@ class Scan:
     ranking_findings: tuple[RankingFinding, ...] = ()
     proposed_items: int = 0
     guideline_tails_checked: int = 0
+    guideline_grade_only: int = 0
+    guideline_not_graded: int = 0
+    guideline_no_row: int = 0
+    guideline_other_uncompared: int = 0
+    guideline_tails_read: int = 0
+    guideline_contradictions: tuple[GuidelineCandidate, ...] = ()
     guideline_findings: tuple[GuidelineFinding, ...] = ()
     guideline_candidates: tuple[GuidelineCandidate, ...] = ()
     draft_backed_citations: tuple[GuidelineCandidate, ...] = ()
@@ -795,7 +820,7 @@ def _uspstf_index() -> tuple[tuple[str, str, str], ...]:
         cells = _pipe_cells(line) if line.startswith("|") else []
         if len(cells) != 9 or cells[2] not in {"A", "B", "C", "D", "I"}:
             continue
-        if not re.fullmatch(r"\d{4}", cells[4]):
+        if not re.fullmatch(r"\d{4}|not stated", cells[4]):
             continue
         rows.append((cells[0], cells[2].casefold(), cells[4]))
     return tuple(rows)
@@ -874,16 +899,15 @@ def _threshold_artifact_topics() -> tuple[tuple[str, str], ...]:
 THRESHOLD_ARTIFACT_TOPICS = _threshold_artifact_topics()
 
 
-def _uspstf_citation_matches(item: str, grade: str, year: str) -> bool | None:
-    """Whether a directly joined topic carries the cited grade and year.
-
-    ``None`` means the subject could not be joined mechanically; it is a
-    candidate for a reader, never a fabricated clean sheet comparison.
-    """
-    matches = _uspstf_subject_topics(item)
+def _uspstf_citation_matches(title: str, grade: str, year: str) -> tuple[bool | None, bool]:
+    """Exact copied title, grade and year; population remains reader-owned."""
+    folded = " ".join(title.casefold().split())
+    matches = [row for row in USPSTF_ROWS if " ".join(row[0].casefold().split()) == folded]
     if not matches:
-        return None
-    return any(row[1] == grade.casefold() and row[2] == year for row in matches)
+        return None, False
+    grade_only = all(row[2] == "not stated" for row in matches)
+    return any(row[1] == grade.casefold() and (row[2] == year or row[2] == "not stated")
+               for row in matches), grade_only
 
 
 def _normalized_value(text: str) -> str:
@@ -936,6 +960,8 @@ def _guideline_floor(
 ) -> GuidelineFloor:
     """Validate row 24's mechanical limbs and preserve its clinical ceiling."""
     checked = 0
+    grade_only_count = not_graded = no_row = tails_read = 0
+    contradictions: list[GuidelineCandidate] = []
     findings: list[GuidelineFinding] = []
     candidates: list[GuidelineCandidate] = []
     draft_backed: list[GuidelineCandidate] = []
@@ -978,6 +1004,7 @@ def _guideline_floor(
             continue
 
         for match in opening_tails:
+            tails_read += 1
             if GUIDELINE_TAIL.fullmatch(match.group(0)) is None:
                 findings.append(
                     GuidelineFinding(item.line, "malformed guideline tail", item.text)
@@ -1032,59 +1059,49 @@ def _guideline_floor(
                 if lowered == "recalled, source page unread":
                     candidates.append(GuidelineCandidate(item.line, item.text))
                     continue
-                checked += 1
                 topics = tuple(topic for topic, _artifact in THRESHOLD_ARTIFACT_TOPICS)
-                if _lexical_subject_topic_names(subject, topics):
-                    findings.append(
-                        GuidelineFinding(
-                            item.line,
-                            "recalled, no shipped sheet contradicts a shipped topic",
-                            item.text,
-                        )
-                    )
-                else:
-                    candidates.append(GuidelineCandidate(item.line, item.text))
+                for topic in sorted(_lexical_subject_topic_names(subject, topics)):
+                    contradictions.append(GuidelineCandidate(item.line, f"{subject} -> {topic}"))
+                candidates.append(GuidelineCandidate(item.line, item.text))
                 continue
             if lowered.startswith("uspstf:"):
-                checked += 1
                 verdict = tail.split(":", 1)[1].strip()
-                if verdict.casefold().startswith("no row"):
-                    if _uspstf_subject_topics(subject):
-                        findings.append(
-                            GuidelineFinding(
-                                item.line,
-                                "uspstf: no row contradicts a shipped topic",
-                                item.text,
-                            )
-                        )
-                    else:
-                        candidates.append(GuidelineCandidate(item.line, item.text))
+                if verdict.casefold() == "no row":
+                    no_row += 1
+                    for topic in sorted({row[0] for row in _uspstf_subject_topics(subject)}):
+                        contradictions.append(GuidelineCandidate(item.line, f"{subject} -> {topic}"))
+                    candidates.append(GuidelineCandidate(item.line, item.text))
                     continue
-                citation = USPSTF_CITATION.fullmatch(verdict)
+                title, separator, content = verdict.partition(";")
+                if not separator:
+                    if completion_checks.active("differential_scan:uspstf-title-required"):
+                        findings.append(GuidelineFinding(item.line, "USPSTF citation requires a copied topic title", item.text))
+                    else:
+                        not_graded += 1
+                    continue
+                citation = USPSTF_CITATION.fullmatch(content.strip())
                 if citation is None:
-                    findings.append(
-                        GuidelineFinding(item.line, "malformed USPSTF verdict", item.text)
-                    )
+                    findings.append(GuidelineFinding(item.line, "malformed USPSTF verdict", item.text))
                     continue
                 if not citation.group(3).strip():
-                    findings.append(
-                        GuidelineFinding(
-                            item.line, "USPSTF population is empty", item.text
-                        )
-                    )
+                    findings.append(GuidelineFinding(item.line, "USPSTF population is empty", item.text))
                     continue
                 grade = citation.group(1) or citation.group(2)
-                matched = _uspstf_citation_matches(subject, grade, citation.group(4))
+                matched, grade_only = _uspstf_citation_matches(title, grade, citation.group(4))
                 if matched is None:
-                    candidates.append(GuidelineCandidate(item.line, item.text))
-                elif not matched:
-                    findings.append(
-                        GuidelineFinding(
-                            item.line,
-                            "USPSTF grade, population, and year do not match a shipped row",
-                            item.text,
-                        )
-                    )
+                    if completion_checks.active("differential_scan:uspstf-topic"):
+                        findings.append(GuidelineFinding(item.line, "USPSTF citation names no shipped topic", item.text))
+                    else:
+                        not_graded += 1
+                elif not completion_checks.active("differential_scan:uspstf-grade-year"):
+                    not_graded += 1
+                else:
+                    if grade_only:
+                        grade_only_count += 1
+                    else:
+                        checked += 1
+                    if not matched:
+                        findings.append(GuidelineFinding(item.line, "USPSTF grade and year do not match a shipped row" if not grade_only else "USPSTF grade does not match a shipped row", item.text))
                 continue
 
             if lowered.startswith("guideline/"):
@@ -1241,6 +1258,12 @@ def _guideline_floor(
         source_classes_read=source_classes_read,
         source_class_tails=source_class_tails,
         parse_failures=tuple(parse_failures.values()),
+        grade_only=grade_only_count,
+        not_graded=not_graded,
+        no_row=no_row,
+        other_uncompared=tails_read - checked - grade_only_count - not_graded - no_row,
+        tails_read=tails_read,
+        contradictions=tuple(contradictions),
     )
 
 
@@ -1331,6 +1354,12 @@ def read_note(text: str) -> Note:
         ranking_findings=tuple(ranking_findings),
         proposed_items=tuple(proposed_items),
         guideline_tails_checked=guideline.checked,
+        guideline_grade_only=guideline.grade_only,
+        guideline_not_graded=guideline.not_graded,
+        guideline_no_row=guideline.no_row,
+        guideline_other_uncompared=guideline.other_uncompared,
+        guideline_tails_read=guideline.tails_read,
+        guideline_contradictions=guideline.contradictions,
         guideline_findings=guideline.findings,
         guideline_candidates=guideline.candidates,
         draft_backed_citations=guideline.draft_backed,
@@ -1417,6 +1446,12 @@ def survey(notes: list[Note]) -> Scan:
         ranking_findings=tuple(ranking_findings),
         proposed_items=sum(len(note.proposed_items) for note in notes),
         guideline_tails_checked=sum(note.guideline_tails_checked for note in notes),
+        guideline_grade_only=sum(note.guideline_grade_only for note in notes),
+        guideline_not_graded=sum(note.guideline_not_graded for note in notes),
+        guideline_no_row=sum(note.guideline_no_row for note in notes),
+        guideline_other_uncompared=sum(note.guideline_other_uncompared for note in notes),
+        guideline_tails_read=sum(note.guideline_tails_read for note in notes),
+        guideline_contradictions=tuple(pair for note in notes for pair in note.guideline_contradictions),
         guideline_findings=tuple(guideline_findings),
         guideline_candidates=tuple(guideline_candidates),
         draft_backed_citations=tuple(draft_backed_citations),
@@ -1427,9 +1462,21 @@ def survey(notes: list[Note]) -> Scan:
     )
 
 
+def _read_artifact(artifact: run_grader.RunArtifact) -> Note:
+    """Use each approved note's own date, including an unknown date, in a batch."""
+    moments = completion_checks.ITEM_MOMENTS.get()
+    if not moments:
+        return read_note(artifact.text)
+    token = completion_checks.MOMENTS.set({"approval": moments.get(artifact.path.name)})
+    try:
+        return read_note(artifact.text)
+    finally:
+        completion_checks.MOMENTS.reset(token)
+
+
 def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
     """Retain each row's subjects without changing the grading population."""
-    scans = [survey([read_note(artifact.text)]) for artifact in artifacts]
+    scans = [survey([_read_artifact(artifact)]) for artifact in artifacts]
     return run_grader.attribute_scans(artifacts, scans, {
         "row_22": lambda scan: sum(f.kind == REFUSED_CODE for f in scan.findings),
         "unofficial": lambda scan: sum(f.kind == UNOFFICIAL_DESCRIPTOR for f in scan.findings),
@@ -1500,6 +1547,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  FILLED proposed items read                 {scan.proposed_items}",
         "  guideline tails checked against source evidence  "
         f"{scan.guideline_tails_checked}",
+        f"  Rh(D) citations: year not compared - the sheet states none  {scan.guideline_grade_only}",
+        f"  USPSTF citations not graded before the check start  {scan.guideline_not_graded}",
+        f"  USPSTF no row tails  {scan.guideline_no_row}",
+        f"  other tails not compared  {scan.guideline_other_uncompared}",
+        f"  guideline tails read  {scan.guideline_tails_read}",
+        f"  label contradictions: {len(scan.guideline_contradictions)} counted, never-graded",
         f"  row 24 - guideline tail violations  {row_24}{scan.attribution.suffix('guideline_findings')}",
         "  row 24 candidates - dependency needs a reader  "
         f"{len(scan.guideline_candidates)}{scan.attribution.suffix('guideline_candidates')}",
@@ -1540,6 +1593,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             lines.append(
                 f"{scan.attribution.filename('ranking_findings', index)}    line {finding.line:<5} ROW 23    {finding.reason} {finding.label}".rstrip()
             )
+        for pair in scan.guideline_contradictions:
+            lines.append(f"    line {pair.line} label/topic, never-graded: {pair.label}")
         for index, finding in enumerate(scan.guideline_findings):
             lines.append(
                 f"{scan.attribution.filename('guideline_findings', index)}    line {finding.line:<5} ROW 24    {finding.reason} {finding.label}".rstrip()
@@ -1610,7 +1665,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
-    scan = survey([read_note(text) for text in source.texts])
+    scan = survey([_read_artifact(artifact) for artifact in source.artifacts]
+                  if source.artifacts else [read_note(text) for text in source.texts])
     scan = replace(scan, attribution=locate(source.artifacts))
     has_findings = bool(
         scan.findings

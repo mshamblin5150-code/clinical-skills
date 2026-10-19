@@ -526,6 +526,9 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptor
 python tools/refusal_scan.py <run>/worksheets --stem <stem>
 ```
 
+An informational line is never a reason to change note text. Leave ordinary clinical prose as written when the line names a token; correct the token only when it is a mistyped code.
+
+
 For this standalone run, exit 0 gates creation of the blind agreement brief. Run the refusal
 command when the worksheet carries refusal records and require exit 0 before handoff; with none,
 record that the check has no subjects. A batch encounter
@@ -691,6 +694,9 @@ Grounded, and expected:
 - The exam of a system the shorthand never mentions.
 - **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes. The Allergies field fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
+
+USPSTF tails use `[uspstf: <topic title>; grade <X>, <population>, <year>]` or the same title-and-semicolon prefix with `I statement`. Copy the whole topic title from `reference/guidelines-uspstf.md`; case and whitespace are folded for comparison. Grade and year are compared; the population stays in the writer's words and its applicability needs a reader. A sheet year of `not stated` permits only a grade comparison, labeled separately. `[uspstf: no row]` keeps its form. A citation without a topic title is a finding for approvals at or after the new check's start; earlier approvals are not graded. The report separates compared tails, grade-only citations, exempt citations, no-row tails and other tails not compared.
+
 
 **Normal filled examinations use the clinician's saved language.** For an unmentioned, clinically normal system, write that system's saved normal-exam line from `scratch/medatrax-profile.md` under `Normal examination`. A system with no saved line is written for this encounter. Use `GI`, never `Abdomen`, as the examination label. A given abnormality replaces the conflicting normal clause for that system; never append a normal respiratory clause to diminished or adventitious breath sounds, or a normal orientation clause to altered mentation.
 
@@ -872,7 +878,7 @@ A bracketed tail on the item's own line, so the citation survives the line being
 The class is the sheet's `class` cell verbatim, including any commas. An empty class cell writes no `Class` word or class in the tail.
 
 ```
-FILLED·proposed   Colorectal cancer screening discussed [uspstf: grade A, adults 50 to 75, 2021]
+FILLED·proposed   Colorectal cancer screening discussed [uspstf: Screening for Colorectal Cancer; grade A, adults 50 to 75, 2021]
 FILLED·proposed   Continue lisinopril 20 mg PO daily, ongoing; recheck 4 weeks [thresholds/hypertension: aha-2025 Class 1, adults-htn, SBP >=140]
 FILLED·proposed   Confirm acute babesiosis with peripheral blood smear or PCR [thresholds/babesiosis: idsa-2020 Class strong recommendation, moderate-quality evidence, suspected-acute-babesiosis, confirm with peripheral blood smear or PCR rather than antibody testing]
 FILLED·proposed   Select empiric therapy with K. kingae activity [thresholds/acute-bacterial-arthritis: idsa-2023, suspected-aba-age-6-to-48-months, age 6-48 months: select empiric therapy that includes K. kingae activity rather than only S. aureus activity]
@@ -892,7 +898,7 @@ FILLED·proposed   Review the source recommendation with the clinician [recalled
 **A pediatric BMI population is evaluated with the same committed CDC tool as its code.** `Interventions for High Body Mass Index in Children and Adolescents` is keyed to *a high BMI (≥95th percentile for age and sex)*. Run `tools/cdc_percentile.py` before writing the item; the computed percentile decides whether the population is met. If the tool filled a midpoint month from a whole-year age, the citation tail says `age month filled` on the general rule below. The month remains a filled population key, but the percentile is no longer recalled.
 
 ```
-FILLED·proposed   Weight management counseling discussed [uspstf: grade B, children and adolescents 6 years or older with a high BMI (≥95th percentile for age and sex), 2024] age month filled
+FILLED·proposed   Weight management counseling discussed [uspstf: Interventions for High Body Mass Index in Children and Adolescents; grade B, children and adolescents 6 years or older with a high BMI (≥95th percentile for age and sex), 2024] age month filled
 ```
 
 **The population is the field that is not optional.** A note can fill the wrong age and then build an age-keyed screening list whose recommendations are individually correct but owed to a different patient population. A citation without its population makes that note look better without making it truer. Issue [#158](https://github.com/mshamblin5150-code/clinical-skills/issues/158).
@@ -904,7 +910,7 @@ FILLED·proposed   Weight management counseling discussed [uspstf: grade B, chil
 **A population condition the encounter never established takes `needs:`**, which is [icd10-cpt](../icd10-cpt/SKILL.md)'s own word for the measurement nobody took. A population **key** hides its own definition — `adults-htn-lowrisk` expands to *"adults with hypertension, no clinical CVD, 10-year PREVENT risk <7.5%"* — so the unmet limb has to be named beside it rather than left inside the key:
 
 ```
-FILLED·proposed   Statin discussed for primary prevention [uspstf: grade B, adults 40 to 75 with 1+ risk factor and 10-year CVD risk 10%+, 2022] needs: 10-year risk not calculated
+FILLED·proposed   Statin discussed for primary prevention [uspstf: Statin Use for the Primary Prevention of Cardiovascular Disease in Adults; grade B, adults 40 to 75 with 1+ risk factor and 10-year CVD risk 10%+, 2022] needs: 10-year risk not calculated
 ```
 
 **Compute the risk where every input is present, and never invent one to get there.** A risk score is arithmetic on stated values, so it belongs under `DERIVED` with its arithmetic like a body mass index — but only when the note holds **every** input the equation takes. Any input missing and the item takes `needs:` instead.
@@ -1513,7 +1519,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 
 **Its quiet failure is a note that reads better for having failed.** A recalled threshold and a cited one are the same sentence in the body — that is what *Block only* guarantees — so the only place the difference shows is the block, and a note that simply omits the tail looks tidier than one carrying `needs: 10-year risk not calculated`. **The row is failed by an absence that improves the document**, which is the shape rows 12 and 19 also have and the reason none of them survives being skimmed for.
 
-**`python tools/differential_scan.py <a run directory>` supplies row 24's mechanical floor.** It reads every physical `FILLED·proposed` opener, fails a guideline tail pushed onto a continuation line or a bracket opening with a tail keyword that matches no documented form, checks a directly joined USPSTF grade and year or a threshold sheet's source, class and value, and disproves a `no row`, `sheet does not settle it`, or `recalled, no shipped sheet` verdict where the shipped artifacts make the contradiction mechanical. Screening, counseling, immunization, vaccination, target, cutoff and threshold subjects with no tail are definite findings. For every other missing tail, the command refuses to guess whether the item depends on a population or threshold: **missing tails on undecidable items are candidates**, printed outside the exit status. A `recalled, no shipped sheet` verdict whose subject joins no registry topic and a `recalled, source page unread` verdict are likewise candidates. A run with no qualifying item is a clean zero on this floor, not an unscanned run.
+**`python tools/differential_scan.py <a run directory>` supplies row 24's mechanical floor.** It reads every physical `FILLED·proposed` opener, fails a guideline tail pushed onto a continuation line or a bracket opening with a tail keyword that matches no documented form, checks the copied USPSTF topic title exactly after folding case and whitespace, then its grade and year or a threshold sheet's source, class and value, and disproves a `sheet does not settle it` verdict where the shipped artifact makes the contradiction mechanical. Label matches contradicting `no row` or `recalled, no shipped sheet` are reported as label/topic pairs, never graded. Screening, counseling, immunization, vaccination, target, cutoff and threshold subjects with no tail are definite findings. For every other missing tail, the command refuses to guess whether the item depends on a population or threshold: **missing tails on undecidable items are candidates**, printed outside the exit status. A `recalled, no shipped sheet` verdict whose subject joins no registry topic and a `recalled, source page unread` verdict are likewise candidates. A run with no qualifying item is a clean zero on this floor, not an unscanned run.
 
 **The scanner never reaches the limb that matters.** Whether a correctly extracted recommendation applies to the patient in front of the clinician is a clinical judgment, and the citation exists to put the population where a reader can rule on it — never to rule on it. Every report says so, and **a clean scan is not a walked row 24**. A row that scored applicability would be asserting exactly the thing this whole section is arranged to avoid asserting. Issue [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), scanner floor [#192](https://github.com/mshamblin5150-code/clinical-skills/issues/192).
 

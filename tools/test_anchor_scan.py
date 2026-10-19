@@ -891,6 +891,34 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertEqual(1, json.loads(output.getvalue())["agreement findings"])
 
+    def test_code_shaped_clinical_words_remain_in_the_whole_label_in_scoped_modes(self):
+        for label, code, descriptor in (
+            ("Vitamin B12 deficiency", "E53.8", "Deficiency of other specified B group vitamins"),
+            ("Elevated A1C", "R73.09", "Other abnormal glucose"),
+        ):
+            with self.subTest(label=label):
+                note = f"Final diagnosis: {label} - {code}"
+                sheet = f'ICD-10 {code} {descriptor}\n  ANCHOR: "{label}"\n'
+                (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+                (self.worksheets / "case-01.md").write_text(sheet, encoding="utf-8")
+                out = io.StringIO()
+                args = [str(self.worksheets), "--notes", str(self.notes), "--stem", "case-01"]
+                with redirect_stdout(out):
+                    status = scan.main([*args, "--agreement-brief"])
+                self.assertEqual(status, 0, out.getvalue())
+                subject = json.loads(out.getvalue())["pairs"][0]["codes"][0]
+                record = {**{key: subject[key] for key in ("subject_id", "system", "code", "role")},
+                          "agreeing_words": label, "route": "descriptor words",
+                          "encounter_evidence": "none", "open_status_evidence": "none",
+                          "threshold": "none", "waits_on_result": "none"}
+                path = Path(self.raw.name) / "read.json"
+                path.write_text(json.dumps({"pairs": [{"stem": "case-01", "codes": [record]}]}), encoding="utf-8")
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    status = scan.main([*args, "--agreement-read", str(path), "--show"])
+                self.assertEqual(status, 0, out.getvalue())
+                self.assertIn("code-shaped tokens excluded from the bind  1", out.getvalue())
+
     def test_multi_code_line_has_distinct_labels_with_hedges_and_joining_words(self):
         note = "Final diagnosis: Possible Obesity, class 3 - E66.813 with Body mass index [BMI] 40.0-44.9, adult - Z68.41"
         worksheet = '''ICD-10 E66.813 Obesity, class 3
@@ -921,6 +949,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                 for text in (skill, batch):
                     self.assertNotIn(sentence.strip(), " ".join(text.split()))
         for phrase in ("Final diagnosis or Preexisting diagnoses", "numbered Differential entry",
+                       "Code-shaped tokens outside that set, such as B12 and A1C, are label text",
                        "code-and-descriptor half", "act done in this encounter",
                        "even when other note text agrees", "Hedge words document the diagnosis",
                        "tier block's filled values", "estimated measurement is not a pending",
