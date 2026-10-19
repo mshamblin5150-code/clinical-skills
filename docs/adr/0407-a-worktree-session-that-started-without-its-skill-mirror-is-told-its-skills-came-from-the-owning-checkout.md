@@ -70,6 +70,8 @@ measurement of how the desktop app creates worktrees and why the creation-time r
 #1806's second remedy, having each skill state the commit its text came from, was declined: stale text
 would carry a stale stamp, so the stamp vouches for itself.
 
+*Superseded 2026-10-19.* The words "Preventing the condition, by making the worktree's skill folder exist before a session starts" are superseded by [ADR 0426](0426-a-desktop-worktree-session-is-served-the-main-checkout-s-skills-so-the-main-checkout-is-fast-forwarded-at-a-worktree-session-s-start.md) ruling 1. A desktop worktree session reads skills from the main checkout's root and never the worktree's folder, so prevention keeps the main checkout current instead. Detection and redirection, and declining the commit stamp, stand.
+
 ## Ruling 2 — one line always, the warning only on a difference
 
 The check fires when the session checkout is a linked worktree whose `.claude/skills` directory was
@@ -83,6 +85,8 @@ followed by a warning telling the agent to read each skill from the session chec
 `skills/<name>/` folder rather than the invocation's base directory. Always printing the full warning
 was declined because it fires on most worktree sessions when nothing differs; staying silent unless
 files differ was declined because it makes "checked, identical" read the same as "never checked".
+
+*Superseded 2026-10-19.* The words "The check fires when the session checkout is a linked worktree whose `.claude/skills` directory was absent before the session-start repair ran." are superseded by [ADR 0426](0426-a-desktop-worktree-session-is-served-the-main-checkout-s-skills-so-the-main-checkout-is-fast-forwarded-at-a-worktree-session-s-start.md) ruling 3. The check fires for every worktree session, located through the hook's `cwd`, because in a desktop session the hook runs in the main checkout and never sees the worktree's folder. The one line, the warning on a nonzero count and the comparison rules stand.
 
 ## Ruling 3 — the hooks path is its own ticket
 
