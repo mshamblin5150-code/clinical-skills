@@ -1,6 +1,6 @@
 # An unreadable tool-written run record is never read as empty and a damaged freeze record is left untouched
 
-**Measured at:** a65ac5ce722cc2645934c11a894b1f78ea99dc74
+**Measured at:** 72133a636d1678814c7701bbbe9a2c569bd2fd09
 
 [#1860](https://github.com/mshamblin5150-code/clinical-skills/issues/1860) found two readers that
 treat a damaged record written by a committed tool as an empty one: the freeze in `frozen_grade`,
@@ -8,11 +8,12 @@ which then writes the file back holding only its new entry, and the `run_status_
 read, which then demands no `Run status:` line. [ADR 0395](0395-a-hand-written-run-record-is-read-through-one-shared-reader-that-refuses-a-control-character-by-line-or-field.md)
 ruling 6 filed the ticket and left this class outside its own scope, because these writers escape
 every control character and the defect is fail-open handling of any unreadable JSON. Grilled
-2026-10-19 against `main` at `04154959`, where the freshness gate read `FRESH`, and every measurement
-below was taken again at the commit above, which adds only the first draft of this record to `main`
-at `6bcd6249`; that base adds only ADR 0421 and its glossary entry, and nothing
-between those two bases touches a module named here. The clinician
-ruled every point below in that session.
+2026-10-19 against `main` at `04154959`, where the freshness gate read `FRESH`. Rulings 1 to 11
+were first recorded at `a65ac5ce`, on `main` at `6bcd6249`, which adds only ADR 0421 and its glossary
+entry to that base; every measurement here was taken again there. The tracker sweep closing the
+grilling then reopened four points, which the clinician ruled the same day as rulings 12 to 15, and
+corrected one sentence in ruling 7. The commit above is that first record merged to `main`; nothing
+between it and `04154959` touches a module named here. The clinician ruled every point below.
 
 This record overturns nothing. It adds a second reader to the module ADR 0395 ordered, and it
 distinguishes its Stop-hook posture from [ADR 0392](0392-a-guard-that-cannot-read-its-payload-refuses-only-on-its-own-trigger-in-the-raw-text.md)
@@ -51,6 +52,22 @@ re-derives the whole population before switching it.
 under [ADR 0405](0405-a-repair-scope-is-recorded-before-the-file-changes-and-only-the-clinician-supersedes-a-failed-comparison.md)
 ruling 5, and the freeze below. Two writers overwrite the file in place rather than writing a
 temporary file and replacing it.
+
+**Correction, 2026-10-19:** "Two writers" undercounted. The tracker sweep found `aar_scan` writing
+three more records in place, read here in code: `measure_memory` writes the memory measurement with
+`write_text`, and `write_extract` writes the extract with `open("w")` and the baseline with
+`write_text`. The census above came from one reading pass, so the build's re-derivation is the
+count, not this paragraph.
+
+**The sweep drove two more facts the rulings below rest on**, at the commit above:
+
+| subject | planted input | observed |
+| --- | --- | --- |
+| `outbound_search.completion_gate` | `outbound-searches.jsonl` truncated | `(True, 'Outbound searches: finding - private record unreadable')`; the same run with no record read clean |
+| `reader_remarks.coverage_lines` | a report holding ruling 11's `unreadable` line and `unread remainder 1` | keeps only `unread remainder 1` |
+
+The first shows a site that already fails closed reporting damage as a finding rather than as a
+failure to establish. Had the selector matched `unreadable`, the second would have kept both lines.
 
 ## Ruling 1 — a damaged record is never read as empty
 
@@ -137,6 +154,14 @@ that loosen a check fail closed. The four that default in the strict direction r
 unreadable instead of defaulting silently. The site that lets a decode error escape raises the
 shared error. The sixteen that already fail closed change only their read route.
 
+**Correction, 2026-10-19:** the last sentence is wrong for any site that fails closed by reporting
+the damage as a finding. `outbound_search.completion_gate` does, as driven above, and the sweep
+read the same posture in the `artifact_repairs` and `assignment_submission` completion gates and in
+`aar_scan`'s memory-measurement grade. Under ruling 10 those sites also change their status, from a
+finding to exit 2. Ruling 10 already settled this; the sentence described the census wrongly. The
+callers of a switched reader, such as `completion_checks.approval_moment`, take the raise rather
+than reading it as a missing value.
+
 **Switching only the degrading sites was declined**, and so was switching only the five that loosen
 a check: either would leave sixteen reads outside the shared route, so ruling 6's test could not
 assert one route over the population, and the next reader would copy whichever pattern sat nearer.
@@ -189,6 +214,67 @@ and can carry PHI. The Stop hook's `stopped` reason and the freeze refusal use t
 wording. **Printing each site's raw error message was declined**: a shape error built from a value
 could print that value, and 29 sites would word one fault 29 ways.
 
+## Ruling 12 — item rules are declared once, at the strictest current reader
+
+Ruling 9's declared shape reaches each item, not only the top level. Each record kind declares its
+item rules once to the shared function, set to the rules of its strictest current reader: which
+fields an item must carry, which values they may take, and that no submission key appears twice.
+An item that fails them makes the record unreadable. The sweep drove two approval records that pass
+ruling 9's top-level test and still get two answers: with one submission listed twice, the Stop hook
+returns no approvals while the approval tool skips the duplicate and returns the other item; with an
+item missing a field the Stop hook requires, the Stop hook returns no approvals while the approval
+tool reads both items.
+
+**Keeping ruling 9 at the top level was declined**: those two answers would stay, and the Stop hook
+would keep going silent on one malformed item. **Item rules for the approval record alone were
+declined**: the same gap would remain in every other record that carries items. The cost accepted
+is that a record whose items an older tool wrote in a looser form is refused until it is repaired.
+
+## Ruling 13 — the dependent checks print `not graded` and the record counts in the remainder
+
+When a grader cannot read a tool-written record it needs, every check that depends on that record
+prints `not graded`, and the record counts as one member of the run's `unread remainder` under
+[ADR 0393](0393-the-unread-remainder-is-one-line-per-report-that-counts-each-member-once-and-names-a-nonzero-population.md).
+A nonzero remainder names that population, as ADR 0393 requires. Ruling 10's exit 2 is therefore the
+shared seam's own exit on a nonzero remainder, and the go-ahead's coverage lines carry the fault,
+because `reader_remarks.coverage_lines` already keeps both a `not graded` row and the remainder line.
+Ruling 11's message still prints beside them.
+
+**Adding `unreadable` to the selector was declined**: it would amend the list [ADR 0417](0417-the-clinical-go-ahead-shows-its-paired-grader-s-coverage-lines-before-the-ask-and-refuses-an-approval-that-did-not.md)
+ruling 4 ruled, and a run could still exit 2 while printing `unread remainder 0`, the shape
+[#1740](https://github.com/mshamblin5150-code/clinical-skills/issues/1740) was filed over. **Doing
+both was declined** as two signals for one fault and an amendment this ruling shows is unneeded.
+
+## Ruling 14 — a tool-written record kept in Markdown is in scope
+
+The rule reaches a record by who writes it, not by its format. A tool-written record kept in
+Markdown, such as the `aar_scan` extract and, once [ADR 0408](0408-the-go-ahead-uptodate-block-and-the-medatrax-posted-reading-are-written-by-committed-tools-and-checked-before-they-are-relied-on.md)'s
+writer exists, `reread.md`, declares its required header fields to the shared function. For such a
+record, `does not decode` means its bytes are not valid UTF-8 and its cause names the byte offset,
+and `wrong shape` means a required field is missing or does not parse. A field that older records
+legitimately lack is declared optional: the extract's `UNREAD-REMAINDER` is one, because
+[ADR 0420](0420-the-extract-and-rebuild-output-is-one-report-whose-remainder-figure-is-the-rebuilt-grade-s.md)
+ruling 2 reads its absence as a legacy round that was not measured, not as damage.
+
+**JSON records only was declined**: the glossary's definition and this record would disagree about
+what is covered, and the extract's reader would keep its own posture outside ruling 6's one route.
+**A separate ticket was declined** because the build would stop at a boundary its own definition
+crosses.
+
+## Ruling 15 — a record an agent writes and a tool rewrites keeps both meanings
+
+An agent writes `project-context.md` and `project_context.py --write` then re-renders the whole file
+and writes it back, so the file belongs to both populations. Each kind of damage keeps the meaning
+its own ruling gave it. A control character is ADR 0395's finding, exit 1, because it is content an
+agent wrote, including when the tool's rewrite carried it. A decode failure or a broken
+tool-rendered field is unreadable here, exit 2. The control-character check runs first and the
+decode and shape check second, and the record kind is declared to both functions.
+
+**Treating it as hand-written only was declined**: a torn rewrite by the tool would be reported as
+the agent's defect, which ruling 10 refused. **Treating it as tool-written once rewritten was
+declined**: a control character the agent typed would stop being a finding, reopening the route
+ADR 0395 closed.
+
 ## What this record does not reach
 
 - **Hand-written run records.** ADR 0395 owns them.
@@ -220,3 +306,13 @@ could print that value, and 29 sites would word one fault 29 ways.
   the exit status and the exact message. Name as controls the six rows under *Measured before
   ruling*, and the revision restart driven through to its frozen-grade collision.
 - Add the read-shape test under ruling 6, with its floor stated.
+- Move every fail-closed site that reports damage as a finding to exit 2 under ruling 7's
+  correction, and give each caller of a switched reader the raise.
+- Declare each record kind's item rules under ruling 12 from its strictest current reader, and drive
+  a duplicated submission key and an item missing a required field as controls.
+- Under ruling 13, print `not graded` on every dependent check and count the record in the shared
+  remainder; drive `reader_remarks.coverage_lines` over the result and assert it keeps the fault.
+- Declare the Markdown kinds under ruling 14, including the extract's optional `UNREAD-REMAINDER`,
+  and drive a legacy round without it as a control that stays `not measured`.
+- Run both checks on `project-context.md` under ruling 15, and drive a planted control character
+  (exit 1) and a broken tool-rendered field (exit 2) as separate controls.
