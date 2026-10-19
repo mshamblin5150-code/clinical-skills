@@ -1,6 +1,6 @@
 # The staged ADR check accepts the tip or its parent and a post-commit report gives the exact verdict
 
-**Measured at:** aa5d6d302a3ad9639a4f19c12280908de6877446
+**Measured at:** eab7ed72b79087f71182f00efb9c95ed6169fbaf
 
 [#1875](https://github.com/mshamblin5150-code/clinical-skills/issues/1875) reports that
 `python tools/tracker_measurements.py --staged-adrs` refuses every `**Measured at:**` value during
@@ -16,9 +16,10 @@ with the first parent of the commit that last touched it. On an ordinary commit 
 commit. During an amend the tip is the commit being replaced, and the new commit's parent is the
 commit below it, so no declaration passes both checks.
 
-**It has cost four records.** ADRs 0404, 0407, 0416 and 0421 each met the refusal, and the sweep
-comments on #1875 record each one. 0407 shows that a rebase is not needed: one edited sentence
-was refused. Two workarounds landed them: `git reset --soft` onto the base followed by a fresh
+**It has cost four records.** ADRs 0404, 0407 and 0421 met the refusal: the ticket body records
+0404, and sweep comments record 0407 and 0421. 0407 shows that a rebase is not needed: one edited
+sentence was refused. ADR 0416 has no recorded refusal; its comment records only that it landed
+through the second workaround below, twice. Two workarounds landed them: `git reset --soft` onto the base followed by a fresh
 commit, or a follow-up commit whose declaration names its own parent. The second leaves a
 declaration that names a commit already holding a draft of the record, and 0416 had to reword
 its opening paragraph to say so.
@@ -31,7 +32,12 @@ commits and two amends. `pre-commit` received the same `GIT_*` environment every
 gives. The ticket's first option, comparing with `HEAD^` once an amend is detected, has no
 signal to detect with.
 
-**The exact check is cheap only when narrowed.** On this record's base the full committed audit
+**This record met the defect too.** Its declaration names `eab7ed72`, a commit that already
+holds a draft of this record, because the sweep's correction landed through the follow-up-commit
+workaround after the staged check refused it with `findings 1`. The figures below were taken on
+`main` at `aa5d6d30`, the draft's parent.
+
+**The exact check is cheap only when narrowed.** On `main` at `aa5d6d30` the full committed audit
 read 422 ADRs, 331 at or after the cutoff and 186 declarations, with `findings 0`, and took 65
 seconds. Most of that time is one `git log` per tracked ADR. Restricted to the ADRs a single
 commit touched, the audit reads only those few.
@@ -82,6 +88,14 @@ adds annotations. Ruling 2 and CI grade that exactly.
   verdict exists only after the commit, from ruling 2's report or CI.
 - **Whether `post-commit` runs during a rebase's replayed commits.** Not established. A rebase
   that leaves a stale declaration is still caught by CI's full audit.
+- **The post-commit report in a worktree, before the owning checkout carries the build.** The
+  maintainer clone's `core.hooksPath` is the absolute path to the owning checkout's
+  `tools/hooks`, set in both the shared config and each worktree's `config.worktree`, so a
+  worktree commit runs that checkout's hook files ([#1880](https://github.com/mshamblin5150-code/clinical-skills/issues/1880)).
+  Ruling 1 is not affected: `pre-commit` resolves `tracker_measurements.py` through
+  `git rev-parse --show-toplevel`, so a worktree carrying the build gets the two-value check
+  whatever the owning checkout has. Ruling 2's hook file is absent there until the owning
+  checkout's branch carries it, and Git skips an absent `post-commit` without a word.
 - **Branch drift.** The staged check still compares with the branch tip, not with `main`, so the
   existing limit stands.
 - **A fresh re-derivation.** `DECLARED_LIMITS` already states that the gate cannot tell a
@@ -105,7 +119,9 @@ adds annotations. Ruling 2 and CI grade that exactly.
   commit touched, against that commit's first parent, printing the shared report. Exit statuses
   follow the module: 0 clean, 1 finding, 2 not scanned.
 - `tools/hooks/post-commit` calls that mode only when the new commit touched `docs/adr/*.md`, and
-  exits 0 whatever it prints. The `pre-commit` comment for the staged check and `CLAUDE.md`'s
+  exits 0 whatever it prints. It finds `tracker_measurements.py` through
+  `git rev-parse --show-toplevel`, as `pre-commit` and `post-checkout` do, so the worktree's
+  tool runs even when the hook file comes from the owning checkout. The `pre-commit` comment for the staged check and `CLAUDE.md`'s
   **Tracker measurements** section move with the two rulings, and the hook inventory names the
   post-commit report as advisory.
 - Tests drive the public command in throwaway repositories: an ADR added at the tip's declaration
