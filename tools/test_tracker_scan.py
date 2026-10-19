@@ -423,6 +423,59 @@ class MainInATempRepo(ATempRepo):
         return status, buffer.getvalue()
 
 
+class HistoryDatePartition(MainInATempRepo):
+    def setUp(self):
+        super().setUp()
+        self.checkout.configure_pull_refspec()
+        self.checkout.make_pull_ref()
+
+    def test_prose_dates_are_counted_without_failing_and_show_can_reveal_them(self):
+        self.checkout.commit("docs/prose.md", "1999-09-09", "prose")
+        status, out = self.run_main("--history")
+        self.assertEqual(status, 0)
+        self.assertIn("corpus-date prose (not graded): 1", out)
+        self.assertIn("docs: 1", out)
+        self.assertIn("blobs reachable under multiple paths", out)
+        self.assertNotIn("1999-09-09", out)
+        _, shown = self.run_main("--history", "--show")
+        self.assertIn("1999-09-09", shown)
+
+    def test_old_declared_position_uses_its_path_and_current_grammar(self):
+        path = "reference/completion-check-starts.tsv"
+        self.checkout.commit(path, "check\t1999-09-09T12:34:56Z\tpolicy", "old")
+        self.checkout.commit(path, "clean", "new")
+        status, out = self.run_main("--history")
+        self.assertEqual(status, 0)
+        self.assertIn("corpus-date prose (not graded): 0", out)
+
+    def test_fixture_blob_deleted_from_tip_stays_graded(self):
+        path = "fixtures/set/record.unknown"
+        self.checkout.commit(path, "1999-09-09", "fixture")
+        self.checkout._run("rm", path)
+        self.checkout._run("commit", "-qm", "removed")
+        status, out = self.run_main("--history")
+        self.assertEqual(status, 1)
+        self.assertIn("corpus-date", out)
+
+    def test_any_fixture_path_wins_over_a_nonfixture_label_and_marker(self):
+        text = "**Corrected 1999-09-09: ruling"
+        self.checkout.commit("fixtures/set/record.md", text, "fixture")
+        self.checkout.commit("docs/prose.md", text, "copy")
+        records = tracker_scan.blob_records(self.repo)
+        record = next(r for r in records if r.text == text)
+        self.assertEqual(record.file_path, "docs/prose.md")
+        self.assertEqual(len(record.blob_oid), 40)
+        status, out = self.run_main("--history")
+        self.assertEqual(status, 1)
+        self.assertIn("blobs reachable under multiple paths", out)
+
+    def test_names_in_prose_remain_graded(self):
+        self.checkout.commit("docs/prose.md", NAME, "name")
+        status, out = self.run_main("--history")
+        self.assertEqual(status, 1)
+        self.assertIn("corpus-name", out)
+
+
 class TrackerScanExitStatuses(MainInATempRepo):
     """0 clean, 1 found, 2 did not scan."""
 

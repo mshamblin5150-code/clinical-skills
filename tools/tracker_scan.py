@@ -213,6 +213,9 @@ class Record(NamedTuple):
     text: str
     is_file: bool = False
     tracker: TrackerRecord | None = None
+    file_path: str = ""
+    blob_oid: str = ""
+    committed_paths: frozenset[str] = frozenset()
 
 
 class HarvestError(Exception):
@@ -676,7 +679,42 @@ def blob_counts(repo: Path) -> tuple[int, int]:
     return inside, len(blobs) - inside
 
 
-def blob_records(repo: Path) -> list[Record]:
+def committed_blob_paths(repo: Path) -> dict[str, frozenset[str]]:
+    """One NUL-delimited history read, with full ids and every merge parent.
+
+    rev-list's single label is for display only. ADR 0415 ruling 7 grades a
+    blob as fixture content if *any* committed path was fixture content.
+    --no-abbrev is essential: an abbreviated id cannot join the blob population.
+    --no-renames makes every change a single-path raw record; -m includes paths
+    introduced by merge resolutions. Bytes preserve unusual Git path names.
+    """
+    try:
+        tokens = iter(git_paths.read_path_records(
+            repo, "log", "--all", "--raw", "--root", "--no-renames",
+            "--no-abbrev", "-z", "--format=", "-m",
+        ))
+        paths: dict[str, set[str]] = {}
+        for token in tokens:
+            header = token.lstrip("\n")
+            if not header:
+                continue
+            fields = header.split()
+            if len(fields) != 5 or not re.fullmatch(r":[0-7]{6}", fields[0]):
+                raise GitError("git log: unread raw history record")
+            path = next(tokens, None)
+            if path is None or not path:
+                raise GitError("git log: missing raw history path")
+            oid = fields[3]
+            if not re.fullmatch(r"[0-9a-f]{40}", oid):
+                raise GitError("git log: history object id is not full length")
+            if fields[1] in {"100644", "100755", "120000"}:
+                paths.setdefault(oid, set()).add(path)
+    except git_paths.GitPathError as exc:
+        raise GitError(str(exc)) from exc
+    return {oid: frozenset(values) for oid, values in paths.items()}
+
+
+def blob_records(repo: Path, *, paths: dict[str, frozenset[str]] | None = None) -> list[Record]:
     """Every blob reachable from a ref, which is what a merged diff is made of.
 
     Read one at a time through a single ``cat-file --batch`` rather than by
@@ -686,6 +724,7 @@ def blob_records(repo: Path) -> list[Record]:
     here for the reason it is skipped there.
     """
     labels = reachable_objects(repo)
+    paths = committed_blob_paths(repo) if paths is None else paths
     every = _git(repo, "cat-file", "--batch-all-objects",
                  "--batch-check=%(objectname) %(objecttype)").splitlines()
     oids = [line.split()[0] for line in every
@@ -714,9 +753,12 @@ def blob_records(repo: Path) -> list[Record]:
             if phi_scan.looks_binary(data):
                 continue
             label = labels.get(oid) or "?"
+            if oid not in paths:
+                raise GitError("git log: reachable blob has no committed path")
             records.append(
                 Record("blob", f"blob {oid[:10]} {label}",
-                       data.decode("utf-8", errors="replace"), is_file=True)
+                       data.decode("utf-8", errors="replace"), is_file=True,
+                       file_path=label, blob_oid=oid, committed_paths=paths[oid])
             )
     finally:
         reader.stdin.close()
@@ -737,7 +779,11 @@ def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[ScannedF
     findings: list[ScannedFinding] = []
     for record in records:
         if record.is_file:
-            record_findings = phi_scan.scan_file_text(record.text, record.ref, index)
+            record_findings = phi_scan.scan_file_text(
+                record.text, record.file_path or record.ref, index,
+                fixture_content=any(phi_scan.is_fixture_content(path)
+                                    for path in record.committed_paths),
+            )
         else:
             record_findings = phi_scan.scan_lines(
                 record.text, record.ref, index, True
@@ -745,7 +791,7 @@ def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[ScannedF
         lines = record.text.splitlines()
         findings.extend(
             ScannedFinding(
-                finding.path,
+                record.ref,
                 finding.line,
                 finding.rule,
                 finding.match,
@@ -965,7 +1011,11 @@ def main(argv: list[str]) -> int:
                 if args.history:
                     reachable, outside = blob_counts(repo)
                     context.append(("blobs never pushed, unread", outside))
-                    records.extend(blob_records(repo))
+                    history_paths = committed_blob_paths(repo)
+                    blobs = blob_records(repo, paths=history_paths)
+                    records.extend(blobs)
+                    context.append(("blobs reachable under multiple paths",
+                                    sum(len(paths) > 1 for paths in history_paths.values())))
 
         if args.paths:
             records.extend(path_records(repo))
@@ -1045,6 +1095,21 @@ def main(argv: list[str]) -> int:
     names, dates = phi_scan.corpus_identifiers()
     coverage = phi_scan.corpus_coverage()
     findings = scan_records(records, phi_scan.build_index(names, dates))
+    if args.history:
+        blobs = {r.ref: r for r in records if r.kind == "blob"}
+        fixture_labels = {
+            label for label, record in blobs.items()
+            if any(phi_scan.is_fixture_content(path) for path in record.committed_paths)
+        }
+        history = [f for f in findings if f.path in blobs]
+        findings = [f for f in findings if f.path not in blobs]
+        graded, counted = phi_scan.partition_audit_dates(history, fixture_labels)
+        findings.extend(graded)
+        banners.extend(phi_scan.audit_date_counts(
+            counted, {label: r.file_path for label, r in blobs.items()}
+        ))
+        if args.show:
+            banners.extend(f.render(True) for f in counted)
     findings, ruled, unmatched_commit, unmatched_harvest = partition_ruled_findings(
         findings, rulings, harvest_rulings
     )

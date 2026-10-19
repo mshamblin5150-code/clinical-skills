@@ -103,6 +103,7 @@ import hashlib
 import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date as CalendarDate
 from pathlib import Path
@@ -215,10 +216,10 @@ SHAPE_RULES = {
 }
 
 NUMERIC_CORPUS_DATE = re.compile(
-    r"\b(?P<month>\d{1,2})(?P<separator>[/-])(?P<day>\d{1,2})"
-    r"(?P=separator)(?P<year>\d{2}|\d{4})\b"
+    r"(?<!\d)(?P<month>\d{1,2})(?P<separator>[/-])(?P<day>\d{1,2})"
+    r"(?P=separator)(?P<year>\d{2}|\d{4})(?!\d)"
 )
-ISO_CORPUS_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+ISO_CORPUS_DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")
 MONTH_NAMES = (
     ("January", "Jan"), ("February", "Feb"), ("March", "Mar"),
     ("April", "Apr"), ("May", "May"), ("June", "Jun"), ("July", "Jul"),
@@ -240,7 +241,7 @@ WRITTEN_CORPUS_DATE = re.compile(
     rf"(?P<year_after>\d{{2}}|\d{{4}})"
     rf"|(?P<day_first>\d{{1,2}})\s+(?P<month_after>{MONTH_NAME_PATTERN})\s+"
     rf"(?P<year_last>\d{{2}}|\d{{4}})"
-    rf")\b",
+    rf")(?!\d)",
     re.I,
 )
 
@@ -1033,8 +1034,91 @@ def public_adr_date_text(text: str, path: str, *, root: Path | None = None,
     return "".join(masked)
 
 
+_POSITION_DATE = r"\d{4}-\d{2}-\d{2}"
+# ADR 0415 ruling 2. Only named date groups are masked; all other bytes,
+# including text after a marker or in another cell, remain date-scannable.
+DECLARED_DATE_POSITIONS = (
+    (r"reference/guidelines-catalog-audit\.md", (
+        rf"^\|(?:[^|\r\n]*\|){{4}}[ \t]*(?P<date>{_POSITION_DATE})(?=[ \t]*\|)",
+    )),
+    (r"reference/thresholds/[^/]+\.md", (
+        rf"\|[ \t]*read (?P<date>{_POSITION_DATE}); blind (?P<date2>{_POSITION_DATE})(?=[ \t]*\|)",
+        rf"^citations resolved against [^\r\n]+ on (?P<date>{_POSITION_DATE})\r?$",
+        rf"^DATE: (?P<date>{_POSITION_DATE})\r?$",
+    )),
+    (r"skills/_shared/reference/apa7-coverage\.md", (
+        rf"^\|\s*[^|]+\|\s*[^|]+\|\s*read-root\s*\|\s*(?P<date>{_POSITION_DATE})(?=\s*\|)",
+    )),
+    (r"reference/completion-check-starts\.tsv", (
+        rf"^[^\t\r\n]+\t(?P<date>{_POSITION_DATE})(?=T|\t|\r?$)",
+    )),
+    (r".*", (
+        rf"(?:^## Ruled |^## Addendum, |(?<![\w*])(?:Grilled (?:on )?|"
+        rf"\*\*Correction, |\*\*Corrected (?:in place )?|"
+        rf"\*\(?Corrected (?:in place )?|\*Superseded (?:in part |grounding marked )?))"
+        rf"(?P<date>{_POSITION_DATE})(?!\d)",
+    )),
+)
+DECLARED_DATE_POSITIONS = tuple(
+    (re.compile(path), tuple(re.compile(pattern, re.M) for pattern in patterns))
+    for path, patterns in DECLARED_DATE_POSITIONS
+)
+
+
+def is_fixture_content(path: str) -> bool:
+    """ADR 0415 ruling 4: unknown fixture formats are content by default."""
+    return path.startswith("fixtures/") and Path(path).name not in {"README.md", "assertions.md"}
+
+
+def declared_date_text(text: str, path: str) -> str:
+    """Same-length date-only view of the declared positions, never fixture content.
+
+    Accepted limit: the grammar cannot tell whether a patient date was typed
+    into a public metadata position. It verifies position, never provenance.
+    Names and shapes always read the original text.
+    """
+    if is_fixture_content(path):
+        return text
+    chars = list(text)
+    for path_pattern, patterns in DECLARED_DATE_POSITIONS:
+        if path_pattern.fullmatch(path) is None:
+            continue
+        for pattern in patterns:
+            for match in pattern.finditer(text):
+                for group in pattern.groupindex:
+                    if _parse_iso_date(match.group(group)) is not None:
+                        start, end = match.span(group)
+                        chars[start:end] = " " * (end - start)
+    return "".join(chars)
+
+
+def partition_audit_dates(
+    findings: Sequence[Finding], fixture_paths: set[str] | None = None,
+) -> tuple[list[Finding], list[Finding]]:
+    """Shared full-audit/history partition; staged findings never take this path.
+
+    History supplies labels whose blob had *any* fixture-content path. The
+    returned count-only findings remain available to --show, never graded.
+    """
+    graded, counted = [], []
+    for finding in findings:
+        fixture = (is_fixture_content(finding.path) if fixture_paths is None
+                   else finding.path in fixture_paths)
+        (counted if finding.rule == "corpus-date" and not fixture else graded).append(finding)
+    return graded, counted
+
+
+def audit_date_counts(findings: Sequence[Finding], paths: dict[str, str] | None = None) -> list[str]:
+    """Counts only, even at zero: the ungraded population stays visible."""
+    counts = Counter((paths.get(f.path, f.path) if paths is not None else f.path).split("/")[0]
+                     for f in findings)
+    return [f"corpus-date prose (not graded): {len(findings)}", *(
+        f"  {area}: {count}" for area, count in sorted(counts.items())
+    )]
+
+
 def scan_lines(
-    text: str, path: str, index: CorpusIndex, shapes: bool
+    text: str, path: str, index: CorpusIndex, shapes: bool, *, fixture_content: bool = False
 ) -> list[Finding]:
     """Every line of ``text``, with the shape layer decided by the caller.
 
@@ -1050,16 +1134,18 @@ def scan_lines(
     it off.
     """
     findings: list[Finding] = []
-    date_lines = public_adr_date_text(text, path).splitlines()
+    date_lines = (text if fixture_content else
+                  declared_date_text(public_adr_date_text(text, path), path)).splitlines()
     for number, line in enumerate(text.splitlines(), start=1):
         findings.extend(_scan_line(line, path, number, index, shapes,
                                    date_text=date_lines[number - 1]))
     return findings
 
 
-def scan_file_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
+def scan_file_text(text: str, path: str, index: CorpusIndex, *, fixture_content: bool = False) -> list[Finding]:
     """Corpus layer always runs. Shape layer runs unless the file opts out."""
-    return scan_lines(text, path, index, shapes=not declares_synthetic(text))
+    return scan_lines(text, path, index, shapes=not declares_synthetic(text),
+                      fixture_content=fixture_content)
 
 
 def staged_paths() -> list[str]:
@@ -1130,7 +1216,7 @@ def scan_staged(index: CorpusIndex) -> list[Finding]:
             continue  # already reported, and its contents must not be echoed
         whole = _git("show", f":{path}")
         shapes_apply = not declares_synthetic(whole)
-        date_lines = public_adr_date_text(whole, path).splitlines()
+        date_lines = declared_date_text(public_adr_date_text(whole, path), path).splitlines()
         for number, text in added:
             findings.extend(_scan_line(text, path, number, index, shapes_apply,
                                        date_text=date_lines[number - 1]))
@@ -1145,17 +1231,7 @@ def _scan_line(
     for name, pattern in index.candidates(text):
         if pattern.search(text):
             findings.append(Finding(path, number, "corpus-name", name))
-    # The APA registry's checked cell records when a public manual page was read.
-    # A patient visit on that day does not turn this metadata into a patient date.
-    # Keep scanning every other cell, and keep the shape layer on the whole line.
     date_text = text if date_text is None else date_text
-    if path == "skills/_shared/reference/apa7-coverage.md":
-        date_text = re.sub(
-            r"^(\|\s*[^|]+\|\s*[^|]+\|\s*read-root\s*\|\s*)"
-            r"\d{4}-\d{2}-\d{2}(?=\s*\|)",
-            r"\1[manual-read-date]",
-            text,
-        )
     for match in NUMERIC_CORPUS_DATE.finditer(date_text):
         if _parse_numeric_dates(match.group(0)) & index.calendar_dates:
             findings.append(Finding(path, number, "corpus-date", match.group(0)))
@@ -1645,6 +1721,14 @@ def main(argv: list[str]) -> int:
         for line in shortfall_notice(coverage, missing):
             print(line, file=sys.stderr)
         print(tracker_publish_notice(), file=sys.stderr)
+
+    if all_mode:
+        findings, counted = partition_audit_dates(findings)
+        for line in audit_date_counts(counted):
+            print(line, file=sys.stderr)
+        if show:
+            for finding in counted:
+                print(finding.render(True), file=sys.stderr)
 
     if not findings:
         if not dead_corpus or allows_no_corpus(argv):

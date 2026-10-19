@@ -43,6 +43,11 @@ class OutboundSearchCommand(unittest.TestCase):
                 self.assertEqual(2, self.invoke(query))
                 self.assertFalse((self.run / "outbound-searches.jsonl").exists())
 
+    def test_timestamp_query_is_refused_before_a_live_search(self):
+        with mock.patch.object(command.phi_scan, "corpus_identifiers", return_value=(set(), {"1988-04-17"})):
+            self.assertEqual(2, self.invoke("pneumonia 1988-04-17T12:34:56Z"))
+        self.assertFalse((self.run / command.SEARCHES).exists())
+
     def test_missing_corpus_or_profile_refuses_without_recording(self):
         with mock.patch.object(command.phi_scan, "missing_corpus_sources", return_value=["name-index.json"]):
             self.assertEqual(2, self.invoke("pneumonia adult"))

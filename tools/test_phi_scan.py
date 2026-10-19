@@ -34,6 +34,106 @@ def scan(text, path="some/file.md", names=None, dates=None):
     return ps.scan_file_text(text, path, index)
 
 
+class DeclaredDatePositions(unittest.TestCase):
+    DATE = "1988-04-17"
+
+    def test_declared_positions_and_one_character_mutants(self):
+        cases = [
+            ("reference/guidelines-catalog-audit.md", "| x | x | x | x | {d} | rationale |", "| x | x | x | {d} | x | rationale |"),
+            ("reference/thresholds/topic.md", "| scope | 1 | read {d}; blind {d} |", "| scope | 1 | Read {d}; blind {d} |"),
+            ("reference/thresholds/topic.md", "citations resolved against corpus/path on {d}", "Citations resolved against corpus/path on {d}"),
+            ("reference/thresholds/topic.md", "DATE: {d}", "DATE; {d}"),
+            ("skills/_shared/reference/apa7-coverage.md", "| x | x | read-root | {d} | evidence |", "| x | x | Read-root | {d} | evidence |"),
+            ("reference/completion-check-starts.tsv", "check\t{d}\tpolicy", "{d}\tcheck\tpolicy"),
+            ("reference/completion-check-starts.tsv", "check\t{d}T12:34:56+00:00\tpolicy", "check\tx{d}T12:34:56+00:00\tpolicy"),
+        ]
+        markers = (
+            "## Ruled ", "## Addendum, ", "Grilled ", "Grilled on ",
+            "**Correction, ", "**Corrected ", "**Corrected in place ",
+            "*(Corrected ", "*(Corrected in place ", "*Corrected ",
+            "*Corrected in place ", "*Superseded ", "*Superseded in part ",
+            "*Superseded grounding marked ",
+        )
+        cases.extend(("docs/record.md", marker + "{d}", marker[:-1] + "x{d}")
+                     for marker in markers)
+        for path, positive, mutant in cases:
+            with self.subTest(path=path, grammar=positive):
+                self.assertNotIn("corpus-date", [f.rule for f in scan(positive.format(d=self.DATE), path)])
+                self.assertIn("corpus-date", [f.rule for f in scan(mutant.format(d=self.DATE), path)])
+                self.assertIn("corpus-date", [f.rule for f in scan(positive.format(d=self.DATE), "fixtures/set/record.unseen")])
+
+    def test_names_shapes_and_text_after_a_position_stay_scanned(self):
+        text = f"**Corrected {self.DATE}: Jordan Vance dob 4-17-88"
+        rules = {f.rule for f in scan(text)}
+        self.assertLessEqual({"corpus-name", "corpus-date", "dob-with-date"}, rules)
+
+    def test_positions_accept_crlf_but_never_span_table_rows(self):
+        text = f"DATE: {self.DATE}\r\nnext line\r\n"
+        self.assertNotIn("corpus-date", [f.rule for f in scan(text, "reference/thresholds/topic.md")])
+        text = f"| broken |\n| x | x | x | {self.DATE} |"
+        self.assertIn("corpus-date", [f.rule for f in scan(text, "reference/guidelines-catalog-audit.md")])
+
+    def test_real_tracked_position_members_with_substituted_dates(self):
+        """Independent cell/token reads pin the grammar to its public sources.
+
+        Only synthetic dates reach the scanner or assertion output. These are
+        representative members, not a census of every declared-position line.
+        """
+        root = Path(__file__).resolve().parents[1]
+        examples = {}
+        paths = ["reference/guidelines-catalog-audit.md",
+                 "skills/_shared/reference/apa7-coverage.md",
+                 "reference/completion-check-starts.tsv"]
+        paths.extend(p.relative_to(root).as_posix()
+                     for p in (root / "reference/thresholds").glob("*.md"))
+        for path in paths:
+            for line in (root / path).read_text(encoding="utf-8").splitlines():
+                cells = [cell.strip() for cell in line.split("|")]
+                replacements = []
+                label = None
+                if path == paths[0] and len(cells) == 8:
+                    label, replacements = "confirmed_date", [cells[5]]
+                elif path == paths[1] and len(cells) > 5 and cells[3] == "read-root":
+                    label, replacements = "checked", [cells[4]]
+                elif path == paths[2] and "\t" in line:
+                    label, replacements = "start", [line.split("\t")[1][:10]]
+                elif path.startswith("reference/thresholds/"):
+                    if line.startswith("DATE: "):
+                        label, replacements = "DATE", [line[6:]]
+                    elif line.startswith("citations resolved against "):
+                        label, replacements = "citations", [line.rsplit(" on ", 1)[-1]]
+                    else:
+                        for cell in cells:
+                            words = cell.split()
+                            if len(words) == 4 and words[0] == "read" and words[2] == "blind":
+                                label, replacements = "read/blind", [words[1].rstrip(";"), words[3]]
+                if label is None or label in examples:
+                    continue
+                try:
+                    for value in replacements:
+                        CalendarDate.fromisoformat(value)
+                except ValueError:
+                    continue
+                for value in replacements:
+                    line = line.replace(value, self.DATE)
+                examples[label] = (path, line)
+        self.assertEqual(set(examples), {"confirmed_date", "checked", "start", "DATE", "citations", "read/blind"})
+        for label, (path, line) in examples.items():
+            with self.subTest(position=label):
+                self.assertFalse(any(f.rule == "corpus-date" for f in scan(line, path)))
+
+    def test_digit_boundaries_read_welded_dates_but_not_longer_numbers(self):
+        for rendered in (self.DATE, "04/17/1988", "April 17, 1988", "17 April 1988"):
+            for suffix in ("T12:34:56", "_"):
+                with self.subTest(rendered=rendered, suffix=suffix):
+                    self.assertIn("corpus-date", [f.rule for f in scan(rendered + suffix)])
+            for text in ("0" + rendered, rendered + "0"):
+                self.assertNotIn("corpus-date", [f.rule for f in scan(text)])
+        for rendered in (self.DATE, "04/17/1988"):
+            self.assertIn("corpus-date", [f.rule for f in scan(r"\n" + rendered)])
+        self.assertNotIn("corpus-date", [f.rule for f in scan("xApril 17, 1988")])
+
+
 class CorpusLayer(unittest.TestCase):
     def test_apa_manual_checked_date_is_not_a_patient_date(self):
         path = "skills/_shared/reference/apa7-coverage.md"
@@ -1336,6 +1436,40 @@ class AnAllRunStatesItsCoverage(unittest.TestCase):
         with redirect_stdout(out), redirect_stderr(err):
             status = ps.main(list(argv))
         return status, out.getvalue(), err.getvalue()
+
+    def test_only_prose_dates_are_counted_and_do_not_fail_the_audit(self):
+        with mock.patch.object(ps, "scan_all", return_value=scan("1988-04-17", "docs/prose.md")):
+            status, _, err = self.run_main(["--all"])
+            self.assertEqual(status, 0)
+            self.assertIn("corpus-date prose (not graded): 1", err)
+            self.assertIn("docs: 1", err)
+            self.assertNotIn("docs/prose.md", err)
+            _, _, shown = self.run_main(["--all", "--show"])
+            self.assertIn("docs/prose.md", shown)
+
+    def test_fixture_dates_fail_but_readme_dates_are_counted(self):
+        for path, expected in (("fixtures/set/record.unseen", 1),
+                               ("fixtures/set/README.md", 0),
+                               ("fixtures/set/assertions.md", 0)):
+            with self.subTest(path=path), mock.patch.object(ps, "scan_all", return_value=scan("1988-04-17", path)):
+                status, _, err = self.run_main(["--all"])
+                self.assertEqual(status, expected)
+                self.assertIn("corpus-date prose (not graded):", err)
+
+    def test_zero_prose_count_is_always_printed(self):
+        _, _, err = self.run_main(["--all"])
+        self.assertIn("corpus-date prose (not graded): 0", err)
+
+    def test_staged_positions_pass_while_ordinary_timestamps_are_refused(self):
+        for path, text, expected in (
+            ("reference/completion-check-starts.tsv", "check\t1988-04-17T12:34:56Z\tpolicy", False),
+            ("docs/record.md", "**Corrected 1988-04-17: ruling", False),
+            ("tools/test_example.py", "timestamp = '1988-04-17T12:34:56Z'", True),
+            ("fixtures/set/record.md", "**Corrected 1988-04-17: ruling", True),
+        ):
+            with self.subTest(path=path), mock.patch.object(ps, "staged_paths", return_value=[path]), mock.patch.object(ps, "staged_additions", return_value={path: [(1, text)]}), mock.patch.object(ps, "_git", return_value=text):
+                findings = self._saved["scan_staged"](ps.build_index(set(), DATES))
+                self.assertEqual(any(f.rule == "corpus-date" for f in findings), expected)
 
     def test_a_clean_all_run_still_states_what_it_walked(self):
         status, _, err = self.run_main(["--all"])

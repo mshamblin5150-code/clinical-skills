@@ -1633,6 +1633,12 @@ git fetch origin
 python tools/tracker_scan.py --commits --history --paths
 ```
 
+`--history` follows ADR 0415 ruling 7: blobs use their labeled file path for
+declared date positions, and any committed fixture-content path keeps a blob's
+dates graded. Other blob dates are counted per top-level area; `--show` reveals
+them. The report counts blobs committed under multiple paths. Commit messages,
+path records, and tracker records keep their existing grading.
+
 **The recurring trigger is the tracker event, owned by Actions.** Issue and
 pull-request titles and bodies, issue comments, review bodies and review
 comments run [.github/workflows/tracker.yml](.github/workflows/tracker.yml) when
@@ -3266,7 +3272,11 @@ Findings are redacted by default so hook output is safe to paste. Reveal them wi
 python tools/phi_scan.py --show
 ```
 
-Audit everything already committed with `python tools/phi_scan.py --all`.
+Audit tracked files with `python tools/phi_scan.py --all`. Under ADR 0415 it
+itemizes and grades fixture-content dates, and counts other dates per top-level
+area without grading them; `--show` reveals those lines too. Both the audit and
+staged check honor `phi_scan.DECLARED_DATE_POSITIONS`; ordinary prose dates
+remain refused at commit. Names and shape findings keep their existing grading.
 
 **Git paths are read as bytes through NUL-delimited output.** Before ADR 0123,
 a staged file such as `scratch/café.md` was C-quoted by Git: the leading quote
