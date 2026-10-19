@@ -299,31 +299,5 @@ class SheetCommand(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "edition differs"):
             sheet.grade(self.output)
 
-    def test_private_receipt_derives_edition_fingerprint_and_boundary_from_source_row(self):
-        import json
-
-        (sheet.ROOT / "scratch" / "sessions").mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=sheet.ROOT / "scratch" / "sessions") as private:
-            destination = Path(private) / "cpt.json"
-            status, message = self.run_command("--write-receipt", destination)
-            self.assertEqual(0, status, message)
-            receipt = json.loads(destination.read_text(encoding="utf-8"))
-            self.assertEqual("ama-cpt-2026-licensed", receipt["source_id"])
-            self.assertEqual("Professional Edition 2026", receipt["source_edition"])
-            self.assertEqual("2026-12-31", receipt["valid_through"])
-
-    def test_receipt_refuses_an_output_outside_owning_checkout_scratch(self):
-        status, message = self.run_command("--write-receipt", self.root / "cpt.json")
-        self.assertEqual(1, status)
-        self.assertIn("scratch", message)
-
-    def test_receipt_refuses_loose_checkout_scratch_path(self):
-        status, message = self.run_command(
-            "--write-receipt", sheet.ROOT / "scratch" / "loose.json"
-        )
-        self.assertEqual(1, status)
-        self.assertIn("sessions", message)
-
-
 if __name__ == "__main__":
     unittest.main()

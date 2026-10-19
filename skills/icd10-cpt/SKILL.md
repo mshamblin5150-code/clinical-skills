@@ -872,11 +872,9 @@ in an emergency department encounter, bill no ECG code and select from the
 ED E/M family. The pass's own proposed workup supplies no threat-to-life count.
 
 The first authenticated 2026 reader confirms the ebook identifier and edition
-against the procedure database's CPT `source` row, then derives the private
-receipt in this checkout with `python tools/cpt_mdm_sheet.py --write-receipt
-scratch/sessions/cpt-2026/cpt-2026-receipt.json`. The rendered copyright page lists a distinct
-print ISBN; the VitalSource ebook identifier is the database's ISBN. This
-receipt has no hand-entered fields and stays in `scratch/`.
+against the procedure database's CPT `source` row before transcribing. The rendered
+copyright page lists a distinct print ISBN; the VitalSource ebook identifier is
+the database's ISBN. The reader's ISBN confirmation is unrecorded.
 
 **No lookup is added to this skill by [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), and that is a ruling rather than an omission.** [clinical-note](../clinical-note/SKILL.md) is obliged to consult a sheet where one covers what a Plan item asserts; this worksheet is not, on any encounter. **A code is anchored to what the note documents, never to whether the number should have met a target** — a coder who declined `I10` because a pressure sat under a threshold sheet's cutoff, or who withheld a screening `Z` code because the patient fell outside a USPSTF population, would be re-deciding the clinical question from the worksheet with the note as its only input. That is the anchor rule running backwards, and step 3's *filled value is coded, and it is marked* already settled the general form of it: mark what a code rests on, never withhold on a ground the note does not carry.
 
@@ -905,10 +903,10 @@ batch manifest. That record also carries the account-backed status and the norma
 the clinical note plus visible coding worksheet. The required gate exits 0:
 
 ```bash
-python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+python tools/coding_freshness.py <batch-codes.json> --receipt <batch-freshness.json>
 ```
 
-The live CDC and CMS release checks, the CPT edition-and-fingerprint receipt, passing service-date MDM sheet, database
+The live CDC and CMS release checks, the database's CPT edition coverage and year-end boundary, passing service-date MDM sheet, database
 completeness, code identity, billability where applicable, service-date activity, and every
 encounter's account-backed patient status must all pass. The rendered worksheet says only
 `Coding freshness: PASS`; technical receipt content remains private.

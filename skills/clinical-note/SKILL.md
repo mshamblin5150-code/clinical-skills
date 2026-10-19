@@ -573,10 +573,10 @@ earlier-visit conflict question) plus that private evidence's `evidence_sha256` 
 `{"value":"not-applicable"}`), and a SHA-256 over its normalized clinical
 note plus visible coding worksheet. Normalize as UTF-8 with LF line endings, remove trailing
 whitespace from every line, and end with exactly one newline; exclude tier blocks, Medatrax fields,
-and technical receipts. Run the required freshness gate with the current private CPT receipt:
+and technical receipts. Run the required freshness gate:
 
 ```bash
-python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+python tools/coding_freshness.py <batch-codes.json> --receipt <batch-freshness.json>
 ```
 
 Exit 0 and `coding-freshness: PASS` are required. An unknown patient status or any unread, stale,

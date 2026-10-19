@@ -83,21 +83,6 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self.cpt_receipt = self.directory / "cpt-receipt.json"
-        self.cpt_receipt.write_text(
-            json.dumps(
-                {
-                    "schema": 1,
-                    "source_id": "ama-cpt-2026-licensed",
-                    "source_edition": "Professional Edition 2026",
-                    "source_sha256": (
-                        "891b46d16c2ff1ada06a4e570bddfb6a1efc4c8983685fdb1011fe37394d2d35"
-                    ),
-                    "valid_through": "2026-12-31",
-                }
-            ),
-            encoding="utf-8",
-        )
         self.output = self.directory / "freshness.json"
         (self.directory / "reference").mkdir()
         self.mdm_sheet = self.directory / "reference" / "cpt-em-mdm-2026.md"
@@ -138,8 +123,6 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
             status = gate.main(
                 [
                     str(self.manifest),
-                    "--cpt-receipt",
-                    str(self.cpt_receipt),
                     "--receipt",
                     str(self.output),
                 ] + (["--procedure-database", str(procedure_database)] if procedure_database else [])
@@ -176,6 +159,21 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertIn("database_sha256", receipt["sources"]["cpt"])
         self.assertEqual(self.mdm_sheet.name, receipt["sources"]["cpt"]["mdm_sheet_filename"])
         self.assertEqual(64, len(receipt["sources"]["cpt"]["mdm_sheet_sha256"]))
+        self.assertEqual("ama-cpt-2026-licensed", receipt["sources"]["cpt"]["source_id"])
+        self.assertEqual("Professional Edition 2026", receipt["sources"]["cpt"]["edition"])
+        self.assertEqual("2026-12-31", receipt["sources"]["cpt"]["valid_through"])
+
+    def test_rebuilt_source_fingerprint_is_recorded_without_a_private_input_receipt(self):
+        database = self.directory / "procedure.sqlite"
+        database.write_bytes(gate.procedure_codes_lookup.DEFAULT_DATABASE.read_bytes())
+        with contextlib.closing(sqlite3.connect(database)) as connection:
+            connection.execute("UPDATE source SET sha256 = ? WHERE system = 'CPT'", ("d" * 64,))
+            connection.commit()
+        status, output = self.run_gate(procedure_database=database)
+        self.assertEqual(0, status, output)
+        receipt = json.loads(self.output.read_text(encoding="utf-8"))
+        self.assertEqual("d" * 64, receipt["sources"]["cpt"]["source_sha256"])
+        self.assertEqual(gate.sha256(database), receipt["sources"]["cpt"]["database_sha256"])
 
     def test_missing_or_tampered_mdm_sheet_refuses_final_em(self):
         self.mdm_sheet.write_text(
@@ -187,7 +185,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertIn("MDM sheet", output)
         self.assertFalse(self.output.exists())
 
-    def test_cpt_receipt_is_judged_by_service_date_not_check_date(self):
+    def test_cpt_edition_is_judged_by_service_date_not_check_date(self):
         value = self.load_manifest()
         value["service_date"] = "2026-12-20"
         self.save_manifest(value)
@@ -201,7 +199,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
             contextlib.redirect_stdout(stdout),
         ):
             status = gate.main([
-                str(self.manifest), "--cpt-receipt", str(self.cpt_receipt),
+                str(self.manifest),
                 "--receipt", str(self.output),
             ])
         self.assertEqual(0, status, stdout.getvalue())
@@ -232,8 +230,9 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.save_manifest(value)
         status, output = self.run_gate()
         self.assertEqual(1, status)
-        self.assertIn("CPT freshness receipt expired", output)
+        self.assertIn("CPT source edition expired", output)
         self.assertIn("E/M MDM sheet is missing or invalid", output)
+        self.assertFalse(self.output.exists())
 
     def test_ed_em_does_not_require_new_or_established_patient_status(self):
         value = self.load_manifest()
@@ -377,21 +376,14 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertProseNotIn("Read status from the shorthand", skill)
         self.assertProseNotIn("new/established assumed from Medatrax", skill)
 
-    def test_cpt_receipt_cannot_extend_its_derived_edition_boundary(self):
-        receipt = json.loads(self.cpt_receipt.read_text(encoding="utf-8"))
-        receipt["valid_through"] = "2099-12-31"
-        self.cpt_receipt.write_text(json.dumps(receipt), encoding="utf-8")
+    def test_service_date_before_cpt_edition_blocks(self):
+        value = self.load_manifest()
+        value["service_date"] = "2025-12-31"
+        self.save_manifest(value)
         status, output = self.run_gate()
         self.assertEqual(1, status)
-        self.assertIn("CPT edition boundary does not match its source", output)
-
-    def test_wrong_cpt_receipt_schema_blocks(self):
-        receipt = json.loads(self.cpt_receipt.read_text(encoding="utf-8"))
-        receipt["schema"] = 2
-        self.cpt_receipt.write_text(json.dumps(receipt), encoding="utf-8")
-        status, output = self.run_gate()
-        self.assertEqual(1, status)
-        self.assertIn("CPT freshness receipt schema is unreadable", output)
+        self.assertIn("CPT source edition does not cover the service date", output)
+        self.assertFalse(self.output.exists())
 
     def test_inactive_code_blocks(self):
         value = self.load_manifest()
@@ -403,7 +395,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
 
     def test_blocked_rerun_removes_an_old_pass_receipt(self):
         self.output.write_text('{"verdict":"PASS"}\n', encoding="utf-8")
-        self.cpt_receipt.write_text("not json", encoding="utf-8")
+        self.manifest.write_text("not json", encoding="utf-8")
         status, output = self.run_gate()
         self.assertEqual(2, status)
         self.assertIn("coding-freshness: BLOCKED", output)

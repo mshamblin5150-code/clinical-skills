@@ -170,13 +170,9 @@ class ModuleRootProperty(unittest.TestCase):
             if MODULE_ROOT_LITERAL not in ast.unparse(tree):
                 continue
             population.append(path.name)
-            # #1333's private CPT receipt is deliberately scoped to the
-            # invoking checkout, not the account-owned shared scratch tree.
-            # Its command tests enforce this narrower output boundary.
-            if path.name != "cpt_mdm_sheet.py":
-                offenders.extend(
-                    f"{path.name}:{line}" for line in account_owned_literal_joins(source)
-                )
+            offenders.extend(
+                f"{path.name}:{line}" for line in account_owned_literal_joins(source)
+            )
 
         # #1890 adds a checkout-local committed CI pin, not account-owned state.
         self.assertEqual(len(population), 51)

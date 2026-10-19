@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare independent CPT MDM reads, grade their sheet, or derive a private CPT receipt."""
+"""Compare independent CPT MDM reads or grade their sheet."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import re
 import sqlite3
 import subprocess
 import sys
-import repo_root
 
 from dataclasses import dataclass
 from datetime import date
@@ -31,7 +30,7 @@ ENTRY = re.compile(
 )
 DECLARED_LIMITS = (
     "Exact agreement and digests cannot prove that either independent reader looked at the rendered page.",
-    "The receipt derives database identity and date boundaries; it cannot prove authenticated reading.",
+    "The sheet's book, edition, and ISBN header lines are copied from the database; only the edition year is read from the book by both readers, and the reader's ISBN confirmation is unrecorded.",
 )
 REQUIRED_ENTRIES = frozenset({
     "mdm-selection", "mdm-two-of-three", "table-footnote",
@@ -230,16 +229,6 @@ def grade_staged(database: Path = DEFAULT_DATABASE) -> None:
         grade_content(staged.stdout.decode("utf-8"), database)
 
 
-def receipt_fields(database: Path) -> dict[str, object]:
-    source = source_metadata(database)
-    effective = date.fromisoformat(source["effective_date"])
-    return {
-        "schema": 1, "source_id": source["id"], "source_edition": source["edition"],
-        "source_sha256": source["sha256"],
-        "valid_through": date(effective.year, 12, 31).isoformat(),
-    }
-
-
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", nargs="?", type=Path)
@@ -247,38 +236,25 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--append-to", type=Path, help="Append agreeing modifier-25 reads to a previously graded edition sheet")
     parser.add_argument("--agreement-date")
-    parser.add_argument("--write-receipt", type=Path)
     parser.add_argument("--staged", action="store_true")
     parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
     args = parser.parse_args(argv)
     try:
         if args.staged:
-            if args.sheet or args.compare or args.output or args.write_receipt or args.append_to:
+            if args.sheet or args.compare or args.output or args.append_to:
                 raise ValueError("--staged takes no other mode")
             grade_staged(args.database)
         elif args.compare:
-            if not args.output or not args.agreement_date or args.sheet or args.write_receipt:
+            if not args.output or not args.agreement_date or args.sheet:
                 raise ValueError("comparison requires --output and --agreement-date only")
             compare(*args.compare, args.output, args.agreement_date, args.database, append_to=args.append_to)
             grade(args.output, args.database)
-        elif args.write_receipt:
-            if args.sheet or args.output or args.agreement_date or args.append_to:
-                raise ValueError("receipt mode takes only --write-receipt and --database")
-            destination = args.write_receipt.resolve()
-            sessions = (repo_root.scratch_path(ROOT / "scratch", "sessions")).resolve()
-            if not destination.is_relative_to(sessions) or len(destination.relative_to(sessions).parts) < 2:
-                raise ValueError("private CPT receipt must be inside this checkout's scratch/sessions/<key>/")
-            import json
-
-            fields = receipt_fields(args.database)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(json.dumps(fields, indent=2) + "\n", encoding="utf-8")
         elif args.sheet:
             if args.append_to:
                 raise ValueError("--append-to requires --compare")
             grade(args.sheet, args.database)
         else:
-            raise ValueError("provide a sheet, --compare, or --write-receipt")
+            raise ValueError("provide a sheet or --compare")
     except (OSError, UnicodeError, ValueError, sqlite3.Error, GitPathError) as error:
         print(f"cpt-mdm-sheet: BLOCKED: {error}")
         return 1
