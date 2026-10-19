@@ -213,8 +213,8 @@ _Avoid_: freshness, currency, staleness, commits behind, up to date
 
 **Run-relevant commit**:
 A commit touching what a clinical run reads — the skills, the reference sheets, `AGENTS.md`, and
-the `tools/` commands a skill file names. Derived from the tree on every reading and never a
-hand-kept list, so a skill that begins citing a new command is covered without anyone maintaining a
+the `tools/` commands a skill file names. Derived on every reading from the skill files a **Source
+walk** finds and never a hand-kept list, so a skill that begins citing a new command is covered without anyone maintaining a
 constant. It is the finding half of a **Base distance**, whose raw count is the population: most
 commits here move neither the instructions a run follows nor the graders it invokes, so a raw
 distance overstates how stale a run's instructions are by an order of magnitude. A **floor** on what
@@ -609,7 +609,7 @@ The gitignored record of one **Evidence dump** -- which topics arrived, for whic
 _Avoid_: index, inventory, log, catalog
 
 **Titled copy**:
-A run's copy of an **Evidence dump** that was handed over without topic titles, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. It differs from the handover in at most two ways: the titles, and a second copy of a topic dropped because the two differed only in page chrome, with the dropped copy and the difference written into the mapping. It never edits a kept block. The titles and any drop are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
+A run's copy of an **Evidence dump** that was handed over without topic titles, or that holds a **Drug page**, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. It differs from the handover in at most three ways: the titles, a second copy of a topic dropped because the two differed only in page chrome, and a drug page left out because a handover cannot show when it was read or that its doses were expanded, each drop written into the mapping. A drug page the case needs is pulled live instead. It never edits a kept block. The titles and any drop are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
 _Avoid_: reconstructed dump, fixed dump, cleaned evidence
 
 **Salted letter**:
@@ -1243,6 +1243,10 @@ _Avoid_: tracked walk, ls-files walk, repository walk
 **Disk walk**:
 An enumeration of what a directory holds on disk at the moment it is read, a file not yet staged included. Distinct from an **index walk**, which is blind to that file until it is staged; choosing between them is a decision about which window a check covers, not a spelling.
 _Avoid_: glob walk, directory listing, tree walk
+
+**Source walk**:
+An enumeration of the files git treats as source: everything in its index plus every new file its ignore rules do not exclude. It sees a file being written as soon as that file exists, which an **index walk** does not, and it never sees ignored build output, which a **disk walk** does. Choose it when ignored output would otherwise be read as content and an unstaged draft must still count.
+_Avoid_: tracked-plus-untracked walk, git view, tree walk
 
 **Walk exception**:
 A recursive folder walk that is excused from the shared rule every other walk follows — never step through a link, and count every folder that could not be opened — and is named on one list with the reason it differs. The reason has to be true of what the walk does: a walk that steps through links on purpose qualifies, and a walk that merely looks safe does not. Distinct from a declared limit, which states what a walk that follows the rule still cannot see.
