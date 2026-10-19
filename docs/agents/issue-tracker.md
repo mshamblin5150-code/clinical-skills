@@ -245,6 +245,15 @@ from a proposal reliably. Issue #290.
 
 ### Check closing keywords before merge
 
+ADR 0436 refuses closing hazards before PR create/edit publication (title and
+body, by `gh pr` or REST), and on supplied merge messages. `gh pr merge` reads
+`-t`/`--subject`, `-b`/`--body`, and `-F`/`--body-file`; REST merge reads
+`commit_title` and `commit_message`. Merge runs only this rule, without readback;
+unreproducible text refuses under ADR 0096. The local `commit-msg` hook also
+refuses every nonzero closing-scan exit; spelling stays advisory, and missing
+Python prints `SKIPPED` and allows. Limits remain with the scanner, publication
+hook and command reader.
+
 A whole-ticket binding on a `grilling` ticket is a **premature close**.
 The publication hook refuses it on `gh pr create` and `gh pr edit`. The separate
 **Premature close scan, pull request** CI step grades the title, body and every

@@ -190,7 +190,7 @@ class GitHubPullRequestInput(unittest.TestCase):
 
 
 class CommitMessageHook(unittest.TestCase):
-    def test_the_hook_warns_and_keeps_the_advisory_exit_status(self):
+    def test_the_hook_refuses_a_closing_hazard(self):
         with tempfile.TemporaryDirectory() as raw:
             message = Path(raw) / "COMMIT_EDITMSG"
             message.write_text("This does not fix #135.\n", encoding="utf-8")
@@ -206,9 +206,26 @@ class CommitMessageHook(unittest.TestCase):
                 encoding="utf-8",
                 errors="replace",
             )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0, result.stderr)
         self.assertIn("closing-keyword-scan", result.stderr)
         self.assertIn("#135", result.stderr)
+
+    def test_deliberate_binding_and_spelling_alone_allow_but_unreadable_refuses(self):
+        with tempfile.TemporaryDirectory() as raw:
+            message = Path(raw) / 'COMMIT_EDITMSG'
+            for text, allowed in [('Closes #135\n', True), ('Use colour\n', True), (None, False)]:
+                with self.subTest(text=text):
+                    if text is None:
+                        message.unlink()
+                    else:
+                        message.write_text(text, encoding='utf-8')
+                    result = subprocess.run(
+                        ['sh', (REPO_ROOT / 'tools/hooks/commit-msg').as_posix(), message.as_posix()],
+                        cwd=REPO_ROOT, capture_output=True, text=True, encoding='utf-8', errors='replace',
+                    )
+                    self.assertEqual(result.returncode == 0, allowed, result.stderr)
+                    if text == 'Use colour\n':
+                        self.assertIn('spelling-scan', result.stderr)
 
 
 if __name__ == "__main__":

@@ -48,6 +48,8 @@ import tree_walk
 from collections import Counter
 from dataclasses import replace
 import io
+import contextlib
+import closing_keyword_scan
 import json
 from pathlib import Path
 import re
@@ -90,6 +92,13 @@ AAR_RULES = (AAR_QUOTATION_RULE,)
 AAR_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NOT_REACHED = (
+    (
+        "closing hazards are graded only on PR create/edit and merge fields",
+        "The existing closing scanner grades supplied PR titles/bodies and merge "
+        "subjects/bodies. It reads no browser text, generated merge defaults, or "
+        "commit messages here; scanner grammar limits remain in "
+        "closing_keyword_scan.DECLARED_LIMITS.",
+    ),
     (
         "premature-close grading stops at the published PR fields and current readback",
         "Only gh pr create/edit title and body whole-ticket bindings are checked. "
@@ -538,6 +547,19 @@ def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
     return Analysis(findings, report)
 
 
+def closing_hazard_analysis(publication: Publication) -> Analysis:
+    """Use the scanner's grammar and diagnostic without echoing publication text."""
+    hazards = closing_keyword_scan.scan_text(publication.text, publication.field)
+    report = io.StringIO()
+    with contextlib.redirect_stderr(report):
+        closing_keyword_scan._render(hazards, quiet=True)
+    findings = (
+        (Finding("closing-hazard", len(hazards), publication.field, "deny"),)
+        if hazards else ()
+    )
+    return Analysis(findings, report.getvalue().rstrip())
+
+
 def analyze(
     publication: Publication,
     *,
@@ -667,7 +689,14 @@ def analyze(
         )
         findings.append(Finding(rule, 1, publication.field, posture))
 
+    closing = (
+        closing_hazard_analysis(publication)
+        if route in (("pr", "create"), ("pr", "edit")) else Analysis((), "")
+    )
+    findings.extend(closing.findings)
     lines = [context]
+    if closing.report:
+        lines.append(closing.report)
     if not branch.verdict.default_branch_tree_read:
         lines.append(branch.report)
     if not remote_fresh:
@@ -960,6 +989,15 @@ def grade_command(command: str) -> CommandGrade | None:
         return CommandGrade(False, True, _unclassified_api_report(extracted))
     if extracted.unreadable:
         return CommandGrade(False, True, _unreadable_report(extracted))
+
+    if (extracted.grade_route or extracted.route) == ("pr", "merge"):
+        analyses = [closing_hazard_analysis(row) for row in extracted.publications]
+        return CommandGrade(
+            True,
+            any(analysis.findings for analysis in analyses),
+            "\n".join(["tracker pre-publish: merge message closing-hazard scan",
+                       *(analysis.report for analysis in analyses if analysis.report)]),
+        )
 
     quotation = aar_quotation_analysis(extracted.publications)
     if not extracted.publications:

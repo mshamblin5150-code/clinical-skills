@@ -86,6 +86,73 @@ def fetched_records(
     }
 
 
+class ClosingHazardsAtPublication(unittest.TestCase):
+    def test_pr_fields_refuse_prose_closes_but_discussion_does_not(self):
+        for route in ('pr create', 'pr edit 88', 'issue edit 88',
+                      'issue comment 88', 'pr comment 88', 'pr review 88'):
+            for flag in ('--title', '--body'):
+                with (
+                    self.subTest(route=route, flag=flag),
+                    mock.patch.object(hook, 'current_index', return_value=(phi_scan.build_index(set(), set()), ())),
+                    mock.patch.object(hook, 'refresh_default_branch', return_value=True),
+                    mock.patch.object(hook, 'fetch_readback', return_value={}),
+                ):
+                    grade = hook.grade_command(f"gh {route} {flag} 'This closed #135 yesterday.'")
+                    self.assertEqual(grade.denied, route.startswith(('pr create', 'pr edit')), grade.report)
+                    if grade.denied:
+                        self.assertIn("'closed' would close #135", grade.report)
+
+    def test_merge_grades_only_closing_hazards_without_readback(self):
+        for flags, denied in (("--subject 'This fixed #135.'", True),
+                              ("-t 'This fixed #135.'", True),
+                              ("--body 'This fixed #135.'", True),
+                              ("-b 'Closes #135'", False),
+                              ("--subject 'tools/example.py:12'", False),
+                              ('', False)):
+            with self.subTest(flags=flags), mock.patch.object(hook, 'fetch_readback') as fetch:
+                grade = hook.grade_command(f'gh pr merge 88 --merge {flags}')
+                self.assertIsNotNone(grade)
+                self.assertEqual(grade.denied, denied, grade.report)
+                fetch.assert_not_called()
+
+    def test_merge_files_rest_and_unreadable_text(self):
+        with tempfile.TemporaryDirectory() as raw:
+            body = Path(raw) / 'merge.txt'
+            body.write_text('This fixed #135.', encoding='utf-8')
+            request = Path(raw) / 'merge.json'
+            request.write_text(json.dumps({'commit_message': 'This fixed #135.'}), encoding='utf-8')
+            commands = [
+                f"gh pr merge 88 -F '{body.as_posix()}'",
+                f"gh pr merge 88 --body-file='{body.as_posix()}'",
+                "gh pr merge 88 --body '$EXTERNAL'",
+                'gh pr merge 88 --body "$EXTERNAL"',
+                f"gh pr merge 88 -F '{body.as_posix()}.missing'",
+                "gh api -X PUT repos/example/project/pulls/88/merge -f commit_title='This fixed #135.'",
+                "gh api -X PUT repos/example/project/pulls/88/merge -f commit_message='This fixed #135.'",
+                f"gh api -X PUT repos/example/project/pulls/88/merge --input '{request.as_posix()}'",
+            ]
+            for command in commands:
+                with self.subTest(command=command), mock.patch.object(hook, 'fetch_readback') as fetch:
+                    grade = hook.grade_command(command)
+                    self.assertIsNotNone(grade)
+                    # A single-quoted variable is literal, safe text.
+                    self.assertEqual(grade.denied, command != "gh pr merge 88 --body '$EXTERNAL'", grade.report)
+                    fetch.assert_not_called()
+
+    def test_deliberate_pr_binding_passes_and_scanner_failure_denies(self):
+        with (
+            mock.patch.object(hook, 'current_index', return_value=(phi_scan.build_index(set(), set()), ())),
+            mock.patch.object(hook, 'refresh_default_branch', return_value=True),
+            mock.patch.object(hook, 'fetch_readback', return_value=fetched_records(135)),
+        ):
+            grade = hook.grade_command("gh pr create --body 'Closes #135'")
+            self.assertFalse(grade.denied, grade.report)
+        with mock.patch.object(hook.closing_keyword_scan, 'scan_text', side_effect=RuntimeError):
+            response = hook.handle({'tool_name': 'Bash', 'tool_input': {
+                'command': "gh pr merge 88 --subject 'A change'"}})
+        self.assertEqual(response['hookSpecificOutput']['permissionDecision'], 'deny')
+
+
 class PrematureCloseAtPublication(unittest.TestCase):
     def test_only_whole_bindings_in_pr_fields_refuse_and_unread_labels_allow(self):
         cases = [
@@ -1567,7 +1634,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         index = phi_scan.build_index(set(), set())
         for kind, body in bodies.items():
             commands = self.body_commands(body)
-            self.assertEqual(set(commands), set(hook.PUBLISH_ROUTES))
+            self.assertEqual(set(commands), set(hook.PUBLISH_ROUTES) - {("pr", "merge")})
             for route, command in commands.items():
                 with (
                     self.subTest(kind=kind, route=route),
@@ -2581,6 +2648,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
             {
+                "closing hazards are graded only on PR create/edit and merge fields",
                 "premature-close grading stops at the published PR fields and current readback",
                 'Unreadable harness payload',
                 'a commit outside a session does not run the marker',
