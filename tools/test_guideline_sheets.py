@@ -207,7 +207,7 @@ class TheSkillCarriesTheObligation(ProseBind, unittest.TestCase):
     def test_every_verdict_the_row_names_has_a_worked_example(self):
         # Row 24 names four outcomes. A verdict with no rendering beside it is
         # the sentiment-rather-than-shape failure #85's own comment warns about.
-        self.assertIn("[uspstf: grade A", self.section)
+        self.assertIn("[uspstf: Screening for Colorectal Cancer; grade A", self.section)
         self.assertIn("[thresholds/hypertension: aha-2025 Class 1", self.section)
         self.assertIn("[uspstf: no row]", self.section)
         self.assertIn("[recalled, no shipped sheet; catalog lists GOLD 2026]", self.section)
@@ -443,7 +443,7 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         # "| 2021 |" alone matches any of the 143 rows and would keep passing
         # after a regrade moved this one, which is the shape of check this class
         # exists to avoid making.
-        self.assertIn("[uspstf: grade A, adults 50 to 75, 2021]", self.text)
+        self.assertIn("[uspstf: Screening for Colorectal Cancer; grade A, adults 50 to 75, 2021]", self.text)
         self.assertRegex(
             self.uspstf,
             r"\| Screening for Colorectal Cancer \| all adults aged 50 to 75 years \| A \|"
@@ -584,7 +584,7 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
             r" children and adolescents 6 years or older with a high BMI"
             r" \(≥95th percentile for age and sex\)[^|]*\| B \|[^|]*\| 2024 \|",
         )
-        self.assertIn("[uspstf: grade B, children and adolescents 6 years or older", self.text)
+        self.assertIn("[uspstf: Interventions for High Body Mass Index in Children and Adolescents; grade B, children and adolescents 6 years or older", self.text)
 
     def test_the_new_floors_keep_rows_23_and_24s_reader_residue(self):
         # #192 makes their line shapes runnable and must not promote either
