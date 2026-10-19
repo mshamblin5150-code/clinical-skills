@@ -988,17 +988,23 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
     damage = _write_damage(run)
     if damage is not None:
         return damage
+    walk_reports = []
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
             raise ValueError("write one submission observation at a time")
-        observations = coursework_run.observe_draft(run, keys[0], order_observations(run))
+        try:
+            observations = coursework_run.observe_draft(run, keys[0], order_observations(run), reports=walk_reports)
+        except coursework_run.DraftWalkUnreadable as failure:
+            return GateResult(2, "project context NOT WRITTEN - " + str(failure))
         path = run / RECORD_NAME
         text = path.read_text(encoding="utf-8")
         lines = [line for line in text.splitlines() if not line.startswith("ORDER-OBSERVATION:")]
         lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     result = _write_context_record(run, service_payloads=service_payloads, submission=submission)
+    if walk_reports:
+        result = replace(result, report=result.report + "\n" + "\n".join(walk_reports))
     if result.exit_code == 0:
         retain_heading_context(run)
     if submission is None:

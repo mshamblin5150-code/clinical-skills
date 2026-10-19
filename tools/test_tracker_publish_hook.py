@@ -2557,6 +2557,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 'moving or renaming a checkout changes its identity',
                 'no route rule covers the cause side of escape collapse',
                 'retained pre-edit revisions remain readable',
+                'run material behind links is not compared',
                 'the GitHub web UI bypasses the hook',
                 'the fetched origin can be a non-canonical repository',
                 'the marker is not a publish-time guarantee',
@@ -2804,6 +2805,96 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
             "tool_name": "Bash",
             "tool_input": {"command": command},
         }
+
+    def check_run_walk_command(self, *, native_denied=False, native_links=False, symbolic=False):
+        from tree_walk_test_support import denied_listing, junctions
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "run"
+            body = run / "aar" / "publications" / "ticket.md"
+            body.parent.mkdir(parents=True)
+            material = "A deliberately distinctive private working sentence " * 4
+            body.write_text(material, encoding="utf-8")
+            target = Path(temporary) / "linked-target"
+            target.mkdir()
+            (target / "working.md").write_text(material, encoding="utf-8")
+            private = run / "secret-identifier"
+            private.mkdir()
+            if native_links:
+                junctions(run, target)
+            if symbolic:
+                try:
+                    (run / "link").symlink_to(target, target_is_directory=True)
+                except OSError as failure:
+                    self.skipTest(str(failure))
+            command_file = Path(temporary) / "command.sh"
+            command_file.write_text(f'gh issue comment 670 --body-file "{body.as_posix()}"', encoding="utf-8")
+            stdout = io.StringIO()
+            with (
+                denied_listing(private) if native_denied else contextlib.nullcontext(),
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+                contextlib.redirect_stdout(stdout),
+            ):
+                status = hook.main(["--command-file", str(command_file)])
+            report = stdout.getvalue()
+            self.assertEqual(1 if native_denied else 0, status, report)
+            if native_denied:
+                self.assertIn("1 subdirectories and 0 files unread", report)
+                self.assertIn("restore read access and retry", report)
+                self.assertNotIn(private.name, report)
+            else:
+                self.assertIn(f"links not entered: {3 if native_links else 1}", report)
+
+    def test_native_denied_run_directory_refuses_command(self):
+        self.check_run_walk_command(native_denied=True)
+
+    def test_native_junctions_are_reported_without_comparing_target(self):
+        self.check_run_walk_command(native_links=True)
+
+    def test_symbolic_link_is_reported_without_comparing_target(self):
+        self.check_run_walk_command(symbolic=True)
+
+    def test_unread_run_material_denies_command_without_revealing_names(self):
+        index = phi_scan.build_index(set(), set())
+        for failure_kind in ("directory", "file"):
+            with self.subTest(failure_kind=failure_kind), tempfile.TemporaryDirectory() as temporary:
+                run = Path(temporary) / "run"
+                body = run / "aar" / "publications" / "ticket.md"
+                body.parent.mkdir(parents=True)
+                body.write_text("Short safe maintenance body.", encoding="utf-8")
+                private = run / "secret-identifier"
+                private.mkdir()
+                source = private / "private-material.md"
+                source.write_text("private material", encoding="utf-8")
+                command_file = Path(temporary) / "command.sh"
+                command_file.write_text(f'gh issue comment 670 --body-file "{body.as_posix()}"', encoding="utf-8")
+                scandir, read_text = os.scandir, Path.read_text
+                def read_directory(path):
+                    if failure_kind == "directory" and Path(path) == private:
+                        raise PermissionError("secret-identifier")
+                    return scandir(path)
+                def read_file(path, *args, **kwargs):
+                    if failure_kind == "file" and path == source:
+                        raise PermissionError("private-material")
+                    return read_text(path, *args, **kwargs)
+                stdout = io.StringIO()
+                with (
+                    mock.patch("tree_walk.os.scandir", side_effect=read_directory),
+                    mock.patch.object(Path, "read_text", read_file),
+                    mock.patch.object(hook, "current_index", return_value=(index, ())),
+                    mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                    mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+                    contextlib.redirect_stdout(stdout),
+                ):
+                    status = hook.main(["--command-file", str(command_file)])
+                self.assertEqual(1, status, stdout.getvalue())
+                self.assertIn("restore read access and retry", stdout.getvalue())
+                self.assertIn("1 subdirectories and 0 files unread" if failure_kind == "directory"
+                              else "0 subdirectories and 1 files unread", stdout.getvalue())
+                self.assertNotIn(private.name, stdout.getvalue())
+                self.assertNotIn(source.name, stdout.getvalue())
 
     def test_an_aar_copy_is_denied_with_the_same_population_line(self) -> None:
         index = phi_scan.build_index(set(), set())

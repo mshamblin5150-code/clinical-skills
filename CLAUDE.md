@@ -1000,6 +1000,9 @@ not a `run_grader` member because it grades a committed registry rather than a p
 
 ### Reference-class census
 
+The shared walk never enters child links. Every report states `links not entered`
+and `subfolders unreadable`, including zero; an unreadable subfolder exits 2.
+
 The account-wide companion to *Reference scan* measures which declared APA source-class buckets appear in working and finished coursework. It imports that scanner's document reader and classifier, so the per-run row and the corpus report cannot assign one entry to different buckets.
 
 ```bash
@@ -1334,6 +1337,11 @@ gate. Exit 0 completes a stage or a clean review, 1 is a review finding, and 2 m
 or invocation could not complete. The complete ceiling belongs to `case_video.DECLARED_LIMITS`.
 
 ### Coursework project context
+
+Before recording a first draft observation, the context and voice-model identity
+writes use the shared walk. An unreadable subfolder exits 2 without saving the
+observation; restore read access and rerun. Links are not entered, and their
+count prints at write time without changing the saved observation.
 
 Before first prose, the five coursework skills write and confirm the purpose-named
 `project-context.md`, retrieve every place owed by the account registry at
@@ -2184,6 +2192,11 @@ It reports paths and status words, never file contents, so its output is safe to
 
 ### Spelling scan
 
+Folder mode uses the shared walk and always prints `links not entered` and an
+unread count. A subfolder it cannot list or a source file it cannot open exits 2;
+spelling findings still print. Links are not entered. Other modes keep their
+existing populations and statuses.
+
 Standing rule 4 — American English, always — with a command in front of it. The table lives in [clinical-note](skills/clinical-note/SKILL.md) under *Conventions*; `tools/spelling_scan.py` is that table made runnable, and `tools/test_spelling_scan.py` parses the skill's copy and asserts the two agree, so the scanner cannot start holding a different answer than the file a reader opens.
 
 ```bash
@@ -2458,6 +2471,10 @@ It uses CDC's LMS calculation through the 95th percentile and CDC's extended hal
 Covered by `tools/test_cdc_percentile.py`, which tests the calculator against CDC's own selected percentile columns rather than recomputing the expected answer with the same formula. It also pins all six `Z68.5-` bands, the `E66` pairing, the midpoint-month rule and the 24-through-239-month boundary. Stdlib only, like the ICD consumer path.
 
 ### Guideline text extraction
+
+The corpus producers and readers use the shared walk: child links are not entered,
+their count prints on every walk, and an unreadable subfolder exits 2. Restore
+read access and retry before treating a corpus build or comparison as complete.
 
 The society guideline PDFs are the source for everything in the #80 series, and nothing downstream reads a PDF — they read the `.txt` this produces.
 

@@ -20,6 +20,7 @@ import guidelines_build
 import guidelines_recs
 import artifact_lock
 import artifact_provenance
+from tree_walk_test_support import junctions
 
 
 class BuildCommandCase(unittest.TestCase):
@@ -131,6 +132,38 @@ class BuildCommandCase(unittest.TestCase):
             contextlib.redirect_stdout(self.stdout),
         ):
             return guidelines_build.main(self.arguments)
+
+
+class CorpusLinkCommands(BuildCommandCase):
+    def check_links(self):
+        expected = guidelines_build.extraction_identity(self.source)["source_files"]
+        self.assertEqual([row["path"] for row in expected], ["one.pdf"])
+        self.assertEqual(self.run_command(), 0)
+        self.assertIn("links not entered 3", self.stdout.getvalue())
+        self.assertEqual(
+            guidelines_build.extraction_identity(self.source)["source_files"], expected
+        )
+        sweep = json.loads((self.recs_alias / guidelines_recs.SWEEP_MANIFEST).read_text(encoding="utf-8"))
+        self.assertEqual([row["doc_id"] for row in sweep["documents"]], ["one"])
+
+    def test_public_build_excludes_native_junctions(self):
+        target = self.root / "linked-society"
+        target.mkdir()
+        (target / "hidden.pdf").write_bytes(b"invented linked PDF")
+        junctions(self.source, target)
+        self.check_links()
+
+    def test_public_build_excludes_symbolic_link_mutants(self):
+        target = self.root / "linked-society"
+        target.mkdir()
+        (target / "hidden.pdf").write_bytes(b"invented linked PDF")
+        try:
+            (self.source / "live").symlink_to(target, target_is_directory=True)
+            (self.source / "dangling").symlink_to(self.root / "absent", target_is_directory=True)
+            (self.source / "ancestor").symlink_to(self.source, target_is_directory=True)
+        except OSError as failure:
+            self.skipTest(str(failure))
+        self.check_links()
 
 
 class FullGateAfterBuild(BuildCommandCase):

@@ -90,6 +90,7 @@ from typing import Callable, Iterable, NamedTuple
 
 from console_codec import require_python_floor, use_utf8
 import git_paths
+from tree_walk import WalkResult, walk_files
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -680,37 +681,27 @@ def read_tracked(path: str) -> str | None:
     return full.read_text(encoding="utf-8", errors="replace")
 
 
-def markdown_under(targets: Iterable[Path]) -> list[str]:
-    """Every ``.md`` under the given files and directories, as absolute strings.
-
-    ``run_record_for`` normalizes an in-repository absolute path, so directly
-    scanning the exact historical artifact keeps its report-only disposition.
-    A new or copied run anywhere else remains ordinary graded output. #321.
-    """
-    found: list[str] = []
-    for target in targets:
-        if target.is_dir():
-            found.extend(str(p) for p in sorted(target.rglob("*.md")))
-        elif target.is_file():
-            found.append(str(target))
-    return found
-
-
-def files_under(targets: Iterable[Path]) -> list[str]:
+def files_under(targets: Iterable[Path]) -> WalkResult:
     """Every file under explicit targets, so filenames cannot hide by type."""
-    found: list[str] = []
+    found: list[Path] = []
+    unread = links = 0
     for target in targets:
         if target.is_dir():
-            found.extend(str(path) for path in sorted(target.rglob("*")) if path.is_file())
-        elif target.is_file():
-            found.append(str(target))
-    return found
+            try:
+                result = walk_files(target)
+            except OSError:
+                unread += 1
+                continue
+            found.extend(sorted(result.files))
+            unread += result.unreadable_directories
+            links += result.links_not_entered
+        else:
+            found.append(target)
+    return WalkResult(tuple(found), unread, links)
 
 
 def read_file(path: str) -> str | None:
     full = Path(path)
-    if not full.is_file():
-        return None
     return full.read_text(encoding="utf-8", errors="replace")
 
 
@@ -1003,6 +994,8 @@ def main(argv: list[str] | None = None) -> int:
     # The mode travels with the report because the report cannot say what it
     # walked -- `_Tally` sees findings and never the paths it was handed. Chosen
     # here, where the branch already is, rather than threaded through `scan`.
+    unread = links = 0
+    folder_mode = bool(args.paths)
     if args.commit_message:
         text = args.commit_message.read_text(encoding="utf-8", errors="replace")
         report = Report(
@@ -1011,15 +1004,30 @@ def main(argv: list[str] | None = None) -> int:
         )
         mode = "commit-message"
     elif args.paths:
-        mode, report = "paths", scan(files_under(args.paths), read_file)
+        walked = files_under(args.paths)
+        unread, links = walked.unreadable_directories, walked.links_not_entered
+
+        def read_counted(path: str) -> str | None:
+            nonlocal unread
+            try:
+                return read_file(path)
+            except OSError:
+                unread += 1
+                return None
+
+        mode, report = "paths", scan((str(path) for path in walked.files), read_counted)
     elif args.all:
         mode, report = "--all", scan(tracked_files(), read_tracked)
     else:
         mode, report = "staged", scan_staged()
 
     stream = sys.stderr if report.findings else sys.stdout
-    for line in render(report, args.quiet, mode):
+    for line in render(report, args.quiet or bool(unread), mode):
         print(line, file=stream)
+    if folder_mode:
+        print(f"spelling-scan: unread {unread}; links not entered {links}", file=stream)
+    if unread:
+        return 2
     return 1 if report.findings else 0
 
 

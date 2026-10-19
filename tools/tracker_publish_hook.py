@@ -43,6 +43,8 @@ the same classifier bounds the unmodeled-shell refusal. The reading boundary bel
 
 from __future__ import annotations
 
+import tree_walk
+
 from collections import Counter
 from dataclasses import replace
 import io
@@ -86,6 +88,7 @@ AAR_RULES = (AAR_QUOTATION_RULE,)
 AAR_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NOT_REACHED = (
+    ("run material behind links is not compared", "Links and junctions are not entered; their count is reported without denying publication."),
     (
         "the GitHub web UI bypasses the hook",
         "Tracker text published through the GitHub web UI never crosses "
@@ -389,6 +392,9 @@ class RunQuotation(NamedTuple):
     unexempted: int
     exempted: int
     exemption_failure: str | None = None
+    unreadable_directories: int = 0
+    unreadable_files: int = 0
+    links_not_entered: int = 0
 
 
 def _published_span_texts() -> tuple[str, ...]:
@@ -435,18 +441,23 @@ def _quotes_run_material(publication: Publication) -> RunQuotation:
     """
     run = _aar_run_directory(publication.path)
     body = _normalized_span_text(publication.text)
-    if run is None or len(body) < AAR_QUOTE_SPAN_CHARS:
+    if run is None:
         return RunQuotation(0, 0)
     spans = {
         body[index : index + AAR_QUOTE_SPAN_CHARS]
         for index in range(len(body) - AAR_QUOTE_SPAN_CHARS + 1)
     }
     matched = set()
-    for path in run.rglob("*"):
-        if not path.is_file() or path.suffix.casefold() not in {".md", ".txt", ".json"}:
+    try:
+        walked = tree_walk.walk_files(run)
+    except OSError:
+        return RunQuotation(0, 0, unreadable_directories=1)
+    unreadable_files = 0
+    for path in walked.files:
+        if path.suffix.casefold() not in {".md", ".txt", ".json"}:
             continue
         try:
-            path.resolve().relative_to((run / "aar").resolve())
+            path.relative_to(run / "aar")
         except ValueError:
             pass
         else:
@@ -454,14 +465,18 @@ def _quotes_run_material(publication: Publication) -> RunQuotation:
         try:
             source = _normalized_span_text(path.read_text(encoding="utf-8", errors="replace"))
         except OSError:
+            unreadable_files += 1
             continue
         matched.update(
             source[index : index + AAR_QUOTE_SPAN_CHARS]
             for index in range(len(source) - AAR_QUOTE_SPAN_CHARS + 1)
             if source[index : index + AAR_QUOTE_SPAN_CHARS] in spans
         )
+    if walked.unreadable_directories or unreadable_files:
+        return RunQuotation(0, 0, unreadable_directories=walked.unreadable_directories,
+                            unreadable_files=unreadable_files, links_not_entered=walked.links_not_entered)
     if not matched:
-        return RunQuotation(0, 0)
+        return RunQuotation(0, 0, links_not_entered=walked.links_not_entered)
     try:
         published = _published_span_texts()
     except (OSError, subprocess.CalledProcessError, ValueError, git_paths.GitPathError) as failure:
@@ -473,9 +488,9 @@ def _quotes_run_material(publication: Publication) -> RunQuotation:
             reason = "git could not run or repository could not be opened"
         else:
             reason = "origin/main blob read failed or incomplete"
-        return RunQuotation(len(matched), 0, reason)
+        return RunQuotation(len(matched), 0, reason, links_not_entered=walked.links_not_entered)
     exempted = sum(any(span in text for text in published) for span in matched)
-    return RunQuotation(len(matched) - exempted, exempted)
+    return RunQuotation(len(matched) - exempted, exempted, links_not_entered=walked.links_not_entered)
 
 
 def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
@@ -488,15 +503,21 @@ def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
     findings = tuple(
         Finding(AAR_QUOTATION_RULE, 1, publication.field, "deny")
         for publication, quotation in zip(aar_publications, quotations)
-        if quotation.unexempted
+        if quotation.unexempted or quotation.unreadable_directories or quotation.unreadable_files
     )
     if aar_publications:
         report = (
-            f"AAR quotation gate: {len(findings)} copied private-run span(s) "
+            f"AAR quotation gate: {sum(bool(quote.unexempted) for quote in quotations)} copied private-run span(s) "
             f"across {len(aar_publications)} AAR publication(s); "
             f"{sum(quote.exempted for quote in quotations)} matched stretch(es) "
             "exempted as already on main"
         )
+        report += f"; links not entered: {sum(quote.links_not_entered for quote in quotations)}"
+        unreadable_directories = sum(quote.unreadable_directories for quote in quotations)
+        unreadable_files = sum(quote.unreadable_files for quote in quotations)
+        if unreadable_directories or unreadable_files:
+            report += (f"; {unreadable_directories} subdirectories and {unreadable_files} files unread; "
+                       "restore read access and retry")
         for reason in sorted({quote.exemption_failure for quote in quotations if quote.exemption_failure}):
             report += f"; origin/main exemption not applied: {reason}"
     else:

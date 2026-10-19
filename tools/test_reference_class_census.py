@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import os
 import io
 import tempfile
 import unittest
@@ -12,6 +13,8 @@ from unittest.mock import patch
 
 import reference_class_census as census
 import reference_scan
+import tree_walk
+from tree_walk_test_support import denied_listing, junctions
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_MEMBER = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -178,6 +181,75 @@ class TheCensusReportIsCountsOnlyAndHasAHouseExit(unittest.TestCase):
             self.assertIn(bucket.name, stdout)
             self.assertIn(bucket.state, stdout)
         self.assertNotIn("uncovered-class", stdout)
+
+    def test_unreadable_subfolder_is_exit_two_and_has_its_own_private_count(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            denied = scratch / "private-marker"
+            denied.mkdir(parents=True)
+            output = root / "output"
+            output.mkdir()
+            original = os.scandir
+
+            def read(path):
+                if Path(path) == denied:
+                    raise PermissionError("synthetic denial")
+                return original(path)
+
+            with patch.object(tree_walk.os, "scandir", side_effect=read):
+                status, stdout, stderr = self.run_main((root,), output)
+        self.assertEqual(status, 2)
+        self.assertIn("subfolders unreadable             1", stdout)
+        self.assertIn("roots unreadable                  0", stdout)
+        self.assertIn("links not entered                 0", stdout)
+        self.assertNotIn("private-marker", stdout + stderr)
+
+    @unittest.skipUnless(os.name == "nt", "Windows ACL denial")
+    def test_native_denial_exits_two(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            denied = root / "scratch" / "private"
+            denied.mkdir(parents=True)
+            output = root / "output"
+            output.mkdir()
+            with denied_listing(denied):
+                status, stdout, _ = self.run_main((root,), output)
+        self.assertEqual(status, 2)
+        self.assertIn("subfolders unreadable             1", stdout)
+
+    def assert_link_census(self, root, output):
+        status, stdout, _ = self.run_main((root,), output)
+        self.assertEqual(status, 0)
+        self.assertIn("links not entered                 3", stdout)
+        self.assertIn("reference entries read            1", stdout)
+
+    def test_symbolic_link_mutant_does_not_double_count_documents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            scratch.mkdir()
+            output = root / "output"
+            output.mkdir()
+            (scratch / "case.md").write_text(document(LEGAL, "42 C.F.R. § 414.56 (2026)."), encoding="utf-8")
+            for name, target in (("live", scratch), ("dangling", root / "absent"), ("ancestor", root)):
+                try:
+                    (scratch / name).symlink_to(target, target_is_directory=True)
+                except OSError as error:
+                    self.skipTest(str(error))
+            self.assert_link_census(root, output)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junctions")
+    def test_junctions_do_not_double_count_documents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            scratch.mkdir()
+            output = root / "output"
+            output.mkdir()
+            (scratch / "case.md").write_text(document(LEGAL, "42 C.F.R. § 414.56 (2026)."), encoding="utf-8")
+            junctions(scratch, scratch)
+            self.assert_link_census(root, output)
 
     def test_the_census_has_no_exit_one_path(self):
         source = Path(census.__file__).read_text(encoding="utf-8")

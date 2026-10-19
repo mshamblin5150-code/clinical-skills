@@ -84,6 +84,7 @@ class ProducerEditHandoffTests(unittest.TestCase):
         "pdf_engine.py",
         "python_floor.py",
         "repo_root.py",
+        "tree_walk.py",
     )
 
     def setUp(self):

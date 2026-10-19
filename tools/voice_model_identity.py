@@ -70,6 +70,7 @@ class CompletionGate:
 def write_record(run: Path, submission: str | None = None) -> str:
     """Resolve once and write that resolution into ``run`` at draft time."""
     observations = {}
+    walk_reports = []
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
@@ -82,7 +83,7 @@ def write_record(run: Path, submission: str | None = None) -> str:
             if not _valid_record(previous):
                 raise ValueError("existing voice identity record is invalid")
             observations = previous.get("observations", {})
-        observations = coursework_run.observe_draft(run, submission, observations)
+        observations = coursework_run.observe_draft(run, submission, observations, reports=walk_reports)
     resolved = repo_root.canonical_voice_model()
     payload = {
         "path": str(resolved.path),
@@ -96,8 +97,10 @@ def write_record(run: Path, submission: str | None = None) -> str:
         encoding="utf-8",
     )
     if not resolved.exists:
-        return voice_model_scan.absent_model_banner(resolved.path)
-    return f"voice model identity: recorded {resolved.path}"
+        report = voice_model_scan.absent_model_banner(resolved.path)
+    else:
+        report = f"voice model identity: recorded {resolved.path}"
+    return "\n".join((report, *walk_reports))
 
 
 def _valid_record(payload: object) -> bool:
@@ -217,6 +220,9 @@ def main(argv: list[str]) -> int:
         print(order.report)
         if order.finding:
             return 1
+    except coursework_run.DraftWalkUnreadable as failure:
+        print(f"voice model identity NOT WRITTEN -- {failure}", file=sys.stderr)
+        return 2
     except (OSError, UnicodeError, ValueError) as failure:
         print(f"voice model identity NOT WRITTEN -- {failure}", file=sys.stderr)
         return 1 if isinstance(failure, ValueError) else 2

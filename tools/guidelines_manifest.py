@@ -9,6 +9,7 @@ from typing import Any
 
 import artifact_lock
 import artifact_provenance
+from tree_walk import corpus_files
 
 
 MANIFEST_NAME = "manifest.json"
@@ -221,6 +222,10 @@ def _read_locked(
 ) -> Manifest:
     if not root.is_dir():
         return _problem(root, f"extracted corpus not found at {root}")
+    try:
+        reached_text = set(corpus_files(root, "*.txt"))
+    except OSError as failure:
+        return _problem(root, f"extracted text files could not be listed: {failure}")
     path = root / MANIFEST_NAME
     if not path.is_file():
         return _problem(root, f"{path} is required")
@@ -313,7 +318,8 @@ def _read_locked(
                 )
             )
             continue
-        body_path = (root / Path(*normalized_output.split("/"))).resolve()
+        listed_path = root / Path(*normalized_output.split("/"))
+        body_path = listed_path.resolve()
         try:
             body_path.relative_to(root)
         except ValueError:
@@ -321,7 +327,7 @@ def _read_locked(
                 Problem(f"{doc_id}: output must remain inside the extracted corpus", doc_id)
             )
             continue
-        if not body_path.is_file():
+        if listed_path not in reached_text or not body_path.is_file():
             problems.append(Problem(f"{doc_id}: extracted text is missing: {record.output}", doc_id))
             continue
         try:
@@ -353,13 +359,7 @@ def _read_locked(
         for record in documents.values()
         if record.output
     }
-    try:
-        actual_outputs = {
-            path.relative_to(root).as_posix() for path in root.rglob("*.txt")
-        }
-    except OSError as failure:
-        problems.append(Problem(f"extracted text files could not be listed: {failure}"))
-        actual_outputs = set()
+    actual_outputs = {path.relative_to(root).as_posix() for path in reached_text}
     for extra in sorted(actual_outputs - expected_outputs):
         problems.append(Problem(f"extracted text has no usable manifest entry: {extra}"))
     return Manifest(root, raw_entries, documents, page_sets, tuple(problems), provenance)

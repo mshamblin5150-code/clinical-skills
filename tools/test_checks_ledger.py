@@ -366,10 +366,6 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     """Bind each behavior row to its blind-spot test and positive control."""
 
     HANDLERS = {
-        "submission-lookup-recursion": (
-            "SubmissionLookupBoundary.test_unreadable_folder_can_hide_a_second_document",
-            "SubmissionLookupBoundary.test_two_visible_documents_refuse",
-        ),
         "page-fingerprint-origin": (
             "ComposerAttachmentOutcome.test_page_fingerprint_has_clean_mismatch_and_missing_controls",
             "ComposerAttachmentOutcome.test_attachment_bytes_have_clean_missing_and_mismatch_controls",
@@ -1938,25 +1934,62 @@ class SubmissionLookupBoundary(unittest.TestCase):
                 with self.assertRaises(checks.run_grader.SourceError):
                     checks._submission_document("study")
 
-    def test_unreadable_folder_can_hide_a_second_document(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            visible = root / "study.md"
-            visible.touch()
-            hidden = root / "denied" / "nested"
+    def test_native_denied_subdirectory_refuses_public_submission(self):
+        from tree_walk_test_support import denied_listing
+        directory, path = in_a_file(whole_file())
+        with directory:
+            denied = path.parent / "output" / "secret-identifier"
+            denied.mkdir(parents=True)
+            with denied_listing(denied):
+                status, report, error = run([str(path), "--submission", "case-study"])
+            self.assertEqual(2, status, report + error)
+            self.assertIn("1 output subdirectories", error)
+            self.assertNotIn(denied.name, report + error)
+
+    def check_links_in_public_submission(self, *, native):
+        from tree_walk_test_support import junctions
+        directory, path = in_a_file(whole_file())
+        with directory:
+            fixture = ComposerAttachmentOutcome()
+            fixture.prepare(path, "attachment")
+            output = path.parent / "output"
+            target = path.parent / "linked-target"
+            target.mkdir()
+            (target / "case-study.md").write_text("Hidden second document", encoding="utf-8")
+            if native:
+                junctions(output, target)
+            else:
+                try:
+                    (output / "link").symlink_to(target, target_is_directory=True)
+                except OSError as failure:
+                    self.skipTest(str(failure))
+            status, report, error = fixture.grade_submission(path)
+            self.assertEqual(0, status, report + error)
+
+    def test_native_junctions_do_not_add_submission_matches(self):
+        self.check_links_in_public_submission(native=True)
+
+    def test_symbolic_link_does_not_add_submission_matches(self):
+        self.check_links_in_public_submission(native=False)
+
+    def test_unreadable_folder_refuses_a_hidden_second_document(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            output = path.parent / "output"
+            hidden = output / "secret-identifier"
             hidden.mkdir(parents=True)
-            (hidden / "study.md").touch()
+            (hidden / "case-study.md").touch()
             import os
             scandir = os.scandir
-
-            def read(path):
-                if Path(path) == hidden.parent:
-                    raise PermissionError("denied")
-                return scandir(path)
-
-            with mock.patch.object(checks.repo_root, "output_root", return_value=root), mock.patch("os.scandir", side_effect=read):
-                self.assertEqual(checks._submission_document("study"), visible)
-            self.assertTrue(any(row.key == "submission-lookup-recursion" for row in checks.DECLARED_LIMITS))
+            def read(folder):
+                if Path(folder) == hidden:
+                    raise PermissionError("secret-identifier")
+                return scandir(folder)
+            with mock.patch("tree_walk.os.scandir", side_effect=read):
+                status, report, error = run([str(path), "--submission", "case-study"])
+            self.assertEqual(2, status, report + error)
+            self.assertIn("1 output subdirectories", error)
+            self.assertNotIn(hidden.name, report + error)
 
 
 if __name__ == "__main__":

@@ -67,6 +67,7 @@ NO_LIMITS = {
     "guidelines_manifest": "a manifest reader whose lexical discovery vocabulary is separately classified",
     "guidelines_manifest_test_support": "test support for guideline-manifest fixtures, not a public checker",
     "guidelines_recs_test_support": "test support for recommendation fixtures, not a public checker",
+    "tree_walk_test_support": "OS-backed fixture setup for shared-walk consumer tests, not a public checker",
     "guidelines_search": "a bounded query command whose result limit is separately classified",
     "install_grilling_guard": "a deterministic installer whose explicitly named user files define its targets",
     "install_run_status_guard": "a deterministic installer whose explicitly named user file defines its target",

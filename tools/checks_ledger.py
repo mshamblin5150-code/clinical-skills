@@ -167,6 +167,8 @@ the coverage failure inspectable under the shared report-before-tier-2 rule.
 
 from __future__ import annotations
 
+import tree_walk
+
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import completion_checks
@@ -222,13 +224,6 @@ DECLARED_LIMITS = (
         "pre-review-walk-truth",
         "A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.",
         EvidenceDisposition.DECLARED_READING,
-    ),
-    DeclaredLimit(
-        "submission-lookup-recursion",
-        "The output submission lookup refuses extra live-junction matches or a dangling-junction miss, "
-        "can loop on an ancestor junction, and accepts one visible document when a second "
-        "same-name document lies beneath a folder it cannot list.",
-        EvidenceDisposition.BEHAVIOR,
     ),
     DeclaredLimit(
         "page-fingerprint-origin",
@@ -889,7 +884,15 @@ class BoundChecksSource:
 
 def _submission_document(submission: str) -> Path:
     root = repo_root.output_root()
-    matches = tuple(root.rglob(f"{submission}.md")) if root.is_dir() else ()
+    try:
+        walked = tree_walk.walk_files(root) if root.is_dir() else tree_walk.WalkResult()
+    except OSError as failure:
+        raise run_grader.SourceError("output root could not be read") from failure
+    if walked.unreadable_directories:
+        raise run_grader.SourceError(
+            f"{walked.unreadable_directories} output subdirectories could not be read"
+        )
+    matches = tuple(path for path in walked.files if path.match(f"{submission}.md"))
     if len(matches) != 1:
         detail = "no" if not matches else "more than one"
         raise run_grader.SourceError(
