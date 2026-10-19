@@ -10,6 +10,9 @@ prove that a required file names a committed set, path, or numbered case/run.
 It cannot prove that an unattributed row, score or count came from a fixture, or
 that a synthetic example merely resembles an encounter, so review still owns
 those questions.
+
+Decision records under docs/adr/ are history no generating pass loads;
+docs/agents/ documents are read only for tracker work. Both are outside this check.
 """
 
 from __future__ import annotations
@@ -27,22 +30,22 @@ FIXTURES = ROOT / "fixtures"
 REFERENCE = ROOT / "reference"
 THRESHOLDS = REFERENCE / "thresholds"
 
-# Every Markdown file shipped inside a skill can become part of that skill's
-# required instructions.  The repo-wide agent rules and clinical-note's
-# required or conditionally required reference sheets sit outside that tree.
-# Guard the safe superset so a newly linked supporting file cannot open a gap.
+# Guard every skill and reference Markdown file so a newly linked sheet cannot
+# open a gap. Root documents are named because each was ruled on individually:
+# README.md and CONTEXT.md join because authors edit them constantly, not because
+# a generating pass reads them; CLAUDE.md remains outside pending issue #1800.
 REQUIRED_INSTRUCTIONS = sorted(
     {
         ROOT / "AGENTS.md",
-        REFERENCE / "guidelines-uspstf.md",
-        REFERENCE / "medatrax-fields.md",
+        ROOT / "README.md",
+        ROOT / "CONTEXT.md",
         *SKILLS.rglob("*.md"),
-        *THRESHOLDS.glob("*.md"),
+        *REFERENCE.rglob("*.md"),
     }
 )
 
 CONCRETE_FIXTURE_PATH = re.compile(
-    r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))"
+    r"fixtures/(?!README(?:\.md)?(?:[#)\s\]]|$))(?=[^\s`\]).,;:!?])"
 )
 NUMBERED_CASE_OR_RUN = re.compile(r"(?i)\b(?:case|run)\s*-?\d+\b")
 # These strings are ordinary clinical notation as well as assertion identifiers.
@@ -115,7 +118,11 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         self.assertGreater(len(REQUIRED_INSTRUCTIONS), 5)
         self.assertTrue(all(path.is_file() for path in REQUIRED_INSTRUCTIONS))
         self.assertIn(ROOT / "AGENTS.md", REQUIRED_INSTRUCTIONS)
+        self.assertIn(ROOT / "README.md", REQUIRED_INSTRUCTIONS)
+        self.assertIn(ROOT / "CONTEXT.md", REQUIRED_INSTRUCTIONS)
+        self.assertNotIn(ROOT / "CLAUDE.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(REFERENCE / "medatrax-fields.md", REQUIRED_INSTRUCTIONS)
+        self.assertIn(REFERENCE / "uptodate" / "README.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(SKILLS / "clinical-note" / "GLOSSARY.md", REQUIRED_INSTRUCTIONS)
 
     def test_no_required_instruction_names_a_concrete_fixture(self):
@@ -165,6 +172,24 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         self.assertIsNotNone(
             CONCRETE_FIXTURE_PATH.search("../../fixtures/example-set/README.md")
         )
+
+    def test_a_bare_fixture_directory_discloses_no_identity(self):
+        for suffix in ("", " ", "\t", "\n", "`", "]", ")", ".", ",", ";", ":", "!", "?"):
+            with self.subTest(suffix=suffix):
+                self.assertIsNone(CONCRETE_FIXTURE_PATH.search("fixtures/" + suffix))
+        self.assertIsNone(
+            CONCRETE_FIXTURE_PATH.search("fixtures/                 de-identified regression material and run records")
+        )
+
+    def test_fixture_path_segments_still_disclose_an_identity(self):
+        for path in (
+            "fixtures/day-a/shorthand/case-01.md",
+            "fixtures/*/assertions.md",
+            "fixtures/<set>/",
+            "fixtures/README-other/",
+        ):
+            with self.subTest(path=path):
+                self.assertIsNotNone(CONCRETE_FIXTURE_PATH.search(path))
 
 
 if __name__ == "__main__":

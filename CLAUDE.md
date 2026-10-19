@@ -1990,6 +1990,12 @@ that object and copies none of its rows.
 
 ### Tracker publish hook
 
+ADR 0436 adds an independent closing-hazard refusal for PR create/edit titles and
+bodies, through `gh pr` or REST. The `gh pr merge` route reads `-t`/`--subject`,
+`-b`/`--body`, and `-F`/`--body-file`; REST merge reads `commit_title` and
+`commit_message`. Only the closing-hazard rule runs on merge, with no tracker
+readback. Unreproducible merge text refuses under ADR 0096.
+
 On `gh pr create` and `gh pr edit`, a whole-ticket binding naming a `grilling`
 ticket is refused as a premature close, using the existing batched readback.
 Use `Part of #N` on its own line after checking whether another session holds
@@ -2313,6 +2319,12 @@ It prints a path, a line number for content and its own table's entry — **neve
 
 ### Closing keyword scan
 
+ADR 0436 makes closing hazards refusing at both the pre-publication hook (PR
+create/edit and supplied merge messages) and the local `commit-msg` hook. Any
+nonzero closing-scan exit refuses a commit; spelling stays advisory. With no
+Python, the hook prints `SKIPPED` and allows. The scanner owns its grammar and
+messages; the hook and reader own their respective `NOT_REACHED` boundaries.
+
 The separate **Premature close scan, pull request** CI step runs
 `tracker_merge_receipt.py --check-premature-close` over the title, body, and
 commit messages. It refuses whole-ticket bindings on `grilling` tickets and
@@ -2330,7 +2342,7 @@ gh pr view <number> --json title,body,commits | python tools/closing_keyword_sca
 
 **Three surfaces, three times.** The local `commit-msg` hook grades the proposed commit message. A pull-request CI run grades the PR title, body, and every commit message returned by `gh pr view`, and an `edited` event reruns it when the PR text changes without a new commit. A push to `main` grades every commit in the pushed range, including a server-created merge message. That final check is detection after GitHub may already have acted; it is not presented as prevention.
 
-**The enforcement posture follows when the result can still prevent the action.** The command returns 1 for a finding and the local hook preserves a successful commit status. Pull-request CI keeps that nonzero verdict visible; the push-to-`main` step uses `continue-on-error` because GitHub has already acted. Neither is a required status check under ADR 0002. Findings print the artifact field, line, keyword, and ticket number, never the surrounding text.
+**The enforcement posture follows when the result can still prevent the action.** The command returns 1 for a finding and the local hook refuses the commit on any nonzero scan exit (ADR 0436). Pull-request CI keeps that nonzero verdict visible; the push-to-`main` step uses `continue-on-error` because GitHub has already acted. Neither is a required status check under ADR 0002. Findings print the artifact field, line, keyword, and ticket number, never the surrounding text.
 
 ### The run record's one exception
 
@@ -3280,8 +3292,8 @@ staged spelling check on every commit in that clone. The hook records its staged
 beside their triggering paths instead of copying that inventory here. The threshold check
 selects staged clinical sheets, or every sheet once when the catalog is staged, and passes
 `--allow-stale-build` on both routes; the threshold-sheet section explains that flag's cost. `tools/hooks/commit-msg`
-checks the proposed message for spelling and GitHub closing keywords. Both spelling checks and the
-closing-keyword check are advisory.
+checks the proposed message for spelling and GitHub closing keywords. Both spelling checks are advisory; the
+closing-keyword check refuses on any nonzero scan exit (ADR 0436).
 
 **Refusing checks are added deliberately because their findings protect clinical guidance a
 consumer may rely on.** A fabricated citation, a false corpus denominator, an unevidenced subject

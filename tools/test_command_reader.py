@@ -46,9 +46,27 @@ class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
                 ("pr", "comment"),
                 ("pr", "edit"),
                 ("pr", "review"),
+                ("pr", "merge"),
                 ("api",),
             ),
         )
+
+
+class MergeMessagesAreRead(unittest.TestCase):
+    def test_explicit_merge_fields_have_the_same_route_by_cli_and_rest(self):
+        for command in (
+            "gh pr merge 88 --subject 'A change' --body 'Merge text'",
+            "gh pr merge 88 -t 'A change' -b 'Merge text'",
+            "gh pr merge 88 --subject='A change' --body='Merge text'",
+            "gh api -X PUT repos/example/project/pulls/88/merge -f commit_title='A change' -f commit_message='Merge text'",
+        ):
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ('pr', 'merge'))
+                self.assertEqual(result.number, 88)
+                self.assertFalse(result.unreadable)
+                self.assertEqual([(row.field, row.text) for row in result.publications],
+                                 [('subject', 'A change'), ('body', 'Merge text')])
 
 
 class InlineTrackerTextIsRead(unittest.TestCase):
@@ -2031,6 +2049,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
             {
+                'merge messages reach only supplied subject and body text',
                 'a GraphQL document assembled at run time is unreadable',
                 'a file rewritten after the scan is graded on its earlier text',
                 'a newly added API endpoint is refused until classified',
