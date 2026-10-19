@@ -473,6 +473,20 @@ class SupersessionBindingTests(unittest.TestCase):
         records["0343-new.md"] = records["0343-new.md"].replace("except ruling 2,", "except ruling 7,")
         self.assertTrue(any("excepts an absent ruling" in row for row in supersession_findings(records)))
 
+    def test_binding_requires_live_banner_proof_and_disposition_for_a_discharged_pair(self):
+        records = self.whole_records()
+        records['0107-middle.md'] = 'ADR 0106 is replaced.\n'
+        report = {'pairs': [{
+            'later': '0107', 'earlier': '0106', 'classification': 'overturned',
+            'disposition': 'adr-0343-banner',
+        }]}
+        self.assertEqual(supersession_findings(records, report), ())
+        del report['pairs'][0]['disposition']
+        self.assertTrue(any('no declaration or banner disposition' in finding for finding in supersession_findings(records, report)))
+        report['pairs'][0]['disposition'] = 'adr-0343-banner'
+        records['0106-old.md'] = records['0106-old.md'].replace('*Superseded', '*Corrected')
+        self.assertTrue(any('invalid banner disposition' in finding for finding in supersession_findings(records, report)))
+
     def test_an_unread_declaration_is_a_finding(self) -> None:
         records = self.paired_records()
         records["0280-new.md"] = records["0280-new.md"].replace("- [ADR", "* [ADR")

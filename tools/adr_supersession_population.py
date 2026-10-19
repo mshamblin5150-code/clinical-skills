@@ -28,6 +28,9 @@ DECLARED_LIMITS = (
     "or merely mentions it is a reader's classification, never a matcher verdict.",
     "Live historical coverage checks pair identities through the report's last ADR; "
     "it does not certify the historical bytes. Use --revision for that binding.",
+    "Revision mode checks banner-disposition spelling and class, not the existence "
+    "of a retirement banner that may postdate those bytes; live coverage and the "
+    "supersession binding check the banner itself.",
 )
 RECORD = re.compile(r"^(\d{4})-.+\.md$")
 TEXT_CITATION = re.compile(r"\bADR\s+(\d{4})\b")
@@ -57,7 +60,8 @@ def banner_population(records: dict[str, str]) -> tuple[set[str], set[tuple[str,
     return banners, declarations
 
 
-def banner_disposition_findings(banners, declarations, rows) -> list[str]:
+def banner_disposition_findings(banners: set[str] | None, declarations, rows) -> list[str]:
+    """Check later banner proof only when the supplied population is live."""
     findings = []
     for row in rows:
         if not isinstance(row, dict):
@@ -68,9 +72,11 @@ def banner_disposition_findings(banners, declarations, rows) -> list[str]:
             continue
         disposition = row.get('disposition')
         if disposition is not None:
-            if disposition != BANNER_DISPOSITION or key[1] not in banners or row.get('classification') != 'overturned':
+            if (disposition != BANNER_DISPOSITION
+                    or row.get('classification') != 'overturned'
+                    or (banners is not None and key[1] not in banners)):
                 findings.append(f"{key[0]} -> {key[1]}: invalid banner disposition")
-        elif key[1] in banners and key not in declarations and row.get('classification') in ('overturned', 'ground falsified'):
+        elif banners is not None and key[1] in banners and key not in declarations and row.get('classification') in ('overturned', 'ground falsified'):
             findings.append(f"{key[0]} -> {key[1]}: no declaration or banner disposition")
     return findings
 
@@ -324,7 +330,7 @@ def classification_findings(population: dict, classification: dict, *, historica
     for later, earlier in sorted(expected - seen):
         findings.append(f"missing classification: {later} -> {earlier}")
     findings.extend(banner_disposition_findings(
-        set(population.get('banner_records', [])),
+        None if population.get('revision') is not None else set(population.get('banner_records', [])),
         {tuple(pair) for pair in population.get('declaration_pairs', [])}, rows,
     ))
     return findings

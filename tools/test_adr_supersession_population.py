@@ -182,6 +182,23 @@ class PopulationTests(unittest.TestCase):
 
 
 class ClassificationTests(unittest.TestCase):
+    def test_historical_bytes_can_predate_a_later_banner_disposition(self):
+        report = fixture()
+        report['revision'] = 'a' * 40
+        reading = classified(report)
+        reading['revision'] = report['revision']
+        reading['pairs'][0].update(classification='overturned', disposition='adr-0343-banner')
+        self.assertEqual([], population.classification_findings(report, reading))
+        for field, value in [('classification', 'neither'), ('disposition', 'invented-banner')]:
+            mutant = copy.deepcopy(reading)
+            mutant['pairs'][0][field] = value
+            self.assertTrue(any('invalid banner disposition' in finding for finding in population.classification_findings(report, mutant)))
+        live = copy.deepcopy(report)
+        del live['revision']
+        live_reading = copy.deepcopy(reading)
+        del live_reading['revision']
+        self.assertTrue(any('invalid banner disposition' in finding for finding in population.classification_findings(live, live_reading)))
+
     def test_banner_pair_requires_its_disposition_without_a_pair_declaration(self):
         report = population.derive_records([
             ('0001-first.md', b'# First\n\n*Superseded 2099-10-11.* Every ruling in "First" is withdrawn by [ADR 0343](0343-retired.md) ruling 1.\n\n## Decision\n\nOld.\n'),
