@@ -10,8 +10,9 @@ the faculty video remains the **Case material**. Follow the narration rules in
 
 Use an existing run under `scratch/`. Keep all video, audio, still images, logs and text there.
 Confirm the video link in the Sanity Check. Set up a separate environment once, using a Python
-version supported by the pinned packages, then pass its interpreter explicitly. For example on
-Windows, with a compatible Python installed:
+version supported by the pinned packages, then pass its interpreter explicitly. Python 3.11 was
+used for the [historical build probe](../../../reference/case-video-probe.md). For example on
+Windows, with that Python installed:
 
 ```powershell
 py -3.11 -m venv <scratch>/sessions/<environment-key>/env
@@ -49,7 +50,7 @@ The example frame list is replaced by the entire retained population, exactly on
 Run both local passes with the same slide vocabulary:
 
 ```powershell
-python tools/case_video.py transcribe <run> --python <environment-python> --terms <run>/slide-terms.json --models medium.en small.en
+python tools/case_video.py transcribe <run> --python <environment-python> --terms <run>/slide-terms.json --models large-v3 small.en
 ```
 
 Use `--capture` again if preparation used a nondefault directory. Select the largest model that

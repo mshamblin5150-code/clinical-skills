@@ -12,12 +12,10 @@ is the submitted artifact or an archive of a contribution loaded into a Canvas C
 Before first prose, follow [Paper language](../_shared/reference/paper-language.md):
 reuse the saved account answer or ask once and save it when missing.
 
-For a video case, follow [Case video capture](../_shared/reference/case-video.md) before drafting:
-prepare and read every slide image, supply its terms, then transcribe with two local model sizes.
-Show one list of narration-only drug names, doses and numbers plus every disagreeing span, and
-wait for the clinician's confirmations or corrections before quoting or faulting an entry. A
-failed capture stops for his repair-or-type choice. Record the selected route and bound review,
-including `kind: none` for a document-only case. Before handoff,
+For a video case, follow [Case video capture](../_shared/reference/case-video.md) before drafting;
+that sheet owns capture order, the confirmation-list stop, and the clinician's repair-or-type
+choice after failure. Record its selected route and bound review, including its document-only
+declaration for a case with no video. Before handoff,
 `python tools/case_video.py check <run> --submission <key> --draft <final-draft>` must exit 0;
 `checks_ledger.py --submission` repeats the gate. Follow the shared
 [narration rule](../_shared/reference/sourcing.md#case-video-narration).

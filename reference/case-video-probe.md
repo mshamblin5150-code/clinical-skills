@@ -22,8 +22,17 @@ the same slide vocabulary, CPU int8 and four threads. The retained capture manif
 10.766 seconds for the medium pass and 3.485 seconds for the small pass, including loading the
 cached models. Both passes covered the synthetic narration. Their one disagreement was the
 spelling `five` versus `5`, which the tool retained for confirmation. Neither agreement nor this
-synthetic voice establishes clinical accuracy. Larger models were not timed; the default pair
-is a starting pair and each run records why its primary size runs acceptably on its own machine.
+synthetic voice establishes clinical accuracy.
+
+The same `prepare` and `transcribe` commands were then repeated with `--models large-v3 small.en`.
+The three frame files matched the images already read byte for byte. The first large-model pass
+took 95.188 seconds including its initial model download. A fresh capture with the now-cached
+models took 16.937 seconds for `large-v3` and 3.390 seconds for `small.en`; the repository suite
+was running concurrently. The large and small readings had no disagreement on this sample.
+The largest supported size therefore ran within twice the synthetic video's duration once cached,
+the build's practical starting criterion. The default is `large-v3` with `small.en`; a consumer
+records its own size rationale and adjusts the pair when that machine cannot run it acceptably.
+This does not measure long-lecture throughput or promise the same speed on another machine.
 
 The consumer wrapper was also exercised without the separate interpreter and refused rather
 than importing a heavy package or claiming a capture. The stdlib tests exercise changed media,

@@ -227,10 +227,9 @@ Without a clean required run, attachment identity is not mechanically verified. 
 ceiling belongs to `lms_attachments.DECLARED_LIMITS`.
 
 **`tools/case_video.py` is a Required command for video cases in `practicum-case-study` and
-`peer-critique`.** Follow [Case video capture](skills/_shared/reference/case-video.md): prepare
-the video and frames, read every image, then transcribe locally with two different model sizes
-using the slides' vocabulary. Both completion graders read the keyed source-route and confirmation
-record. A failed capture stops for the clinician's repair-or-type choice; captions supply no fallback.
+`peer-critique`.** Follow [Case video capture](skills/_shared/reference/case-video.md) before drafting
+and require a clean keyed source-route and confirmation review before handoff. Both completion
+graders read that review. The shared sheet owns capture order, confirmation and failure routing.
 The command's complete ceiling belongs to `case_video.DECLARED_LIMITS`.
 
 **Case video prerequisites live in a separate Python environment.** The capture worker needs

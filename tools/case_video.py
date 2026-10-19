@@ -14,14 +14,17 @@ import gc
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import time
+import uuid
 from urllib.parse import urlsplit
 
 import completion_checks
+import artifact_lock
 from console_codec import require_python_floor, use_utf8
 import coursework_run
 
@@ -52,7 +55,12 @@ def read_json(path: Path):
 
 
 def write_json(path: Path, value) -> None:
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".partial")
+    try:
+        temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def inside(root: Path, name: str) -> Path:
@@ -324,7 +332,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--source")
     parser.add_argument("--route", choices=("local", "winx"), default="local")
     parser.add_argument("--terms", type=Path)
-    parser.add_argument("--models", nargs=2, choices=MODELS, default=("medium.en", "small.en"))
+    parser.add_argument("--models", nargs=2, choices=MODELS, default=("large-v3", "small.en"))
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.001)
     parser.add_argument("--submission")
@@ -348,14 +356,19 @@ def main(argv: list[str]) -> int:
         if args.action == "transcribe" and not args.terms:
             raise ValueError("transcribe requires --terms after reading the slides")
         if not args.worker:
-            if args.python is None or not args.python.is_file() or args.python.resolve() == Path(sys.executable).resolve():
+            # A POSIX venv executable commonly symlinks to the base Python;
+            # comparing resolved binaries would reject a valid isolated env.
+            if args.python is None or not args.python.is_file() or args.python.absolute() == Path(sys.executable).absolute():
                 raise ValueError("supply --python from a separate capture environment")
             if args.action == "prepare":
                 root.mkdir(parents=True, exist_ok=False)
             else:
                 valid_capture(root)
-            with (root / f"{args.action}.log").open("w", encoding="utf-8") as log:
-                result = subprocess.run([str(args.python), "-E", "-s", str(Path(__file__).resolve()), *argv, "--worker"], stdout=log, stderr=log)
+            # Keep the read/modify/write sequence exclusive, including the
+            # worker. The worker inherits this operation, not a second lock.
+            with artifact_lock.hold(root, "case video capture"):
+                with (root / f"{args.action}.log").open("w", encoding="utf-8") as log:
+                    result = subprocess.run([str(args.python), "-E", "-s", str(Path(__file__).resolve()), *argv, "--worker"], stdout=log, stderr=log)
             if result.returncode:
                 raise ValueError("capture failed; private worker log retained. Choose repair or clinician-typed capture; a failed download can use a WinX-saved file")
         elif args.action == "prepare":

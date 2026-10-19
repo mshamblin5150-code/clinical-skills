@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 import case_video
+import artifact_lock
 
 
 class Alignment(unittest.TestCase):
@@ -181,6 +182,20 @@ class CaptureGate(unittest.TestCase):
         )
         self.assertEqual(2, result.returncode)
         self.assertNotIn("private-case-filename", result.stderr)
+
+    def test_busy_capture_does_not_start_a_worker_or_clobber_its_log(self):
+        log = self.root / "transcribe.log"
+        log.write_bytes(b"Existing private log")
+        separate = self.run / "separate-python.exe"
+        separate.write_bytes(b"Not an executable; a locked operation must never launch it")
+        with artifact_lock.hold(self.root, "synthetic competing capture"):
+            result = subprocess.run(
+                [sys.executable, str(Path(case_video.__file__)), "transcribe", str(self.run),
+                 "--python", str(separate), "--terms", str(self.root / "slide-terms.json")],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+        self.assertEqual(2, result.returncode)
+        self.assertEqual(b"Existing private log", log.read_bytes())
 
     def test_unselected_sitting_cannot_supply_a_review(self):
         self.assertTrue(case_video.completion_gate(self.run, "other", {"other": self.draft})[0])
