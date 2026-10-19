@@ -22,7 +22,9 @@ import json
 import re
 import shutil
 import sqlite3
+import sys
 import tempfile
+import types
 import unittest
 from contextlib import closing, redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -1879,6 +1881,92 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                 scan.RouteStatus.INVALID,
                 scan._route_status(subject, f"{first} | {last}", "example"),
             )
+
+    def drug_read(self, words: str, code: str, route: str) -> tuple[int, str]:
+        descriptor = scan._official_descriptor("ICD-10", code)
+        (self.notes / "case-01.md").write_text(
+            f"# Synthetic note\nFinal diagnosis: {words} - {code}\n"
+            "Active treatment at initial encounter.\n", encoding="utf-8",
+        )
+        (self.worksheets / "case-01.md").write_text(
+            f'ICD-10  {code}  {descriptor}\n  ANCHOR: "{words}"\n', encoding="utf-8",
+        )
+        subject = self.brief()["pairs"][0]["codes"][0]
+        record = {key: subject[key] for key in ("subject_id", "system", "code", "role")}
+        record.update(
+            agreeing_words=words, route=route,
+            encounter_evidence="Active treatment at initial encounter.",
+            open_status_evidence="none", threshold="none", waits_on_result="none",
+        )
+        return self.grade({"pairs": [{"stem": "case-01", "codes": [record]}]}, show=True)
+
+    def test_toxic_effect_sting_chain_needs_no_poisoning_word(self):
+        route = (
+            "Sting (venomous) (with allergic or anaphylactic shock) -> see Table of Drugs "
+            "and Chemicals, by animal or substance, poisoning | "
+            "Venom, venomous (bite) (sting) > hornet > "
+            "Poisoning Accidental (unintentional) -> code T63.451"
+        )
+        status, report = self.drug_read("hornet sting", "T63.451A", route)
+        self.assertEqual(0, status, report)
+
+    def test_toxic_effect_columns_follow_intent_and_medicine_stays_separate(self):
+        columns = (
+            ("Poisoning Accidental (unintentional)", "1"),
+            ("Poisoning Intentional self-harm", "2"),
+            ("Poisoning Assault", "3"),
+            ("Poisoning Undetermined", "4"),
+        )
+        for words, expected in (
+            ("hornet sting", "1"),
+            ("hornet sting, intentional self-harm", "2"),
+            ("hornet sting, assault", "3"),
+            ("hornet sting, possibly intentional self-harm", "4"),
+            ("hornet sting, possibly assault", "4"),
+            ("hornet sting, undetermined intent", "4"),
+            ("hornet sting, as prescribed, adverse effect", "1"),
+            ("hornet sting, taking less", "1"),
+        ):
+            for column, intent in columns:
+                with self.subTest(words=words, column=column):
+                    status, report = self.drug_read(
+                        words, f"T63.45{intent}A",
+                        f"Hornet (sting) > {column} -> code T63.45{intent}",
+                    )
+                    self.assertEqual(0 if intent == expected else 1, status, report)
+        for words, expected in (("ibuprofen exposure", 1), ("ibuprofen poisoning", 0)):
+            with self.subTest(words=words):
+                status, report = self.drug_read(
+                    words, "T39.311A",
+                    "Ibuprofen > Poisoning Accidental (unintentional) -> code T39.311",
+                )
+                self.assertEqual(expected, status, report)
+
+    def test_brief_generates_column_rules_from_the_matchers_patterns(self):
+        instructions = self.brief()["instructions"]
+        for name in (
+            "DRUG_POISONING_PATTERN", "DRUG_UNDERDOSING_PATTERN", "DRUG_PROPER_USE_PATTERN",
+            "DRUG_REACTION_PATTERN", "DRUG_SELF_HARM_PATTERN", "DRUG_INTENTIONAL_PATTERN",
+            "DRUG_ASSAULT_PATTERN", "DRUG_HEDGE_PATTERN", "DRUG_UNDETERMINED_PATTERN",
+        ):
+            with self.subTest(pattern=name):
+                self.assertIn(getattr(scan, name), instructions)
+
+    def test_changed_column_pattern_changes_both_public_brief_and_read(self):
+        words = "ibuprofen test exposure"
+        route = "Ibuprofen > Poisoning Accidental (unintentional) -> code T39.311"
+        self.assertEqual(1, self.drug_read(words, "T39.311A", route)[0])
+        source = Path(scan.__file__).read_text(encoding="utf-8")
+        mutated = source.replace("nonprescribed|with alcohol", "nonprescribed|with alcohol|test exposure")
+        self.assertNotEqual(source, mutated)
+        module = types.ModuleType("anchor_scan_column_mutant")
+        module.__file__ = scan.__file__
+        with patch.dict(sys.modules, {module.__name__: module}):
+            exec(compile(mutated, scan.__file__, "exec"), module.__dict__)
+            with patch.dict(globals(), scan=module):
+                status, report = self.drug_read(words, "T39.311A", route)
+                self.assertEqual(0, status, report)
+                self.assertIn("with alcohol|test exposure", self.brief()["instructions"])
 
     def test_drug_columns_follow_the_guideline_definitions(self):
         cases = (

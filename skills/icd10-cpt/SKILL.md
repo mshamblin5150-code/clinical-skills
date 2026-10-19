@@ -276,6 +276,20 @@ prescribed or stopping on one's own takes underdosing. Self-harm and assault req
 words. When intent is not stated, poisoning defaults to accidental. Undetermined intent requires the
 note to say it cannot be determined.
 
+For a toxic-effect subject in `T51`–`T65`, the Table's substance supplies the exposure:
+choose among its poisoning-intent columns without requiring the label to say *poisoning*.
+Thus *hornet sting* can start at the index's Sting referral and reach the hornet-venom
+accidental stem; an asserted self-harm intent takes self-harm, and a hedged intent takes
+undetermined. These substances have no adverse-effect or underdosing branch. The reader
+still decides whether the documented exposure caused harm; the route cannot establish that.
+[ADR 0414](../../docs/adr/0414-a-toxic-effect-code-takes-its-column-from-intent-alone-and-the-reader-brief-states-the-grader-s-own-column-words.md).
+The blind brief derives the check's exact column patterns from the constants it uses.
+Medicine columns have the separate code-set and quoted-ground ruling in
+[ADR 0430](../../docs/adr/0430-a-medicine-code-s-drug-column-is-settled-by-the-code-set-where-it-can-and-otherwise-by-a-counted-reader-quoted-ground.md);
+until [#1889](https://github.com/mshamblin5150-code/clinical-skills/issues/1889) is built,
+the check still requires its existing medicine word patterns. A missing pattern does not
+overturn that ruling or justify rewording the note to clear the check.
+
 A flat denial of intent also takes accidental: *ibuprofen ingestion, not intentional*, *denies
 self-harm* and *no assault* all take the accidental stem. A denial is one of *not*, *no*, *denies*,
 *denied*, *without*, *negative for* or *never*, and it covers only the intent words after it, up to
