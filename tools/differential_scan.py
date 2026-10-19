@@ -1549,7 +1549,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  guideline tails checked against source evidence  "
         f"{scan.guideline_tails_checked}",
         f"  Rh(D) citations: year not compared - the sheet states none  {scan.guideline_grade_only}",
-        f"  USPSTF citations not graded before the check start  {scan.guideline_not_graded}",
+        f"  USPSTF citations {run_grader.NOT_GRADED} before the check start  {scan.guideline_not_graded}",
         f"  USPSTF no row tails  {scan.guideline_no_row}",
         f"  other tails not compared  {scan.guideline_other_uncompared}",
         f"  guideline tails read  {scan.guideline_tails_read}",
