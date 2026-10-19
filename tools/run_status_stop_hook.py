@@ -64,6 +64,7 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 DECLARED_LIMITS = (
     "A run is in scope when a tool-call input names its directory and a file beneath it changed after the transcript's session start, excluding run-status.json, and a readable durable approval record names an approved item.",
     "When no session start can be read, the session falls back to the transcript mention rule.",
+    "A relative run path resolves against the hook process's working directory, which can differ from the command's working directory.",
     "A reply stating the status of a run this session only read is not checked.",
     "A write by another session into a directory this session named counts as touching it.",
     "Every touched open run needs one keyed status line; a current completed approval revision is not reopened by an unrelated later reply.",

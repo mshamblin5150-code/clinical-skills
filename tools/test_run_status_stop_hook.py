@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,18 @@ import unittest
 from unittest import mock
 
 import run_status_stop_hook as hook
+
+
+@contextlib.contextmanager
+def working_directory(path: Path):
+    """Temporarily enter ``path`` on interpreters before ``contextlib.chdir``."""
+
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 def command_record(run: Path) -> dict[str, object]:
@@ -236,7 +249,7 @@ class RunStatusContract(unittest.TestCase):
             for script in ("post_html.py", "course_assignment_scan.py"):
                 for prefix in ("", "./"):
                     record = {"type": "response_item", "payload": {"type": "function_call", "arguments": json.dumps({"cmd": f"{executable} tools/{script} {prefix}{relative}"})}}
-                    with self.subTest(executable=executable, script=script, prefix=prefix), mock.patch("os.getcwd", return_value=str(self.root)):
+                    with self.subTest(executable=executable, script=script, prefix=prefix), working_directory(self.root):
                         self.assertEqual((run.resolve(),), hook.touched_runs((self.start_record(), record)))
 
     def test_space_in_structured_and_quoted_absolute_run_paths(self) -> None:
