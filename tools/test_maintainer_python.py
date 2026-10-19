@@ -21,7 +21,7 @@ class MaintainerPythonCommand(unittest.TestCase):
                 pin.write_text(version, encoding="utf-8")
             return subprocess.run(
                 [sys.executable, str(COMMAND), "--pin", str(pin)],
-                capture_output=True, text=True, encoding="utf-8",
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
             )
 
     def test_matching_release_is_silent_and_successful(self):
