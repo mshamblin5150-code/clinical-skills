@@ -1,6 +1,6 @@
 # The threshold sheet gate refuses a control character anywhere in a sheet and a suite test covers every reference and skill file
 
-**Measured at:** 6743fa0f15c51c02eaa8921650800b57d042369d
+**Measured at:** 514b9b1c63634b9a2b4d82e649425855c5439021
 
 [#1861](https://github.com/mshamblin5150-code/clinical-skills/issues/1861) was filed from the
 grilling of #1755 under
@@ -31,7 +31,12 @@ cited-page check never compared them with the PDF text.
 without `normalize`. `normalize` is the step that deletes the C0 and C1 ranges from the extracted
 corpus. So the published recommendation records for the two Surviving Sepsis Campaign documents
 still carry the bell, escaped in their JSON (159 and 95 occurrences). `threshold_draft.py` prints
-from those records, which is how the bells reached the sheet.
+from those records, which is how the bells reached the sheet. The sweep closing this grilling
+widened the count. Every published record was decoded and its strings walked: 22 of 180 carry a
+control character, 8 AHA/ACC, 5 IDSA and 9 KDIGO, as U+0007 (1,196), U+0003 (100) and U+0004 (2).
+So a sheet drafted from any of those sources would arrive carrying them, and U+0003 sits outside
+the USPSTF documents where `MathematicalPi-One` was measured. Whether those U+0003 and U+0004
+characters are separators or operators was not rendered.
 
 **Deleting control characters in this corpus can delete an operator.** `MathematicalPi-One` sets
 comparison operators in U+0002 and U+0003, and the mapping is inverted between two USPSTF documents.
@@ -143,9 +148,13 @@ character was declined because it grows with every font finding for little gain 
 
 ## Build checklist
 
-- `threshold_grammar`: widen the raw-text refusal to ruling 2's set. If ADR 0395's or ADR 0421's
-  shared module has landed, take the set from it rather than restating it; otherwise keep the set
-  named in `threshold_grammar` with the reason it matches ADR 0421's. Keep U+001E and U+001F as a
+- `threshold_grammar`: widen the raw-text refusal to ruling 2's set, which is ADR 0421's outbound
+  set and never ADR 0395's narrower run-record set (C0 only, tab allowed in copied posts). The
+  shared module that ADR 0395, ADR 0421 and ADR 0422 ruling 6 each defer to whichever build lands
+  first is not built yet. If it has landed and carries ADR 0421's set under its own name, import
+  that set. Otherwise keep the set named in `threshold_grammar` with the reason it matches ADR
+  0421's, and whichever of the #1859 and #1861 builds lands second points `threshold_grammar` at the
+  shared set so the two copies cannot drift. Keep U+001E and U+001F in `threshold_grammar` as a
   named subset carrying the operator remedy.
 - `parse` collects every damaged line instead of the first, reading with `newline=""` so a bare
   carriage return stays visible, and reports `line N: U+XXXX` per damage.
@@ -154,13 +163,21 @@ character was declined because it grows with every font finding for little gain 
   The existing exit-2 expectation for U+001E and U+001F in `tools/test_threshold_sheet.py` moves to
   exit 1.
 - Ruling 7's two wordings, each pinned by a test.
+- The prose that describes today's two-character refusal moves with it:
+  `reference/thresholds/README.md`'s paragraph on destructive control slots, and the matching
+  sentence in `CLAUDE.md`'s **Guideline text extraction** section. The README is inside
+  `tools/test_blind_fixture_instructions.py`'s guarded population, which reads a bare "C1" token as
+  an assertion identifier, so the README names that range by its code points (U+0080 to U+009F).
 - The repair script for ruling 6 runs once, refuses any bell without a space before and a non-space
   after, and leaves the sheet's `RENDERED:` markers untouched. Render one cited page per source
   before committing the repair, and land the repair before or with the widened refusal so `main`
   stays green.
 - The suite test from ruling 5, reading each file's raw bytes, with the `.tsv` tab exception named
   beside its reason. A JSON file is also decoded and its keys and strings walked, on ADR 0395 ruling
-  4's reason; every committed JSON file under `reference/` and `skills/` decodes clean today.
+  4's reason; every committed JSON file under `reference/` and `skills/` decodes clean today. The
+  test walks the index, so its function states the tracked-only boundary that
+  `tools/test_ls_files_coverage.py` requires: a clean result means no tracked file fails, and an
+  untracked file is not read.
 - Tests drive `threshold_sheet.py` on a synthetic sheet with a planted tab, bell, NUL, form feed,
   vertical tab, bare carriage return, DEL and U+0085, and expect exit 1 naming each line. A
   Windows-line-ending sheet grades clean. A second clean sheet in the same `--all` run is still
