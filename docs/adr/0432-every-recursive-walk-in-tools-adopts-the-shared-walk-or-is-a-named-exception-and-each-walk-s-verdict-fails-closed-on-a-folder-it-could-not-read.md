@@ -200,6 +200,8 @@ under `skills/` or every file on disk. If it chooses the tracked files, the recu
 `tools/` and this ruling has nothing to govern; that record then marks it. Per-file decode failures
 are #1914's, not this record's.
 
+*Superseded 2026-10-19.* The words "`skills_mirror.run_relevant_paths` walks `skills/` through the shared walk." are superseded by [ADR 0435](0435-the-base-line-reads-the-files-git-lists-under-skills-and-a-file-that-is-not-clean-utf-8-is-read-with-replacement-and-counted.md) ruling 1. The function reads the files Git lists under `skills/`, tracked or new but not ignored, and holds no recursive walk, so this ruling's link and unopenable-folder postures have nothing to govern. Every other ruling here stands, and #1896's build no longer converts the function.
+
 ## Ruling 11 — the exception list holds only the mirror comparisons
 
 The exception list starts with `skills_mirror`'s copy-stale comparison over the canonical skills and
