@@ -52,6 +52,11 @@ for additional names without adding unused entries to the code resolver.
 
 ## The check ratchets on a count, and it walks every checkout
 
+Each file-count line includes subdirectories that could not be read and links not entered,
+including zeros. A link counts as one entry. Deep read failures qualify the count while the
+root keeps its top-level grade; they also hold back pre-removal and prevent a peer root
+from being called empty. The shared walk's boundary belongs to `tree_walk.DECLARED_LIMITS`.
+
 **A worktree can own a scratch root of its own, and most of the material lives in them.** That is
 [ADR 0059](../adr/0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md),
 ruled by the clinician on 2026-08-27, and it supersedes ADR 0033's ruling 3. `scratch_root()`

@@ -50,6 +50,7 @@ import shell_reader
 import repo_root
 import run_grader
 import browser_tab_hook
+import tree_walk
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -471,6 +472,8 @@ class TranscriptDiscovery:
     skipped_by_byte_search: int
     read: int
     unread: int = 0
+    unreadable_directories: int = 0
+    links_not_entered: int = 0
 
 
 @dataclass(frozen=True)
@@ -497,6 +500,9 @@ class Scan:
     transcripts_skipped_by_time: int = 0
     transcripts_skipped_by_byte_search: int = 0
     transcripts_read: int = 0
+    transcripts_unread: int = 0
+    unreadable_directories: int = 0
+    links_not_entered: int = 0
     browser: BrowserDiagnostics = BrowserDiagnostics()
     unread_remainder: int | None = None
     unmeasured_rounds: int = 0
@@ -1067,8 +1073,7 @@ def _tracked_files() -> tuple[Path, ...]:
 
 
 def _memory_files(index: Path) -> tuple[Path, ...]:
-    root = index.parent
-    return tuple(sorted(path for path in root.rglob("*") if path.is_file()))
+    return tuple(sorted(tree_walk.walk_files(index.parent).files))
 
 
 def snapshot(memory_index: Path) -> dict[str, str | None]:
@@ -1540,6 +1545,13 @@ def write_extract(
     destination = extract_path(run, submission, round_number)
     destination.parent.mkdir(parents=True, exist_ok=True)
     diagnostics = extract_diagnostics(transcripts, population)
+    memory_walk = tree_walk.walk_files(memory_index.parent)
+    baseline = {
+        str(path.resolve()): _hash(path)
+        for path in (*_tracked_files(), *memory_walk.files)
+    }
+    unreadable_directories = discovery.unreadable_directories + memory_walk.unreadable_directories
+    links_not_entered = discovery.links_not_entered + memory_walk.links_not_entered
     transcript_watermarks: dict[str, str] = {}
     for candidate in population:
         if candidate.kind != "departure-list":
@@ -1561,12 +1573,15 @@ def write_extract(
         f"TRANSCRIPTS-SKIPPED-BY-TIME: {discovery.skipped_by_time}",
         f"TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH: {discovery.skipped_by_byte_search}",
         f"TRANSCRIPTS-READ: {discovery.read}",
+        f"TRANSCRIPTS-UNREAD: {discovery.unread}",
+        f"UNREADABLE-DIRECTORIES: {unreadable_directories}",
+        f"LINKS-NOT-ENTERED: {links_not_entered}",
         f"POPULATION: {len(population)}",
         f"WATERMARK: {population[-1].identifier}",
         f"MEMORY-INDEX: {memory_index.resolve()}",
         "HARNESS-VERSIONS: " + (", ".join(diagnostics.harness_versions) or "none observed"),
         f"UNDECLARED-ENVELOPES: {diagnostics.undeclared_envelopes}",
-        f"UNREAD-REMAINDER: {diagnostics.unread_remainder}",
+        f"UNREAD-REMAINDER: {diagnostics.unread_remainder + discovery.unread + unreadable_directories}",
         f"UNDECLARED-ROW-TYPES: {diagnostics.undeclared_row_types}",
         f"UNDECLARED-CODEX-PAYLOAD-TYPES: {diagnostics.undeclared_codex_payload_types}",
         f"UNDECLARED-SYSTEM-SUBTYPES: {diagnostics.undeclared_system_subtypes}",
@@ -1593,7 +1608,7 @@ def write_extract(
     with destination.open("w", encoding="utf-8", newline="") as stream:
         stream.write(extract_text)
     baseline_path(run, submission, round_number).write_text(
-        json.dumps(snapshot(memory_index), sort_keys=True) + "\n",
+        json.dumps(baseline, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return destination, len(population)
@@ -2081,6 +2096,8 @@ def _survey_round(
             system_count = int(extract_fields["UNDECLARED-SYSTEM-SUBTYPES"])
             components = tuple(int(extract_fields[field]) for field in (
                 "UNDECLARED-ROW-TYPES", "UNDECLARED-CODEX-PAYLOAD-TYPES",
+            )) + tuple(int(extract_fields.get(field, "0")) for field in (
+                "TRANSCRIPTS-UNREAD", "UNREADABLE-DIRECTORIES",
             ))
             if system_count < 0 or any(count < 0 for count in components):
                 raise ValueError("negative remainder component")
@@ -2214,6 +2231,9 @@ def _survey_round(
             "transcripts_skipped_by_time": "TRANSCRIPTS-SKIPPED-BY-TIME",
             "transcripts_skipped_by_byte_search": "TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH",
             "transcripts_read": "TRANSCRIPTS-READ",
+            "transcripts_unread": "TRANSCRIPTS-UNREAD",
+            "unreadable_directories": "UNREADABLE-DIRECTORIES",
+            "links_not_entered": "LINKS-NOT-ENTERED",
         }.items()
     }
     browser = BrowserDiagnostics(
@@ -2301,6 +2321,9 @@ def survey(run: Path, submission: str) -> Scan:
             scan.transcripts_skipped_by_byte_search for scan in scans
         ),
         transcripts_read=sum(scan.transcripts_read for scan in scans),
+        transcripts_unread=sum(scan.transcripts_unread for scan in scans),
+        unreadable_directories=sum(scan.unreadable_directories for scan in scans),
+        links_not_entered=sum(scan.links_not_entered for scan in scans),
         browser=_sum_browser_diagnostics(scan.browser for scan in scans),
         unread_remainder=(
             sum(scan.unread_remainder or 0 for scan in scans)
@@ -2326,6 +2349,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  transcripts skipped by time     {scan.transcripts_skipped_by_time}",
         f"  transcripts skipped by bytes    {scan.transcripts_skipped_by_byte_search}",
         f"  transcripts read                {scan.transcripts_read}",
+        f"  transcripts unread              {scan.transcripts_unread}",
+        f"  unreadable directories          {scan.unreadable_directories}",
+        f"  links not entered               {scan.links_not_entered}",
         f"  sittings begun after extract    {scan.later_sittings}",
         f"  unowned browser page actions    {scan.browser.unowned_page_actions} (reported, {NOT_GRADED})",
         f"  tab creation parses: tabs_create_mcp  {scan.browser.creation_parses_tabs_create_mcp}",
@@ -2489,13 +2515,16 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
     """Find every main sitting that names ``run``, bounded before parsing."""
     forced = explicit.resolve() if explicit is not None else None
     paths: set[Path] = {forced} if forced is not None else set()
+    unreadable_directories = 0
+    links_not_entered = 0
     if is_live_run(run):
-        paths.update(
-            path.resolve()
-            for root in transcript_roots()
-            if root.is_dir()
-            for path in root.rglob("*.jsonl")
-        )
+        for root in transcript_roots():
+            if not root.exists():
+                continue
+            walk = tree_walk.walk_files(root)
+            paths.update(path.resolve() for path in walk.files if path.suffix == ".jsonl")
+            unreadable_directories += walk.unreadable_directories
+            links_not_entered += walk.links_not_entered
     ordered = tuple(sorted(paths, key=lambda path: str(path).casefold()))
     created_at = _run_created_at(run)
     needle = run.name.encode("utf-8")
@@ -2534,6 +2563,8 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
         skipped_by_byte_search=skipped_by_byte_search,
         read=len(selected),
         unread=unread,
+        unreadable_directories=unreadable_directories,
+        links_not_entered=links_not_entered,
     )
 
 
@@ -2653,6 +2684,9 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                 f"  transcripts skipped by time     {extract_fields['TRANSCRIPTS-SKIPPED-BY-TIME']}",
                 f"  transcripts skipped by bytes    {extract_fields['TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH']}",
                 f"  transcripts read                {extract_fields['TRANSCRIPTS-READ']}",
+                f"  transcripts unread              {extract_fields.get('TRANSCRIPTS-UNREAD', '0')}",
+                f"  unreadable directories          {extract_fields.get('UNREADABLE-DIRECTORIES', '0')}",
+                f"  links not entered               {extract_fields.get('LINKS-NOT-ENTERED', '0')}",
                 *(
                     (f"  rebuilt round                 {rebuild_value}",)
                     if rebuild_value

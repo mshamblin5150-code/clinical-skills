@@ -11,7 +11,6 @@ to the owning checkout without classifying or deleting what moves.
 from __future__ import annotations
 
 import ast
-import os
 import re
 import stat
 import subprocess
@@ -22,6 +21,7 @@ from pathlib import Path
 from console_codec import require_python_floor, use_utf8
 from git_paths import GitPathError, read_path_records
 import repo_root
+from tree_walk import WalkResult, walk_files
 
 
 # This is the only current statement of the grandfathered owning-checkout count.
@@ -87,8 +87,9 @@ UNLOCKED_UNMOUNTED_WORKTREE_LIMIT = (
     "material then leaves the walk permanently"
 )
 PEER_DIRECTORY_LINK_LIMIT = (
-    "a peer scratch root holding only a directory symbolic link counts as no "
-    "file because the census does not traverse it"
+    "the census never enters symbolic links or junctions below any scratch or "
+    "output root; each counts as one entry, and material behind a live link "
+    "is outside the count"
 )
 
 DECLARED_LIMITS = (
@@ -133,12 +134,16 @@ class RootCount:
     unaccounted: int
     files: int
     main_accounted: int = 0
+    unreadable_directories: int = 0
+    links_not_entered: int = 0
 
 
 @dataclass(frozen=True)
 class PeerRootCount:
     root: Path
     files: int
+    unreadable_directories: int = 0
+    links_not_entered: int = 0
 
 
 @dataclass(frozen=True)
@@ -160,6 +165,10 @@ class PreRemovalRead:
     tracked_changes: int
     commits_not_on_main: int
     locked: bool
+    scratch_unreadable_directories: int = 0
+    scratch_links_not_entered: int = 0
+    output_unreadable_directories: int = 0
+    output_links_not_entered: int = 0
 
     @property
     def held_back(self) -> bool:
@@ -171,6 +180,8 @@ class PreRemovalRead:
                 self.tracked_changes,
                 self.commits_not_on_main,
                 self.locked,
+                self.scratch_unreadable_directories,
+                self.output_unreadable_directories,
             )
         )
 
@@ -216,7 +227,10 @@ def peer_population(
         for root, state in unavailable.items()
         if root not in gating_roots and state == "locked registration"
     )
-    peer_material = tuple(item for item in counted_peers if item.files > 0)
+    peer_material = tuple(
+        item for item in counted_peers
+        if item.files > 0 or item.unreadable_directories or item.links_not_entered
+    )
     material_roots = {item.root for item in peer_material}
     peer_empty = tuple(
         item for item in counted_peers if item.root not in material_roots
@@ -261,7 +275,10 @@ def print_peer_population(
         item = counts_by_root.get(root)
         if item is not None:
             noun = "file" if item.files == 1 else "files"
-            state = f"{item.files} {noun}"
+            state = (
+                f"{item.files} {noun}; "
+                + walk_shortfalls(item.unreadable_directories, item.links_not_entered)
+            )
         elif root in unreadable_roots:
             state = "unreadable"
         elif root in peers.stale:
@@ -404,15 +421,15 @@ def scratch_names(text: str) -> frozenset[str]:
     return frozenset(names)
 
 
-def count_files(root: Path) -> int:
-    total = 0
+def walk_shortfalls(unreadable_directories: int, links_not_entered: int) -> str:
+    return (
+        f"{unreadable_directories} subdirectories could not be read; "
+        f"{links_not_entered} links not entered"
+    )
 
-    def failed(error: OSError) -> None:
-        raise error
 
-    for _, _, filenames in os.walk(root, followlinks=False, onerror=failed):
-        total += len(filenames)
-    return total
+def file_total(walk: WalkResult) -> int:
+    return len(walk.files) + walk.links_not_entered
 
 
 def count_root(
@@ -429,22 +446,25 @@ def count_root(
     if not stat.S_ISDIR(scratch_mode):
         raise OSError(f"not a directory: {scratch}")
     entries = tuple(scratch.iterdir())
+    walk = walk_files(scratch)
     return RootCount(
         root=root,
         unaccounted=sum(entry.name not in accounted for entry in entries),
-        files=count_files(scratch),
+        files=file_total(walk),
+        unreadable_directories=walk.unreadable_directories,
+        links_not_entered=walk.links_not_entered,
         main_accounted=sum(entry.name in main_only for entry in entries),
     )
 
 
-def optional_tree_file_count(path: Path) -> int:
+def optional_tree_walk(path: Path) -> WalkResult:
     try:
         path_mode = path.stat().st_mode
     except FileNotFoundError:
-        return 0
+        return WalkResult((), 0, 0)
     if not stat.S_ISDIR(path_mode):
         raise OSError(f"not a directory: {path}")
-    return count_files(path)
+    return walk_files(path)
 
 
 def count_peer_root(root: Path) -> PeerRootCount | None:
@@ -457,7 +477,12 @@ def count_peer_root(root: Path) -> PeerRootCount | None:
         return None
     if not stat.S_ISDIR(scratch_mode):
         raise NotADirectoryError(scratch)
-    return PeerRootCount(root=root, files=count_files(scratch))
+    walk = walk_files(scratch)
+    return PeerRootCount(
+        root=root, files=file_total(walk),
+        unreadable_directories=walk.unreadable_directories,
+        links_not_entered=walk.links_not_entered,
+    )
 
 
 def pre_removal_read(root: Path, *, locked: bool) -> PreRemovalRead:
@@ -484,10 +509,16 @@ def pre_removal_read(root: Path, *, locked: bool) -> PreRemovalRead:
         commits_not_on_main = int(history.stdout.strip())
     except ValueError:
         raise CensusNotRun("git rev-list returned a non-integer count") from None
+    scratch = optional_tree_walk(root / "scratch")
+    output = optional_tree_walk(root / "output")
     return PreRemovalRead(
         root=root,
-        scratch_files=optional_tree_file_count(root / "scratch"),
-        output_files=optional_tree_file_count(root / "output"),
+        scratch_files=file_total(scratch),
+        output_files=file_total(output),
+        scratch_unreadable_directories=scratch.unreadable_directories,
+        scratch_links_not_entered=scratch.links_not_entered,
+        output_unreadable_directories=output.unreadable_directories,
+        output_links_not_entered=output.links_not_entered,
         untracked_files=untracked,
         tracked_changes=tracked,
         commits_not_on_main=commits_not_on_main,
@@ -520,7 +551,9 @@ def print_pre_removal_report(
         lock_state = "locked" if item.locked else "unlocked"
         print(
             f"PRE-REMOVAL: {root}: scratch {counted(item.scratch_files, 'file')}; "
+            f"{walk_shortfalls(item.scratch_unreadable_directories, item.scratch_links_not_entered)}; "
             f"output {counted(item.output_files, 'file')}; "
+            f"{walk_shortfalls(item.output_unreadable_directories, item.output_links_not_entered)}; "
             f"{counted(item.untracked_files, 'untracked file')}; "
             f"{counted(item.tracked_changes, 'tracked change')}; "
             f"{counted(item.commits_not_on_main, 'commit')} not on origin/main; "
@@ -623,7 +656,11 @@ def main(argv: list[str]) -> int:
     print(
         f"scratch roots: {len(gating_counts) + len(peer_counts)} checkouts own a "
         f"scratch root; "
-        f"{sum(item.files for item in gating_counts + peer_counts)} files beneath"
+        f"{sum(item.files for item in gating_counts + peer_counts)} files beneath; "
+        + walk_shortfalls(
+            sum(item.unreadable_directories for item in gating_counts + peer_counts),
+            sum(item.links_not_entered for item in gating_counts + peer_counts),
+        )
     )
     if argv == ["--worktrees"]:
         measured_worktrees = tuple(
@@ -704,13 +741,21 @@ def main(argv: list[str]) -> int:
         print(
             f"GATING: {owning_count.root / 'scratch'}: "
             f"{owning_count.unaccounted} unaccounted, "
-            f"{max(0, owning_count.unaccounted - OWNING_BASELINE)} above baseline"
+            f"{max(0, owning_count.unaccounted - OWNING_BASELINE)} above baseline; "
+            f"{owning_count.files} files beneath; "
+            + walk_shortfalls(
+                owning_count.unreadable_directories, owning_count.links_not_entered
+            )
         )
     if committing_count is not None:
         print(
             f"GATING: {committing_count.root / 'scratch'}: "
             f"{committing_count.unaccounted} unaccounted, "
-            f"{committing_count.unaccounted} above baseline"
+            f"{committing_count.unaccounted} above baseline; "
+            f"{committing_count.files} files beneath; "
+            + walk_shortfalls(
+                committing_count.unreadable_directories, committing_count.links_not_entered
+            )
         )
     if committing_absent:
         print(f"GATING: {checkout / 'scratch'}: absent; nothing to grade")

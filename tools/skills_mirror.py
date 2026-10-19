@@ -71,7 +71,6 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -80,6 +79,7 @@ from typing import Iterable, NamedTuple
 import git_paths
 from console_codec import require_python_floor, use_utf8
 from repo_root import checkout_git_dir, enclosing_checkout
+from tree_walk import is_link as _is_link
 
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
@@ -127,6 +127,11 @@ def _quiet_keeps(name: str) -> bool:
     return name in UNSUPPRESSED_LINES
 
 NOT_REACHED = (
+    (
+        "link traversal in the copy-stale comparison",
+        "The comparison enters junctions deliberately and surfaces a dangling one "
+        "as a difference; an ancestor junction can prevent termination.",
+    ),
     (
         "the state of another checkout's mirror",
         "Inspection is confined to the selected checkout; neither the main checkout "
@@ -616,26 +621,6 @@ def inspect(root: Path) -> list[Entry]:
             entries.append(Entry(name, status, differs, extra))
 
     return entries
-
-
-def _is_link(path: Path) -> bool:
-    """True for a symlink or a Windows junction, on any supported Python.
-
-    Only used to tell a plain copy from a link aimed elsewhere. The correctness
-    test above never needs it.
-    """
-    if os.path.islink(path):
-        return True
-    isjunction = getattr(os.path, "isjunction", None)
-    if isjunction and isjunction(path):
-        return True
-    if os.name == "nt":
-        try:
-            attributes = os.lstat(path).st_file_attributes
-        except (AttributeError, OSError):
-            return False
-        return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
-    return False
 
 
 def link(mirror_entry: Path, canonical: Path) -> None:

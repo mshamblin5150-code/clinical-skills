@@ -5,6 +5,8 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,66 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import docx_read
 import uptodate_store as store
+
+
+class SweepWalkBoundary(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows junctions")
+    def test_native_junction_boundaries_leave_sweep_clean(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "scan"
+            source.mkdir()
+            target = root / "sibling"
+            target.mkdir()
+            (target / "topic.txt").write_text(topic("Sibling"), encoding="utf-8")
+            for name, destination in (("live", target), ("dangling", root / "absent"), ("ancestor", source)):
+                result = subprocess.run(["cmd", "/c", "mklink", "/J", str(source / name), str(destination)], capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = store.main(["--store", str(root / "store"), "sweep", str(source)])
+            self.assertEqual(status, 0)
+            self.assertIn("files examined: 0", output.getvalue())
+            self.assertIn("3 links not entered", output.getvalue())
+            self.assertIn("0 topic body/bodies", output.getvalue())
+
+    def test_links_are_reported_without_examining_their_material(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "scan"
+            source.mkdir()
+            target = root / "target"
+            target.mkdir()
+            (target / "topic.txt").write_text(topic("Target"), encoding="utf-8")
+            try:
+                (source / "linked").symlink_to(target, target_is_directory=True)
+                (source / "dangling").symlink_to(root / "absent", target_is_directory=True)
+                (source / "ancestor").symlink_to(source, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(str(error))
+            report = store.sweep_unfiled(source, root / "store")
+            self.assertEqual(report.examined, 0)
+            self.assertEqual(report.topic_bodies, 0)
+            self.assertEqual(report.links_not_entered, 3)
+
+    def test_unreadable_subdirectory_refuses_and_zero_links_print(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "denied").mkdir()
+            from tree_walk import os as walk_os
+            scandir = walk_os.scandir
+
+            def read(path):
+                if Path(path) == root / "denied":
+                    raise PermissionError("denied")
+                return scandir(path)
+
+            output = io.StringIO()
+            with mock.patch("tree_walk.os.scandir", side_effect=read), contextlib.redirect_stdout(output):
+                status = store.main(["--store", str(root / "store"), "sweep", str(root)])
+            self.assertEqual(status, 2)
+            self.assertIn("files unread: 1", output.getvalue())
+            self.assertIn("0 links not entered", output.getvalue())
 
 
 def topic(title: str, *, updated: str = "Jan 09, 2026") -> str:

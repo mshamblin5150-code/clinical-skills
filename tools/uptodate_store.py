@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Iterable
 
 import docx_read
+from tree_walk import walk_files
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
 
@@ -126,6 +127,7 @@ class SweepReport:
     examined: int = 0
     unread: int = 0
     root_read: bool = True
+    links_not_entered: int = 0
 
 
 def default_store() -> Path:
@@ -617,10 +619,13 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         str(manifest["source_sha256"])
         for _path, manifest in _manifest_rows(evidence_store)
     }
-    if not root.is_dir():
+    try:
+        walked = walk_files(root)
+    except OSError:
         return SweepReport(0, 0, root_read=False)
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.casefold() not in {".txt", ".md"}:
+    unread += walked.unreadable_directories
+    for path in walked.files:
+        if path.suffix.casefold() not in {".txt", ".md"}:
             continue
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
@@ -636,7 +641,7 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         if count:
             files += 1
             bodies += count
-    return SweepReport(files, bodies, examined, unread)
+    return SweepReport(files, bodies, examined, unread, links_not_entered=walked.links_not_entered)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -704,7 +709,8 @@ def main(argv: list[str]) -> int:
             print(
                 f"sweep roots read: {', '.join(read_roots) or 'none'}; "
                 f"files examined: {sum(row.examined for row in reports)}; "
-                f"files unread: {sum(row.unread for row in reports)}"
+                f"files unread: {sum(row.unread for row in reports)}; "
+                f"{sum(row.links_not_entered for row in reports)} links not entered"
             )
             print(
                 f"unfiled topic-shaped material: {sum(row.files for row in reports)} file(s), "

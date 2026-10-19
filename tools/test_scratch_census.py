@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 import scratch_census as census
+import tree_walk
 from prose_bind import NAMING, bind
 
 
@@ -84,6 +86,122 @@ class ScratchRepository(unittest.TestCase):
 
 
 class ScratchCensusCommandTests(ScratchRepository):
+    def run_with_unlistable(self, directory: Path, *arguments: str) -> tuple[int, str]:
+        original_scandir = tree_walk.os.scandir
+
+        def scandir(path: object) -> object:
+            if Path(path) == directory:
+                raise PermissionError("private error text must not be printed")
+            return original_scandir(path)
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(census.Path, "cwd", return_value=self.root),
+            mock.patch.object(tree_walk.os, "scandir", side_effect=scandir),
+            redirect_stdout(output),
+        ):
+            status = census.main(list(arguments))
+        return status, output.getvalue()
+
+    def test_deep_failure_qualifies_owning_count_without_refusing_grade(self) -> None:
+        unreadable = self.root / "scratch" / "sessions" / "private-ticket"
+        unreadable.mkdir(parents=True)
+        (unreadable / "private-file").touch()
+
+        status, output = self.run_with_unlistable(unreadable)
+
+        self.assertEqual(status, 0, output)
+        self.assertIn("28 unaccounted, 0 above baseline; 28 files beneath; "
+                      "1 subdirectories could not be read; 0 links not entered", output)
+        self.assertIn("CLEAN", output)
+        self.assertNotIn("restore access", output)
+        self.assertNotIn("private-", output)
+        self.assertNotIn("private error", output)
+
+    def test_unlistable_top_level_keeps_exit_2_and_existing_remedy(self) -> None:
+        status, output = self.run_with_unlistable(self.root / "scratch")
+
+        self.assertEqual(status, 2, output)
+        self.assertIn("unreadable; not scanned", output)
+        self.assertIn("REMEDY: restore access to the owning scratch root", output)
+        self.assertNotIn("private error", output)
+
+    def test_partial_peer_is_material_and_pre_removal_holds_both_trees(self) -> None:
+        other = self.add_worktree()
+        for tree in ("scratch", "output"):
+            with self.subTest(tree=tree):
+                unreadable = other / tree / "private-unreadable-directory"
+                unreadable.mkdir(parents=True)
+                status, output = self.run_with_unlistable(unreadable, "--worktrees")
+                self.assertEqual(status, 0, output)
+                self.assertIn("pre-removal: 1 worktrees read; 0 not read", output)
+                line = next(line for line in output.splitlines()
+                            if line.startswith(f"PRE-REMOVAL: {other}:"))
+                self.assertIn(f"{tree} 0 files; 1 subdirectories could not be read; "
+                              "0 links not entered", line)
+                self.assertIn("HELD BACK", line)
+                if tree == "scratch":
+                    self.assertIn("1 carrying material", output)
+                    self.assertIn(f"REPORT ONLY: {other / 'scratch'}: 0 files; "
+                                  "1 subdirectories could not be read; "
+                                  "0 links not entered; never graded", output)
+                self.assertNotIn(unreadable.name, output)
+                unreadable.rmdir()
+
+    def test_dangling_symbolic_link_counts_once_and_holds_worktree(self) -> None:
+        other = self.add_worktree()
+        scratch = other / "scratch"
+        scratch.mkdir()
+        link = scratch / "private-dangling-link"
+        try:
+            link.symlink_to(other / "missing-target", target_is_directory=True)
+        except OSError as error:
+            self.skipTest(f"directory links unavailable: {error}")
+
+        finished = self.run_census("--worktrees")
+
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("1 carrying material", finished.stdout)
+        self.assertIn("scratch 1 file; 0 subdirectories could not be read; "
+                      "1 links not entered", finished.stdout)
+        line = next(line for line in finished.stdout.splitlines()
+                    if line.startswith(f"PRE-REMOVAL: {other}:"))
+        self.assertIn("HELD BACK", line)
+        self.assertNotIn(link.name, finished.stdout + finished.stderr)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction fixture")
+    def test_dangling_junction_under_ticket_keeps_owning_root_graded(self) -> None:
+        ticket = self.root / "scratch" / "sessions" / "private-ticket"
+        ticket.mkdir(parents=True)
+        target = self.root.parent / "temporary-target"
+        target.mkdir()
+        link = ticket / "private-junction"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                       check=True, capture_output=True)
+        other = self.add_worktree()
+        (other / "scratch").mkdir()
+        peer_link = other / "scratch" / "private-peer-junction"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(peer_link), str(target)],
+                       check=True, capture_output=True)
+        target.rmdir()
+        try:
+            finished = self.run_census("--worktrees")
+            self.assertEqual(finished.returncode, 0, finished.stderr)
+            self.assertIn("28 unaccounted, 0 above baseline; 29 files beneath; "
+                          "0 subdirectories could not be read; 1 links not entered",
+                          finished.stdout)
+            self.assertIn("CLEAN", finished.stdout)
+            line = next(line for line in finished.stdout.splitlines()
+                        if line.startswith(f"PRE-REMOVAL: {other}:"))
+            self.assertIn("scratch 1 file; 0 subdirectories could not be read; "
+                          "1 links not entered", line)
+            self.assertIn("HELD BACK", line)
+            self.assertNotIn(link.name, finished.stdout + finished.stderr)
+            self.assertNotIn(peer_link.name, finished.stdout + finished.stderr)
+        finally:
+            link.rmdir()
+            peer_link.rmdir()
+
     def test_code_resolved_name_without_documentation_is_accounted(self):
         (self.root / "scratch" / "project-registry.md").touch()
         finished = self.run_census()
@@ -220,7 +338,7 @@ class ScratchCensusCommandTests(ScratchRepository):
         )
         self.assertIn(
             f"REPORT ONLY: {other / 'scratch'}: "
-            "1 file; never graded",
+            "1 file; 0 subdirectories could not be read; 0 links not entered; never graded",
             finished.stdout,
         )
         self.assertIn("CLEAN", finished.stdout)
@@ -246,7 +364,7 @@ class ScratchCensusCommandTests(ScratchRepository):
         )
         self.assertNotIn(f"REPORT ONLY: {other / 'scratch'}:", ordinary.stdout)
         self.assertIn(
-            f"REPORT ONLY: {other / 'scratch'}: 0 files; never graded",
+            f"REPORT ONLY: {other / 'scratch'}: 0 files; 0 subdirectories could not be read; 0 links not entered; never graded",
             measured.stdout,
         )
         peer_lines = "\n".join(
@@ -261,7 +379,7 @@ class ScratchCensusCommandTests(ScratchRepository):
             ordinary.stdout + ordinary.stderr + measured.stdout + measured.stderr,
         )
 
-    def test_a_directory_symbolic_link_under_a_peer_root_counts_as_no_file(
+    def test_a_directory_symbolic_link_under_a_peer_root_counts_as_material(
         self,
     ) -> None:
         self.assertIn(census.PEER_DIRECTORY_LINK_LIMIT, census.DECLARED_LIMITS)
@@ -279,7 +397,11 @@ class ScratchCensusCommandTests(ScratchRepository):
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 0, finished.stderr)
-        self.assertNotIn(f"REPORT ONLY: {other / 'scratch'}:", finished.stdout)
+        self.assertIn(
+            f"REPORT ONLY: {scratch}: 1 file; 0 subdirectories could not be read; "
+            "1 links not entered; never graded", finished.stdout,
+        )
+        self.assertIn("1 carrying material", finished.stdout)
 
     def test_the_owning_checkout_refuses_only_above_its_ceiling(self) -> None:
         private_name = "another-private-name"
@@ -696,14 +818,16 @@ class ScratchCensusCommandTests(ScratchRepository):
             measured.stdout,
         )
         self.assertIn(
-            f"PRE-REMOVAL: {other}: scratch 0 files; output 0 files; "
+            f"PRE-REMOVAL: {other}: scratch 0 files; "
+            "0 subdirectories could not be read; 0 links not entered; output 0 files; "
+            "0 subdirectories could not be read; 0 links not entered; "
             "0 untracked files; 0 tracked changes; "
             "0 commits not on origin/main; unlocked",
             measured.stdout,
         )
         self.assertIn(
             f"REPORT ONLY: {other / 'scratch'}: "
-            "0 files; never graded",
+            "0 files; 0 subdirectories could not be read; 0 links not entered; never graded",
             measured.stdout,
         )
         self.assertNotIn("worktree state:", measured.stdout)
@@ -730,7 +854,9 @@ class ScratchCensusCommandTests(ScratchRepository):
 
         self.assertEqual(finished.returncode, 0, finished.stdout + finished.stderr)
         self.assertIn(
-            f"PRE-REMOVAL: {other}: scratch 1 file; output 1 file; "
+            f"PRE-REMOVAL: {other}: scratch 1 file; "
+            "0 subdirectories could not be read; 0 links not entered; output 1 file; "
+            "0 subdirectories could not be read; 0 links not entered; "
             "1 untracked file; 1 tracked change; "
             "1 commit not on origin/main; locked; HELD BACK",
             finished.stdout,
@@ -1000,11 +1126,11 @@ class AccountedSetTests(unittest.TestCase):
             "1 carrying material, 1 unreadable, 1 stale, 0 locked",
             success_ordinary,
         )
-        material_line = f"REPORT ONLY: {material / 'scratch'}: 1 file; never graded"
+        material_line = f"REPORT ONLY: {material / 'scratch'}: 1 file; 0 subdirectories could not be read; 0 links not entered; never graded"
         unreadable_line = (
             f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded"
         )
-        empty_line = f"REPORT ONLY: {empty / 'scratch'}: 0 files; never graded"
+        empty_line = f"REPORT ONLY: {empty / 'scratch'}: 0 files; 0 subdirectories could not be read; 0 links not entered; never graded"
         for output in outputs:
             self.assertIn(material_line, output)
         for output in ordinary_outputs:
