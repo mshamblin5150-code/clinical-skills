@@ -260,6 +260,8 @@ class RunStatusContract(unittest.TestCase):
         self.write_session(self.start_record(), command_record(self.run))
         source = self.run / "working.md"
         source.touch()
+        os.utime(source, (1, 1))
+        self.assertEqual({}, self.grade("Finished."))
         original = Path.stat
         def read(path, *args, **kwargs):
             if path == source:

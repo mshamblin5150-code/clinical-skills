@@ -9,6 +9,28 @@ import unittest
 from pathlib import Path
 
 
+def short_alias(path: Path) -> Path:
+    """Return a real Windows short alias, or skip when the volume has none."""
+    if os.name != "nt":
+        raise unittest.SkipTest("Windows short paths")
+    import ctypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    function = kernel.GetShortPathNameW
+    function.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+    function.restype = ctypes.c_uint
+    buffer = ctypes.create_unicode_buffer(32768)
+    size = function(str(path), buffer, len(buffer))
+    if not size:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if size >= len(buffer):
+        raise AssertionError("short path exceeds the Windows path buffer")
+    alias = Path(buffer.value)
+    if alias == path:
+        raise unittest.SkipTest("fixture volume provides no distinct short alias")
+    return alias
+
+
 @contextlib.contextmanager
 def denied_listing(directory: Path):
     """Deny only directory listing; restore the ACL before fixture cleanup."""
