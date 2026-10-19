@@ -78,6 +78,6 @@ class TreeWalkTests(unittest.TestCase):
             junction = root / "junction"
             result = subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(root / "absent")], capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            with mock.patch.object(os.path, "isjunction", None):
+            with mock.patch.object(os.path, "isjunction", None, create=True):
                 self.assertTrue(tree_walk.is_link(junction))
 
