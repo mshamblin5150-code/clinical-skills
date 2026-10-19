@@ -125,6 +125,8 @@ The rule therefore fails toward escalation rather than toward a verdict.
 no row and stays exit 1; an occurrence judged to be a real identifier is remedied by editing the
 record, which changes the digest and removes the finding from the surface. No third value is needed.
 
+*Superseded 2026-10-19.* The words "Not the corpus, not `--history` blobs, not any other surface." are superseded in part by [ADR 0438](0438-a-history-scan-finding-in-an-old-file-version-takes-a-verdict-keyed-on-that-exact-version-and-an-agent-may-rule-one-the-public-repository-reaches.md) ruling 4: an agent may read and rule a `--history` blob reachable from the public repository, on this ruling's own terms. The corpus, every other surface, and a blob reachable only from a local ref stay excluded, and everything else in this ruling stands, including its two closed verdicts.
+
 ## Ruling 2. The verdicts proceed now and the clean exit is what waits for a denominator
 
 A harvest verdict is keyed on a record and the digest of a line. Ruling one record is a judgment
