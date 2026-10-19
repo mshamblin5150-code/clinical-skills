@@ -22,6 +22,10 @@ _Avoid_: visit, case, patient
 One shift's shorthand in a single document, holding many encounters under a header naming the date and preceptor.
 _Avoid_: shift file, batch, dump
 
+**Opener record**:
+The record of what each encounter's opening lines in a **Day file** state about the patient — the name as written, the age and the sex — kept once, when the day file is split into encounters, and read wherever those details are needed afterward. A name read from the shorthand appears in that encounter's own text, and a name the clinician supplies when the opener has none is recorded as his answer; any other detail the opener omits is recorded as omitted rather than inferred. Distinct from the **Identity map**, which joins a name to a Patient Reference across shifts; the opener record says only what one shift's shorthand wrote.
+_Avoid_: header, intake record, patient list
+
 **Shift window**:
 The span from the shift start the clinician states through that start plus the shift's duration in hours and minutes, inside which every visit's start and end fall. What he states binds; the Medatrax Time Log supplies a duration he did not state and never supplies a start.
 _Avoid_: shift hours, time window, shift times
