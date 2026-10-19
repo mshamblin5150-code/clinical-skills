@@ -69,6 +69,8 @@ def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str]
                     if isinstance(block, dict) and block.get("type") == "text")
             elif row.get("type") == "response_item":
                 payload = aar_scan._codex_payload(row)
+                if payload.get("channel") == "analysis":
+                    continue
                 if payload.get("type") == "message" and payload.get("role") == "assistant":
                     value = aar_scan._codex_content_text(payload, "output_text")
             if not value:
@@ -80,7 +82,7 @@ def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str]
                 continue
             if after < written_at < before:
                 shown.append((written_at, value))
-    return [value for _written_at, value in sorted(shown)], unread
+    return [value for _written_at, value in sorted(shown, key=lambda item: item[0])], unread
 
 
 def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:

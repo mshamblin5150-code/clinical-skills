@@ -126,6 +126,16 @@ class Disclosure(unittest.TestCase):
                     result = approval_record.verify_uptodate_block(self.run, (self.note,), datetime.fromisoformat("2100-01-01T11:00:00+00:00").timestamp())
                     self.assertEqual(expected, result.state)
 
+    def test_internal_codex_analysis_is_not_a_shown_disclosure(self):
+        transcript = self.run / "session.jsonl"
+        transcript.write_text(json.dumps({"type": "response_item", "timestamp": "2100-01-01T10:00:00Z",
+            "payload": {"type": "message", "role": "assistant", "channel": "analysis",
+                        "content": [{"type": "output_text", "text": EMPTY}]}}) + "\n")
+        with mock.patch.object(aar_scan, "discover_transcripts", return_value=aar_scan.TranscriptDiscovery((transcript,), 1, 0, 0, 1)):
+            from datetime import datetime
+            result = approval_record.verify_uptodate_block(self.run, (self.note,), datetime.fromisoformat("2100-01-01T11:00:00+00:00").timestamp())
+            self.assertEqual("not found", result.state)
+
 
 if __name__ == "__main__":
     unittest.main()
