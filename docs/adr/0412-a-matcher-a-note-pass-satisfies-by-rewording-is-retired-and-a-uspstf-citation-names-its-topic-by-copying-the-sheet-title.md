@@ -213,7 +213,6 @@ other's branch and its line.
 - **A pass rewording around a line no ruling here names.** Ruling 1 is a written rule, and a
   written instruction cannot fail; the after-action review is what sees a breach.
 
-
 ## The earlier ruling this overturns
 
 Ruling 8 overturns the paragraph of
@@ -228,3 +227,7 @@ in ADR 0017. `tools/test_adr_supersession.py` does not read that quote form yet;
 overturning is stated in this record alone. Whichever lands second, #1706's build or this record's
 build, adds the marker beneath that ADR 0017 paragraph and the quote-form `## Supersedes` declaration
 here.
+
+## Supersedes
+
+- [ADR 0017](0017-a-run-joins-a-threshold-sheet-on-the-artifact-column-and-the-state-describes-the-read-behind-it.md) the words "`recalled, no shipped sheet` becomes a graded finding", The artifact-column join and the meaning of the sweep states stand; lexical contradictions are reported without changing exit status.

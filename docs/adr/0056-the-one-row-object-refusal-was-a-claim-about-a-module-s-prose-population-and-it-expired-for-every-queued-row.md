@@ -126,3 +126,8 @@ the ratio argument here says nothing about either.
 #498 and #500 each gain a piece split, a corrected limit instruction and `blocked_by #535`. #535 is
 unchanged and is still blocked by nothing — ADR 0053 ruling 1 refused to put it behind the tickets
 queuing rows, and every edge here points the other way, so no cycle is closed.
+
+## Supersedes
+
+- [ADR 0040](0040-a-stated-expiry-is-read-off-the-document-and-a-publication-cadence-is-not-one.md) ruling 9, the words "declared in prose beside the row" The one-row-object prohibition and ruling 9's reasoning stand.
+- [ADR 0042](0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md) ruling 9, the words "The narrowed limit lands as prose here" The one-row-object prohibition and ruling 9's reasoning stand.

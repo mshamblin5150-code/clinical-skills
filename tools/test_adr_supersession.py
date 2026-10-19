@@ -3,11 +3,16 @@
 Grammar: an optional exact ``## Supersedes`` section contains hyphen bullets,
 each beginning with a relative ``[ADR NNNN](NNNN-slug.md)`` link followed by
 ``ruling N,`` and explanatory prose. Indented continuation lines are joined.
+A target outside numbered rulings instead uses ``the words "…",`` as its
+coordinate. Whitespace is collapsed; the quote occurs exactly once outside
+markers, and its marker sits directly beneath the quoted paragraph.
 A marker is a paragraph beginning ``*Superseded YYYY-MM-DD.*`` beneath a
 recognized ruling heading or numbered ruling item using ``adr_read``'s grammar.
 It contains a quoted span, the same relative ADR link
 followed by ``ruling N``, and an account of what survives. The account's truth
 is read at review, not inferred from supersession verbs.
+A bare overturning link is accepted only for a record with no numbered rulings.
+No marker paragraph may contain a heading.
 
 A wholly withdrawn record takes ADR 0343's whole-record form instead: the
 bullet reads ``every ruling,`` (optionally ``every ruling except ruling N,``)
@@ -26,7 +31,7 @@ from pathlib import Path
 from unittest import mock
 
 from adr_read import ruling_attributions, ruling_ordinals
-from adr_supersession_population import classification_findings, derive_population, derive_records, legacy_marker_findings
+from adr_supersession_population import banner_disposition_findings, banner_population, classification_findings, derive_population, derive_records, legacy_marker_findings
 from markdown_read import paragraphs, unfenced_lines
 from prose_bind import NAMING, bind
 
@@ -49,12 +54,14 @@ def unsure_remainder(path=CLASSIFICATION_REPORT, *, legacy=False) -> int | None:
 DECLARED_LIMITS = (
     "An overturning the author never declared is outside this binding.",
     "Whether a marker's account of what survives is true is a review reading.",
+    "Quotes in numbered-ruling and whole-record markers are required but are not compared with target words; exact-once quote binding applies to quote coordinates only.",
     f"The historical classification's unsure-pair unread remainder is {unsure_remainder()}; its source is supersession-classification-1518.json, not a completed supersession reading.",
     "Only the documented relative-link, bullet, paragraph, and adr_read ruling grammar is read; alternative Markdown forms are not certified.",
     f"The unattributed legacy-marker unread remainder is {unsure_remainder(legacy=True)}; exact retained source and the committed manifest bind these exceptions, and available Git history independently verifies them.",
 )
 LINK = r"\[ADR (\d{4})\]\((\d{4}-[^()\s]+\.md)\)"
 DECLARATION = re.compile(r"^- " + LINK + r"\s+ruling (\d+),\s+(.+)$")
+QUOTE_DECLARATION = re.compile(r'^- ' + LINK + r'\s+the words "([^"]+)",\s+(.+)$')
 EVERY = r"every ruling(?: except rulings? (\d+(?:(?:, | and |, and )\d+)*))?"
 WHOLE_DECLARATION = re.compile(r"^- " + LINK + r"\s+" + EVERY + r",\s+(.+)$")
 WHOLE_PHRASE = re.compile(r"\b" + EVERY + r"\b", re.IGNORECASE)
@@ -69,10 +76,25 @@ def shown(ruling) -> str:
     """Name a declaration key the way its finding should read."""
     if isinstance(ruling, int):
         return f"ruling {ruling}"
+    if isinstance(ruling, str):
+        return f'the words "{ruling}"'
     kept = sorted(ruling[1])
     return "every ruling" + (f" except ruling {', '.join(map(str, kept))}" if kept else "")
-MARKER_LINK = re.compile(LINK + r"\s+ruling (\d+)\b")
+MARKER_LINK = re.compile(LINK + r"(?:\s+ruling (\d+)\b)?")
 OPENING = re.compile(r"^\*Superseded (\d{4}-\d{2}-\d{2})\.\*\s+(.+)$")
+
+
+def collapsed(text: str) -> str:
+    return " ".join(text.split())
+
+
+def quote_locations(text: str, quote: str) -> list[int]:
+    """Locate every occurrence outside counted markers, retaining its paragraph."""
+    return [
+        line for line, paragraph in paragraphs(text)
+        if not OPENING.match(collapsed(paragraph))
+        for _ in range(collapsed(paragraph).count(quote))
+    ]
 
 
 def supersession_findings(records: dict[str, str], report: dict | None = None, *, root: Path | None = None) -> tuple[str, ...]:
@@ -82,6 +104,7 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
     owe a marker for a new declaration. This seam writes nothing.
     """
     findings, unresolved = legacy_marker_findings(report or {}, records, root=root)
+    findings.extend(banner_disposition_findings(*banner_population(records), (report or {}).get('pairs', [])))
     declarations: set[tuple[str, str, object]] = set()
     markers: set[tuple[str, str, object]] = set()
     for name, text in sorted(records.items()):
@@ -96,11 +119,21 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
             joined = " ".join(line.strip() for line in bullet.splitlines())
             parsed = DECLARATION.fullmatch(joined)
             whole = None if parsed else WHOLE_DECLARATION.fullmatch(joined)
-            found = parsed or whole
+            quoted = None if parsed or whole else QUOTE_DECLARATION.fullmatch(joined)
+            found = parsed or whole or quoted
             if found is None or found.group(1) != found.group(2)[:4]:
                 findings.append(f"{name}: unread Supersedes declaration")
                 continue
-            if whole:
+            if quoted:
+                target = "\n".join(unfenced_lines(records.get(quoted.group(2), "")))
+                quote = collapsed(quoted.group(3))
+                locations = quote_locations(target, quote)
+                if len(locations) != 1:
+                    findings.append(f"{name}: target quote occurs {len(locations)} times outside markers")
+                elif dict((row.line, row.number) for row in ruling_attributions(target)).get(locations[0]) is not None:
+                    findings.append(f"{name}: quote coordinate targets a numbered ruling")
+                declarations.add((name, quoted.group(2), quote))
+            elif whole:
                 key = whole_record(whole.group(3))
                 if key[1] - set(ruling_ordinals(records.get(whole.group(2), ""))):
                     findings.append(f"{name}: {whole.group(2)} excepts an absent ruling")
@@ -115,23 +148,36 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
             (index for index, line in enumerate(text.splitlines(), 1) if line.startswith("## ")),
             None,
         )
-        for line_number, paragraph in paragraphs(text):
+        blocks = list(paragraphs(text))
+        for index, (line_number, paragraph) in enumerate(blocks):
             ruling = contexts.get(line_number)
             if first_section is None or line_number < first_section:
                 phrase = WHOLE_PHRASE.search(" ".join(paragraph.splitlines()))
                 if phrase:
                     ruling = whole_record(phrase.group(1))
-            if not paragraph.startswith("*Superseded"):
+            if not paragraph.startswith("*Superseded") or paragraph.startswith("*Superseded grounding marked "):
                 continue
             if (name, paragraph) in unresolved:
                 continue
             links = list(MARKER_LINK.finditer(paragraph))
+            # Authored notes also link background records (for example ADR 0016).
+            # With a numbered overturning link present, bare links participate
+            # only when the declaring record actually claims this target.
+            if any(link.group(3) is not None for link in links):
+                numbered = {link.group(2) for link in links if link.group(3) is not None}
+                links = [link for link in links if link.group(3) is not None or any(
+                    declaring == link.group(2) and target == name and isinstance(key, str)
+                    and f'"{key}"' in collapsed(paragraph) and declaring not in numbered
+                    for declaring, target, key in declarations
+                )]
             # Old targets with only old links belong to the repair, not this rule.
             if int(name[:4]) < CUTOFF and links and all(
                 int(link.group(1)) < CUTOFF for link in links
             ):
                 continue
             opening = OPENING.match(" ".join(paragraph.splitlines()))
+            if re.search(r"^##(?:\s|#)", paragraph, re.M):
+                findings.append(f"{name}: heading inside supersession marker")
             valid_date = False
             if opening:
                 try:
@@ -139,16 +185,32 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
                     valid_date = True
                 except ValueError:
                     pass
-            if not valid_date or ruling is None or not links or not re.search(r'"[^"\n]+"', " ".join(paragraph.splitlines())):
+            quotes = re.findall(r'"([^"\n]+)"', collapsed(paragraph))
+            if not valid_date or not links or not quotes:
                 findings.append(f"{name}: unread supersession marker")
                 continue
             for link in links:
                 if link.group(1) != link.group(2)[:4]:
                     findings.append(f"{name}: marker link number disagrees with path")
                     continue
-                if int(link.group(3)) not in ruling_ordinals(records.get(link.group(2), "")):
+                ordinals = ruling_ordinals(records.get(link.group(2), ""))
+                if link.group(3) is None and ordinals:
+                    findings.append(f"{name}: bare marker link names a record with rulings")
+                elif link.group(3) is not None and int(link.group(3)) not in ordinals:
                     findings.append(f"{name}: marker links an absent overturning ruling")
-                markers.add((link.group(2), name, ruling))
+                if ruling is None:
+                    matched = [quote for quote in quotes if (link.group(2), name, quote) in declarations]
+                    if not matched:
+                        findings.append(f"{name}: unread supersession marker")
+                    for quote in matched:
+                        locations = quote_locations(text, quote)
+                        if len(locations) != 1:
+                            findings.append(f"{name}: marker quote occurs {len(locations)} times outside markers")
+                        elif index == 0 or locations[0] != blocks[index - 1][0]:
+                            findings.append(f"{name}: quote marker is not directly beneath its target paragraph")
+                        markers.add((link.group(2), name, quote))
+                else:
+                    markers.add((link.group(2), name, ruling))
 
     for declaring, target, ruling in sorted(declarations - markers, key=str):
         findings.append(f"{declaring}: {target} {shown(ruling)} has no matching marker")
@@ -158,6 +220,42 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
 
 
 class SupersessionBindingTests(unittest.TestCase):
+    def quote_records(self):
+        return {
+            "0014-new.md": '## Decision\n\nNew practice.\n\n## Supersedes\n\n- [ADR 0005](0005-old.md) the words "Old words.", the date rule stands.\n',
+            "0005-old.md": '## Decision\n\nOld\nwords.\n\n*Superseded 2026-10-17.* The words "Old words." fall to [ADR 0014](0014-new.md). The date rule stands.\n',
+        }
+
+    def test_quote_coordinate_accepts_wrapped_words_and_a_bare_unruled_record(self):
+        self.assertEqual(supersession_findings(self.quote_records()), ())
+
+    def test_quote_coordinate_requires_exactly_one_nonmarker_occurrence(self):
+        for replacement in ('Absent words.', 'Old words. Old words.'):
+            with self.subTest(replacement=replacement):
+                records = self.quote_records()
+                records['0005-old.md'] = records['0005-old.md'].replace('Old\nwords.', replacement)
+                self.assertTrue(any('quote occurs' in row for row in supersession_findings(records)))
+
+    def test_quote_coordinate_refuses_a_numbered_target(self):
+        records = self.quote_records()
+        records['0005-old.md'] = records['0005-old.md'].replace('## Decision', '## Ruling 1')
+        self.assertTrue(any('numbered ruling' in row for row in supersession_findings(records)))
+
+    def test_bare_marker_link_refuses_an_overturning_record_with_rulings(self):
+        records = self.quote_records()
+        records['0014-new.md'] = records['0014-new.md'].replace('## Decision', '## Ruling 1')
+        self.assertTrue(any('bare marker link' in row for row in supersession_findings(records)))
+
+    def test_quote_marker_must_be_directly_beneath_the_quoted_paragraph(self):
+        records = self.quote_records()
+        records['0005-old.md'] = records['0005-old.md'].replace('\n\n*Superseded', '\n\nIntervening paragraph.\n\n*Superseded')
+        self.assertTrue(any('directly beneath' in row for row in supersession_findings(records)))
+
+    def test_heading_inside_a_marker_is_a_finding(self):
+        records = self.paired_records()
+        records['0135-old.md'] = records['0135-old.md'].replace('The verdict stands.\n', 'The verdict stands.\n## Absorbed heading\n')
+        self.assertTrue(any('heading inside' in row for row in supersession_findings(records)))
+
     def legacy_fixture(self):
         original = '*Superseded grounding marked 2026-09-12.* The ground "Old words." was replaced by [ADR 0280](0280-new.md) ruling 1. The verdict stands.'
         normalized = original.replace('Superseded grounding marked', 'Superseded')

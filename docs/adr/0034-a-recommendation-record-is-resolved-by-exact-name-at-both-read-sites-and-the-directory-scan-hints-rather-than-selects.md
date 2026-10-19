@@ -90,3 +90,7 @@ Every figure was re-derived on `0c39452` with the freshness gate reporting `FRES
 **ADR 0030's rejected option gains a weaker premise and keeps its ruling.** *Trust-check the resolver's directory scan too* was refused because a strict read there makes one stale neighbor a hard failure for every topic. With a hint-only scan that premise no longer holds — a stale neighbor in a hint list is a hint you ignore — and the ruling still stands, because the answer a hint needs from an untrusted record is still only ever a path.
 
 *(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The link in the 2026-08-26 correction named an ADR 0016 filename absent from the index; its target now uses the record's tracked filename. No ruling changed.)*
+
+## Supersedes
+
+- [ADR 0030](0030-a-recommendation-record-is-owned-like-every-other-artifact-its-trust-floor-is-keyed-on-the-limb-that-built-it-and-the-drafter-takes-no-escape-hatch.md) the words "a strict read there makes one stale neighbor in a shared directory a hard failure for every topic", Only this ground is falsified. Ruling 7 stands; an untrusted record still yields only a path.

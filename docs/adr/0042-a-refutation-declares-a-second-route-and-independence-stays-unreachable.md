@@ -126,6 +126,8 @@ Nothing is built here; this is the record the build reads.
    satisfies its first limb outright. **A comment on `#535` replacing its fifth bullet is part of
    this ticket's close, not something that follows it.**
 
+*Superseded 2026-08-27.* The words "The narrowed limit lands as prose here" are superseded by [ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md) ruling 1. The one-row-object prohibition and ruling 9's reasoning stand.
+
 10. **Hard cutover. Pre-existing ledgers fail `MISSING_FIELD` and are not backfilled.** A branch on
     the `DATE:` header is keyed on a value the graded party writes, so the escape is one back-dated
     line. Backfilling the two live ledgers means authoring a declared difference nobody recorded at

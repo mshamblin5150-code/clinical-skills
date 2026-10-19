@@ -156,3 +156,4 @@ Recorded as comments on [#942](https://github.com/mshamblin5150-code/clinical-sk
 ## Supersedes
 
 - [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 2, the words "Resolving it needs ADR 0039's reverse key walk, which requires a whole-phrase key this module does not have.". Legal entries remain excluded from uncited-entry because section citations resolve on resolution_keys which that row does not read.
+- [ADR 0100](0100-the-legal-source-is-a-measured-shape-plus-a-closed-vocabulary-and-the-shared-section-grammar-admits-a-state-codification.md) the words "needs a whole-phrase key that module does not have", Only this ground is falsified. The legal-entry exclusion stands.

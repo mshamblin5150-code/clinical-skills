@@ -46,3 +46,7 @@ It now takes the assignment URL, derives the key off the breadcrumbs, and transc
 **A post and its replies must keep sharing a directory**, which is 0005's whole reason. Both discussion skills use the same `discussion` slot, so the board-keyed join survives the change unaltered. A skill that invented its own slot word would reopen 0005.
 
 **Three run-key components now have to agree across five skills and four graders.** The vocabulary is small enough to hold in one place, and disagreement is the defect rather than a permitted divergence — which is [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253)'s stated test for when a helper may be shared, passed rather than assumed.
+
+## Supersedes
+
+- [ADR 0005](0005-a-run-is-keyed-to-the-board.md) the words "The key is `scratch/runs/<course>-<module>/`.", The date-is-provenance ruling stands.

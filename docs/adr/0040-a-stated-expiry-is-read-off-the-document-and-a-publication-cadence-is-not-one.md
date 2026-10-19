@@ -220,6 +220,8 @@ breaking two skills.
 `none stated` written by an agent that never opened the cover sheet is indistinguishable from
 one that looked. No version of this closes it.
 
+*Superseded 2026-08-27.* The words "declared in prose beside the row" are superseded by [ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md) ruling 1. The one-row-object prohibition and ruling 9's reasoning stand.
+
 **A reader row was declined on a measurement rather than on cost.** `#255` and `#299`'s
 `SUBSTANTIATED_CLEAN` requires a `clean` to say what it walked on, and it lives in
 `checks_ledger.EXPECTED_CHECKS`, which is `practicum-case-study` step 9 and nothing else. Both

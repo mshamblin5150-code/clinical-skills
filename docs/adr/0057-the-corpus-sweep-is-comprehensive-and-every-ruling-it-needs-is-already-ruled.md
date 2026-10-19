@@ -432,3 +432,7 @@ statements about the errata row's corpus membership — that it is sole-source w
 and that its parent is absent — were true when written and were moved the same day by
 [ADR 0062](0062-an-orphaned-correction-is-a-corpus-membership-fact-and-the-parent-is-already-corrected.md).
 No ruling changed.)*
+
+## Supersedes
+
+- [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md) the words "Exact multi-document topics follow so `CONFLICT` and per-source `COVERAGE` run before single-source work can hide defects in those gates.", The other points stand; this order becomes the tail. Point 5 belongs to ADR 0025 and is outside this pair.

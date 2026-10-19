@@ -154,3 +154,5 @@ ADR 0025 point 6 already rules *"the mechanism and the readings are separate tic
 ## Supersedes
 
 - [ADR 0025](0025-a-section-read-is-the-unit-and-a-sheet-s-page-coverage-is-what-the-state-asserts.md) ruling 8, the words "and so is a non-`sheet` row whose artifact shows every page read". Page arithmetic and both-direction checks stand; complete pages with rows derive sheet and complete pages without rows derive none.
+- [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md) ruling 3, the words "A separate optional artifact column can name partial work" The empty-sheet refusal and its directory-silence ground stand.
+- [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md) the words "The registry records two different reasons for an absent sheet instead", The empty-sheet refusal and its directory-silence ground stand.

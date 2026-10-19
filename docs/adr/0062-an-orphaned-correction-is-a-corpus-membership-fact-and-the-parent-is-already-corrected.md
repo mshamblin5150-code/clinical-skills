@@ -248,3 +248,7 @@ either changes.**
   0061 spent six decisions avoiding.
 - **A `status` column.** [#107](https://github.com/mshamblin5150-code/clinical-skills/issues/107)
   refused one and #640 forbids reopening it. Nothing here reopens it.
+
+## Supersedes
+
+- [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md) the words "It carries a full revised dose table", Only this ground is falsified. Ruling 2 stands.

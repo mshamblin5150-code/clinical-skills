@@ -309,6 +309,8 @@ The declined option was to **bind the docstring without building the object** �
 through a side door, and binding one prose limit among the module's many is *these are the limits*
 in a different hat, which is the objection ADR 0040 ruling 9 raised against the object itself.
 
+*Superseded 2026-08-27.* The words "binding one prose limit among the module's many is *these are the limits* in a different hat" are superseded by [ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md) ruling 1. Only this ground is falsified. Ruling 7 stands; the second addendum's ruling 9 records the consequence.
+
 **8. It splits, and the test lands first.**
 
 - **A** — ruling 6's declined-cadence test. Depends on nothing #498 builds: no field, no ledger, no
@@ -412,7 +414,7 @@ by ADR 0053 ruling 1 in the same sentence as #534, so the same reasoning appears
 neither was examined here. Not asserted, and not filed as a finding, because a claim about two
 tickets nobody read is the shape this sweep spent the day removing.
 
-*Superseded 2026-08-27.* *(Superseded the same day. Both were read and both take it —
+*(Superseded the same day. Both were read and both take it —
 [ADR 0056](0056-the-one-row-object-refusal-was-a-claim-about-a-module-s-prose-population-and-it-expired-for-every-queued-row.md),
 ruled 2026-08-27. This paragraph is left standing rather than deleted because what changed is that
 somebody read them, and the reason it was withheld is the reason it is worth keeping.)*

@@ -164,3 +164,7 @@ read that quote form yet; building it is
 overturning is stated in this record alone. Whichever lands second, #1706's build or this record's
 build, adds the marker beneath that ADR 0002 paragraph and the quote-form `## Supersedes` declaration
 here.
+
+## Supersedes
+
+- [ADR 0002](0002-ci-runs-the-suite-at-the-merge.md) the words "Python 3.14 for the same reason: matching the machine every commit is made from is worth more than proving a floor.", The `windows-latest` reasoning and advisory posture stand.

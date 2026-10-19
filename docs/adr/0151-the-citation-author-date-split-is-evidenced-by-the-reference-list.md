@@ -165,3 +165,4 @@ The corpus contains **0 instances**, entry or body. The form is latent and rests
 ## Supersedes
 
 - [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md) ruling 3, the words "For each `(YYYY)` in the body not already covered by a citation span". The reader remains reference-aware and derives resolving keys from the reference set; the evidenced split becomes primary and grammar fallback remains for unlisted citations.
+- [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md) the words "A legal citation's year is never checked against its entry's year.", All rulings stand.

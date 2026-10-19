@@ -182,6 +182,18 @@ class PopulationTests(unittest.TestCase):
 
 
 class ClassificationTests(unittest.TestCase):
+    def test_banner_pair_requires_its_disposition_without_a_pair_declaration(self):
+        report = population.derive_records([
+            ('0001-first.md', b'# First\n\n*Superseded 2099-10-11.* Every ruling in "First" is withdrawn by [ADR 0343](0343-retired.md) ruling 1.\n\n## Decision\n\nOld.\n'),
+            ('0002-second.md', b'ADR 0001 was replaced.\n'),
+        ])
+        reading = classified(report)
+        row = reading['pairs'][0]
+        row.update(classification='overturned', disposition='adr-0343-banner')
+        self.assertEqual([], population.classification_findings(report, reading))
+        del row['disposition']
+        self.assertTrue(any('no declaration or banner disposition' in finding for finding in population.classification_findings(report, reading)))
+
     def test_complete_classification_is_digest_bound(self):
         report = fixture()
         self.assertEqual([], population.classification_findings(report, classified(report)))

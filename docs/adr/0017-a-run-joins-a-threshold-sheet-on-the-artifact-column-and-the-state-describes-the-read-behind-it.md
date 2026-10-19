@@ -33,6 +33,8 @@ The clinician ruled the consumer on 2026-08-23.
 
 **`recalled, no shipped sheet` becomes a graded finding.** Where a shipped artifact covers the item's subject, that verdict is refused. It is not a judgment call: the correct verdict there is `sheet does not settle it`, and choosing the widest negative of three declared options is a rule violation rather than a close reading.
 
+*Superseded 2026-10-18.* The words "`recalled, no shipped sheet` becomes a graded finding" are superseded by [ADR 0412](0412-a-matcher-a-note-pass-satisfies-by-rewording-is-retired-and-a-uspstf-citation-names-its-topic-by-copying-the-sheet-title.md) ruling 8. The artifact-column join and the meaning of the sweep states stand; lexical contradictions are reported without changing exit status.
+
 **The scanner matches registry topic names, read from the artifact column.** Filename stems would leave `Blood pressure recheck in 4 weeks` sharing no word with `hypertension` — a silent miss on the highest-value topic in the directory, produced by the repair for a silent miss on the highest-value topic in the directory. Reading the same column the skill joins on also makes the two agree by construction rather than by two globs happening to match.
 
 **A subject that names the condition in neither vocabulary stays a candidate.** `Continue lisinopril 20 mg daily` joins nothing. Drug name to topic is the synonym-shaped miss `_uspstf_subject_topics` already declines to guess at, and it is not widened here.

@@ -387,3 +387,7 @@ reconciliation, and the declared limits live in the module with a pointer in the
 
 **A count of packets, ADRs or tickets written into prose outside this record.** Every figure above is
 dated to `7744c80` and re-derived by `git log`, the documented harvest and the helper's own `check`.
+
+## Supersedes
+
+- [ADR 0037](0037-a-contested-glossary-term-goes-to-the-higher-adr-number.md) the words "the record with the **higher number** owns it.", The number rule stays the default tie-break; the clinician may override it when the older concept is the load-bearing one.

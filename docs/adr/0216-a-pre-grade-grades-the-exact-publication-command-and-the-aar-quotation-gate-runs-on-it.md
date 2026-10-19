@@ -213,3 +213,4 @@ and is unchanged; a pre-grade is one more moment before publication at which the
 ## Supersedes
 
 - [ADR 0179](0179-a-body-file-absent-when-the-hook-ran-is-one-condition-and-its-remedy-names-both-causes.md) ruling 2, the words "then run `python tools/tracker_publish_hook.py --text <path>` before retrying". Rest of missing-file remedy, both repairs and rulings1,3,4 remain.
+- [ADR 0137](0137-a-partial-body-file-path-resolves-against-the-folder-the-command-names.md) the words "`--text` keeps resolving against its own working directory", All five rulings stand.

@@ -115,6 +115,8 @@ declaration and its reason** rather than going silent. A bare marker with no rea
 on `specificity_scan.py`'s rule that the reason is the evidence the check happened: nobody writes one
 without having asked whether a ticket exists, and anybody can write a marker.
 
+*Superseded 2026-08-29.* The words "A pull request that legitimately binds no ticket declares it, with a reason." are superseded by [ADR 0060](0060-a-no-ticket-declaration-is-scoped-to-its-authored-message-and-a-bound-pull-request-may-contain-one.md) ruling 1. The declaration still needs a reason; its scope is one authored message.
+
 This is not a silencer. #530's own #500 sweep records the root defect as *"a merge with no binding is
 indistinguishable from a merge that correctly belongs to no ticket, and the job cannot tell them
 apart by construction."* A declaration is the only thing that makes them different rows, so the next

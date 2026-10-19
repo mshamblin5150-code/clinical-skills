@@ -58,10 +58,10 @@ that changed no file, such as a divergence found on the board.
 way the Canvas skills post to a board. The framing that they hand off only in conversation, and so
 could take an acceptance record or an exemption, was the clinician's to correct and he corrected it.
 
-*Corrected 2026-09-14: this said `icd10-cpt` posts to Medatrax. Diagnosis codes are entered nowhere
+*Superseded 2026-09-14.* *Corrected 2026-09-14: this said `icd10-cpt` posts to Medatrax. Diagnosis codes are entered nowhere
 but the note, so the coding skill posts nothing of its own and hands off through the note's posted
 reading; [ADR 0223](0223-a-shift-is-entered-into-medatrax-after-one-go-ahead-and-confirmed-by-one-posted-reading.md)
-ruling 10.*
+ruling 10.* The words "`icd10-cpt` and `batch-shift` have not been used yet; they will post to Medatrax" are superseded by [ADR 0223](0223-a-shift-is-entered-into-medatrax-after-one-go-ahead-and-confirmed-by-one-posted-reading.md) ruling 10. `clinical-note` and `batch-shift` post; ruling 3's no-exception rule stands.
 
 ### 3. No exception for skills without a posting step
 

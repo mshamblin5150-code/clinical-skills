@@ -172,3 +172,5 @@ The work is five pieces with real dependencies: the section grammar, the Source 
 **Whether faculty mark the in-text spelling.** Unchanged from ADR 0039 ruling 2 — declined on the absence of evidence, not on evidence of absence.
 
 **Whether a clean legal row means a legal entry is cited.** Unchanged from `reference_scan.NOT_REACHED`: a legal entry is outside `uncited-entry` because the canonical narrative name citation needs a whole-phrase key that module does not have.
+
+*Superseded 2026-09-08.* The words "needs a whole-phrase key that module does not have" are superseded by [ADR 0150](0150-the-narrative-author-phrase-stops-at-a-sentence-boundary-and-a-leading-article-is-ignored-quote-aware.md) ruling 7. Only this ground is falsified. The legal-entry exclusion stands.

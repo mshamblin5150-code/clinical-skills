@@ -232,8 +232,6 @@ fifteen thousand characters of clipboard work is not.
 upload shows a filename; neither loads fifteen kilobytes of markup into a box where a silent drop is
 invisible.
 
-
-
 ## Ruling 7 — the fallback is declared at gate 1, the route never switches after a bad reading, and there is no third rung
 
 The raw editor is an **instance and not a Canvas guarantee** — one board, one date. Its absence is
@@ -381,3 +379,5 @@ instead of on a derivation. Either result is worth more than the current state.
 - [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 2, the words "The row is gated on `--docx`". The required substantive record stands; the Canvas submission reading replaces Word-page gating on discussion-post.
 - [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 4, the words "Word is authoritative for how many pages there are". Independent denominator derivation stands; HTML block count supplies the discussion-post Canvas denominator.
 - [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 5, the words "The named route is a freshly spawned Word instance, then PyMuPDF". The measured Word export route remains historical and available to Word artifacts; discussion-post checks Canvas pixels instead.
+- [ADR 0013](0013-the-paste-target-keeps-tags-and-the-renderer-carries-formatting-directly.md) the words "a document destined for a paste box carries its heading formatting as direct run properties", The measurement that the sanitizer keeps tags only stands.
+- [ADR 0015](0015-output-holds-only-the-submission.md) the words "A file goes under `output/` if and only if it was handed in.", Provenance stays in the run directory.

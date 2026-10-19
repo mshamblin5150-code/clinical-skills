@@ -830,6 +830,7 @@ PUBLIC_LEGACY_DATE_METADATA = tuple(re.compile(pattern) for pattern in (
     r"\*\*Point 3 is narrowed rather than overruled[^*]*? (?P<date>\d{4}-\d{2}-\d{2})\.\*\*",
     r"dated record of what was decided on (?P<date>\d{4}-\d{2}-\d{2})",
     r"\*\*Corrected in place on (?P<date>\d{4}-\d{2}-\d{2}):\*\*",
+    r"\*\*The key gained a third component on (?P<date>\d{4}-\d{2}-\d{2}) — see \[ADR 0014\]\(0014-[^()\s]+\.md\)\.\*\*",
     r"Correction, (?P<date>\d{4}-\d{2}-\d{2}), on \[#\d+\]\(https://github\.com/mshamblin5150-code/clinical-skills/issues/\d+\)'s",
 ))
 

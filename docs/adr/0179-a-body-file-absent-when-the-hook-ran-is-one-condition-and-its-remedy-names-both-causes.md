@@ -90,7 +90,9 @@ natural retry is `gh … P`, and the file is absent *because the hook stopped th
 the retried command can show that, so the only place the fact can reach the author is the remedy
 printed on every absent file.
 
-*Superseded 2026-09-13.* The words "then run `python tools/tracker_publish_hook.py --text <path>` before retrying" are superseded by [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md) ruling 9. The exact command-file pregrade replaces manual text mode; both missing-file repairs and the other rulings stand. The original dated account is retained: ## Superseded in part by ADR 0216, 2026-09-13
+*Superseded 2026-09-13.* The words "then run `python tools/tracker_publish_hook.py --text <path>` before retrying" are superseded by [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md) ruling 9. The exact command-file pregrade replaces manual text mode; both missing-file repairs and the other rulings stand. The original dated account is retained:
+
+## Superseded in part by ADR 0216, 2026-09-13
 
 [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md),
 grilled on [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026), retires the
@@ -165,3 +167,7 @@ it is; ruling 2's remedy is what reaches an author who does both in one command.
   and not only the kind. The `P.bak` and `high` rows pin that neither mislabel survives, and a bare
   `gh … --body-file P` row stands for the retry after a refusal.
 - **`docs/agents/issue-tracker.md` names neither kind**, so no manual edit is owed.
+
+## Supersedes
+
+- [ADR 0137](0137-a-partial-body-file-path-resolves-against-the-folder-the-command-names.md) the words "Resolution happens after it.", All five rulings stand.

@@ -2,6 +2,8 @@
 
 [#512](https://github.com/mshamblin5150-code/clinical-skills/issues/512) was split out of [#439](https://github.com/mshamblin5150-code/clinical-skills/issues/439)'s grilling on 2026-08-25 because a source link is a different kind of fact from the columns beside it. Its decision-reason 1: *"It introduces a class of committed fact nothing in the tree can re-derive or verify. Every other column in both ledgers is either read off the document or hand-audited against it. A URL is neither — it is a claim about the outside world, and the repo has no instrument that could ever grade one."*
 
+*Superseded 2026-08-29.* The words "the repo has no instrument that could ever grade one" are superseded by [ADR 0067](0067-the-download-address-is-seeded-from-the-stated-citation-and-a-found-one-is-true-only-on-digest-identity.md) ruling 8. Only this ground is falsified. All rulings, including ruling 6, stand.
+
 Grilled on 2026-08-27, against `origin/main` `6f60fae`. The clinician ruled every point below on the same day. **Nothing is built here; this is the record the build reads.**
 
 ## The measurement falsified the premise, which is why there is a column at all

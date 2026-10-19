@@ -214,3 +214,7 @@ tree as it stands that day.
 
 **Whether the program credits the visit.** A read-back that matches says the portal holds what was
 approved, not that the course counts it.
+
+## Supersedes
+
+- [ADR 0206](0206-a-final-review-follows-a-posted-record-and-every-review-round-keeps-its-own-files.md) ruling 2, the words "`icd10-cpt` and `batch-shift` have not been used yet; they will post to Medatrax" `clinical-note` and `batch-shift` post; ruling 3's no-exception rule stands.

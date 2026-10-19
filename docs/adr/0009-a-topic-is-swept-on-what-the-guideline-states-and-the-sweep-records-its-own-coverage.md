@@ -18,6 +18,8 @@ clinician ruled the term and the sweep on 2026-08-22.
    the population and the state counts. A separate optional artifact column can name
    partial work; an artifact does not change an `unread` topic's state.
 
+*Superseded 2026-08-25.* The words "A separate optional artifact column can name partial work" are superseded by [ADR 0035](0035-a-none-topic-is-a-null-threshold-sheet-and-the-state-is-derived-from-its-span-table.md) ruling 5. The empty-sheet refusal and its directory-silence ground stand.
+
 *Superseded 2026-08-29.* The words "Each row
     is in state `sheet`, `none`, or `unread`" are superseded by [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md) ruling 3. Catalog-derived denominator, artifact column and derived state counts stand.
 
@@ -56,6 +58,8 @@ and would weaken [#85](https://github.com/mshamblin5150-code/clinical-skills/iss
 rule that a missing row means `sheet does not settle it`. The registry records two
 different reasons for an absent sheet instead:
 
+*Superseded 2026-08-25.* The words "The registry records two different reasons for an absent sheet instead" are superseded by [ADR 0035](0035-a-none-topic-is-a-null-threshold-sheet-and-the-state-is-derived-from-its-span-table.md) ruling 1. The empty-sheet refusal and its directory-silence ground stand.
+
 - `none`: the named source documents were read and state no decision point;
 - `unread`: the source documents have not been read completely enough to decide.
 
@@ -69,6 +73,8 @@ Cervical cancer moves the format first because it exposes the method-dependent q
 case. Exact multi-document topics follow so `CONFLICT` and per-source `COVERAGE` run
 before single-source work can hide defects in those gates. Remaining exact topics follow,
 then sources with no recommendation record. Bound-only topics wait on #436.
+
+*Superseded 2026-08-27.* The words "Exact multi-document topics follow so `CONFLICT` and per-source `COVERAGE` run before single-source work can hide defects in those gates." are superseded by [ADR 0057](0057-the-corpus-sweep-is-comprehensive-and-every-ruling-it-needs-is-already-ruled.md) ruling 3. The other points stand; this order becomes the tail. Point 5 belongs to ADR 0025 and is outside this pair.
 
 The registry is an additional maintained artifact, and `none` is a substantive reading
 that a later source revision can invalidate. The auditor therefore derives its topic
