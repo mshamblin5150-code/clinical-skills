@@ -72,6 +72,8 @@ ruling 2 declined for B12. Leaving the grader unchanged and only telling readers
 declined on the same ground. Declaring toxic-effect routes an unread limit was declined because every
 run carrying one would be incompletely scanned permanently.
 
+*Superseded 2026-10-19.* The words "A medicine code in T36-T50 keeps the poisoning-word test." are superseded by [ADR 0430](0430-a-medicine-code-s-drug-column-is-settled-by-the-code-set-where-it-can-and-otherwise-by-a-counted-reader-quoted-ground.md) ruling 6. A medicine code's poisoning words no longer refuse its column: the code set settles it where it can, and a counted column ground quoted by the reader decides the rest. The toxic-effect ruling, its intent tests and its declined alternatives stand.
+
 ## Ruling 2 — the reader brief states each column's exact condition from the grader's own words
 
 `AGREEMENT_READER_INSTRUCTIONS` states the condition for each Table of Drugs and Chemicals column:
