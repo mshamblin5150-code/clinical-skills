@@ -1246,6 +1246,14 @@ AGREEMENT_RETRY_INSTRUCTIONS = (
 )
 
 
+NO_WAIT_PENDING_FORM = "none (pending: <test> could only add <what>)"
+NO_WAIT_PENDING_PATTERN = re.compile(
+    re.escape(NO_WAIT_PENDING_FORM)
+    .replace("<test>", r"[^()\s](?:[^()\r\n]*[^()\s])?")
+    .replace("<what>", r"[^()\s](?:[^()\r\n]*[^()\s])?")
+)
+
+
 AGREEMENT_READER_INSTRUCTIONS = (
     "Writer self-records exist privately; do not read them or request their text as a retry hint. "
     "For every code, record agreeing_words, route, encounter_evidence, "
@@ -1286,7 +1294,16 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "or act belongs to this encounter, not a later recommendation. A bare value reaches an "
     "abnormality descriptor only through a threshold stated by the note or a committed "
     "source. For every entry or differential code, name any result the descriptor still "
-    "waits on. CPT and HCPCS have no index route and use descriptor words only."
+    "waits on. A code waits on a pending or absent result only when that result would "
+    "establish something the code's own descriptor asserts. A pending film or culture "
+    "does not make a diagnosis the encounter already establishes clinically wait. "
+    "Where the result could only replace the code with a more specific one, the code "
+    "does not wait. A descriptor stating 'without complications' or 'uncomplicated' "
+    "records the documented state; an open or pending workup refuses only the "
+    "complication's code. "
+    f"For waits_on_result, use the literal 'none' or '{NO_WAIT_PENDING_FORM}', with "
+    "nonempty test and added-code descriptions; the reason is read for its shape only. "
+    "CPT and HCPCS have no index route and use descriptor words only."
     " Quote agreeing_words from the Final diagnosis or Preexisting diagnoses line pinning an "
     "entry ICD-10 code, the numbered Differential entry pinning a differential code, or the "
     "code-and-descriptor half of the welded NOT CODED: clause naming a refused code, never "
@@ -1721,7 +1738,12 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
             ):
                 findings.append(f"{pair.stem}: {subject.key} has no encounter evidence")
             waits = record["waits_on_result"]
-            if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
+            if (
+                subject.role in {"entry", "differential"}
+                and isinstance(waits, str)
+                and waits != "none"
+                and NO_WAIT_PENDING_PATTERN.fullmatch(waits) is None
+            ):
                 findings.append(f"{pair.stem}: {subject.key} entry waits on {waits}")
             if len(findings) > before[0] or (subject.support and subject.support not in pair.note):
                 failed.add((pair.stem, key))

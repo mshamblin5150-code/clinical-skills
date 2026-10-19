@@ -922,7 +922,13 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                        "code-and-descriptor half", "act done in this encounter",
                        "even when other note text agrees", "Hedge words document the diagnosis",
                        "tier block's filled values", "estimated measurement is not a pending",
-                       "coexists at this encounter", "continue of one, never earns"):
+                       "coexists at this encounter", "continue of one, never earns",
+                       "only when that result would establish something the code's own descriptor asserts",
+                       "pending film or culture", "encounter already establishes clinically",
+                       "could only replace the code with a more specific one",
+                       "'without complications' or 'uncomplicated'",
+                       "open or pending workup refuses only the complication's code",
+                       "none (pending: <test> could only add <what>)"):
             self.assertIn(phrase, instructions)
         self.assertNotIn("section", instructions)
 
@@ -2049,6 +2055,72 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         status, report = self.grade(record)
         self.assertEqual(1, status)
         self.assertRegex(report, r"descriptors waiting on results\s+1")
+
+    def test_a_reader_can_explain_why_a_pending_result_does_not_gate_a_code(self):
+        for role in ("entry", "differential"):
+            for waits in (
+                "none",
+                "none (pending: right ankle radiograph could only add a fracture code)",
+            ):
+                with self.subTest(role=role, waits=waits):
+                    record = self.clean_record()
+                    row = next(item for item in record["pairs"][0]["codes"]
+                               if item["role"] == role)
+                    row["waits_on_result"] = waits
+                    status, report = self.grade(record)
+                    self.assertEqual(0, status, report)
+                    self.assertRegex(report, r"descriptors waiting on results\s+0")
+
+    def test_near_miss_pending_reason_forms_still_fail(self):
+        for role in ("entry", "differential"):
+            for waits in (
+                "none pending radiograph",
+                "none ()",
+                "None (pending: radiograph could only add a fracture code)",
+                "none (pending:  could only add a fracture code)",
+                "none (pending: radiograph could only add )",
+                "none (pending:   could only add   )",
+                "none (pending: radiograph could only add a fracture code) extra",
+                "none (pending: radiograph could only add a fracture code)\n",
+                "pending radiograph",
+            ):
+                with self.subTest(role=role, waits=waits):
+                    record = self.clean_record()
+                    row = next(item for item in record["pairs"][0]["codes"]
+                               if item["role"] == role)
+                    row["waits_on_result"] = waits
+                    status, report = self.grade(record, show=True)
+                    self.assertEqual(1, status, report)
+                    self.assertIn(f"entry waits on {waits}", report)
+                    self.assertRegex(report, r"descriptors waiting on results\s+1")
+
+    def test_a_clinically_established_sprain_can_record_a_pending_radiograph(self):
+        record = self.clean_record()
+        old_code, new_code = "M79.675", "S93.401A"
+        old_label = "Pain in left toe(s)"
+        new_label = "Sprain of unspecified ligament of right ankle, initial encounter"
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE.replace(old_code, new_code).replace(old_label, new_label)
+            + "\nInitial treatment of right ankle sprain; right ankle radiograph pending.\n",
+            encoding="utf-8",
+        )
+        (self.worksheets / "case-01.md").write_text(
+            AGREEMENT_WORKSHEET.replace(old_code, new_code).replace(old_label, new_label),
+            encoding="utf-8",
+        )
+        row = next(item for item in record["pairs"][0]["codes"] if item["code"] == old_code)
+        row["code"] = new_code
+        row["subject_id"] = row["subject_id"].replace(old_code, new_code)
+        row["agreeing_words"] = new_label
+        row["encounter_evidence"] = "Initial treatment of right ankle sprain"
+        for waits, expected in (
+            ("none (pending: right ankle radiograph could only add a fracture code)", 0),
+            ("pending radiograph", 1),
+        ):
+            with self.subTest(waits=waits):
+                row["waits_on_result"] = waits
+                status, report = self.grade(record)
+                self.assertEqual(expected, status, report)
 
     def test_a_procedure_descriptor_the_reader_cannot_settle_is_unread(self):
         record = self.clean_record()
