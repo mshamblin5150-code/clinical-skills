@@ -245,6 +245,13 @@ from a proposal reliably. Issue #290.
 
 ### Check closing keywords before merge
 
+**The canary may be red.** The fixed check name is
+`newer Python 3.14 canary (may fail before the maintainer upgrades)`.
+[ADR 0431](../adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md)
+keeps that failure visible and allows it at merge. Under
+[ADR 0437](../adr/0437-a-merge-does-not-wait-for-ci-and-a-red-main-is-handled-by-its-ticket.md),
+a merge does not wait for CI; this exception adds no waiting requirement for other checks.
+
 GitHub scans a pull request's title, body, and commit messages for closing keywords. The repository scanner follows the dated measured grammar and declared margins named in `closing_keyword_scan.DECLARED_LIMITS`; prose intent does not make a matching form safe. Run it over all three fields before merging:
 
 ```bash
