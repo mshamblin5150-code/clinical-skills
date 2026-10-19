@@ -6,6 +6,9 @@ repo_root=$(git rev-parse --show-toplevel) || exit 0
 
 for python in python python3 py; do
     if command -v "$python" >/dev/null 2>&1; then
+        # ADR 0431: interpreter drift is advisory even when the pin cannot be read.
+        "$python" "$repo_root/tools/maintainer_python.py" >&2 || true
+
         # Advisory, and deliberately not part of the exit status: a stale
         # .claude/skills/ mirror is a wiring fault, not PHI. Prints nothing when
         # the mirror is linked. See tools/skills_mirror.py.

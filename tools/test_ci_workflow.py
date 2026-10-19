@@ -42,8 +42,13 @@ THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
 
 RUNNER = "windows-latest"
-PYTHON_VERSION = "3.14"
+PIN_PATH = ".github/maintainer-python-version"
+CANARY_NAME = "newer Python 3.14 canary (may fail before the maintainer upgrades)"
 FLOOR_VERSION = ".".join(str(part) for part in python_floor.CONSUMER_FLOOR)
+
+
+def job_text(text, job):
+    return re.split(r"\n  [A-Za-z0-9_-]+:\n", text.partition(f"\n  {job}:\n")[2])[0]
 
 
 def workflow_text():
@@ -153,8 +158,30 @@ class TheJobMatchesWhatIsWrittenDown(unittest.TestCase):
         self.assertIn(RUNNER, CLAUDE_MD.read_text(encoding="utf-8"))
 
     def test_the_python_version_is_the_one_claude_md_names(self):
-        self.assertRegex(workflow_text(), rf"python-version:\s*['\"]?{re.escape(PYTHON_VERSION)}")
-        self.assertIn(PYTHON_VERSION, CLAUDE_MD.read_text(encoding="utf-8"))
+        pinned = (REPO_ROOT / PIN_PATH).read_text(encoding="utf-8").strip()
+        self.assertRegex(pinned, r"^3\.14\.[0-9]+$")
+        self.assertIn(PIN_PATH, CLAUDE_MD.read_text(encoding="utf-8"))
+        self.assertIn(f"python-version-file: {PIN_PATH}", job_text(workflow_text(), "suite"))
+        self.assertNotIn("python-version:", job_text(workflow_text(), "suite"))
+
+    def test_both_tracker_jobs_read_the_same_pin(self):
+        for job in ("changed-record", "merge-receipts"):
+            with self.subTest(job=job):
+                text = job_text(tracker_workflow_text(), job)
+                self.assertIn(f"python-version-file: {PIN_PATH}", text)
+                self.assertNotIn("python-version:", text)
+
+    def test_canary_floats_and_keeps_a_visible_suite_failure(self):
+        text = job_text(workflow_text(), "canary")
+        self.assertIn(f"name: {CANARY_NAME}", text)
+        self.assertIn(f"runs-on: {RUNNER}", text)
+        self.assertIn("python-version: '3.14'", text)
+        self.assertIn(SUITE_COMMAND, text)
+        self.assertIn(PIN_PATH, text)
+        self.assertIn("GITHUB_STEP_SUMMARY", text)
+        self.assertIn("python --version", text)
+        self.assertNotIn("continue-on-error", text)
+        self.assertIn(CANARY_NAME, (REPO_ROOT / "docs/agents/issue-tracker.md").read_text(encoding="utf-8"))
 
     def test_the_python_version_is_quoted(self):
         """``3.10`` unquoted is the float 3.1, which is a real and famous way to
@@ -173,7 +200,7 @@ class TheFloorJobRunsTheWholeSuite(unittest.TestCase):
         self.assertIn(SUITE_COMMAND, floor_job)
 
     def test_the_floor_version_is_distinct_from_the_maintainer_job(self):
-        self.assertNotEqual(PYTHON_VERSION, FLOOR_VERSION)
+        self.assertNotEqual((REPO_ROOT / PIN_PATH).read_text(encoding="utf-8").strip(), FLOOR_VERSION)
 
 
 class BothMergeRoutesAreCovered(unittest.TestCase):
@@ -446,14 +473,12 @@ class TheFileIsValidYaml(unittest.TestCase):
         commands = " ".join(step.get("run", "") for step in job["steps"])
         self.assertIn(SUITE_COMMAND, commands)
 
-    def test_the_python_version_survives_as_a_string(self):
-        """Unquoted it would arrive as a float, which is how `3.10` becomes 3.1
-        in somebody else's repository."""
+    def test_the_maintainer_pin_path_survives_as_a_string(self):
         steps = self.load()["jobs"]["suite"]["steps"]
         versions = [
-            step["with"]["python-version"] for step in steps if "python-version" in step.get("with", {})
+            step["with"]["python-version-file"] for step in steps if "python-version-file" in step.get("with", {})
         ]
-        self.assertEqual(versions, [PYTHON_VERSION])
+        self.assertEqual(versions, [PIN_PATH])
 
     def test_the_floor_job_survives_with_its_complete_suite_command(self):
         job = self.load()["jobs"]["floor"]
