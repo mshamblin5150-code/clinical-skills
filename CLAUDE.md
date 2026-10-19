@@ -2443,7 +2443,7 @@ copying its row.
 
 ### ICD-10-CM code set
 
-`reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own. 13.6 MB on disk, **2.68 MB as a git object** — measured 2026-08-11, one time.
+`reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own.
 
 Rebuild it from the CMS release zips — downloaded, left unextracted — when a new fiscal year lands:
 
@@ -2455,7 +2455,7 @@ The path keeps its `2026` name because preserved run records cite it; `meta.rele
 
 **`coding_freshness.py` is the staleness trigger.** It compares that release with the one CDC's files page lists for the service date and blocks a batch whose committed release is not the applicable one. CMS renamed every member between the FY2026 and FY2027 packages, so the builder finds members by kind with separators removed rather than by path. A rebuild moves `code_set_database_test_support.ICD10_DATABASE_SHA256`, and the modules that pin it are re-run against the new bytes before the constant moves.
 
-**It holds the tabular, not the index.** So it verifies a code and never finds one: `tools/icd10_lookup.py --find` is a substring match over descriptors, which is a weaker thing than the alphabetic index and must not be read as one. The index, the neoplasm table and the drug table are all deliberately out — see the module docstring for what that costs.
+**It holds the tabular and the index catalog.** In `tools/icd10_lookup.py`, `describe` and the notes walk verify a code, `--find` is a substring match over descriptors, and `--index` is an exact final-term match over one catalog built from the official alphabetic index, external-cause index, Neoplasm Table, and Table of Drugs and Chemicals. See `tools/icd10_lookup.py`'s module docstring for what `--find` and `--index` cannot establish.
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
 
