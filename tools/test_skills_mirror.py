@@ -224,6 +224,10 @@ class RepoRootTests(unittest.TestCase):
 
 
 class RunRelevantPathTests(TempCheckout):
+    def setUp(self):
+        super().setUp()
+        git(self.root, "init", "-b", "main")
+
     def test_the_set_follows_citations_in_both_directions(self):
         make_skill(
             self.root,
@@ -244,7 +248,7 @@ class RunRelevantPathTests(TempCheckout):
         (tools / "from_agents.py").write_text("", encoding="utf-8")
 
         self.assertEqual(
-            sm.run_relevant_paths(self.root),
+            sm.run_relevant_paths(self.root).paths,
             [
                 "AGENTS.md",
                 "reference",
@@ -256,7 +260,61 @@ class RunRelevantPathTests(TempCheckout):
 
 
 class BaseDistanceGitTests(TempCheckout):
+    def test_an_undecodable_instruction_keeps_distances_and_ascii_citations(self):
+        self.make_git_checkout()
+        instruction = self.root / "skills" / "clinical-note" / "stray.md"
+        instruction.write_bytes(b"\xff Run tools/recovered.py")
+        self.commit("tools/recovered.py", "# recovered\n", "cited tool")
+
+        reading = sm.read_base_distance(self.root)
+        line = sm.render_base_distance(reading, sm.utc_now())
+
+        self.assertEqual((reading.ahead, reading.run_ahead), (1, 1))
+        self.assertIn("1 file(s) read with replacement", line)
+        self.assertNotIn("NOT ESTABLISHED", line)
+
+    def test_ignored_bytecode_is_neither_read_nor_counted(self):
+        self.make_git_checkout()
+        (self.root / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+        bytecode = self.root / "skills" / "clinical-note" / "cache.pyc"
+        bytecode.write_bytes(b"\xff tools/ignored.py")
+        self.commit("tools/ignored.py", "# ignored\n", "uncited tool")
+
+        reading = sm.read_base_distance(self.root)
+        line = sm.render_base_distance(reading, sm.utc_now())
+
+        self.assertEqual((reading.ahead, reading.run_ahead), (1, 0))
+        self.assertNotIn("replacement", line)
+        self.assertNotIn("could not be opened", line)
+
+    def test_a_deleted_tracked_instruction_keeps_distances_and_counts_the_loss(self):
+        self.make_git_checkout()
+        (self.root / "skills" / "clinical-note" / "SKILL.md").unlink()
+
+        reading = sm.read_base_distance(self.root)
+        line = sm.render_base_distance(reading, sm.utc_now())
+
+        self.assertEqual((reading.behind, reading.ahead), (0, 0))
+        self.assertIn("no newer commit known", line)
+        self.assertIn("1 file(s) could not be opened", line)
+
+    def test_a_failed_git_listing_keeps_ref_age_without_disk_fallback(self):
+        self.make_git_checkout()
+        real_run = subprocess.run
+
+        def fail_listing(command, **kwargs):
+            if command[1] == "ls-files":
+                return subprocess.CompletedProcess(command, 1, stdout=b"", stderr=b"failed")
+            return real_run(command, **kwargs)
+
+        with patch.object(sm.subprocess, "run", side_effect=fail_listing):
+            line = sm.base_context(self.root)
+
+        self.assertIn("base: feature -- NOT ESTABLISHED: run-relevant path-set read failed", line)
+        self.assertIn("origin/main last moved", line)
+
     def test_the_read_uses_only_the_declared_local_git_commands(self):
+        """The listing covers tracked and untracked, unignored instructions."""
         self.make_git_checkout()
         real_run = subprocess.run
         with patch.object(sm.subprocess, "run", wraps=real_run) as run:
@@ -285,8 +343,13 @@ class BaseDistanceGitTests(TempCheckout):
                 "origin/main...HEAD",
             ],
         )
+        run.assert_any_call(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard",
+             "-z", "--", "skills"],
+            cwd=self.root, input=None, capture_output=True, check=False,
+        )
         self.assertEqual(
-            commands[2],
+            commands[3],
             [
                 "git",
                 "rev-list",
@@ -294,7 +357,7 @@ class BaseDistanceGitTests(TempCheckout):
                 "--count",
                 "origin/main...HEAD",
                 "--",
-                *sm.run_relevant_paths(self.root),
+                *sm.run_relevant_paths(self.root).paths,
             ],
         )
         self.assertFalse(any("fetch" in command for command in commands))
