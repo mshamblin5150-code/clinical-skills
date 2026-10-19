@@ -1,6 +1,6 @@
 # A shift-day date is exempt only in a declared position and the full audit itemizes only fixture content
 
-**Measured at:** 98bb35f336bdc053c4a3305dbdfc41c67590740d
+**Measured at:** 0bd3d566198a63206267fffbaa01ae4155dfe008
 
 [#1839](https://github.com/mshamblin5150-code/clinical-skills/issues/1839) was filed from the
 tracker sweep that closed #1657's grilling. `python tools/phi_scan.py --all` reports so many
@@ -13,11 +13,18 @@ this is the record the build reads.**
 
 [#1894](https://github.com/mshamblin5150-code/clinical-skills/issues/1894), filed from the tracker
 sweep that closed this record's grilling, was grilled on 2026-10-19 against `main` at `592067b0`.
-Its rulings are folded in below: one position added to ruling 2, and ruling 6. At the commit above,
+Its rulings are folded in below: one position added to ruling 2, and ruling 6. At `98bb35f3`,
 where the freshness gate read `FRESH`, the audit's totals re-derive unchanged at 1,460 date lines
 across 323 files, and the welded-date census under *Measured before ruling* was re-derived there
 with the same figures it had at `a4bceb36`. The per-position rows of the census table were not
 re-run.
+
+[#1921](https://github.com/mshamblin5150-code/clinical-skills/issues/1921), filed from the tracker
+sweep that closed #1894's grilling, was grilled on 2026-10-19 against `main` at `0bd3d566`, where
+the freshness gate read `FRESH`. Its rulings are ruling 7 below, which extends rulings 2 to 4 to
+`tracker_scan --history`. At the commit above, the audit's totals re-derive unchanged at 1,460 date
+lines across 323 files. The welded-date census re-derives unchanged at 196 lines, 189 of them silent,
+in 13 files, with the same four row figures. This session wrote its own digit-bounded reader for it.
 
 **No date value, file line or line number from the scan appears in this record, and none may be
 added.** A line coordinate in a tracked file points at the date on that line, and the date then says
@@ -202,6 +209,51 @@ Rejected: reading the `T`-joined form alone. It fixes the instance the ticket me
 every other welded form unread, which is the partial matcher `CLAUDE.md`'s extractor-coverage rule
 refuses to treat as a clean read.
 
+## Ruling 7 — the history scan follows the same rule as the full audit
+
+Ruled 2026-10-19 on [#1921](https://github.com/mshamblin5150-code/clinical-skills/issues/1921).
+
+**Measured before ruling.** A session reader at `0bd3d566` imported `tracker_scan.blob_records` and
+`phi_scan.scan_file_text` from this checkout and ran them with the corpus layer `ACTIVE` and the
+pull-head refspec configured. It printed counts only. It read **9,080 reachable text blobs**. Scanned
+under their `blob <id> <path>` labels, as `--history` scans them, **3,377** carry a `corpus-date`
+finding, for **20,029** findings. **One** is in fixture content as ruling 4 defines it, and it is the
+same project-context test input the full audit reports. The same blobs carry 373 `corpus-name`
+findings, 139 of them in fixture content, and 60 shape findings, none in fixture content. A
+digit-bounded ISO reader, ruling 6's boundary, finds about 4,000 further shift-day dates. 3,262 of
+those are in the 22 versions of the start-date table. So the history scan already had #1839's
+problem before ruling 6, and at roughly fourteen times the full audit's size.
+
+Scanning the same blobs under their label's path, with no position built yet, drops 473 findings.
+Those are today's two path-keyed exemptions, the APA `checked` cell and the ADR opening and #1518
+attestation view. About 15,000 findings in ordinary prose and test strings sit outside every ruling-2
+position, so positions alone would leave the scan unable to single out a real date.
+
+A second reader walked all 2,803 distinct trees reachable from the clone's refs. **8** blobs are
+reachable under more than one path, and **none** is under both a fixture-content path and another
+path. `git rev-list --objects` attaches one path to an object, the first it meets. So the single
+label classifies every blob correctly today, but nothing keeps it that way.
+
+**The ruling.**
+
+- `--history` scans each blob under the path its label carries, so ruling 2's positions and
+  `public_adr_date_text`'s path-keyed view apply to a blob as they apply to the tracked file. A
+  historical blob is read with today's grammar. Under the next limb that grammar changes only a
+  count, never the exit status.
+- `--history` partitions `corpus-date` findings as ruling 3 partitions `--all`. A date in a fixture-
+  content blob is listed and sets exit 1. Any other date outside a declared position is printed as a
+  count per top-level area of the label's path, and does not change the exit status. `--show` still
+  lists every such finding. `corpus-name` and shape findings stay listed and graded.
+- **A blob is fixture content if any path it was ever committed under is fixture content**, by
+  ruling 4's definition. That decision is not made from the single label. The report prints how many
+  blobs are reachable under more than one path.
+
+Rejected: positions alone, because about 15,000 prose findings would remain and the scan still could
+not single out a real date. No exemption at all, because it would leave the history scan with about
+24,000 findings once ruling 6 is built, which is #1839's problem on another surface. Trusting the
+single label for fixture content, because a fixture blob saved byte-for-byte under another name
+would have its dates counted instead of graded, silently, in the one class that decides the result.
+
 ## Build checklist
 
 - `tools/phi_scan.py`: replace the inline APA rewrite in `_scan_line` with one declared-position
@@ -227,6 +279,19 @@ refuses to treat as a clean read.
 - `tools/outbound_search.py`: its pretyping refusal reads `phi_scan`'s three date patterns
   directly, so ruling 6 widens it too, in the safe direction. Name that in the build and add one
   control: a query carrying a `T`-joined corpus date is refused.
+- `tools/tracker_scan.py` (ruling 7): recover every path each reachable blob was committed under
+  with one history read, for example `git log --all --raw --root --no-renames -z`, rather than one
+  `ls-tree` per tree. Pass the label's path to `phi_scan.scan_file_text`, and partition
+  `corpus-date` findings with the same fixture-content predicate and per-area count `--all` uses,
+  imported from `phi_scan` and not restated. Print the count of blobs reachable under more than one
+  path on every `--history` run.
+- `tools/test_tracker_scan.py` (ruling 7): in a throwaway repository, a declared-position date in an
+  old version of a position file is masked; a date in an old fixture-content blob is listed and
+  exits 1; a run whose only date findings are in prose blobs exits 0 with the count printed; a blob
+  committed byte-for-byte under a fixture path and under a non-fixture path, labeled with the
+  non-fixture one, is still graded; a `corpus-name` finding in a prose blob is still listed.
+- `CLAUDE.md`: the *Tracker scan* section states that `--history` follows ADR 0415's positions and
+  partition, and names ruling 7 instead of copying it.
 - `CLAUDE.md`: the *PHI pre-commit hook* section's audit sentence states that `--all` itemizes
   fixture-content dates and counts the rest, and names the declared positions by their object
   rather than copying them.
@@ -237,13 +302,13 @@ refuses to treat as a clean read.
   already records it as one.
 - **The tracker surfaces.** Ruling 2's positions are keyed on tracked file paths; `tracker_scan`'s
   issue, comment and review records and `tracker_publish_hook`'s publications gain no position.
-- **The git-history surfaces.** `tracker_scan --history` scans every reachable blob through
-  `phi_scan.scan_file_text` under a `blob <id> <path>` label, never under the tracked path, so no
-  ruling-2 position can match a blob; the APA `checked` cell is already unexempt there. Once ruling 6
-  is built, the start-table dates in every historical version of that file, and the welded test and
-  report dates, are read in `--history` with no exemption. Recorded from the tracker sweep closing
-  #1894's grilling, 2026-10-19; how many findings that adds was not measured, and whether that
-  surface should honor positions is a decision this record does not make.
+- **The other git-history surfaces.** Ruling 7 reaches `--history`'s blobs only. `--commits` and
+  `--paths` read text that was never a file, so no position applies to them and their findings are
+  not partitioned. A blob reachable from no ref is still not scanned, as the `tracker_scan`
+  docstring already states.
+- **A blob whose path no longer matches its grammar.** Ruling 7 reads an old version of a position
+  file with today's grammar. A date the old grammar held in a different place is counted instead
+  of masked. That moves a count and never a result.
 - **A date in an exempt position that is not what the position says.** Ruling 2's accepted cost.
 - **The 119 name lines.** `--all` keeps exiting 1 on them until the harvested strings are ruled.
 - **A date rendering none of the three patterns reads.** Ruling 6 changes where a date may sit
