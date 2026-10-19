@@ -1777,6 +1777,28 @@ def extract(command: str) -> Extraction:
     while index < len(arguments):
         token = arguments[index]
         source_token = argument_sources[index]
+        if (
+            route == ("pr", "merge")
+            and token[:2] in ("-t", "-b", "-F")
+            and len(token) > 2
+            and token[2] != "="
+        ):
+            flag, value = token[:2], token[2:]
+            if flag == "-F":
+                read = _read_file_field(
+                    "body", value, command, assignments, substitutions
+                )
+            else:
+                read = _read_inline_value(
+                    inline_flags[flag],
+                    _source_without_literal_prefix(source_token, flag),
+                    "" if source_token.startswith(flag) else flag,
+                )
+            if isinstance(read, Unreadable):
+                return Extraction(route, number, tuple(publications), (read,), grade_route)
+            publications.append(read)
+            index += 1
+            continue
         api_option = _api_value_option(arguments, index) if route == ("api",) else None
         if (
             api_option is not None

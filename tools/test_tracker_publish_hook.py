@@ -105,6 +105,8 @@ class ClosingHazardsAtPublication(unittest.TestCase):
     def test_merge_grades_only_closing_hazards_without_readback(self):
         for flags, denied in (("--subject 'This fixed #135.'", True),
                               ("-t 'This fixed #135.'", True),
+                              ("-t'This fixed #135.'", True),
+                              ("-b'This fixed #135.'", True),
                               ("--body 'This fixed #135.'", True),
                               ("-b 'Closes #135'", False),
                               ("--subject 'tools/example.py:12'", False),
@@ -123,6 +125,7 @@ class ClosingHazardsAtPublication(unittest.TestCase):
             request.write_text(json.dumps({'commit_message': 'This fixed #135.'}), encoding='utf-8')
             commands = [
                 f"gh pr merge 88 -F '{body.as_posix()}'",
+                f"gh pr merge 88 -F'{body.as_posix()}'",
                 f"gh pr merge 88 --body-file='{body.as_posix()}'",
                 "gh pr merge 88 --body '$EXTERNAL'",
                 'gh pr merge 88 --body "$EXTERNAL"',

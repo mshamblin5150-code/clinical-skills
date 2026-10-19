@@ -213,6 +213,7 @@ class CommitMessageHook(unittest.TestCase):
     def test_deliberate_binding_and_spelling_alone_allow_but_unreadable_refuses(self):
         with tempfile.TemporaryDirectory() as raw:
             message = Path(raw) / 'COMMIT_EDITMSG'
+            # spelling-scan: mentions 2
             for text, allowed in [('Closes #135\n', True), ('Use colour\n', True), (None, False)]:
                 with self.subTest(text=text):
                     if text is None:
@@ -224,6 +225,7 @@ class CommitMessageHook(unittest.TestCase):
                         cwd=REPO_ROOT, capture_output=True, text=True, encoding='utf-8', errors='replace',
                     )
                     self.assertEqual(result.returncode == 0, allowed, result.stderr)
+                    # spelling-scan: mentions 1
                     if text == 'Use colour\n':
                         self.assertIn('spelling-scan', result.stderr)
 
