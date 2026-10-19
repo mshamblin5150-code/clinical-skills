@@ -10,6 +10,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import tempfile
 import unittest
+import artifact_lock_test_support
 from unittest import mock
 
 import change_list

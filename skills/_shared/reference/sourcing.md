@@ -11,6 +11,26 @@ For all five coursework skills, research and refutation returns refer to the cli
 as his **Case research** or to the **Evidence store**, and never state who wrote, compiled, or supplied
 a document unless their brief says so.
 
+## Case video narration
+
+For a video case in `practicum-case-study` or `peer-critique`, follow
+[Case video capture](case-video.md) before drafting. The faculty video and slides are the Case
+material; the machine-made or clinician-typed capture is working material checked against it.
+The Project context record's capture line names whichever capture supplied the working reading,
+its acquisition route, its fingerprint and that working-material status. Keep the video's address
+as `CASE-MATERIAL`; a capture never silently replaces that source.
+
+Use machine-transcribed words as written, labeled machine transcription that no human listened
+to verify. A datum also shown on a slide is quoted from the slide. Before quoting a narration-only
+drug name, dose or number, or using it to fault anyone, obtain the clinician's confirmation or
+correction. Every span where the local passes disagree joins the same confirmation list. Preserve
+the answers in the keyed capture review read by both completion graders. Auto-captions from
+YouTube or the course site are never quoted, relied on for data, or used to fault anyone.
+
+When capture fails, stop for the clinician's repair-or-type choice. A typed capture is identified
+as his own capture made by listening, with him as its human check, and quotations point there.
+The shared sheet owns the command and record contract under ADR 0424.
+
 ## Search the evidence store and guideline index first
 
 For every research claim in the five coursework skills, first search the **Evidence store** with

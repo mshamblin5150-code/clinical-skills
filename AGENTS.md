@@ -226,6 +226,17 @@ required before handoff; each scoped completion grader enables the same row with
 Without a clean required run, attachment identity is not mechanically verified. The complete
 ceiling belongs to `lms_attachments.DECLARED_LIMITS`.
 
+**`tools/case_video.py` is a Required command for video cases in `practicum-case-study` and
+`peer-critique`.** Follow [Case video capture](skills/_shared/reference/case-video.md) before drafting
+and require a clean keyed source-route and confirmation review before handoff. Both completion
+graders read that review. The shared sheet owns capture order, confirmation and failure routing.
+The command's complete ceiling belongs to `case_video.DECLARED_LIMITS`.
+
+**Case video prerequisites live in a separate Python environment.** The capture worker needs
+`tools/case-video-requirements.txt`; the ordinary consumer interpreter imports none of those
+packages. Pass that environment's Python with `--python`. The shared capture sheet gives setup,
+private-file placement, and the clinician-typed route. Other coursework skills gain no dependency.
+
 **`vitalsource-chrome` depends on its committed Codex Chrome patcher.**
 `skills/vitalsource-chrome/scripts/patch_codex_chrome.py` installs the reviewed stable top-level
 attachment and XHTML document classification into both the bundled Chrome cache and active desktop browser runtime. It preserves the

@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 import run_grader
+import artifact_lock_test_support  # Completion graders can now acquire capture locks.
 
 
 MARKER = "conformance-salted-marker"

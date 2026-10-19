@@ -3,6 +3,7 @@ import contextlib
 import io
 import tempfile
 import unittest
+import artifact_lock_test_support
 from pathlib import Path
 import post_text
 import peer_critique_scan

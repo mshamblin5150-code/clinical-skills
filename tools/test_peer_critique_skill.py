@@ -11,6 +11,8 @@ import imagery_proposals
 import peer_critique_scan
 import project_context
 import lms_attachments
+import case_video
+import artifact_lock_test_support
 import voice_model_identity
 import voice_read
 from prose_bind import NAMING, ProseBind, bind
@@ -219,6 +221,7 @@ class TheAfterActionReviewIsWired(unittest.TestCase):
                 imagery_proposals.EXPECTED_ROW,
                 project_context.EXPECTED_ROW,
                 lms_attachments.EXPECTED_ROW,
+                case_video.EXPECTED_ROW,
             ),
             peer_critique_scan.EXPECTED_COMPLETION_CHECKS,
         )

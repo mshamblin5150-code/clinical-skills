@@ -34,6 +34,7 @@ import voice_model_identity
 import voice_read
 import project_context
 import lms_attachments
+import case_video
 
 
 GraderConformance = grader_conformance.for_module(aar_scan)
@@ -3384,6 +3385,8 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
                 if skill in project_context.SCOPED_SKILLS:
                     expected += (project_context.EXPECTED_ROW,)
                     expected += (lms_attachments.EXPECTED_ROW,)
+                if skill in {"peer-critique", "practicum-case-study"}:
+                    expected += (case_video.EXPECTED_ROW,)
                 self.assertEqual(module.EXPECTED_COMPLETION_CHECKS, expected)
                 text = (
                     Path(__file__).resolve().parent.parent / "skills" / skill / "SKILL.md"

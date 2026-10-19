@@ -1320,6 +1320,15 @@ the row is not graded. The five coursework completion graders inherit the same r
 Before retrieving files, read [LMS attachments](skills/_shared/reference/lms-attachments.md).
 The complete ceiling belongs to `lms_attachments.DECLARED_LIMITS`; this section copies no row.
 
+### Case video capture
+
+`tools/case_video.py` prepares private video and slide frames, then transcribes narration locally
+with two model sizes after the slides have been read. Follow
+[Case video capture](skills/_shared/reference/case-video.md) for the separate environment and the
+keyed confirmation record. Only `practicum-case-study` and `peer-critique` inherit its completion
+gate. Exit 0 completes a stage or a clean review, 1 is a review finding, and 2 means the capture
+or invocation could not complete. The complete ceiling belongs to `case_video.DECLARED_LIMITS`.
+
 ### Coursework project context
 
 Before first prose, the five coursework skills write and confirm the purpose-named

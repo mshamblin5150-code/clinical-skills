@@ -1911,6 +1911,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             ],
             [
                 "A pointer is not a source",
+                "Case video narration",
                 "Search the evidence store and guideline index first",
                 "A resolving locator is not verification",
                 "An undated source needs a reasoned excuse",

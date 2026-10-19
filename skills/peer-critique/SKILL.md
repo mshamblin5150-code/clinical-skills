@@ -110,6 +110,13 @@ Then read three documents side by side and keep them side by side for the whole 
 material** the assignment supplied, the **classmate's post**, and the **clinician's own post** on
 the same case.
 
+For a video case, follow [Case video capture](../_shared/reference/case-video.md) now; that sheet
+owns capture order, the confirmation-list stop, and the clinician's repair-or-type choice after
+failure. Record its selected route and bound review, including its document-only declaration for
+a case with no video. `python tools/case_video.py check <run> --submission critique.md --draft <run>/critique.md`
+must exit 0 before handoff; `peer_critique_scan.py --submission` repeats the gate. The shared
+[narration rule](../_shared/reference/sourcing.md#case-video-narration) governs quotations.
+
 **Only what the case supplied is in scope.** A case study hands every student one fixed data set. An
 item absent from that data set — a family history nobody was given, an insurance field the case
 never stated — is not the classmate's omission, and a finding against them for it is a finding

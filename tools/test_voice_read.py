@@ -848,6 +848,10 @@ class PublicCompletionCommand(unittest.TestCase):
         self.draft_path = self.run / "critique.md"
         (self.run / "lms-attachments").mkdir()
         (self.run / "lms-attachments" / "critique.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
+        (self.run / "case-video").mkdir()
+        (self.run / "case-video" / "critique.json").write_text(
+            json.dumps({"kind": "none", "reason": "Synthetic document-only case"}), encoding="utf-8",
+        )
         self.draft = self.draft_path.read_text(encoding="utf-8")
         self.original = "A unique closing sentence."
         self.replacement = "This is a generic sentence."

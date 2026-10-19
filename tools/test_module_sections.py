@@ -55,6 +55,7 @@ DECLARED_SECTIONS = {
     "clinical_credentials": "Clinical credential settings",
     "title_page_credentials": "Course assignment artifact grading",
     "lms_attachments": "LMS attachment identity",
+    "case_video": "Case video capture",
     "memory_index": "Memory index",
     "scanner_pipe_hook": "Scanner pipe guard",
     "install_scanner_pipe_guard": "Scanner pipe guard",

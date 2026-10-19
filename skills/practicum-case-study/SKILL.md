@@ -12,6 +12,19 @@ is the submitted artifact or an archive of a contribution loaded into a Canvas C
 Before first prose, follow [Paper language](../_shared/reference/paper-language.md):
 reuse the saved account answer or ask once and save it when missing.
 
+For a video case, follow [Case video capture](../_shared/reference/case-video.md) before drafting;
+that sheet owns capture order, the confirmation-list stop, and the clinician's repair-or-type
+choice after failure. Record its selected route and bound review, including its document-only
+declaration for a case with no video. Before handoff,
+`python tools/case_video.py check <run> --submission <key> --draft <final-draft>` must exit 0;
+`checks_ledger.py --submission` repeats the gate. Follow the shared
+[narration rule](../_shared/reference/sourcing.md#case-video-narration).
+
+A differential found only in the clinician's UpToDate dump is his research, not the faculty's
+or the run's. Put the run's selection on `PROPOSED (verify before use)` with the dump topic so he
+keeps or cuts it at the go-ahead. His live differentials remain his draft; the dump's broader
+population is never silently treated as that draft. ADR 0424 ruling 10 governs this attribution.
+
 This is **not** [clinical-note](../clinical-note/SKILL.md), and the difference is not the format.
 A clinical note documents a patient the clinician saw. A case study answers a faculty prompt about
 a patient nobody saw, against a published rubric, in a course. **The single rule that inverts is

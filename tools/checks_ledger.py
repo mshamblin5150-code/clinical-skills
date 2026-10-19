@@ -188,6 +188,7 @@ import voice_read
 import imagery_proposals
 import project_context
 import lms_attachments
+import case_video
 import approval_record
 import heading_read
 import research_ledger
@@ -203,6 +204,7 @@ EXPECTED_COMPLETION_CHECKS = (
     imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
+    case_video.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
 
@@ -1312,6 +1314,10 @@ def _grade(
         grade, source.path.parent, submission
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path.parent, submission)
+    grade = case_video.apply_completion_gate(
+        grade, source.path.parent, submission,
+        {submission: source.document_bytes} if submission is not None else {},
+    )
     return approval_record.apply_completion_gate(
         grade, source.path.parent, "practicum-case-study", submission
     )
