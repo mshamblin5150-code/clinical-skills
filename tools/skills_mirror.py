@@ -114,6 +114,7 @@ NO_SKILLS = "no skills found under skills/"
 POPULATION_NOT_READ = (
     "skills mirror: DID NOT INSPECT -- tracked skill population read failed"
 )
+FILESYSTEM_NOT_READ = "skills mirror: DID NOT INSPECT -- filesystem read failed"
 UNSUPPRESSED_LINES = (
     "empty-population",
     "population-not-read",
@@ -1001,17 +1002,18 @@ def main(argv=None) -> int:
 
     try:
         entries = inspect(root)
-    except git_paths.GitPathError:
+    except (git_paths.GitPathError, OSError) as error:
+        diagnostic = POPULATION_NOT_READ if isinstance(error, git_paths.GitPathError) else FILESYSTEM_NOT_READ
         if args.session_start:
             stamp = _utc_stamp()
-            record_report(root, [POPULATION_NOT_READ, *worktree_lines], stamp=stamp)
-            context = f"{POPULATION_NOT_READ}\n\n{base_context(root)}"
+            record_report(root, [diagnostic, *worktree_lines], stamp=stamp)
+            context = f"{diagnostic}\n\n{base_context(root)}"
             context = "\n".join([context, *worktree_lines])
             if _quiet_keeps("session-start-artifact"):
                 print(json.dumps(hook_response(context)))
             return 0
         if _quiet_keeps("population-not-read"):
-            print(POPULATION_NOT_READ, file=sys.stderr)
+            print(diagnostic, file=sys.stderr)
         return 2
 
     if args.session_start:
