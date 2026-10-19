@@ -33,6 +33,7 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
+    "run_record_reader": "a decoder adapter distinguishing missing from unreadable; callers own schema and content claims",
     "maintainer_python": "an advisory comparison of one pin with the running major.minor.micro release, not a population or CI reproducibility check",
     "mechanics_test_support": "test support for comparing older row fixtures before the mechanics start, not a public checker",
     "claude_output_access": "an exact saved-directory lookup whose module docstring excludes browser behavior and Codex permissions; no population completeness claim",

@@ -334,10 +334,17 @@ The glossary candidates are the compounding part. Tokens that appeared more than
 
 ### 7. Build the Review sheet
 
-At the go-ahead, show `UPTODATE CONFLICTS` and `UPTODATE FAILED PULLS` lines in chat beside
+At the go-ahead, run the Required command
+`python tools/uptodate_block.py --run <run-directory> --batch` and show its output word for word:
+`UPTODATE CONFLICTS`, `UPTODATE FAILED PULLS`, and `UPTODATE MISMATCHED SEARCHES` in chat beside
 `PRE-APPROVAL PATIENT QUESTIONS` and `REPAIRS`, including `none` for each empty population; they
-stay outside the Review sheet (ADR 0408). Roll up the per-note conflicts (sheet, row, topic,
-update date, what differs) and failures (decision and instrument tried). The shift's after-action
+stay outside the Review sheet (ADR 0408). The producer derives per-note conflicts (sheet, row, topic,
+update date, what differs) and failures (decision and instrument tried) from the notes and committed
+pull records. Record failures and live conflict details through the `clinical-note` UpToDate commands;
+a passed search without an outcome is a finding. Approval reruns the producer and refuses a missing
+or changed shown block; an unreadable transcript records incomplete coverage. Without a clean
+producer run the go-ahead stops. Its complete boundary belongs to `uptodate_block.DECLARED_LIMITS`.
+The shift's after-action
 review follows the shared sheet-row ticket route once per conflict, searching for an open
 ticket first and carrying no encounter details into tracker content.
 
@@ -534,6 +541,12 @@ Entry order runs from 1 through the entered population without gaps; `patient` i
 ```text
 VISIT: 1 | patient 3 | reference matched P-3 | patient-detail=/patients/3 | note-view=/forms/view?resultid=31 | visit-date=<displayed-date> | finished=<displayed-finished-date-and-time> | matches
 ```
+
+Produce this record with the Required writer and standalone check in
+[Medatrax readback](../_shared/reference/medatrax-readback.md), using `--batch`, before the
+after-action extract. Supply copied portal readings and hours and minutes; the writer computes
+the fingerprint and read count. Without both clean exits the after-action review stops.
+The complete boundary belongs to `medatrax_posting.DECLARED_LIMITS`.
 
 **Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review and posting rows enabled:
 

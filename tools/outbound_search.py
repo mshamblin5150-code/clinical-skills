@@ -17,11 +17,13 @@ import phi_scan
 import completion_checks
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
+from run_record_reader import read_tool_record, UnreadableRecord
 
 DECLARED_LIMITS = (
     "Whether the remaining words are clinical vocabulary is not proved by identifier and shape checks.",
     "A search typed without the check and without a live-pull record leaves nothing for the grader to find.",
     "Only site strings in the profile's Site or Sites picklist are recognized as account sites.",
+    "Whether a recorded difference is clinically accurate remains a reader's judgment.",
 )
 
 SEARCHES = "outbound-searches.jsonl"
@@ -68,12 +70,26 @@ def refusal(query: str, profile: Path) -> str | None:
 
 
 def records(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if any(not isinstance(row, dict) for row in rows):
-        raise ValueError("record line must be an object")
-    return rows
+    def decode(text: str) -> list[dict]:
+        rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+        if any(not isinstance(row, dict) for row in rows):
+            raise ValueError("record line must be an object")
+        return rows
+    return read_tool_record(path, decode) or []
+
+
+def private_line(value: str) -> str:
+    """Allow numeric clinical differences, but refuse corpus identifiers/dates."""
+    if not value.strip() or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("detail must be one nonempty line without control characters")
+    if phi_scan.missing_corpus_sources():
+        raise ValueError("PHI corpus is unread; check was not run")
+    names, dates = phi_scan.corpus_identifiers()
+    if any(_contains(value, literal) for literal in names | dates if literal.strip()):
+        raise ValueError("corpus identifier is refused")
+    if any(pattern.search(value) for pattern in (phi_scan.NUMERIC_CORPUS_DATE, phi_scan.ISO_CORPUS_DATE, phi_scan.WRITTEN_CORPUS_DATE)):
+        raise ValueError("date literal is refused")
+    return value
 
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
@@ -86,12 +102,32 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
         searches = records(run / SEARCHES)
         pulls = records(run / PULLS)
         passed = {row.get("search_id") for row in searches if row.get("passed") is True and isinstance(row.get("query"), str) and row["query"].strip()}
-        missing = sum(not row.get("search_id") or row.get("search_id") not in passed or not row.get("dump_id") for row in pulls)
+        missing = sum(not row.get("search_id") or row.get("search_id") not in passed or not valid_outcome(row) for row in pulls)
         if missing:
             return True, f"Outbound searches: finding - {missing} live pull(s) lack a passed search-record line"
-        return False, f"Outbound searches: clean - {len(pulls)} live pull(s), {len(searches)} search record(s)"
+        unfinished = passed - {row.get("search_id") for row in pulls}
+        if unfinished:
+            return True, f"Outbound searches: finding - {len(unfinished)} passed search(es) have no recorded outcome"
+        failed = sum(row.get("outcome") == "failed" for row in pulls)
+        mismatched = sum(row.get("outcome") == "mismatched" for row in pulls)
+        live = len(pulls) - failed - mismatched
+        report = f"Outbound searches: clean - {live} live pull(s), {len(searches)} search record(s)"
+        if failed or mismatched:
+            report += f", {failed} failed pull(s), {mismatched} mismatched search(es)"
+        return False, report
     except (OSError, UnicodeError, ValueError, TypeError):
-        return True, "Outbound searches: finding - private record unreadable"
+        return False, "Outbound searches: unreadable - private record could not be read"
+
+
+def valid_outcome(row: dict) -> bool:
+    outcome = row.get("outcome", "live")
+    if outcome == "live":
+        return isinstance(row.get("dump_id"), str) and bool(row["dump_id"].strip())
+    if outcome == "failed":
+        return all(isinstance(row.get(key), str) and bool(row[key].strip()) for key in ("decision", "instrument"))
+    if outcome == "mismatched":
+        return isinstance(row.get("query_readback"), str) and bool(row["query_readback"].strip())
+    return False
 
 
 def main(argv: list[str]) -> int:
@@ -102,7 +138,14 @@ def main(argv: list[str]) -> int:
     check.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     pull = sub.add_parser("pull")
     pull.add_argument("--dump-id", required=True)
-    for command in (check, pull):
+    pull.add_argument("--sheet")
+    pull.add_argument("--row")
+    pull.add_argument("--difference")
+    pull.add_argument("--sheet-kept", action="store_true")
+    failed = sub.add_parser("failed-pull")
+    failed.add_argument("--decision", required=True)
+    failed.add_argument("--instrument", required=True)
+    for command in (check, pull, failed):
         command.add_argument("--run", type=Path, required=True)
         command.add_argument("--search-id", required=True)
     try:
@@ -122,16 +165,29 @@ def main(argv: list[str]) -> int:
         else:
             if not any(row.get("search_id") == args.search_id and row.get("passed") is True for row in records(args.run / SEARCHES)):
                 raise ValueError("live pull has no passed search-record line")
-            if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", args.dump_id):
-                raise ValueError("invalid dump id")
             path = args.run / PULLS
-            row = {"search_id": args.search_id, "dump_id": args.dump_id}
+            records(path)  # Refuse an unreadable existing log before appending.
+            if args.action == "failed-pull":
+                row = {"search_id": args.search_id, "outcome": "failed",
+                       "decision": private_line(args.decision), "instrument": private_line(args.instrument)}
+            else:
+                if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", args.dump_id):
+                    raise ValueError("invalid dump id")
+                row = {"search_id": args.search_id, "dump_id": args.dump_id}
+                if any((args.sheet, args.row, args.difference, args.sheet_kept)):
+                    if not all((args.sheet, args.row, args.difference)):
+                        raise ValueError("conflict needs sheet, row, and difference")
+                    sheet = args.sheet.removeprefix("thresholds/").removesuffix(".md")
+                    if not re.fullmatch(r"[a-z0-9-]+", sheet):
+                        raise ValueError("invalid threshold sheet")
+                    row.update(sheet=sheet, row=private_line(args.row),
+                               difference=private_line(args.difference), sheet_kept=args.sheet_kept)
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
-        print("Outbound search: recorded pass" if args.action == "check" else "UpToDate live pull: recorded")
+        print("Outbound search: recorded pass" if args.action == "check" else "UpToDate pull outcome: recorded")
         return 0
     except (OSError, UnicodeError, ValueError, TypeError) as error:
-        reason = str(error) if type(error) is ValueError else "required private input or record unreadable"
+        reason = str(error) if type(error) in (ValueError, UnreadableRecord) else "required private input or record unreadable"
         print(f"outbound-search: refused - {reason}", file=sys.stderr)
         return 2
 

@@ -150,6 +150,13 @@ Markdown fingerprint for the attachment fallback. Without its clean exit and a v
 page reading, the attached `.docx` cannot receive the fallback go-ahead or pass the terminal grader.
 
 **The shared UpToDate path depends on committed store and sheet tools.**
+`tools/uptodate_block.py` is a Required command before either clinical go-ahead. It derives
+the chat disclosure from the notes and committed pull outcomes; approval compares the shown
+block before the clinician's reply. Without a clean producer run the go-ahead stops.
+`tools/medatrax_posting.py` is a Required writer and standalone check before either clinical
+after-action extract. It computes the note fingerprint and read count and validates the portal
+record before saving; without both clean exits the extract stops.
+
 `tools/outbound_search.py` is a Required command before each real-encounter live account
 search. It records a passed search before typing; its `pull` command records each live pull.
 The `clinical-note` and `batch-shift` submission graders refuse a recorded live pull without
