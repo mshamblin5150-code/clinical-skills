@@ -502,6 +502,7 @@ class Scan:
     reader_records_unread: int = 0
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
+    heading_items_report: str = ""
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1509,6 +1510,7 @@ def survey(source: RunSource) -> Scan:
             submission_fingerprint_graded=(posted_reading_graded or source.html is not None or source.docx is not None),
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
+            heading_items_report=heading_read.format_item_coverage(heading),
             posted_reading_unread=posted_reading_unread,
             findings=findings + _posted_reading_findings(source),
             withheld_rows=tuple(sorted(withheld)),
@@ -1676,6 +1678,7 @@ def survey(source: RunSource) -> Scan:
         submission_fingerprint_graded=(posted_reading_graded or source.html is not None or source.docx is not None),
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
+        heading_items_report=heading_read.format_item_coverage(heading),
         posted_reading_unread=posted_reading_unread,
         findings=tuple(findings),
         withheld_rows=tuple(sorted(withheld)),
@@ -1743,6 +1746,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             else f"pre-#496 markers: {NOT_GRADED}"
         ),
         f"heading-read records: {scan.heading_reads}",
+        *scan.heading_items_report.splitlines(),
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread + scan.image_answer_unread
         ),

@@ -372,7 +372,8 @@ Before each reply's go-ahead, this fresh **Second reader** under [standing rule 
 `response-<name>.md`, `claims.md`, the printed heading digests, and every item pointer recorded
 in `project-context.md`. It opens those items itself. Do not give it research sources. Pairs may
 resolve only to `[REPLY: <name>]` records. Write one shared `## HEADING-READ:` record per response
-file in `<run-directory>/heading-read.md`, repair every `unrecorded` or `drifted` finding under
+file in `<run-directory>/heading-read.md`. Each `ITEM` quotes its unique supporting place or uses
+the shared absence sentinel; use the shared service-item exception. Repair every `unrecorded` or `drifted` finding under
 [sourcing.md](../_shared/reference/sourcing.md), and repeat the read after any repair. The reader writes
 each problem outside its assigned question on a `REMARK: <problem>` line, repeated for each remark,
 and nowhere else in the record. With no second context, the read does not complete: write no record,

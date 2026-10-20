@@ -189,6 +189,7 @@ class Scan:
     reader_records_unread: int = 0
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
+    heading_items_report: str = ""
 
     @property
     def unread(self) -> int:
@@ -605,6 +606,7 @@ def survey(source: Source) -> Scan:
         len(reference_grade.bare_number_candidates),
         reference_grade.citation_coverage,
         withheld_rows=tuple(sorted(withheld)),
+        heading_items_report=heading_read.format_item_coverage(heading),
     )
 
 
@@ -623,6 +625,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  rendered records  {scan.rendered_records}",
         f"  heading reads     {scan.heading_reads}",
+        *scan.heading_items_report.splitlines(),
         f"  citation candidates   {scan.citation_coverage.candidates}",
         *([f"  citation unread   {scan.citation_coverage.unread}"] if scan.citation_coverage.unread else []),
         run_grader.format_unread_remainder(scan.unread),

@@ -78,13 +78,21 @@ def fixture(name: str, root: Path, sentence: str) -> tuple[Path, Path, list[str]
         artifact.write_text("Maren,\n\n" + sentence + "\n\n**References**\n", encoding="utf-8")
         argv = list(case.argv)
     (run / "claims.md").write_text("DATE: 2026-10-12\n", encoding="utf-8")
+    item = run / ITEM_ID
+    item.write_text("The plan names a 90-day review.\n", encoding="utf-8")
+    (run / "project-context.md").write_text(
+        "PROJECT-CONTEXT: none - synthetic directed search\n"
+        "OWN-SUBMISSION: none - no synthetic earlier work\n"
+        "CASE-MATERIAL: none - no synthetic case\nCASE-RESEARCH: none - no synthetic research\n"
+        "CONFIRMED: 2001-01-01\n"
+        f"CONTEXT-DIGEST: {CONTEXT_DIGEST}\n## PLACE: {run}\nSTATE: read\nROOT: {run}\n"
+        f"OPENED: {ITEM_ID} | SHA256: {hashlib.sha256(item.read_bytes()).hexdigest()}\n", encoding="utf-8")
     return run, artifact, argv
 
 
 def command(name: str, argv: list[str]) -> str:
     stdout, stderr = io.StringIO(), io.StringIO()
     with (
-        mock.patch("project_context.recorded_opened_items", return_value=(ITEM_ID,)),
         redirect_stdout(stdout), redirect_stderr(stderr),
     ):
         status = importlib.import_module(name).main([*argv, "--show"])
@@ -121,10 +129,10 @@ class OwnFiguresAtThePublicCommands(unittest.TestCase):
         self.check_rows("OWN: review plan -> 90, 99\n", untraced=0, absent=1)
 
     def test_an_item_suffix_excuses_the_figure_and_matches_the_opened_item(self):
-        self.check_rows("ITEM: review plan -> planning.md | figures 90\n", items=1, untraced=0)
+        self.check_rows('ITEM: review plan -> planning.md | rests on "90-day review" | figures 90\n', items=1, untraced=0)
 
     def test_a_listed_item_figure_absent_from_the_artifact_is_reported(self):
-        self.check_rows("ITEM: review plan -> planning.md | figures 90, 99\n", items=1,
+        self.check_rows('ITEM: review plan -> planning.md | rests on "90-day review" | figures 90, 99\n', items=1,
                         untraced=0, absent=1)
 
     def test_the_accepted_value_match_leak_includes_a_research_sentence(self):
@@ -157,16 +165,15 @@ class OwnFigureReaderGrammar(unittest.TestCase):
             self.assertEqual(frozenset(("99",)), heading_read.own_figures(text + other, "other.md"))
             self.assertEqual(frozenset(), heading_read.own_figures(text + other, "absent.md"))
 
-    def test_suffix_free_item_remains_valid_and_excuses_nothing(self):
+    def test_quote_preserves_optional_figure_suffix_and_excuses_only_listed_values(self):
         with tempfile.TemporaryDirectory() as directory:
-            artifact = Path(directory) / "draft.md"
-            artifact.write_text("Synthetic draft.\n", encoding="utf-8")
+            run, artifact, _argv = fixture("discussion_post_scan", Path(directory), "Synthetic draft.")
             for suffix in ("", " | figures 90"):
                 with self.subTest(suffix=suffix):
-                    text = reader_record(artifact, f"ITEM: plan -> planning.md{suffix}\n", items=1)
+                    text = reader_record(artifact, f'ITEM: plan -> planning.md | rests on "90-day review"{suffix}\n', items=1)
                     binding = heading_read.Binding(
                         artifact.name, artifact.read_bytes(), (), CONTEXT_DIGEST,
-                        as_of=date(2026, 10, 12), opened_items=(ITEM_ID,),
+                        as_of=date(2026, 10, 12), opened_items=(ITEM_ID,), context_run=run,
                     )
                     result = heading_read.scan(text, (binding,))
                     self.assertEqual((), result.findings)

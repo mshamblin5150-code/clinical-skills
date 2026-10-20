@@ -322,6 +322,11 @@ The rows are:
   `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
   `heading-read-context-defect`, plus `heading-read-qualifier-count`,
   `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
+  The ITEM quote rows are `heading-read-item-quote-missing` for no supporting quote or absence
+  sentinel, `heading-read-item-quote-absent` for zero normalized occurrences, and
+  `heading-read-item-quote-repeated` for multiple occurrences, including overlaps. File comparisons
+  use the recorded path and raw SHA-256; each unread source contributes once to the unread remainder.
+  Service-item quotes are counted, not graded, under the shared sourcing rule.
   `heading-read-own-figure-absent` reports a number listed on an `OWN` or `ITEM` line
   that is absent from the deck's traced slide-face and speaker-note numbers.
 
@@ -467,7 +472,8 @@ Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../
 the final `.pptx` or `.docx`, `claims.md`, the printed heading digests, and every item pointer recorded
 in `project-context.md`. It opens those items itself. Do not give it research sources. It writes the
 shared `## HEADING-READ: <artifact file>` record from [sourcing.md](../_shared/reference/sourcing.md)
-to `<run-directory>/heading-read.md`. Locations name slide bullets and speaker-note sentences for a
+to `<run-directory>/heading-read.md`. Each `ITEM` quotes its unique supporting place or uses the
+shared absence sentinel; use the shared service-item exception. Locations name slide bullets and speaker-note sentences for a
 deck, and body paragraphs, captions, and figure notes for a DOCX. Repair every
 `unrecorded` or `drifted` finding and repeat the read after any repair. The reader writes each problem
 outside its assigned question on a `REMARK: <problem>` line, repeated for each remark, and nowhere

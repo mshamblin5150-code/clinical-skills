@@ -1649,6 +1649,8 @@ REMARK: <problem outside the assigned question; repeat as needed>
 
 Use the shared heading-read template in
 [`skills/_shared/reference/sourcing.md`](../_shared/reference/sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger).
+Each `ITEM` quotes its unique supporting place or uses the shared absence sentinel;
+use the shared service-item exception.
 For practicum, the draft is the output Markdown and the record is a row in `checks.md`.
 
 The rendered-document record also fixes the declared route and retained pass:
@@ -1724,6 +1726,9 @@ be several of them at once:
 | a heading-read-item-count finding | the third sentence class is absent, or `ITEM` lines do not cover its count with distinct locations |
 | a `heading-read-own-figure-absent` finding | the shared kind reports a listed `OWN` or `ITEM` number absent from an artifact in the five number graders; `checks_ledger.py` exports this kind but does not run that body comparison |
 | a heading-read-unopened-item finding | an `ITEM` line names no opened project-context item |
+| a heading-read-item-quote-missing finding | a file `ITEM` has no supporting quote or absence sentinel |
+| a heading-read-item-quote-absent finding | the quote occurs nowhere in the recorded item |
+| a heading-read-item-quote-repeated finding | the quote names several places in the recorded item |
 | a heading-read-unknown-heading pair | its eight-hex prefix names no current claim heading, including a heading edited after the read |
 | a heading-read-dropped-heading pair | the draft claims a record that says it was `DROPPED` |
 | a heading-read-draft-mismatch | `DRAFT` is absent or differs from the output Markdown bytes |

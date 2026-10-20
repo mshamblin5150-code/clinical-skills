@@ -367,6 +367,7 @@ class Scan:
     reader_records_unread: int = 0
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
+    heading_items_report: str = ""
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1504,6 +1505,7 @@ def survey(source: Source) -> Scan:
         reference_grade.paper_language,
         reference_grade.paper_language in reference_alphabets.TABLE["languages"],
         withheld_rows=tuple(sorted(withheld)),
+        heading_items_report=heading_read.format_item_coverage(heading),
     )
 
 
@@ -1531,6 +1533,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
         f"  heading-read records {scan.heading_reads}",
+        *scan.heading_items_report.splitlines(),
         f"  references read   {scan.references_read}",
         *([f"  reference slides unread {scan.reference_slides_unread}"] if scan.reference_slides_unread else []),
         f"  reference order ({scan.paper_language}): " + ("graded" if scan.reference_order_graded else run_grader.NOT_GRADED),

@@ -683,6 +683,39 @@ def recorded_opened_items(run: Path, *, artifact: str | None = None) -> tuple[st
     )
 
 
+@dataclass(frozen=True)
+class ItemSource:
+    identifier: str
+    path: Path | None
+    digest: str
+
+
+def recorded_item_sources(run: Path, digest: str, *, artifact: str | None = None) -> tuple[ItemSource, ...]:
+    """Resolve the exact strict context population named by a heading read.
+
+    A service identifier has no retained text or filesystem path. No file is
+    opened here; the quote reader verifies its recorded digest before reading.
+    """
+    current = _read_context(run / RECORD_NAME, artifact=artifact)
+    record = current
+    if digest != current.value("CONTEXT-DIGEST"):
+        if not _SHA256.fullmatch(digest):
+            return ()
+        record = _read_context(run / "private" / "heading-contexts" / (digest + ".md"), artifact=artifact)
+    if record.value("CONTEXT-DIGEST") != digest:
+        return ()
+    return tuple(
+        ItemSource(opened.item,
+                   _file_path(entry, opened) if entry.value("ROOT") or Path(entry.place).expanduser().is_absolute() else None,
+                   opened.digest)
+        for entry in record.entries
+        if entry.value("STATE").casefold() in ("read", "searched")
+        for value in entry.values("OPENED")
+        for opened in (_opened(value),)
+        if opened.item.casefold() != "none"
+    )
+
+
 def _opened(value: str) -> Opened:
     match = _OPENED.fullmatch(value)
     return (

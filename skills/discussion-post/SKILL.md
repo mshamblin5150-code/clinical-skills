@@ -359,7 +359,9 @@ It opens those items itself. Do not give it research sources. It judges only whe
 claims more than its heading, writes the shared `## HEADING-READ:` record from
 [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`, and pairs every
 factual sentence. Repair every `unrecorded` or `drifted` finding under the shared rules and repeat
-the read after any repair. It writes each problem outside its assigned question on a
+the read after any repair. Each `ITEM` quotes its unique supporting place or uses the shared
+absence sentinel; use the shared service-item exception.
+It writes each problem outside its assigned question on a
 `REMARK: <problem>` line, repeated for each remark, and nowhere else in the record.
 With no second context, the read does not complete: write no record, give no go-ahead, and submit no artifact. The
 `discussion_post_scan.py` invocation below refuses a missing or stale record.

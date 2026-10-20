@@ -1539,6 +1539,13 @@ section copies no row from it.
 
 Covered by `tools/test_project_context.py` and `tools/test_heading_read.py`.
 
+`heading_read` checks reader-written ITEM quotes against the exact recorded source path and
+digest through `project_context.recorded_item_sources`. The source reader selects the context
+digest named by the read, including retained populations. File bytes are hashed before reading;
+Word extraction is followed by a second hash. Each host carries the shared item report and
+includes unread source members once in its existing total. Approval-based starts protect earlier
+items. `heading_read.DECLARED_LIMITS` owns the text, absence and service-item boundaries.
+
 ### Discussion post grading
 
 `discussion-post` produces one graded initial post. This grades it against the bar that post was

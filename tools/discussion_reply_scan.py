@@ -345,6 +345,7 @@ class Scan:
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
     withheld_items: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    heading_items_report: str = ""
 
 
 def _split_reply(path: Path) -> Reply:
@@ -857,6 +858,7 @@ def survey(source: RunSource) -> Scan:
             reference_boundary_graded=False,
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
+            heading_items_report=heading_read.format_item_coverage(heading),
             reference_unread=sum(
                 len(reply.references) - len(_valid_references(reply))
                 for reply in source.replies
@@ -966,6 +968,7 @@ def survey(source: RunSource) -> Scan:
         reference_boundary_graded=True,
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
+        heading_items_report=heading_read.format_item_coverage(heading),
         reference_unread=sum(
             len(reply.references) - len(_valid_references(reply))
             for reply in source.replies
@@ -1008,6 +1011,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             f"{scan.editor_units_total - scan.editor_units_read}"
         ),
         f"heading-read records: {scan.heading_reads}",
+        *scan.heading_items_report.splitlines(),
         run_grader.format_unread_remainder(
             scan.heading_read_unread
             + scan.reference_unread
