@@ -409,6 +409,8 @@ class RunSource:
     missing_pass_numbers: int
     refused_label: str | None
     posted_reading_state: approval_record.PostedReadingState
+    saved_post_url: str | None
+    outside_posting_fields: int
     readings: tuple[PostedReading, ...]
 
 
@@ -971,6 +973,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
                 "initial post REREAD needs COMPOSER-OUTCOME: inline or attachment"
             )
         post_text = post_path.read_text(encoding="utf-8") if post_path.is_file() else ""
+        saved_post_url, outside_posting_fields = _posting_link(post_text)
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
     rendered_paragraph_texts = _docx_paragraph_texts(docx) if docx is not None else ()
@@ -1026,6 +1029,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         missing_pass_numbers=missing_pass_numbers,
         refused_label=section.refused_label,
         posted_reading_state=posted_reading_state,
+        saved_post_url=saved_post_url,
+        outside_posting_fields=outside_posting_fields,
         readings=readings,
     )
 
@@ -1120,12 +1125,10 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
         *(('--docx', str(source.docx)) if source.docx is not None else ()),
     ))
     findings = [Finding(POSTED_READING_KINDS[item.code], submission, item.message) for item in outcomes if item.code != "post-metadata"]
-    post_path = source.path / "post.md"
-    url, outside = _posting_link(post_path.read_text(encoding="utf-8") if post_path.is_file() else "")
-    if not url:
+    if not source.saved_post_url:
         findings.append(Finding(
             MISSING_POSTED_READING, submission,
-            f"POST-URL is missing from the saved posting record; {outside} posting-field lines outside the block; move the link under ## POSTING: post.md",
+            f"POST-URL is missing from the saved posting record; {source.outside_posting_fields} posting-field lines outside the block; move the link under ## POSTING: post.md",
         ))
     return tuple(findings)
 
