@@ -1124,8 +1124,8 @@ blockquote or list markers, after a sentence-ending period, or after another ref
 semicolon. A semicolon ends a refusal only when another welded `NOT CODED:` clause follows after
 whitespace. Join a two-part reason with a comma and a conjunction, or write the second part as its
 own sentence after the clause. `tools/entry_copy.py` refuses either broken rule in its derive and
-`--check` routes, writes no copy, removes any prior derived copy, and names the failed rule without
-quoting note text. Coding worksheets are never stripped or entered; these Entry copy rules apply
+`--check` routes, writes no copy, and names the failed rule without quoting note text. In the derive
+route it also removes any prior derived copy. Coding worksheets are never stripped or entered; these Entry copy rules apply
 to notes. [ADR 0307](../../docs/adr/0307-a-refused-code-clause-opens-its-own-sentence-and-its-semicolon-only-joins-two-clauses.md).
 
 **The reason is that the mark has to be findable without guessing.** `tools/differential_scan.py` used to pair a mark with the last code before it on the same line, and that guess broke in both directions. Hard-wrap a rationale so `NOT CODED` starts a line and the refusal became **invisible** — the scan reported nothing refused and passed. Write a drift-row-22 verdict saying *"the slot after the hyphen carries `M25.522`, never a code marked `NOT CODED`"* and the note was read as refusing its own final diagnosis. **Describing the rule was what broke it.** With the pair welded, a wrap cannot separate them and a sentence writing the mark without a colon is not a refusal. [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).

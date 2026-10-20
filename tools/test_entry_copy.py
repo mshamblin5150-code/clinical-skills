@@ -139,7 +139,7 @@ class EntryCopyCommand(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse(self.copy.parent.exists())
 
-    def test_internal_semicolon_refuses_without_leaking_text_or_keeping_copy(self) -> None:
+    def test_internal_semicolon_refuses_without_leaking_text_and_preserves_copy_only_in_check(self) -> None:
         text = (
             "Finding. NOT CODED: J18.9 Pneumonia, unspecified organism, no infiltrate; "
             "NOT CODED: J20.9 Acute bronchitis, unspecified, cough under three days; "
@@ -153,12 +153,15 @@ class EntryCopyCommand(unittest.TestCase):
         for flags in ((), ("--check",)):
             with self.subTest(flags=flags):
                 self.copy.parent.mkdir(exist_ok=True)
-                self.copy.write_text("stale", encoding="utf-8")
+                self.copy.write_bytes(b"stale\r\ncopy\xff")
                 result = self.invoke(note, *flags)
                 self.assertEqual(1, result.returncode, result.stderr)
                 self.assertIn("semicolon must join", result.stderr)
                 self.assertNotIn("PrivateExample", result.stderr)
-                self.assertFalse(self.copy.exists())
+                if flags:
+                    self.assertEqual(b"stale\r\ncopy\xff", self.copy.read_bytes())
+                else:
+                    self.assertFalse(self.copy.exists())
 
     def test_check_preserves_existing_copy_and_reports_every_refused_path(self) -> None:
         self.copy.parent.mkdir()
@@ -201,12 +204,16 @@ class EntryCopyCommand(unittest.TestCase):
             for flags in ((), ("--check",)):
                 with self.subTest(text=text, flags=flags):
                     self.copy.parent.mkdir(exist_ok=True)
-                    self.copy.write_text("stale", encoding="utf-8")
+                    self.copy.write_bytes(b"stale\r\ncopy\xff")
                     result = self.invoke(note, *flags)
                     self.assertEqual(1, result.returncode, result.stderr)
                     self.assertIn("must open its own sentence", result.stderr)
                     self.assertNotIn("organism", result.stderr)
-                    self.assertFalse(self.copy.exists())
+                    if flags:
+                        self.assertEqual(b"stale\r\ncopy\xff", self.copy.read_bytes())
+                    else:
+                        self.assertFalse(self.copy.exists())
+
     def test_sentence_openings_and_joined_clauses_derive_cleanly(self) -> None:
         clause = "NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, organism unconfirmed."
         cases = (
@@ -324,6 +331,19 @@ class EntryCopyCommand(unittest.TestCase):
         result = self.invoke("P:\n" + LABELS + "\nNOT CODED was typed bare.\n")
         self.assertNotEqual(0, result.returncode)
         self.assertFalse(self.copy.exists())
+
+    def test_check_surviving_mark_refuses_and_preserves_stale_copy(self) -> None:
+        self.copy.parent.mkdir()
+        self.copy.write_bytes(b"stale\r\ncopy\xff")
+        result = self.invoke(
+            "S:\nSubjective.\nO:\nObjective.\nA:\nPrivateExample NOT CODED remains.\nP:\n"
+            + LABELS + "Coding worksheet\n", "--check",
+        )
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn("NOT CODED", result.stderr)
+        self.assertIn("section A", result.stderr)
+        self.assertNotIn("PrivateExample", result.stderr)
+        self.assertEqual(b"stale\r\ncopy\xff", self.copy.read_bytes())
 
     def test_planted_unbounded_clause_refuses(self) -> None:
         result = self.invoke("A:\nNOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, reason unfinished\nP:\n" + LABELS + "Return in a week.\n")
