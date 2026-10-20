@@ -382,13 +382,13 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
             run = PostRun(Path(temp))
             legal_entry = "Patient rights, 42 C.F.R. § 482.13 (2024).\n"
             run.draft.write_text(
-                POST_BODY.replace(
+                POST_BODY.replace("10-18", "10–18").replace(
                     "# Access Is More Than Availability",
                     "# Access Is More Than Availability\n\n"
                     "<!-- INVOKED: gravity | attracts mass -->",
                 ).replace(
-                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
-                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.\n\n"
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10–18.",
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10–18.\n\n"
                     "<!-- INVOKED: gravity | attracts mass -->",
                 ).replace("## References\n\n", label + "\n\n" + legal_entry),
                 encoding="utf-8",

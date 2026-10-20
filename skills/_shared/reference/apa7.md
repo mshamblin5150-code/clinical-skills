@@ -175,6 +175,10 @@ fixed merely by carrying a DOI. Decide from the cited version and source categor
 - A society guideline PDF, a journal article, a USPSTF statement and a textbook **do not**. Adding
   one there is a defect in the other direction, and a run that puts retrieval dates on everything
   is wrong on most of the list.
+- **A patient FAQ or patient-education page takes no retrieval date.** Use its last-updated date
+  only when clearly attributable to the cited content, never its last-reviewed date; use `n.d.`
+  when neither content date is shown. A reader who argues that a particular page is unarchived
+  and continually rewritten must settle that entry explicitly (ADR 0367, #1580).
 - **Local submission policy:** the retrieval date must be on or after the exam date. APA does not
   impose this exam-date comparison; it is the corpus's recurring defect and the one the clinician named himself:
   *"I more than likely wrote the retrieved by wrong."*
@@ -360,6 +364,13 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| unrecognized patient FAQ | Only a `faq`/`faqs` URL path segment or `FAQ`/`Frequently asked questions` in the title settles the genre; other patient-education pages and whether other pages are designed to change remain readings. |
+| drug information outside DailyMed | Only the exact `dailymed.nlm.nih.gov` host establishes the drug-label class; other hosts remain readings. |
+| drug-entry date and layered site element | A year-only date, a layered DailyMed site element, and a date taken from a data feed rather than the page remain readings. |
+| missing or substituted parent agency | The scanner holds no agency hierarchy; missing or substituted parent publishers remain readings. |
+| agency unit outside the closed list | Only Office, Division, Bureau, Center, National Center, Institute, National Institute, Branch, and Program after a comma in an author without personal initials are refused. |
+| bare bracketed document code | A bracketed code such as `[NG136]` without `No.` or `Nos.` remains a reading. |
+| numeric hyphen outside page and year ranges | URLs, DOIs, parentheticals containing `No.`, and digit hyphens outside a volume-and-issue or `pp.` page locator or a four-digit year range are excluded, including title dose and age spans. |
 | unlisted lowercase author | A lowercase first word is read only when its author is named in this draft's reference list; an absent entry cannot be reported as an unlisted citation. |
 | ambiguous lowercase-group sentence opening | The opening row stays silent after abbreviations, initials, ellipses, or a soft line break without a clear sentence boundary. |
 | all-digit journal number absent from its DOI | A bare number can be a one-page article's page; report it as a reader candidate rather than a finding. |
@@ -664,6 +675,11 @@ document decides the responsible agency, available date, description, and parent
 
 **Abstracted entry form:** Manufacturer or Drug Author. (Year, Month Day or n.d.). *Title of drug
 information* [Drug information]. Website Name when different from the author. URL
+
+The bracket may say `[Drug information]` **or other wording as appropriate**, including
+`[Drug label]` or `[Package insert]`. A DailyMed entry needs a description after its title;
+the scanner recognizes that host, while drug information from other hosts stays a reading
+(ADR 0367, #1580).
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; it supplies
 no evidence about a real product, manufacturer, revision date, or DailyMed record.

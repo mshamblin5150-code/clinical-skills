@@ -276,6 +276,42 @@ class AmendDeclarationsAtTheCommand(unittest.TestCase):
         self.assertIn(self.base, report)
         self.assertIn(tip, report)
 
+    def test_squash_discards_the_declared_base_and_merge_preserves_the_repair(self):
+        self.git("checkout", "-b", "side")
+        self.git("commit", "--allow-empty", "-m", "branch measurement base")
+        declared_base = self.git("rev-parse", "HEAD").stdout.strip()
+        self.stage(declared_base)
+        self.git("commit", "-m", "branch declaration")
+        self.assertEqual(0, self.command("--commit", "HEAD")[0])
+        self.assertEqual(0, self.command()[0])
+
+        self.git("checkout", "main")
+        self.git("commit", "--allow-empty", "-m", "different integration base")
+        squash_parent = self.git("rev-parse", "HEAD").stdout.strip()
+        self.git("merge", "--squash", "side")
+        self.git("commit", "-m", "squashed declaration")
+        squash_commit = self.git("rev-parse", "HEAD").stdout.strip()
+        self.assertNotEqual(declared_base, squash_parent)
+        for arguments in (("--commit", squash_commit), ()):
+            with self.subTest(arguments=arguments):
+                status, report = self.command(*arguments)
+                self.assertEqual(1, status)
+                self.assertIn(measurements.STALE_BASE, report)
+                self.assertIn(f"expected {squash_parent}", report)
+
+        self.git("checkout", "-b", "repair")
+        self.stage(squash_commit)
+        self.git("commit", "-m", "redeclare at repair parent")
+        repair_commit = self.git("rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(0, self.command("--commit", repair_commit)[0])
+        self.assertEqual(0, self.command()[0])
+        self.git("checkout", "main")
+        self.git("merge", "--no-ff", "repair", "-m", "preserve repair history")
+        parents = self.git("rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
+        self.assertEqual([squash_commit, repair_commit], parents[1:])
+        self.assertEqual(0, self.command("--commit", repair_commit)[0])
+        self.assertEqual(0, self.command()[0])
+
     def test_commit_mode_refuses_unreadable_revision_and_accepts_no_adr_changes(self):
         self.assertEqual(2, self.command("--commit", "missing-revision")[0])
         self.assertEqual(2, self.command("--commit", "--all")[0])
