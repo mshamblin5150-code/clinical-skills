@@ -49,6 +49,7 @@ from docx_write import markdown_tables, split_row
 # is #108's duplication and the failure ``reference_scan`` records against
 # itself. A test asserts the two are one object *and* drives both.
 from reference_scan import YEAR_TOKEN, read_document, year_key
+from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name
 
 
 class DeclaredLimit(NamedTuple):
@@ -115,6 +116,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("review-footer-other-wording-unseen", "A review footer named without the word reviewed, such as content checked or verified, passes the page-year review-footer row.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("update-date-content-belonging-unverified", "Whether a last-updated stamp belongs to the cited content remains the refuter's reading; the grader does not check it.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("legal-reference-forms-unread", "The legal reference join does not read court cases, Federal Register entries, executive orders, treaties, constitutional provisions, or unlisted codes, and inherits the shared grammar's leftmost-span limit.", EvidenceDisposition.BEHAVIOR),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 RESEARCHER_RETURN_UNCOMPARED = DECLARED_LIMITS[0]
@@ -358,6 +360,7 @@ CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
 UPTODATE_REREAD_DUE = "uptodate-reread-due"
 UPTODATE_MASTHEAD_DISAGREES = "uptodate-masthead-disagrees"
 SOURCED_RECORD_NOT_LISTED = "sourced-record-not-listed"
+LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 BARE_DROPPED = "bare-dropped"
 DROPPED_ON_SOURCELESS_RECORD = "dropped-on-sourceless-record"
 
@@ -377,6 +380,7 @@ ROWS = {
     UPTODATE_REREAD_DUE: "#901",
     UPTODATE_MASTHEAD_DISAGREES: "#1021",
     SOURCED_RECORD_NOT_LISTED: "#1021",
+    LEGAL_REFERENCE_LACKS_NAME: "#1583",
     BARE_DROPPED: "#1021",
     DROPPED_ON_SOURCELESS_RECORD: "#1021",
     UNREADABLE_UPTODATE_ENTRY: "#298",
@@ -1210,6 +1214,9 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
     claim = record.claim
     found: list[Finding] = []
 
+    if legal_reference_lacks_name(record.value("REFERENCE")):
+        found.append(Finding(LEGAL_REFERENCE_LACKS_NAME, claim, "the legal reference carries only its section and no name"))
+
     # #231's first half: the agent was on the page, so it writes down where it was
     # and when.
     resolved = record.value("RESOLVED")
@@ -1701,7 +1708,7 @@ def _reference_title(reference: str, start: int) -> str:
 
 
 def reference_identity(reference: str) -> tuple[str, str, str] | None:
-    """Normalized APA author phrase, bare year, and title."""
+    """Normalized author, bare year, and title; legal entries may end at the year."""
     matched = REFERENCE_IDENTITY_YEAR.search(reference)
     if matched is None:
         return None
@@ -1714,6 +1721,8 @@ def reference_identity(reference: str) -> tuple[str, str, str] | None:
         bare_year = re.sub(r"[a-z]$", "", token)
     title = _reference_title(reference, matched.end())
     if not SUBSTANCE.search(title):
+        if LEGAL_CITATION.search(reference[: matched.start()]):
+            return normalize(reference[: matched.start()]), bare_year, ""
         return None
     return normalize(reference[: matched.start()]), bare_year, normalize(title)
 
