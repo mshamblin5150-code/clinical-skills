@@ -1,6 +1,6 @@
 # An overturned passage with no ruling number is located by its exact quote and a repair's mislabeled opening is restored
 
-**Measured at:** 9e1916f1d6e47081127f7979b732b4241cfd6578
+**Measured at:** d64452ae164ba579957110630f96ab3b50757db6
 
 *Re-declared from `66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff` on 2026-10-19, for the correction-note population correction alone. The other measurements below remain dated observations of the 2026-10-17 base and were not re-derived at this one.*
 
