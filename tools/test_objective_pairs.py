@@ -29,7 +29,7 @@ class ObjectivePairs(unittest.TestCase):
             shift.unlink()
         return subprocess.run([sys.executable, str(TOOLS / 'differential_scan.py'), str(root),
                                '--note', str(note), *(['--show'] if show else [])],
-                              capture_output=True, encoding='utf-8')
+                              capture_output=True, encoding='utf-8', errors='replace')
 
     def test_test_drug_and_referral_names_count_without_affecting_any_exit(self):
         forms = (('Recommend CBC', 'CBC ordered.'),
