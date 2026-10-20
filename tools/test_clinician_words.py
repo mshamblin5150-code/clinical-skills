@@ -66,6 +66,15 @@ class ClinicianWords(unittest.TestCase):
         for answer in ("Submit?", "Yes. One and three.", "One"):
             self.assertEqual(self.verify(self.row(text, codex=True), answer), "not found")
 
+    def test_adjacent_codex_text_items_are_one_whole_reply(self):
+        for prefix in ([], ["<system-reminder>Machine.</system-reminder>"]):
+            text = [*prefix, "Submit", "it."]
+            entries = self.reduce(text, codex=True)
+            words = [(e.kind, e.text) for e in entries if e.kind == "clinician"]
+            self.assertEqual(words, [("clinician", "Submit\nit.")])
+            self.assertEqual(self.verify(self.row(text, codex=True), "Submit it."), "verified")
+            self.assertEqual(self.verify(self.row(text, codex=True), "Submit"), "not found")
+
     def test_slash_command_arguments_are_words(self):
         text = '<command-message>implement</command-message>\n<command-name>/implement</command-name>\n<command-args>1693 and merge</command-args>'
         entries = self.reduce(text)

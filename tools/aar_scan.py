@@ -703,6 +703,10 @@ def _text_pieces(value: str) -> list[tuple[str, str]]:
     return pieces
 
 
+def _agents_instructions(value: str) -> bool:
+    return value.strip().startswith("# AGENTS.md instructions")
+
+
 def _user_pieces(row: Mapping[str, Any]) -> list[tuple[str, str]]:
     if row.get("type") == "user":
         values = [_human_text(row)]
@@ -710,8 +714,19 @@ def _user_pieces(row: Mapping[str, Any]) -> list[tuple[str, str]]:
         payload = _codex_payload(row)
         if payload.get("type") != "message" or payload.get("role") != "user":
             return []
-        values = [_text(block.get("text")).strip()
-                  for block in _content_blocks(payload) if block.get("type") == "input_text"]
+        # Only injected instructions require item boundaries. Ordinary text
+        # remains one contiguous run, even when the harness stores several items.
+        values: list[str] = []
+        for block in _content_blocks(payload):
+            if block.get("type") != "input_text":
+                continue
+            value = _text(block.get("text")).strip()
+            if not value:
+                continue
+            if values and not _agents_instructions(value) and not _agents_instructions(values[-1]):
+                values[-1] += "\n" + value
+            else:
+                values.append(value)
     else:
         return []
     pieces: list[tuple[str, str]] = []
@@ -721,7 +736,7 @@ def _user_pieces(row: Mapping[str, Any]) -> list[tuple[str, str]]:
         if row.get("isMeta") or row.get("isCompactSummary") or row.get("isSidechain"):
             pieces.append((_human_kind(row, value) if not row.get("isSidechain")
                            else "harness-meta", value))
-        elif value.splitlines()[0].startswith("# AGENTS.md instructions") and row.get("type") == "response_item":
+        elif _agents_instructions(value) and row.get("type") == "response_item":
             pieces.append(("agents-instructions", value))
         elif value.startswith("Message Type:") or value.startswith("[Message from "):
             pieces.append(("harness-meta", value))
@@ -1514,7 +1529,7 @@ def extract_diagnostics(
             and _codex_payload(row).get("role") == "user"
             for block in _content_blocks(_codex_payload(row))
             if block.get("type") == "input_text"
-            and _text(block.get("text")).strip().startswith("# AGENTS.md instructions")
+            and _agents_instructions(_text(block.get("text")))
         ),
     )
 
