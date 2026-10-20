@@ -12,6 +12,8 @@ from __future__ import annotations
 import completion_checks
 import re
 import zipfile
+import zlib
+import lzma
 from xml.etree.ElementTree import ParseError
 from dataclasses import dataclass, field
 from datetime import date
@@ -369,7 +371,8 @@ def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> 
         if key not in cache:
             try:
                 cache[key] = _item_text(source)
-            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, KeyError, ParseError, NotImplementedError, RuntimeError):
+            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, KeyError, ParseError,
+                    NotImplementedError, RuntimeError, zlib.error, lzma.LZMAError, EOFError):
                 cache[key] = None
         text = cache[key]
         if text is None:

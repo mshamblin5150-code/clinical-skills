@@ -155,6 +155,26 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
                 self.assertIn("unread remainder 1", output)
                 self.assertIn("findings: 0", output)
 
+    def test_corrupt_compressed_word_body_is_unread_at_matching_digest(self):
+        self.item = self.root / "item.docx"
+        self.identifier = "item.docx"
+        for compression in (zipfile.ZIP_DEFLATED, zipfile.ZIP_LZMA):
+            with self.subTest(compression=compression):
+                with zipfile.ZipFile(self.item, "w", compression=compression) as package:
+                    package.writestr("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Alpha beta gamma.</w:t></w:r></w:p></w:body></w:document>')
+                raw = bytearray(self.item.read_bytes())
+                local = raw.index(b"PK\x03\x04")
+                name, extra = struct.unpack_from("<HH", raw, local + 26)
+                data = local + 30 + name + extra
+                raw[data + (4 if compression == zipfile.ZIP_LZMA else 0)] = 0xff
+                self.item.write_bytes(raw)
+                self.prepare()
+                code, output = self.command()
+                self.assertEqual(2, code, output)
+                self.assertIn("unread item sources: 1", output)
+                self.assertIn("unread remainder 1", output)
+                self.assertIn("findings: 0", output)
+
     def test_context_fault_preserves_independent_quote_shape_and_draft_findings(self):
         for suffix, change in (("", False), (' | rests on "Alpha beta gamma."', True)):
             self.prepare(suffix)
