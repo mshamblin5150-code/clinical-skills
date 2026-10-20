@@ -26,7 +26,7 @@ import repo_root
 import run_grader
 import uptodate_store
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record
+from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record, update_tool_record, RecordUpdate
 
 
 RECORD_NAME = "project-context.md"
@@ -90,6 +90,7 @@ DECLARED_LIMITS = (
         "heading-reader-is-the-use-ceiling",
         "A narrower draft is caught only as far as the shared heading reader catches it.",
     ),
+    ("locked-record-updates", "Context refresh, go-ahead and retained-context decisions hold the canonical record's exclusive lock; each changed file is replaced atomically under its own lock. No cross-file transaction is promised."),
 )
 
 _URL = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
@@ -830,21 +831,20 @@ def _render(
 
 def _write_context_record(
     run: Path,
+    record_text: str | None,
     *,
     service_payloads: Mapping[str, Mapping[str, str | bytes]] | None = None,
     submission: str | None = None,
-) -> GateResult:
+) -> RecordUpdate:
     """Validate retrieval, write hashes and the context digest, and report the gate."""
-    retain_heading_context(run)
-    record_path = run / RECORD_NAME
-    if not record_path.is_file():
-        return GateResult(1, "project context: finding - record is missing")
+    if record_text is None:
+        return RecordUpdate(None, GateResult(1, "project context: finding - record is missing"))
     try:
-        record = _read_context(record_path)
+        record = read_record(record_text)
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError):
-        return GateResult(1, "project context: finding - record shape is invalid")
+        return RecordUpdate(None, GateResult(1, "project context: finding - record shape is invalid"))
     errors = _duplicates(record)
     errors.extend(_context_declaration_errors(record))
     classmate_errors, classmate_report = _classmate_gate(record, submission)
@@ -865,30 +865,30 @@ def _write_context_record(
     errors.extend(search_errors)
     errors.extend(waiver_errors)
     if errors:
-        return GateResult(1, "project context: finding - " + "; ".join(errors))
+        return RecordUpdate(None, GateResult(1, "project context: finding - " + "; ".join(errors)))
     assert project_name is not None
     if project_name == "none" and not _has_declared_retrieval(record):
         if searches or waivers or record.entries:
-            return GateResult(1, "project context: finding - a none run cannot owe places")
+            return RecordUpdate(None, GateResult(1, "project context: finding - a none run cannot owe places"))
         digest = _context_digest([], record)
-        record_path.write_text(_render(record, (), {}, digest), encoding="utf-8")
-        return GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", retrieval_report))), digest=digest)
+        return RecordUpdate(_render(record, (), {}, digest).encode("utf-8"),
+                            GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", retrieval_report))), digest=digest))
 
     registry_path = repo_root.project_registry()
     if project_name != "none" and not registry_path.is_file():
-        return GateResult(2, "project context NOT SCANNED - project registry is unavailable")
+        return RecordUpdate(None, GateResult(2, "project context NOT SCANNED - project registry is unavailable"))
     try:
         registry = Registry("", MappingProxyType({})) if project_name == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
         owed = _owed_places(registry, project_name, searches)
     except RegistryCoverage as failure:
-        return GateResult(2, f"project context NOT SCANNED - {failure}")
+        return RecordUpdate(None, GateResult(2, f"project context NOT SCANNED - {failure}"))
     except (OSError, UnicodeError):
-        return GateResult(2, "project context NOT SCANNED - project registry is unreadable")
+        return RecordUpdate(None, GateResult(2, "project context NOT SCANNED - project registry is unreadable"))
     except RegistryFinding as failure:
-        return GateResult(1, f"project context: finding - {failure}")
+        return RecordUpdate(None, GateResult(1, f"project context: finding - {failure}"))
 
     if errors := _asset_errors(record, registry, project_name):
-        return GateResult(1, "project context: finding - " + "; ".join(errors))
+        return RecordUpdate(None, GateResult(1, "project context: finding - " + "; ".join(errors)))
 
     by_place: dict[str, list[Entry]] = {}
     for entry in record.entries:
@@ -916,7 +916,7 @@ def _write_context_record(
     if waivers - failed_places:
         errors.append("PROJECT-WAIVE must name an unreadable or absent place")
     if errors:
-        return GateResult(1, "project context: finding - " + "; ".join(errors))
+        return RecordUpdate(None, GateResult(1, "project context: finding - " + "; ".join(errors)))
 
     payloads = service_payloads or {}
     triples: list[tuple[str, str, str]] = []
@@ -960,15 +960,14 @@ def _write_context_record(
             triples.append((item.place, opened.item, digest))
         hashed[item.place] = tuple(opened_rows)
     if errors:
-        return GateResult(1, "project context: finding - " + "; ".join(errors))
+        return RecordUpdate(None, GateResult(1, "project context: finding - " + "; ".join(errors)))
     digest = _context_digest(triples, record)
-    record_path.write_text(_render(record, tuple(entries), hashed, digest), encoding="utf-8")
-    return GateResult(
+    return RecordUpdate(_render(record, tuple(entries), hashed, digest).encode("utf-8"), GateResult(
         0,
         "; ".join(filter(None, (f"project context: clean; owed places: {len(owed)}; waived places: {waived}", retrieval_report))),
         waived=waived,
         digest=digest,
-    )
+    ))
 
 
 def order_observations(run: Path) -> dict:
@@ -1041,59 +1040,67 @@ def _write_damage(run: Path) -> GateResult | None:
                 findings = _damaged_lines(registry)
     if not findings:
         return None
+    return _write_damage_report(findings)
+
+
+def _write_damage_report(findings: list[str]) -> GateResult:
     return GateResult(1, "project context: finding - damaged text\n" + "\n".join(findings) +
         "\nRewrite using AGENTS.md standing rule 6: the Write tool in a private staging "
         "folder, then one copy, rename, and read-back; never a shell heredoc. Use spaces for tabs.")
 
 
 def write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
+    def decode(text):
+        findings = _damaged_text(text, run / RECORD_NAME)
+        if findings:
+            raise ContextDamage(_write_damage_report(findings).report)
+        return _decode_context_text(text)
     try:
-        try:
-            damage = _write_damage(run)
-        except UnicodeError:
-            _read_context(run / RECORD_NAME)  # Shared decode diagnostic owns invalid bytes.
-            raise
-        if damage is not None:
-            return damage
-        try:
-            _read_context(run / RECORD_NAME)
-        except FileNotFoundError:
-            pass
-        return _write_record(run, service_payloads=service_payloads, submission=submission)
+        result = update_tool_record(run / RECORD_NAME, decode,
+            lambda previous: _write_record(run, previous, service_payloads=service_payloads, submission=submission))
+        if result.exit_code == 0:
+            retain_heading_context(run)
+        return result
     except ContextDamage as failure:
         return GateResult(1, str(failure))
     except UnreadableRecord as failure:
         return GateResult(2, fault_report(failure, check=EXPECTED_ROW))
 
 
-def _write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
+def _write_record(run: Path, previous: str | None, *, service_payloads=None, submission: str | None = None) -> RecordUpdate:
     """Refresh retrieval and retain each sitting's first draft observation."""
     damage = _write_damage(run)
     if damage is not None:
-        return damage
+        return RecordUpdate(None, damage)
+    if previous is None:
+        return RecordUpdate(None, GateResult(1, "project context: finding - record is missing"))
+    text = previous
     walk_reports = []
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
             raise ValueError("write one submission observation at a time")
         try:
-            observations = coursework_run.observe_draft(run, keys[0], order_observations(run), reports=walk_reports)
+            observations = coursework_run.observe_draft(run, keys[0], _record_observations(read_record(text)), reports=walk_reports)
         except coursework_run.DraftWalkUnreadable as failure:
-            return GateResult(2, "project context NOT WRITTEN - " + str(failure))
-        path = run / RECORD_NAME
-        text = _read_context_text(path)
+            return RecordUpdate(None, GateResult(2, "project context NOT WRITTEN - " + str(failure)))
         lines = [line for line in text.splitlines() if not line.startswith("ORDER-OBSERVATION:")]
         lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    result = _write_context_record(run, service_payloads=service_payloads, submission=submission)
+        text = "\n".join(lines) + "\n"
+    _retain_context_text(run, previous)
+    update = _write_context_record(run, text, service_payloads=service_payloads, submission=submission)
+    result = update.result
     if walk_reports:
         result = replace(result, report=result.report + "\n" + "\n".join(walk_reports))
-    if result.exit_code == 0:
-        retain_heading_context(run)
     if submission is None:
-        return result
-    order = coursework_run.grade_order(order_observations(run), submission, lambda key, path: order_waived(run, key, path))
-    return replace(result, exit_code=1 if order.finding else result.exit_code, report=result.report + "; " + order.report)
+        return replace(update, result=result)
+    if update.payload is None:
+        # The completed walk's first observation was retained even when the
+        # subsequent retrieval grade refused; keep that established evidence.
+        update = replace(update, payload=text.encode("utf-8"))
+    order = coursework_run.grade_order(_record_observations(read_record(text)), submission, lambda key, path: order_waived(run, key, path))
+    result = replace(result, exit_code=1 if order.finding else result.exit_code, report=result.report + "; " + order.report)
+    return replace(update, result=result)
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
@@ -1167,18 +1174,27 @@ def recorded_digest(run: Path) -> str:
 def retain_heading_context(run: Path) -> None:
     """Keep each context the heading reader can name, before a later refresh."""
     try:
-        text = _read_context_text(run / RECORD_NAME)
-        digest = read_record(text).value("CONTEXT-DIGEST")
+        update_tool_record(run / RECORD_NAME, _decode_context_text,
+                           lambda text: RecordUpdate(None, _retain_context_text(run, text)))
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError):
         return
+
+
+def _retain_context_text(run: Path, text: str | None) -> None:
+    if text is None:
+        return
+    digest = read_record(text).value("CONTEXT-DIGEST")
     if _SHA256.fullmatch(digest):
         directory = run / "private" / "heading-contexts"
-        directory.mkdir(parents=True, exist_ok=True)
         path = directory / (digest + ".md")
-        if read_tool_record(path, _decode_context_text) is None:
-            path.write_bytes(text.encode("utf-8"))
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as failure:
+            raise UnreadableRecord(path, "could not be opened") from failure
+        update_tool_record(path, _decode_context_text,
+                           lambda previous: RecordUpdate(text.encode("utf-8") if previous is None else None))
 
 
 def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
@@ -1462,27 +1478,28 @@ def go_ahead(run: Path, submission: str, *, approval_revision: int | None = None
     keys = coursework_run.submission_keys(submission)
     if len(keys) != 1:
         raise ValueError("check one go-ahead at a time")
+    return update_tool_record(run / RECORD_NAME, _decode_context_text,
+        lambda text: _go_ahead_update(run, submission, approval_revision, text))
+
+
+def _go_ahead_update(run: Path, submission: str, approval_revision: int | None, text: str | None) -> RecordUpdate:
+    if text is None:
+        raise FileNotFoundError(run / RECORD_NAME)
     import approval_record
     state = approval_record.project_context_posting(run, submission)
     if state.posted and (approval_revision is None or approval_revision <= (state.approval_revision or 0)):
         raise ValueError("a posted go-ahead result requires a new approval revision")
     result = inspect_go_ahead(run, submission)
-    rows = _go_ahead_records(run)
-    rows[submission] = dict(submission=submission, digest=recorded_digest(run),
+    record = read_record(text)
+    rows = _record_go_aheads(record)
+    rows[submission] = dict(submission=submission, digest=record.value("CONTEXT-DIGEST"),
                             finding=result.finding, coverage=result.coverage,
                             report=result.report, moved_places=list(result.moved_places),
                             added_lines=list(result.added_lines), approval_revision=approval_revision)
-    path = run / RECORD_NAME
-    lines = [line for line in _read_context_text(path).splitlines() if not line.startswith("GO-AHEAD:")]
+    lines = [line for line in text.splitlines() if not line.startswith("GO-AHEAD:")]
     position = next((index for index, line in enumerate(lines) if line.startswith("## PLACE:")), len(lines))
     lines[position:position] = ["GO-AHEAD: " + json.dumps(row) for row in rows.values()]
-    partial = path.with_name(path.name + ".building")
-    try:
-        partial.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        partial.replace(path)
-    finally:
-        partial.unlink(missing_ok=True)
-    return result
+    return RecordUpdate(("\n".join(lines) + "\n").encode("utf-8"), result)
 
 
 def apply_completion_gate(

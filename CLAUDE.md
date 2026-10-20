@@ -216,6 +216,15 @@ The shared boundary belongs to `run_record_reader.DECLARED_LIMITS`; the posted-r
 to `discussion_artifact.DECLARED_LIMITS`, approval joins to `approval_record.DECLARED_LIMITS`, and
 retained bar signatures to `assignment_bar.DECLARED_LIMITS`.
 
+`run_record_reader.update_tool_record` owns mutable run-record transactions: the exclusive bounded
+lock covers the strict existing read, the caller's history-dependent change, and atomic replacement
+from a same-directory temporary file. `RecordUpdate(None, result)` explicitly performs no write.
+Append-only kinds validate and append under that lock. Compound producers retain their canonical
+allocation or parent lock across sibling operations; per-file replacement does not promise a
+cross-file transaction. A persistence failure keeps its safe refusal even if best-effort sibling
+rollback also fails. Each writer owns its lock posture in `DECLARED_LIMITS`; the writer-route test
+states its recognized direct-write floor and the ownership of excluded producers.
+
 This section documents command implementations for maintainers. Consumer requirements belong
 to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.
 

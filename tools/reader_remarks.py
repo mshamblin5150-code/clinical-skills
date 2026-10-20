@@ -9,7 +9,8 @@ checks explicit leave decisions and the exact surface shown before that reply.
 
 from __future__ import annotations
 
-from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord
+from run_record_reader import (read_tool_record, object_record, RecordShapeError,
+                               UnreadableRecord, update_tool_record, RecordUpdate)
 
 from dataclasses import dataclass
 from hashlib import sha256
@@ -31,6 +32,7 @@ DECLARED_LIMITS = (
     "Explicit leaves recognize leave, keep, or accept followed by remark numbers or all remarks; other wording requires a new explicit reply.",
     "The printed reply forms must appear before the reply; another question asked beside them is not detected.",
     "Coverage selection is a wording floor: gap lines outside the selector vocabulary are not selected.",
+    "Receipt and coding-reader replacement decisions hold the canonical record lock through history reads and atomic replacement; no cross-file transaction is claimed.",
 )
 
 
@@ -104,21 +106,21 @@ def coding_record(text: str, *, kind: str) -> dict:
 
 def replace_coding_record(path: Path, replacement: dict, *, kind: str) -> None:
     """Write a retry while retaining the replaced reader's remarks verbatim."""
-    import approval_record
     decode = lambda text: coding_record(text, kind=kind)
-    current = read_tool_record(path, decode)
-    updated = decode(json.dumps(replacement))
-    if current is not None:
-        if kind == "specificity":
-            updated["remarks"] = list(dict.fromkeys((*current.get("remarks", []), *updated.get("remarks", []))))
-        else:
-            old = {pair["stem"]: pair.get("remarks", []) for pair in current["pairs"]}
-            new_stems = {pair["stem"] for pair in updated["pairs"]}
-            if any(remarks and stem not in new_stems for stem, remarks in old.items()):
-                raise RemarkError("replacement cannot drop a note with retained reader remarks")
-            for pair in updated["pairs"]:
-                pair["remarks"] = list(dict.fromkeys((*old.get(pair["stem"], []), *pair.get("remarks", []))))
-    approval_record._write(path, updated)
+    def change(current):
+        updated = decode(json.dumps(replacement))
+        if current is not None:
+            if kind == "specificity":
+                updated["remarks"] = list(dict.fromkeys((*current.get("remarks", []), *updated.get("remarks", []))))
+            else:
+                old = {pair["stem"]: pair.get("remarks", []) for pair in current["pairs"]}
+                new_stems = {pair["stem"] for pair in updated["pairs"]}
+                if any(remarks and stem not in new_stems for stem, remarks in old.items()):
+                    raise RemarkError("replacement cannot drop a note with retained reader remarks")
+                for pair in updated["pairs"]:
+                    pair["remarks"] = list(dict.fromkeys((*old.get(pair["stem"], []), *pair.get("remarks", []))))
+        return RecordUpdate(None if updated == current else (json.dumps(updated, indent=2) + "\n").encode("utf-8"))
+    update_tool_record(path, decode, change)
 
 
 def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
@@ -241,25 +243,28 @@ def _decode_receipt(text: str) -> dict:
 
 def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
             *, coverage_only: bool = False) -> Prepared:
-    import approval_record
     path = _receipt_path(run, skill, key)
     current = () if coverage_only else read_report(report_text)
-    previous = ()
-    stored = read_tool_record(path, _decode_receipt)
-    if stored is not None and not coverage_only:
-        try:
-            previous = read_report(stored["report"])
-        except UnreadableRecord:
-            raise
-        except (OSError, ValueError, KeyError, TypeError) as failure:
-            raise RemarkError("the preceding pre-ask remark receipt is unreadable") from failure
-    retained = tuple(r for r in previous if r not in current)
-    complete_report = report_text + ("\n" + report(retained) if retained else "")
-    prepared = Prepared(complete_report, () if coverage_only else read_report(complete_report), coverage_lines(complete_report))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    approval_record._write(path, {"prepared_at": time.time(), "source_digest": _digest(sources),
-                                  "grader_report": report_text, "report": complete_report})
-    return prepared
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as failure:
+        raise UnreadableRecord(path, "could not be opened") from failure
+    def change(stored):
+        previous = ()
+        if stored is not None and not coverage_only:
+            try:
+                previous = read_report(stored["report"])
+            except UnreadableRecord:
+                raise
+            except (OSError, ValueError, KeyError, TypeError) as failure:
+                raise RemarkError("the preceding pre-ask remark receipt is unreadable") from failure
+        retained = tuple(r for r in previous if r not in current)
+        complete_report = report_text + ("\n" + report(retained) if retained else "")
+        prepared = Prepared(complete_report, () if coverage_only else read_report(complete_report), coverage_lines(complete_report))
+        payload = {**(stored or {}), "prepared_at": time.time(), "source_digest": _digest(sources),
+                   "grader_report": report_text, "report": complete_report}
+        return RecordUpdate((json.dumps(payload, indent=2) + "\n").encode("utf-8"), prepared)
+    return update_tool_record(path, _decode_receipt, change)
 
 
 def leave_request(outcomes: tuple[Outcome, ...]) -> str | None:

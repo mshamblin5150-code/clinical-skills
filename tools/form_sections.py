@@ -12,7 +12,7 @@ from pathlib import Path
 import run_grader
 from console_codec import require_python_floor, use_utf8
 from note_grammar import parse
-from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report
+from run_record_reader import object_record, RecordShapeError, UnreadableRecord, fault_report, update_tool_record, RecordUpdate
 
 
 DECLARED_LIMITS = (
@@ -20,6 +20,7 @@ DECLARED_LIMITS = (
     ("section meaning", "The grammar partitions text; a reader decides whether content belongs under its heading.", run_grader.EvidenceDisposition.DECLARED_READING),
     ("portal readback", "The stored strings record what was typed, not what Medatrax saved.", run_grader.EvidenceDisposition.DECLARED_READING),
     ("older differences", "Divergence reports a changed derivation and never authorizes correcting a posted note.", run_grader.EvidenceDisposition.BEHAVIOR),
+    ("locked-record-updates", "The existing evidence comparison and explicit replacement decision run under the record's exclusive lock; divergence performs no write, and an authorized replacement is atomic.", run_grader.EvidenceDisposition.BEHAVIOR),
 )
 
 
@@ -42,19 +43,21 @@ def main(argv: list[str] | None = None) -> int:
         parsed = parse(copy.read_text(encoding="utf-8"))
         sections = {label: parsed.sections[label].strip() for label in "SOAP"}
         destination = copy.parent.parent / "private" / "form-sections" / (copy.stem + ".json")
-        stored = read_tool_record(destination, _decode_sections)
-        existed = stored is not None
-        if existed:
-            diverged = [label for label in "SOAP" if stored[label] != sections[label]]
-        else:
-            diverged = []
-        if not existed or args.replace:
+        try:
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(json.dumps(sections, ensure_ascii=False, indent=2) + "\n",
-                                   encoding="utf-8", newline="")
-            action = "replaced" if existed else "created"
-        else:
-            action = "diverged" if diverged else "matched"
+        except OSError as failure:
+            raise UnreadableRecord(destination, "could not be opened") from failure
+        def change(stored):
+            existed = stored is not None
+            diverged = [label for label in "SOAP" if stored[label] != sections[label]] if existed else []
+            if not existed or args.replace:
+                payload = (json.dumps(sections, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                action = "replaced" if existed else "created"
+            else:
+                payload = None
+                action = "diverged" if diverged else "matched"
+            return RecordUpdate(payload, (action, diverged))
+        action, diverged = update_tool_record(destination, _decode_sections, change)
         for name in ("preamble", "S", "O", "A", "P", "tail"):
             print(f"{name}: lines {parsed.line_counts[name]}, characters {len(parsed.buckets[name])}")
         print(f"form sections {copy.name}: {action}; differing sections {len(diverged)}")

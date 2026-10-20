@@ -5,7 +5,7 @@ from __future__ import annotations
 from discussion_artifact import read_posted_reading_file
 
 from discussion_artifact import check_posted_reading
-from run_record_reader import UnreadableRecord
+from run_record_reader import UnreadableRecord, RecordUpdate, update_tool_record, posting_record
 
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -14,7 +14,6 @@ from hashlib import sha256
 import completion_checks
 import importlib
 import json
-import os
 import re
 from pathlib import Path
 import subprocess
@@ -32,6 +31,7 @@ import project_context
 
 DECLARED_LIMITS = (
     'approval_record record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+    'Approval history, revisions and posting changes use the canonical locked read/change/replace transaction; other records written during approval are separate transactions.',
 )
 
 
@@ -312,19 +312,6 @@ def source_sha256(paths: Iterable[Path]) -> str:
     return digest.hexdigest()
 
 
-def _write(path: Path, payload: dict[str, object]) -> None:
-    # Keep this evidence writer local: its record validation and recovery contract must
-    # evolve independently of course-assignment's differently shaped submission gates.
-    partial = path.with_name(f"{path.name}.{os.getpid()}.building")
-    partial.unlink(missing_ok=True)
-    try:
-        partial.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        os.replace(partial, path)
-    except BaseException:
-        partial.unlink(missing_ok=True)
-        raise
-
-
 def _read(run: Path, *, missing_ok: bool = False) -> dict[str, object]:
     from run_record_reader import read_tool_record, posting_record
     path = run / RECORD
@@ -399,13 +386,15 @@ def prepare(
                 raise ApprovalRecordError(str(failure)) from failure
             return reader_remarks.prepare(root, skill, submission, paths, report)
         return reader_remarks.prepare(root, skill, submission, paths, report, coverage_only=True)
-    payload = _read(root, missing_ok=True)
-    revision = payload.get("approval_revision", 0) + 1
-    context = project_context.go_ahead(root, submission, approval_revision=revision)
-    if context.finding:
-        raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
-    report = reader_remarks.approval_report(report, context.report, root, tuple(path.name for path in paths))
-    return reader_remarks.prepare(root, skill, submission, paths, report)
+    def change(previous):
+        payload = previous or {"version": 1, "approval_revision": 0, "items": []}
+        revision = payload.get("approval_revision", 0) + 1
+        context = project_context.go_ahead(root, submission, approval_revision=revision)
+        if context.finding:
+            raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
+        prepared_report = reader_remarks.approval_report(report, context.report, root, tuple(path.name for path in paths))
+        return RecordUpdate(None, reader_remarks.prepare(root, skill, submission, paths, prepared_report))
+    return update_tool_record(root / RECORD, posting_record, change)
 
 
 def approval_surface(prepared: reader_remarks.Prepared, outcomes: tuple[reader_remarks.Outcome, ...] = ()) -> str:
@@ -450,154 +439,156 @@ def approve(
                 raise ApprovalRecordError(_without_reply(
                     f"Entry copy refused: {source}: {failure}", clinician_reply,
                 )) from failure
-    payload = _read(root, missing_ok=True)
-    previous = _matching_item(payload, skill, submission)
-    history = list(previous.get("approvals", [])) if previous else []
-    if previous and "clinician_reply" in previous and not history:
-        history.append({name: previous[name] for name in (
-            "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
-            "reply_after", "approval_revision", "source_modified_at",
-        ) if name in previous})
-    # Resolve pending earlier gates before accepting a later reply. Otherwise an
-    # unreadable Gate 1 could be matched to Gate 2's message at completion.
-    # The clinical reply, UpToDate block and coverage check share one observed
-    # transcript population while preserving each check's own time boundary.
-    transcripts = _main_transcripts(root) if skill in CLINICAL_SKILLS else None
-    transcript_args = {"transcripts": transcripts} if transcripts is not None else {}
-    preceding = _recheck_replies(root, history, resolved_sources, **transcript_args)
-    if preceding.state == "not found":
-        raise ApprovalRecordError("a preceding approval reply was not found")
-    after = preceding.matched_at
-    verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after,
-                                          **transcript_args)
-    if verification.state == "not found":
-        raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
-    if preceding.state == "unreadable":
-        verification = preceding
-    grade_status, grade_report = _pre_post_grade(skill, grader_args)
-    if grade_status not in {0, 2}:
-        safe_report = grade_report
+    def change(previous_payload):
+        payload = previous_payload or {"version": 1, "approval_revision": 0, "items": []}
+        previous = _matching_item(payload, skill, submission)
+        history = list(previous.get("approvals", [])) if previous else []
+        if previous and "clinician_reply" in previous and not history:
+            history.append({name: previous[name] for name in (
+                "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
+                "reply_after", "approval_revision", "source_modified_at",
+            ) if name in previous})
+        # Resolve pending earlier gates before accepting a later reply. Otherwise an
+        # unreadable Gate 1 could be matched to Gate 2's message at completion.
+        # The clinical reply, UpToDate block and coverage check share one observed
+        # transcript population while preserving each check's own time boundary.
+        transcripts = _main_transcripts(root) if skill in CLINICAL_SKILLS else None
+        transcript_args = {"transcripts": transcripts} if transcripts is not None else {}
+        preceding = _recheck_replies(root, history, resolved_sources, **transcript_args)
+        if preceding.state == "not found":
+            raise ApprovalRecordError("a preceding approval reply was not found")
+        after = preceding.matched_at
+        verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after,
+                                              **transcript_args)
+        if verification.state == "not found":
+            raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
+        if preceding.state == "unreadable":
+            verification = preceding
+        grade_status, grade_report = _pre_post_grade(skill, grader_args)
+        if grade_status not in {0, 2}:
+            safe_report = grade_report
+            for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
+                safe_report = _without_reply(safe_report, reply)
+            raise ApprovalRecordError(f"the pre-post grade has a finding: {safe_report}")
+
+        digest = source_sha256(resolved_sources)
+        content = next((row for row in reversed(history)
+                        if row.get("approval_kind") == "content" and row.get("sha256") == digest), None)
+        if approval_kind == "posting" and (content is None or previous.get("sha256") != digest):
+            raise ApprovalRecordError("posting go-ahead needs a content go-ahead for the same fingerprint")
+        shown = ReplyVerification("exempt", "unchanged fingerprint or other skill")
+        already_approved = previous and (
+            previous.get("sha256") == digest or any(row.get("sha256") == digest for row in history)
+        )
+        if skill in SHOWN_TEXT_SKILLS and not already_approved:
+            shown = verify_shown_text(root, resolved_sources, verification.matched_at)
+            if shown.state == "not found":
+                raise ApprovalRecordError(shown.reason)
+            if shown.state == "unreadable":
+                grade_status = 2
+                grade_report += "\n" + shown.reason
+
+        coverage = ReplyVerification("exempt", "other skill")
+        clinical_report = grade_report
+        if skill in CLINICAL_SKILLS:
+            # Compare the raw paired report before appending transcript qualifiers.
+            try:
+                if completion_checks.active("reader_remarks:clinical-go-ahead"):
+                    clinical_report = reader_remarks.clinical_report(grade_report, root, resolved_sources)
+                coverage = reader_remarks.verify_coverage(root, skill, submission, resolved_sources,
+                    clinical_report, verification.matched_at, transcripts=transcripts)
+            except reader_remarks.RemarkError as failure:
+                raise ApprovalRecordError(str(failure)) from failure
+            if coverage.state == "unreadable":
+                grade_status = 2
+                grade_report += "\n" + coverage.reason
+            shown = verify_uptodate_block(root, resolved_sources, verification.matched_at,
+                                          transcripts=transcripts)
+            if shown.state == "not found":
+                raise ApprovalRecordError(shown.reason)
+            if shown.state == "unreadable":
+                grade_status = 2
+                grade_report += "\n" + shown.reason
+
+        previous_revision = payload.get("approval_revision", 0)
+        revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
+        if skill in project_context.SCOPED_SKILLS:
+            try:
+                context = project_context.go_ahead(root, submission, approval_revision=revision)
+            except UnreadableRecord:
+                raise
+            except (OSError, UnicodeError, ValueError) as failure:
+                raise ApprovalRecordError("project-context go-ahead result could not be written") from failure
+            if context.finding:
+                raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
+            grade_report = reader_remarks.approval_report(grade_report, context.report, root, tuple(path.name for path in resolved_sources))
+            if context.coverage:
+                grade_status = 2
+        remark_records = []
+        if skill in reader_remarks.SCOPED_SKILLS or (skill in CLINICAL_SKILLS
+                and completion_checks.active("reader_remarks:clinical-go-ahead")):
+            try:
+                remark_records = reader_remarks.verify(root, skill, submission, resolved_sources,
+                    clinical_report if skill in CLINICAL_SKILLS else grade_report,
+                    clinician_reply, verification.matched_at, remark_outcomes,
+                    accepted=previous.get("reader_remarks", []) if approval_kind == "posting" else None,
+                    **({"clinical": True, "transcripts": transcripts} if skill in CLINICAL_SKILLS else {}))
+            except reader_remarks.RemarkError as failure:
+                raise ApprovalRecordError(str(failure)) from failure
         for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
-            safe_report = _without_reply(safe_report, reply)
-        raise ApprovalRecordError(f"the pre-post grade has a finding: {safe_report}")
-
-    digest = source_sha256(resolved_sources)
-    content = next((row for row in reversed(history)
-                    if row.get("approval_kind") == "content" and row.get("sha256") == digest), None)
-    if approval_kind == "posting" and (content is None or previous.get("sha256") != digest):
-        raise ApprovalRecordError("posting go-ahead needs a content go-ahead for the same fingerprint")
-    shown = ReplyVerification("exempt", "unchanged fingerprint or other skill")
-    already_approved = previous and (
-        previous.get("sha256") == digest or any(row.get("sha256") == digest for row in history)
-    )
-    if skill in SHOWN_TEXT_SKILLS and not already_approved:
-        shown = verify_shown_text(root, resolved_sources, verification.matched_at)
-        if shown.state == "not found":
-            raise ApprovalRecordError(shown.reason)
-        if shown.state == "unreadable":
-            grade_status = 2
-            grade_report += "\n" + shown.reason
-
-    coverage = ReplyVerification("exempt", "other skill")
-    clinical_report = grade_report
-    if skill in CLINICAL_SKILLS:
-        # Compare the raw paired report before appending transcript qualifiers.
-        try:
-            if completion_checks.active("reader_remarks:clinical-go-ahead"):
-                clinical_report = reader_remarks.clinical_report(grade_report, root, resolved_sources)
-            coverage = reader_remarks.verify_coverage(root, skill, submission, resolved_sources,
-                clinical_report, verification.matched_at, transcripts=transcripts)
-        except reader_remarks.RemarkError as failure:
-            raise ApprovalRecordError(str(failure)) from failure
-        if coverage.state == "unreadable":
-            grade_status = 2
-            grade_report += "\n" + coverage.reason
-        shown = verify_uptodate_block(root, resolved_sources, verification.matched_at,
-                                      transcripts=transcripts)
-        if shown.state == "not found":
-            raise ApprovalRecordError(shown.reason)
-        if shown.state == "unreadable":
-            grade_status = 2
-            grade_report += "\n" + shown.reason
-
-    previous_revision = payload.get("approval_revision", 0)
-    revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
-    if skill in project_context.SCOPED_SKILLS:
-        try:
-            context = project_context.go_ahead(root, submission, approval_revision=revision)
-        except (OSError, UnicodeError, ValueError) as failure:
-            raise ApprovalRecordError("project-context go-ahead result could not be written") from failure
-        if context.finding:
-            raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
-        grade_report = reader_remarks.approval_report(grade_report, context.report, root, tuple(path.name for path in resolved_sources))
-        if context.coverage:
-            grade_status = 2
-    remark_records = []
-    if skill in reader_remarks.SCOPED_SKILLS or (skill in CLINICAL_SKILLS
-            and completion_checks.active("reader_remarks:clinical-go-ahead")):
-        try:
-            remark_records = reader_remarks.verify(root, skill, submission, resolved_sources,
-                clinical_report if skill in CLINICAL_SKILLS else grade_report,
-                clinician_reply, verification.matched_at, remark_outcomes,
-                accepted=previous.get("reader_remarks", []) if approval_kind == "posting" else None,
-                **({"clinical": True, "transcripts": transcripts} if skill in CLINICAL_SKILLS else {}))
-        except reader_remarks.RemarkError as failure:
-            raise ApprovalRecordError(str(failure)) from failure
-    for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
-        grade_report = _without_reply(grade_report, reply)
-    item = {
-        "approval_kind": approval_kind,
-        "recorded_at": time.time(),
-        "reader_remarks": remark_records,
-        "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
-        "pregrade_report": grade_report,
-        "skill": skill,
-        "submission": submission,
-        "sha256": digest,
-        "sources": [str(path) for path in resolved_sources],
-        "grader_args": list(grader_args),
-        "posting_route": PostingRoute.AWAITING.value,
-        "approval_revision": revision,
-        "pregrade_status": "clean" if grade_status == 0 else "incomplete",
-        "project_context_check": skill in project_context.SCOPED_SKILLS,
-        "shown_text_verification": shown.state,
-        "coverage_verification": coverage.state,
-        "coverage_reason": coverage.reason,
-        "clinician_reply": clinician_reply,
-        "reply_verification": "verified" if verification.state == "verified" else "not verified",
-        "reply_reason": verification.reason,
-        "reply_matched_at": verification.matched_at,
-        "reply_after": after,
-        "source_modified_at": max(path.stat().st_mtime for path in resolved_sources),
-    }
-    history.append({name: item[name] for name in (
-        "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
-        "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
-        "approval_kind", "recorded_at",
-    )})
-    item["approvals"] = history
-    current_items = payload.get("items", [])
-    items = [
-        current
-        for current in current_items
-        if isinstance(current, dict)
-        and (current.get("skill"), current.get("submission")) != (skill, submission)
-    ]
-    items.append(item)
-    _write(
-        root / RECORD,
-        {"version": 1, "approval_revision": revision, "items": items},
-    )
-    return ApprovalRecord(
-        root,
-        skill,
-        submission,
-        digest,
-        resolved_sources,
-        grader_args,
-        grade_report,
-        revision,
-    )
+            grade_report = _without_reply(grade_report, reply)
+        item = {**(previous or {}),
+            "approval_kind": approval_kind,
+            "recorded_at": time.time(),
+            "reader_remarks": remark_records,
+            "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
+            "pregrade_report": grade_report,
+            "skill": skill,
+            "submission": submission,
+            "sha256": digest,
+            "sources": [str(path) for path in resolved_sources],
+            "grader_args": list(grader_args),
+            "posting_route": PostingRoute.AWAITING.value,
+            "approval_revision": revision,
+            "pregrade_status": "clean" if grade_status == 0 else "incomplete",
+            "project_context_check": skill in project_context.SCOPED_SKILLS,
+            "shown_text_verification": shown.state,
+            "coverage_verification": coverage.state,
+            "coverage_reason": coverage.reason,
+            "clinician_reply": clinician_reply,
+            "reply_verification": "verified" if verification.state == "verified" else "not verified",
+            "reply_reason": verification.reason,
+            "reply_matched_at": verification.matched_at,
+            "reply_after": after,
+            "source_modified_at": max(path.stat().st_mtime for path in resolved_sources),
+        }
+        history.append({name: item[name] for name in (
+            "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
+            "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
+            "approval_kind", "recorded_at",
+        )})
+        item["approvals"] = history
+        current_items = payload.get("items", [])
+        items = [
+            current
+            for current in current_items
+            if isinstance(current, dict)
+            and (current.get("skill"), current.get("submission")) != (skill, submission)
+        ]
+        items.append(item)
+        updated = {**payload, "version": 1, "approval_revision": revision, "items": items}
+        result = ApprovalRecord(
+            root,
+            skill,
+            submission,
+            digest,
+            resolved_sources,
+            grader_args,
+            grade_report,
+            revision,
+        )
+        return RecordUpdate((json.dumps(updated, indent=2) + "\n").encode("utf-8"), result)
+    return update_tool_record(root / RECORD, posting_record, change)
 
 
 def _matching_item(
@@ -679,23 +670,29 @@ def _record_posting(
     run: Path, *, skill: str, submission: str, route: PostingRoute
 ) -> None:
     root = Path(run).resolve()
-    payload = _read(root)
-    item = _matching_item(payload, skill, submission)
-    if item is None:
-        raise ApprovalRecordError("a posting needs an approval record")
-    sources = item.get("sources")
-    expected = item.get("sha256")
-    if not isinstance(sources, list) or not all(isinstance(path, str) for path in sources):
-        raise ApprovalRecordError("the recorded source population is unreadable")
-    paths = tuple(Path(path) for path in sources)
-    try:
-        current = source_sha256(paths)
-    except OSError as failure:
-        raise ApprovalRecordError("the approved source population is unreadable") from failure
-    if current != expected:
-        raise ApprovalRecordError("the approved source population changed after approval")
-    item["posting_route"] = route.value
-    _write(root / RECORD, payload)
+    def change(payload):
+        if payload is None:
+            raise ApprovalRecordError("durable approval records are missing")
+        item = _matching_item(payload, skill, submission)
+        if item is None:
+            raise ApprovalRecordError("a posting needs an approval record")
+        sources = item.get("sources")
+        expected = item.get("sha256")
+        if not isinstance(sources, list) or not all(isinstance(path, str) for path in sources):
+            raise ApprovalRecordError("the recorded source population is unreadable")
+        paths = tuple(Path(path) for path in sources)
+        try:
+            current = source_sha256(paths)
+        except OSError as failure:
+            raise ApprovalRecordError("the approved source population is unreadable") from failure
+        if current != expected:
+            raise ApprovalRecordError("the approved source population changed after approval")
+        if item.get("posting_route") == route.value:
+            return RecordUpdate(None)
+        updated = {**item, "posting_route": route.value}
+        replacement = {**payload, "items": [updated if current is item else current for current in payload["items"]]}
+        return RecordUpdate((json.dumps(replacement, indent=2) + "\n").encode("utf-8"))
+    update_tool_record(root / RECORD, posting_record, change)
 
 
 def record_agent_posting(run: Path, *, skill: str, submission: str) -> None:

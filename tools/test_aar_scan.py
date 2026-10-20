@@ -444,7 +444,8 @@ class CommandModes(SyntheticSnapshotCase):
             "    subagent launch-result drift\n"
             "    correction kind misplacement\n"
             "    departure list shape\n"
-            "    browser tab ownership\n",
+            "    browser tab ownership\n"
+            "    locked record publication\n",
         )
 
     def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:

@@ -23,7 +23,7 @@ import repo_root
 import run_grader
 import voice_model_scan
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record
+from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record, update_tool_record, RecordUpdate
 
 
 RECORD_NAME = "voice-model-identity.json"
@@ -56,6 +56,7 @@ DECLARED_LIMITS = (
         "use-is-not-voice",
         "using the canonical model does not establish that the draft sounds like its clinician",
     ),
+    ("locked-record-updates", "Identity resolution and first-observation changes hold the identity record's exclusive lock through atomic replacement; a busy lock refuses after the shared bounded retry."),
 )
 _RECORD_KEYS = frozenset({"path", "sha256", "exists"})
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -71,9 +72,13 @@ class CompletionGate:
 
 def write_record(run: Path, submission: str | None = None) -> str:
     """Resolve once and write that resolution into ``run`` at draft time."""
+    return update_tool_record(run / RECORD_NAME, _decode_record,
+                              lambda previous: _record_update(run, submission, previous))
+
+
+def _record_update(run: Path, submission: str | None, previous: dict | None) -> RecordUpdate:
     observations = {}
     walk_reports = []
-    previous = read_tool_record(run / RECORD_NAME, _decode_record)
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
@@ -91,15 +96,12 @@ def write_record(run: Path, submission: str | None = None) -> str:
     }
     if submission is not None:
         payload["observations"] = observations
-    (run / RECORD_NAME).write_text(
-        json.dumps(payload, indent=2) + "\n",
-        encoding="utf-8",
-    )
     if not resolved.exists:
         report = voice_model_scan.absent_model_banner(resolved.path)
     else:
         report = f"voice model identity: recorded {resolved.path}"
-    return "\n".join((report, *walk_reports))
+    return RecordUpdate((json.dumps(payload, indent=2) + "\n").encode("utf-8"),
+                        "\n".join((report, *walk_reports)))
 
 
 def _valid_record(payload: object) -> bool:

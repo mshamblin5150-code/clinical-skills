@@ -19,10 +19,12 @@ import artifact_lock
 from console_codec import require_python_floor, use_utf8
 from corpus_census import NOTE_DELIMITER
 from repo_root import enclosing_checkout
-from run_record_reader import read_tool_record, outbound_text_damage, object_record, UnreadableRecord, fault_report
+from run_record_reader import (read_tool_record, outbound_text_damage, object_record, UnreadableRecord,
+                               fault_report, update_tool_record, RecordUpdate)
 
 
 DECLARED_LIMITS = (
+    "Opener creation and answers use the shared exclusive read/change/atomic replace transaction. Encounter artifacts publish before the opener record, not as a cross-file transaction. The account identity map retains its existing exclusive map lock and atomic replacement.",
     "Existing opener bookkeeping uses the shared strict decoder; an unreadable record refuses record, answer and identity operations without replacing it and contributes one unread record.",
     ("clinical reading", "Names are checked for literal presence, not patient identity; age and sex are supplied readings, never extracted or inferred."),
     ("hand boundaries", "Full character coverage is checked; clinical correctness of a supplied cut and its reason remains a reader's judgment."),
@@ -45,16 +47,20 @@ def atomic_write(path: Path, content: bytes) -> None:
     path = private_target(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    created_temporary = False
     try:
         with temporary.open("xb") as stream:
+            created_temporary = True
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        created_temporary = False
         if path.read_bytes() != content:
             raise ValueError("written artifact did not read back")
     finally:
-        temporary.unlink(missing_ok=True)
+        if created_temporary:
+            temporary.unlink(missing_ok=True)
 
 
 def digest(data: bytes) -> str:
@@ -194,15 +200,23 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
         raise ValueError("cuts dropped source text")
     record = {"version": 1, "mode": mode, "reason": reason, "source": str(source.resolve()), "source_sha256": digest(raw),
               "service_date": service_date, "unassigned_end": unassigned_end, "encounters": records}
-    with artifact_lock.hold(run / "openers.json", "record encounter openers"):
-        existing = read_tool_record(run / "openers.json", decode_record)
+    path = private_target(run / "openers.json")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as failure:
+        raise UnreadableRecord(path, "could not be opened") from failure
+    def change(existing):
         if existing is not None and existing != record:
             # Later missing-name answers may change readings; never silently replace evidence.
             raise ValueError("opener record exists; use the answer command for a missing name")
-        for item in records:
-            atomic_write(run / item["file"], text[item["start"]:item["end"]].encode("utf-8"))
-        atomic_write(run / "encounters/unassigned.txt", text[:unassigned_end].encode("utf-8"))
-        atomic_write(run / "openers.json", (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+        try:
+            for item in records:
+                atomic_write(run / item["file"], text[item["start"]:item["end"]].encode("utf-8"))
+            atomic_write(run / "encounters/unassigned.txt", text[:unassigned_end].encode("utf-8"))
+        except OSError as failure:
+            raise UnreadableRecord(path, "could not be opened") from failure
+        return RecordUpdate((json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+    update_tool_record(path, decode_record, change)
     return read_openers(run)
 
 
@@ -210,13 +224,14 @@ def answer(run: Path, note: int, name: str | None, reply: str) -> None:
     private_target(run)
     clean_reply(reply)
     clean_cell(name, nullable=True)
-    with artifact_lock.hold(run / "openers.json", "record missing-name answer"):
+    def change(previous):
         record = read_openers(run)
         item = next((item for item in record["encounters"] if item["note"] == note), None)
         if item is None or item["name"] is not None:
             raise ValueError("answer requires an encounter with an omitted name")
         item.update(name=name, name_source="clinician-answer" if name else "shorthand", name_asked=True, clinician_reply=reply)
-        atomic_write(run / "openers.json", (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+        return RecordUpdate((json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+    update_tool_record(private_target(run / "openers.json"), decode_record, change)
 
 
 REFERENCE = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{15}(?![0-9a-fA-F])")

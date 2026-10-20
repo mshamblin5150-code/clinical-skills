@@ -9,16 +9,28 @@ from pathlib import Path
 from typing import Callable, TypeVar
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 import json
+import os
 import re
 import time
+import uuid
 
 
 DECLARED_LIMITS = (
     'run_record_reader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+    'The locked update callback owns history-dependent reads and decisions; one replacement is atomic, append remains append-only, and compound sibling recovery is best effort under the same lock rather than a cross-file transaction.',
 )
 
 T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class RecordUpdate:
+    """Replacement bytes and caller result; None explicitly leaves evidence untouched."""
+    payload: bytes | None
+    result: object = None
+    rollback: Callable[[], None] | None = None
 
 # ADR 0421 outbound damage set; ADR 0423 applies it to reference sheets.
 # CR is conditional: only CR immediately before LF is a line ending.
@@ -307,3 +319,63 @@ def locked_record(path: Path):
         yield
     finally:
         manager.__exit__(None, None, None)
+
+
+def update_tool_record(
+    path: Path, decode: Callable[[str], T], change: Callable[[T | None], RecordUpdate],
+    *, append: bool = False,
+) -> object:
+    """Own the exclusive read/change/write transaction, or an explicit no-write result.
+
+    The callback runs under the lock and must make history-dependent decisions there.
+    Append-only kinds validate their whole prior record before appending under this lock.
+    Other kinds replace one file atomically; no cross-file transaction is promised.
+    """
+    path = Path(path)
+    with locked_record(path):
+        previous = read_tool_record(path, decode)
+        update = change(previous)
+        if update.payload is None:
+            return update.result
+        temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".partial")
+        created_temporary = False
+        try:
+            if append:
+                with path.open("ab") as stream:
+                    stream.write(update.payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            else:
+                with temporary.open("xb") as stream:
+                    created_temporary = True
+                    stream.write(update.payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                deadline = time.monotonic() + 1.0
+                while True:
+                    try:
+                        os.replace(temporary, path)
+                        created_temporary = False  # The candidate was consumed by the replace.
+                        break
+                    except PermissionError as failure:
+                        # Retry transient Windows sharing failures without releasing
+                        # canonical ownership or extending the bounded refusal indefinitely.
+                        if getattr(failure, "winerror", None) not in {5, 32, 33} or time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.01)
+        except BaseException as failure:
+            if update.rollback is not None:
+                try:
+                    update.rollback()
+                except BaseException:
+                    pass  # Preserve the original persistence failure, never its private details.
+            if isinstance(failure, OSError):
+                raise UnreadableRecord(path, "could not be opened") from failure
+            raise
+        finally:
+            if created_temporary:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass  # A refused write keeps its original classified cause.
+        return update.result

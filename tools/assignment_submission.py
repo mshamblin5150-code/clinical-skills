@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from discussion_artifact import read_posted_reading_file
 
-from run_record_reader import UnreadableRecord, fault_report, collecting_errors
+from run_record_reader import (UnreadableRecord, fault_report, collecting_errors,
+                               update_tool_record, RecordUpdate, submission_record)
 
 import completion_checks
 import assignment_bar
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
-import os
 import subprocess
 import sys
 import time
@@ -37,6 +37,7 @@ DECLARED_LIMITS = (
         "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
         EvidenceDisposition.BEHAVIOR,
     ),
+    ("locked-record-update", "Gate revisions and upload changes hold the canonical record lock through read/change/replace; other record updates remain separate transactions.", EvidenceDisposition.DECLARED_READING),
 )
 
 
@@ -76,14 +77,9 @@ class StagedUpload:
 
 
 def _write(record: Path, payload: dict[str, object]) -> None:
-    partial = record.with_name(f"{record.name}.{os.getpid()}.building")
-    partial.unlink(missing_ok=True)
-    try:
-        partial.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        os.replace(partial, record)
-    except BaseException:
-        partial.unlink(missing_ok=True)
-        raise
+    """Compatibility writer for a complete payload without a history decision."""
+    update_tool_record(record, submission_record, lambda previous: RecordUpdate(
+        None if previous == payload else (json.dumps(payload, indent=2) + "\n").encode("utf-8")))
 
 
 def _read(run: Path) -> dict[str, object]:
@@ -128,11 +124,8 @@ def _pre_upload_grade(run: Path, artifact: Path) -> tuple[bool, str]:
     return completed.returncode == 0, report or f"grader exited {completed.returncode}"
 
 
-def _next_approval_revision(run: Path) -> int:
-    try:
-        previous = _read(run).get("approval_revision", 0)
-    except GateError:
-        previous = 0
+def _next_approval_revision(payload: dict[str, object] | None) -> int:
+    previous = payload.get("approval_revision", 0) if payload is not None else 0
     return previous + 1 if isinstance(previous, int) and previous >= 0 else 1
 
 
@@ -156,11 +149,13 @@ def prepare(run: Path, artifact: Path) -> reader_remarks.Prepared:
     clean, report = _pre_upload_grade(root, path)
     if not clean:
         raise GateError("the run-directory pre-upload grade is not clean: " + report)
-    context = project_context.go_ahead(root, path.stem, approval_revision=_next_approval_revision(root))
-    if context.finding:
-        raise GateError("project-context go-ahead has a finding: " + context.report)
-    report = reader_remarks.approval_report(report, context.report, root, (path.name,))
-    return reader_remarks.prepare(root, "course-assignment", path.stem, (path,), report)
+    def change(previous):
+        context = project_context.go_ahead(root, path.stem, approval_revision=_next_approval_revision(previous))
+        if context.finding:
+            raise GateError("project-context go-ahead has a finding: " + context.report)
+        prepared_report = reader_remarks.approval_report(report, context.report, root, (path.name,))
+        return RecordUpdate(None, reader_remarks.prepare(root, "course-assignment", path.stem, (path,), prepared_report))
+    return update_tool_record(root / RECORD, submission_record, change)
 
 
 def stage(
@@ -196,26 +191,27 @@ def stage(
     if not any(item.path == path for item in carriers):
         raise GateError("the canonical artifact must be in the approved carrier set")
     digest = file_digest.sha256(path)
-    revision = _next_approval_revision(root)
-    try:
-        context = project_context.go_ahead(root, path.stem, approval_revision=revision)
-    except (OSError, UnicodeError, ValueError) as failure:
-        raise GateError("project-context go-ahead result could not be written") from failure
-    if context.finding:
-        raise GateError("project-context go-ahead has a finding: " + context.report)
-    from approval_record import verify_clinician_reply
-    verification = verify_clinician_reply(root, clinician_reply, (path,))
-    if verification.state != "verified":
-        raise GateError("Gate 1 needs a verified whole clinician reply: " + verification.reason)
-    grade_report = reader_remarks.approval_report(grade_report, context.report, root, (path.name,))
-    try:
-        remarks = reader_remarks.verify(root, "course-assignment", path.stem, (path,), grade_report,
-            clinician_reply, verification.matched_at, remark_outcomes)
-    except reader_remarks.RemarkError as failure:
-        raise GateError(str(failure)) from failure
-    _write(
-        root / RECORD,
-        {
+    def change(previous):
+        revision = _next_approval_revision(previous)
+        try:
+            context = project_context.go_ahead(root, path.stem, approval_revision=revision)
+        except UnreadableRecord:
+            raise
+        except (OSError, UnicodeError, ValueError) as failure:
+            raise GateError("project-context go-ahead result could not be written") from failure
+        if context.finding:
+            raise GateError("project-context go-ahead has a finding: " + context.report)
+        from approval_record import verify_clinician_reply
+        verification = verify_clinician_reply(root, clinician_reply, (path,))
+        if verification.state != "verified":
+            raise GateError("Gate 1 needs a verified whole clinician reply: " + verification.reason)
+        prepared_report = reader_remarks.approval_report(grade_report, context.report, root, (path.name,))
+        try:
+            remarks = reader_remarks.verify(root, "course-assignment", path.stem, (path,), prepared_report,
+                clinician_reply, verification.matched_at, remark_outcomes)
+        except reader_remarks.RemarkError as failure:
+            raise GateError(str(failure)) from failure
+        payload = {**(previous or {}),
             "artifact": path.name,
             "artifact_path": str(path),
             "sha256": digest,
@@ -227,16 +223,20 @@ def stage(
             "clinician_reply": clinician_reply,
             "reply_matched_at": verification.matched_at,
             "reader_remarks": remarks,
-            "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
-            "pregrade_report": grade_report,
+            "coverage_lines": list(reader_remarks.coverage_lines(prepared_report)),
+            "pregrade_report": prepared_report,
             "upload_route": UploadRoute.AWAITING.value,
             "approval_revision": revision,
             "project_context_check": True,
             "pregrade_status": "incomplete" if context.coverage else "clean",
             "project_context_report": context.report,
-        },
-    )
-    return StagedUpload(root, path, digest, carriers)
+        }
+        for obsolete in ("gate2_clinician_reply", "gate2_reply_matched_at", "gate2_reply_verification",
+                         "gate2_confirmed", "clinician_upload_recorded"):
+            payload.pop(obsolete, None)
+        return RecordUpdate((json.dumps(payload, indent=2) + "\n").encode("utf-8"),
+                            StagedUpload(root, path, digest, carriers))
+    return update_tool_record(root / RECORD, submission_record, change)
 
 
 def approval_surface(staged: StagedUpload) -> str:
@@ -297,31 +297,35 @@ def confirm(
         raise GateError("the staged upload population differs from the approved carrier set")
     if not staged.artifact.is_file() or file_digest.sha256(staged.artifact) != staged.sha256:
         raise GateError("the canonical artifact changed after Gate 1")
-    payload = _read(staged.run)
-    if (
-        payload.get("artifact") != staged.artifact.name
-        or payload.get("sha256") != staged.sha256
-        or payload.get("approved_carriers") != _carrier_payload(staged.carriers)
-        or payload.get("attachment_count") != len(staged.carriers)
-    ):
-        raise GateError("the durable Gate 1 record names another artifact or carrier set")
-    from approval_record import verify_clinician_reply
-    first_reply_at = payload.get("reply_matched_at")
-    if not isinstance(first_reply_at, (float, int)) or isinstance(first_reply_at, bool):
-        raise GateError("Gate 2 needs Gate 1's verified reply time")
-    verification = verify_clinician_reply(
-        staged.run, clinician_reply, uploaded, after=first_reply_at,
-    )
-    if verification.state != "verified":
-        raise GateError("Gate 2 needs a verified whole clinician reply: " + verification.reason)
-    payload["gate2_clinician_reply"] = clinician_reply
-    payload["gate2_reply_matched_at"] = verification.matched_at
-    payload["gate2_reply_verification"] = verification.state
-    payload["uploaded_files"] = list(uploaded_names)
-    payload["upload_route"] = UploadRoute.AGENT.value
-    payload.pop("gate2_confirmed", None)
-    payload.pop("clinician_upload_recorded", None)
-    _write(staged.run / RECORD, payload)
+    def change(previous):
+        if previous is None:
+            raise GateError("durable submission gates are missing")
+        payload = dict(previous)
+        if (
+            payload.get("artifact") != staged.artifact.name
+            or payload.get("sha256") != staged.sha256
+            or payload.get("approved_carriers") != _carrier_payload(staged.carriers)
+            or payload.get("attachment_count") != len(staged.carriers)
+        ):
+            raise GateError("the durable Gate 1 record names another artifact or carrier set")
+        from approval_record import verify_clinician_reply
+        first_reply_at = payload.get("reply_matched_at")
+        if not isinstance(first_reply_at, (float, int)) or isinstance(first_reply_at, bool):
+            raise GateError("Gate 2 needs Gate 1's verified reply time")
+        verification = verify_clinician_reply(
+            staged.run, clinician_reply, uploaded, after=first_reply_at,
+        )
+        if verification.state != "verified":
+            raise GateError("Gate 2 needs a verified whole clinician reply: " + verification.reason)
+        payload["gate2_clinician_reply"] = clinician_reply
+        payload["gate2_reply_matched_at"] = verification.matched_at
+        payload["gate2_reply_verification"] = verification.state
+        payload["uploaded_files"] = list(uploaded_names)
+        payload["upload_route"] = UploadRoute.AGENT.value
+        payload.pop("gate2_confirmed", None)
+        payload.pop("clinician_upload_recorded", None)
+        return RecordUpdate(None if payload == previous else (json.dumps(payload, indent=2) + "\n").encode("utf-8"))
+    update_tool_record(staged.run / RECORD, submission_record, change)
 
 
 def record_clinician_upload(
@@ -334,44 +338,45 @@ def record_clinician_upload(
 
     root = Path(run).resolve()
     path = Path(artifact).resolve()
-    try:
-        payload = _read(root)
-    except GateError as failure:
-        raise GateError("a clinician posting needs recorded approval") from failure
-    if payload.get("gate1_approved") is not True:
-        raise GateError("a clinician posting needs recorded approval")
-    _require_signed_bar(root)
-    approved = payload.get("approved_carriers")
-    if not isinstance(approved, list) or not all(
-        isinstance(item, dict) for item in approved
-    ):
-        raise GateError("a clinician posting needs a readable recorded approval")
-    approved_names = tuple(str(item.get("filename", "")) for item in approved)
-    uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
-    uploaded_names = tuple(item.name for item in uploaded)
-    approved_digests = {
-        str(item.get("filename", "")): str(item.get("sha256", ""))
-        for item in approved
-    }
-    if (
-        payload.get("artifact") != path.name
-        or payload.get("sha256") != file_digest.sha256(path)
-        or path.name not in approved_names
-        or uploaded_names != approved_names
-        or any(
-            not candidate.is_file()
-            or file_digest.sha256(candidate) != approved_digests.get(candidate.name)
-            for candidate in uploaded
-        )
-    ):
-        raise GateError(
-            "the clinician-uploaded population differs from the recorded approval"
-        )
-    payload["uploaded_files"] = list(uploaded_names)
-    payload["upload_route"] = UploadRoute.CLINICIAN.value
-    payload.pop("gate2_confirmed", None)
-    payload.pop("clinician_upload_recorded", None)
-    _write(root / RECORD, payload)
+    def change(previous):
+        if previous is None:
+            raise GateError("a clinician posting needs recorded approval")
+        payload = dict(previous)
+        if payload.get("gate1_approved") is not True:
+            raise GateError("a clinician posting needs recorded approval")
+        _require_signed_bar(root)
+        approved = payload.get("approved_carriers")
+        if not isinstance(approved, list) or not all(
+            isinstance(item, dict) for item in approved
+        ):
+            raise GateError("a clinician posting needs a readable recorded approval")
+        approved_names = tuple(str(item.get("filename", "")) for item in approved)
+        uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
+        uploaded_names = tuple(item.name for item in uploaded)
+        approved_digests = {
+            str(item.get("filename", "")): str(item.get("sha256", ""))
+            for item in approved
+        }
+        if (
+            payload.get("artifact") != path.name
+            or payload.get("sha256") != file_digest.sha256(path)
+            or path.name not in approved_names
+            or uploaded_names != approved_names
+            or any(
+                not candidate.is_file()
+                or file_digest.sha256(candidate) != approved_digests.get(candidate.name)
+                for candidate in uploaded
+            )
+        ):
+            raise GateError(
+                "the clinician-uploaded population differs from the recorded approval"
+            )
+        payload["uploaded_files"] = list(uploaded_names)
+        payload["upload_route"] = UploadRoute.CLINICIAN.value
+        payload.pop("gate2_confirmed", None)
+        payload.pop("clinician_upload_recorded", None)
+        return RecordUpdate(None if payload == previous else (json.dumps(payload, indent=2) + "\n").encode("utf-8"))
+    update_tool_record(root / RECORD, submission_record, change)
 
 
 def submit_is_authorized(staged: StagedUpload) -> bool:
