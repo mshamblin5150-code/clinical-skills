@@ -1010,6 +1010,10 @@ def _damaged_lines(path: Path) -> list[str]:
     # escapes can produce them. Only LF and CR immediately before LF are safe.
     with path.open(encoding="utf-8", newline="") as source:
         text = source.read()
+    return _damaged_text(text, path)
+
+
+def _damaged_text(text: str, path: Path) -> list[str]:
     findings = []
     lines = text.split("\n")
     for number, line in enumerate(lines, 1):
@@ -1024,9 +1028,10 @@ def _damaged_lines(path: Path) -> list[str]:
 
 def _write_damage(run: Path) -> GateResult | None:
     path = run / RECORD_NAME
-    if not path.is_file():
+    text = read_tool_record(path, lambda value: value)
+    if text is None:
         return None
-    findings = _damaged_lines(path)
+    findings = _damaged_text(text, path)
     if not findings:
         record = _read_context(path)
         project, _ = _declaration(record)

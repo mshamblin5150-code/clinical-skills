@@ -2231,7 +2231,6 @@ def _survey_round(
 
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
     memory_reports, memory_findings = _memory_index_grade(run, submission, round_number, extract_fields)
-    memory_reports = (*record_reports, *memory_reports)
     findings.extend(memory_findings)
     later_sittings = (
         count_later_sittings(run, _utc_timestamp(extracted_at, "EXTRACTED-AT"))
@@ -2407,7 +2406,7 @@ def _survey_round(
         browser=browser,
         unread_remainder=unread_remainder,
         unmeasured_rounds=int(not remainder_cutoff),
-        memory_reports=memory_reports,
+        memory_reports=(*record_reports, *memory_reports),
         system_reports=system_reports,
         **diagnostic_counts,
     )

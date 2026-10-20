@@ -99,6 +99,7 @@ class ToolWrittenAarRecords(unittest.TestCase):
                     status, stdout, stderr = legacy.invoke_main(self.arguments)
                 self.assertEqual((status, stderr), (1, ''), stdout)
                 self.assertIn('not graded', stdout)
+                self.assertIn('the posted-reading fingerprint: not graded', stdout)
                 review.write_text(review_text, encoding='utf-8')
                 if damage is None:
                     self.assertEqual([], list(path.iterdir()))

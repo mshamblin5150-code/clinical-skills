@@ -5,6 +5,7 @@ import io
 import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
 import artifact_lock_test_support
 
 import project_context
@@ -13,6 +14,25 @@ from run_record_reader import UnreadableRecord, capture_errors
 
 
 class ToolRecords(unittest.TestCase):
+    def test_context_writer_reports_shared_open_failure_before_parsing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            path = run / project_context.RECORD_NAME
+            path.write_bytes(b'CONFIRMED: synthetic\n')
+            original_open = Path.open
+            def denied(candidate, *args, **kwargs):
+                if candidate == path:
+                    raise PermissionError('PRIVATE-PLANTED')
+                return original_open(candidate, *args, **kwargs)
+            output = io.StringIO()
+            with (mock.patch.object(Path, 'open', denied),
+                  contextlib.redirect_stdout(output), contextlib.redirect_stderr(output)):
+                status = project_context.main([str(run), '--write', '--submission', 'submission'])
+            self.assertEqual(2, status)
+            self.assertIn('project-context.md: unreadable — could not be opened', output.getvalue())
+            self.assertNotIn('PRIVATE-PLANTED', output.getvalue())
+            self.assertEqual(b'CONFIRMED: synthetic\n', path.read_bytes())
+
     def test_context_faults_are_coverage_and_writers_preserve_the_original(self):
         for content in (b'GO-AHEAD: {', b'ORDER-OBSERVATION: []\n', b'\xff',
                         b'ORDER-OBSERVATION: {"submission":{"paths":[]},"submission":{"paths":[]}}\n'):
