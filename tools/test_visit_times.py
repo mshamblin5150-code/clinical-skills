@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -99,6 +100,17 @@ class PublicCommands(unittest.TestCase):
             pair, unread = visit_times.read_pair(text + '\nStart 15:05, End 15:40, both estimated')
             self.assertIsNotNone(pair)
             self.assertEqual(0, unread)
+
+    def test_each_documented_field_form_has_a_readable_committed_member(self):
+        # Derive the source population independently of FIELD; no preserved
+        # record is normalized or copied into a new fixture.
+        root = Path(__file__).resolve().parent.parent
+        texts = [path.read_text(encoding='utf-8') for path in (root / 'fixtures').rglob('*.md')]
+        for shape in (r'^\| Start time \|.*$', r'^Start time:[ \t]+.*$', r'^Start time[ \t]+\d{4}.*$'):
+            lines = [match.group() for text in texts for match in re.finditer(shape, text, re.M)]
+            self.assertTrue(lines, 'committed form has no independently located member')
+            self.assertTrue(any(visit_times.read_pair(line + '\nEnd time 2355')[0] is not None
+                                for line in lines), 'reader reached no committed member of the form')
 
     def test_standalone_ambiguity_does_not_fall_back_to_records(self):
         with tempfile.TemporaryDirectory() as directory:
