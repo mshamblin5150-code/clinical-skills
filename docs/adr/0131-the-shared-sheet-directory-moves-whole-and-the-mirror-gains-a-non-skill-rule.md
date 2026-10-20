@@ -91,8 +91,9 @@ check reads the mirror.
 **`git worktree add` fires `post-checkout`, measured rather than assumed.** A throwaway repository
 with a `post-checkout` hook logged `FIRED args=0000000000000000000000000000000000000000 <sha> 1` on
 `git worktree add`. The null first argument is the discriminator between a worktree or clone
-checkout and an ordinary branch switch, and `core.hooksPath` is already an absolute path in shared
-config, so a new worktree inherits the hook with no setup.
+checkout and an ordinary branch switch, and `core.hooksPath` is per-clone configuration that every
+worktree shares, so a new worktree inherits the hook with no setup. Under the documented relative
+`tools/hooks`, Git runs the new worktree's own copy of the hook.
 
 ## Ruled 2026-09-05
 
@@ -214,3 +215,14 @@ and says nothing about the next.
 ## Supersedes
 
 - [ADR 0097](0097-the-apa-sheet-s-class-vocabulary-is-apa-s-nursing-set-and-coverage-is-decided-per-bucket-while-the-gate-is-a-bind-test.md) ruling 7, the words "The sheet stays at `skills/practicum-case-study/reference/apa7.md`". The sheet remains inside the skills-rooted grading population; the whole reference cluster moves together and practicum keeps no reference directory.
+
+## Correction, 2026-10-20, from #1880
+
+The measured paragraph above said "`core.hooksPath` is already an absolute path in shared config".
+That described the maintainer clone, not the documented `git config core.hooksPath tools/hooks`,
+and the absolute value made every worktree commit run the owning checkout's hook files
+([#1880](https://github.com/mshamblin5150-code/clinical-skills/issues/1880)). The paragraph now
+states the relative setting. That setting keeps the property the ruling needed: `git worktree add`
+still fires the new worktree's own `post-checkout` with the null first argument, as measured for
+[ADR 0407](0407-a-worktree-session-that-started-without-its-skill-mirror-is-told-its-skills-came-from-the-owning-checkout.md)
+and pinned by `tools/test_post_checkout.py`. The hook decision stands.

@@ -3455,9 +3455,10 @@ checks the proposed message for spelling and GitHub closing keywords. Both spell
 closing-keyword check refuses on any nonzero scan exit (ADR 0436).
 `tools/hooks/post-commit` reports ADR measurement findings as an advisory after
 an ADR change; CI retains the full committed audit. Like `post-checkout`, it
-resolves the tool through the current checkout even when the hook file comes
-from the owning checkout's absolute `core.hooksPath`. The owning checkout must
-carry the new hook before worktree commits can run it.
+resolves the tool through the current checkout. With the documented relative
+`core.hooksPath`, each checkout runs the hook files on its own branch (#1880);
+a value naming another checkout, including one in a worktree's
+`config.worktree`, runs that checkout's files instead.
 
 **Refusing checks are added deliberately because their findings protect clinical guidance a
 consumer may rely on.** A fabricated citation, a false corpus denominator, an unevidenced subject
