@@ -62,6 +62,10 @@ SAFE_FILENAMES = frozenset({
     "bar-signatures.json", "voice-model-identity.json", "chain.json", "capture.json",
     "pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json", "openers.json",
     "outbound-searches.jsonl", "uptodate-pulls.jsonl", "reread.md", "project-context.md",
+    "bar.md", "claims.md", "checks.md", "heading-read.md", "rendered.md", "adversarial.md",
+    "intent.md", "shift-summary.md", "delegated-answers.md", "shift-values.json",
+    "imagery-proposals.json", "coursework-mechanics.json", "voice-read-planter.json",
+    "voice-read.json", "supplied-voice.json", "read.json",
 })
 SHAPE_RULES = frozenset({"record object", "record fields", "record items", "record revision",
                          "record item fields", "unique submission keys", "record header fields"})

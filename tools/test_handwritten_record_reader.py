@@ -12,6 +12,15 @@ import completion_checks
 
 
 class HandwrittenRecords(unittest.TestCase):
+    def test_only_declared_public_schema_filenames_are_named(self):
+        for name, label in (('claims.md', 'claims.md'), ('Sensitive-Private-Name.md', 'file 1 of 1')):
+            path = self.path.with_name(name)
+            path.write_bytes(b'FIELD: private\x07value\n')
+            with self.assertRaises(records.DamagedRecord) as caught:
+                records.read_handwritten_record(path).text
+            self.assertIn(label + ': line 1: U+0007', str(caught.exception))
+            self.assertNotIn('Sensitive-Private-Name', str(caught.exception))
+            self.assertNotIn('private', str(caught.exception))
     def test_copied_post_leading_padding_does_not_turn_metadata_into_body(self):
         for padding in ('\n', '\n\n', '  \r\n'):
             for header in ('AUTHOR:\tSynthetic Author', 'AUTHOR\t: Synthetic Author'):
