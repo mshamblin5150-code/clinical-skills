@@ -224,7 +224,7 @@ A tracked file that genuinely needs PHI-shaped test data declares `phi-scan: syn
 
 On a clone with no local patient corpus, `phi_scan.py` refuses rather than presenting a partial scan as clean. A clone that genuinely has no corpus and never will can record that fact once with `git config clinical.phiAllowNoCorpus true`; a one-time run can use `--allow-no-corpus` instead.
 
-The hook also runs the spelling scan over staged Markdown, Python, and filenames, and checks the proposed commit message for spelling and GitHub closing keywords. Those message and spelling findings are advisory; the PHI and other refusing checks retain their own exit status.
+The hook also runs the spelling scan over staged Markdown, Python, and filenames, and checks the proposed commit message for spelling and GitHub closing keywords. Spelling findings are advisory; any nonzero exit from the commit-message closing-keyword scan refuses the commit. The PHI and other refusing checks retain their own exit status.
 
 The advisory `post-commit` hook reports the exact measurement-base verdict for
 ADRs touched by the new commit. The pre-commit check accepts the tip or its first
