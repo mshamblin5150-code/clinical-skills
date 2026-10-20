@@ -53,10 +53,12 @@ answer. `reply_at` is the clinician message's timestamp, and `clinician_reply` i
 verbatim message, including conditions. Both times accept a UTC ISO timestamp or Unix seconds.
 
 ```json
-"ruling": {
-  "clinician_reply": "<whole clinician answer>",
-  "reply_at": "<clinician message UTC timestamp>",
-  "shown_draft_at": "<shown draft modification UTC timestamp>"
+{
+  "ruling": {
+    "clinician_reply": "<whole clinician answer>",
+    "reply_at": "<clinician message UTC timestamp>",
+    "shown_draft_at": "<shown draft modification UTC timestamp>"
+  }
 }
 ```
 
@@ -79,7 +81,7 @@ the new wording and keep `proposed-and-approved`; for removal, keep the old `ima
 reply, its time and the modification time of the draft that go-ahead showed. No rebuild, reread
 or second ask follows that record-only confirmation. A no restores or removes the sentence;
 rebuild every affected carrier, repeat the required render and its reader, heading and voice
-reads, and take a new ask. A case study also repeats all step-9 handoffs and the blind recount.
+reads, and take a new ask.
 
 All six coursework graders run the image-stop check even without `--submission` and during
 approval preparation. They report proposed, approved, unresolved and changed counts. They refuse an
