@@ -27,7 +27,7 @@ class OpenerCommands(unittest.TestCase):
         self.map = self.root / "map.md"
 
     def invoke(self, *args):
-        return subprocess.run([sys.executable, str(COMMAND), *map(str, args)], capture_output=True, text=True, encoding="utf-8")
+        return subprocess.run([sys.executable, str(COMMAND), *map(str, args)], capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     def record(self, text="Note 1 Example Person\nadult female\n", readings=None, *extra):
         self.source.write_bytes(text.encode())
