@@ -33,6 +33,7 @@ class CausalLinkAgreement(unittest.TestCase):
         text = (ROOT / 'skills/practicum-case-study/SKILL.md').read_text(encoding='utf-8')
         start = text.index('**A causal link drawn between two')
         rule = text[start:text.index('\n## ', start)]
+        # practicum-case-study step 3 owns the source requirement below.
         for phrase in ('step 3 claim record', '`### DEPARTURE:`',
                        'index presumes through `with`', 'needs neither', 'recorded index path',
                        'with no index path still needs both'):
