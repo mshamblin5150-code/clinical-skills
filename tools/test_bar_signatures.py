@@ -22,6 +22,31 @@ from datetime import timedelta
 
 
 class SharedBarSigning(unittest.TestCase):
+    def test_public_peer_signature_finding_and_machine_coverage_keep_voice_grading(self):
+        import test_voice_read as voice_tests
+        mechanics_scope = voice_tests.mechanics_test_support.begin()
+        self.addCleanup(voice_tests.mechanics_test_support.end, mechanics_scope)
+        case = voice_tests.PublicCompletionCommand()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        self.assertEqual(0, case.command()[0])
+        bar = case.run / "bar.md"
+        original = bar.read_bytes()
+        bar.write_bytes(original + b"Changed requirement.\n")
+        status, report = case.command()
+        self.assertEqual(1, status, report)
+        self.assertIn("does not match its latest signature", report)
+        self.assertNotIn("coverage failure names no exit-2 limb", report)
+        bar.write_bytes(original)
+        history = case.run / bar_signatures.RECORD
+        history.write_bytes(b"{")
+        self.assertEqual(2, case.command()[0])
+        (case.records / voice_tests.voice_read.READER_RECORD_NAME).unlink()
+        status, report = case.command()
+        self.assertEqual(1, status, report)
+        self.assertIn("reader record is missing or invalid", report)
+        self.assertIn("unread tool-written records 1", report)
+
     def test_native_success_keeps_another_creators_reused_temporary_name(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
@@ -163,7 +188,7 @@ class SharedBarSigning(unittest.TestCase):
                 clean = research_ledger.main([str(claims)])
                 (run / "bar.md").write_bytes((run / "bar.md").read_bytes() + b"Changed requirement.\n")
                 changed = research_ledger.main([str(claims)])
-            self.assertEqual((0, 2), (clean, changed), output.getvalue())
+            self.assertEqual((0, 1), (clean, changed), output.getvalue())
             self.assertIn("does not match its latest signature", output.getvalue())
 
     def test_bar_walk_must_be_repeated_after_resigning(self):

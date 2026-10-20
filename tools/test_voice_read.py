@@ -840,6 +840,15 @@ class PublicCompletionCommand(unittest.TestCase):
             root=self.root / "run",
             extra="\n\nA unique closing sentence. A real generic control sentence.",
         )
+        # This fixture exercises current terminal voice rows, so its real bar
+        # also passes the current signing gate rather than masking that gate.
+        import bar_signatures
+        import approval_record
+        (self.run / "bar.md").write_text("SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference\nRECENCY-WINDOW-YEARS: 5\n", encoding="utf-8")
+        messages = [{"type": "user", "timestamp": "2100-01-01T00:00:00Z",
+                     "message": {"content": "I confirm this synthetic research bar."}}]
+        with mock.patch.object(approval_record, "_main_transcripts", return_value=([messages], False)):
+            bar_signatures.sign(self.run, "I confirm this synthetic research bar.", skill="peer-critique")
         self.model = self.root / "voice-model.md"
         self.model.write_text(MODEL, encoding="utf-8")
         self.resolved = repo_root.VoiceModelResolution(

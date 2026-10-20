@@ -235,7 +235,7 @@ def apply_completion_gate(grade, run: Path, skill: str, submission: str | None):
     if submission is None:
         return grade
     failed, report = completion_gate(run, skill=skill)
-    return replace(grade, coverage_failed=grade.coverage_failed or failed,
+    return replace(grade, findings_failed=grade.findings_failed or failed,
                    reports=(*grade.reports, report))
 
 
