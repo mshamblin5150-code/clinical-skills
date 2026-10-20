@@ -13,17 +13,9 @@ import unittest
 # Classifications are explanations of exceptions, never the reader population.
 EXCEPTIONS = {
     "adr_supersession_population.main": "maintainer classifications input",
-    "anchor_scan._rendered_descriptors": "independent reader-authored page transcription",
-    "anchor_scan._grade_agreement": "independent reader-authored agreement",
-    "artifact_repairs.read_json": "agent-authored repair scope; tool ledger has its own shared decoder",
     "assignment_docx.main": "agent-authored document recipe",
     "browser_tab_hook._load_tool_schemas": "installed tool schemas, outside run directories",
-    "case_video.read_json": "agent-authored review and transcription vocabulary input; retained capture copies use a separate shared-reader entrypoint",
-    "checks_ledger.routing_walk": "agent-authored routing walk",
-    "checks_ledger.pre_review_walks": "agent-authored review walks",
     "claude_output_access.main": "user settings",
-    "coding_freshness.main": "agent-authored batch manifest",
-    "coursework_mechanics._read_handling": "agent-authored handling decisions",
     "guidelines_build._recs_coverage": "maintainer corpus inventory",
     "guidelines_build._read_catalog_unlocked": "maintainer corpus catalog",
     "guidelines_build._verify_artifact": "maintainer corpus derivation record",
@@ -34,7 +26,6 @@ EXCEPTIONS = {
     "guidelines_recs.peek_recommendation_source": "maintainer source record",
     "guidelines_recs.load_recommendation_record": "maintainer source record",
     "guidelines_recs.locate_recommendation_record": "maintainer source record",
-    "imagery_proposals._read_records": "agent-authored image proposals and rulings",
     "install_grilling_guard.install": "user hook settings",
     "install_run_status_guard.install": "user hook settings",
     "name_index.load_index": "account corpus index, outside run directories",
@@ -44,7 +35,6 @@ EXCEPTIONS = {
     "phi_scan.public_adr_date_text": "maintainer public ADR report",
     "procedure_codes_build._verify_cpt_agreement": "maintainer licensed corpus agreement",
     "reference_alphabets.<module>": "committed reference configuration",
-    "specificity_scan.load_second_read": "independent reader-authored coding read",
     "suite._weight_plan": "maintainer suite timings",
     "threshold_sheet.load_second_read": "independent reader-authored threshold read",
     "tracker_event_checks.grade_event_path": "external tracker event payload",
@@ -52,8 +42,6 @@ EXCEPTIONS = {
     "tracker_scan.load_rulings": "maintainer tracker rulings",
     "uptodate_store._manifest_rows": "account source-store manifest, outside run directories",
     "voice_corpus.load_export": "account conversation export",
-    "voice_read._read_json": "agent-authored planter/reader records; tool identity has a shared decoder",
-    "voice_read.main": "agent-authored quote check",
 }
 
 

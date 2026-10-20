@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 import contextlib
+from collections import Counter
+import inspect
 import importlib
 import io
 import itertools
@@ -396,7 +398,7 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
         }
         remaining = (
             run_grader.MEMBERS | set(run_grader.DEFERRED)
-        ) - run_grader.RUN_DIRECTORY_READERS
+        ) - run_grader.RUN_DIRECTORY_READERS - run_grader.SHARED_RECORD_BYTE_READERS.keys()
         self.assertIn("read_text", run_grader.TEXT_READ_WALK_CEILING)
         self.assertIn("floor", run_grader.TEXT_READ_WALK_CEILING)
         self.assertIn("SourceError", run_grader.TEXT_READ_WALK_CEILING)
@@ -419,6 +421,47 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
                 else:
                     self.assertEqual("no text read", posture)
                     self.assertEqual(0, evidence.total)
+
+    def test_shared_boundaries_have_explicit_routes_and_decode_kind_bindings(self):
+        import discussion_artifact
+        import research_ledger
+        import checks_ledger
+        import run_record_reader
+        expected = {
+            'assignment_docx_scan': Counter({('bar_path', 'default'): 1,
+                ('claims_path', 'research_ledger.CLAIM_RECORD_KIND'): 1,
+                ('rendered_path', 'default'): 1, ('heading_read_path', 'default'): 1}),
+            'deck_scan': Counter({('bar_path', 'default'): 1,
+                ('claims_path', 'research_ledger.CLAIM_RECORD_KIND'): 1,
+                ('heading_read_path', 'default'): 1, ('rendered_path', 'default'): 1,
+                ('adversarial_path', 'default'): 1, ('intent_path', 'default'): 1}),
+            'checks_ledger': Counter({('bar', 'default'): 2, ('path', 'default'): 1,
+                ('path', 'research_ledger.LEGACY_TEXT_KIND'): 1,
+                ('claims_path', 'research_ledger.LEGACY_CLAIM_RECORD_KIND'): 1}),
+        }
+        self.assertEqual(set(expected), set(run_grader.SHARED_RECORD_BYTE_READERS))
+        self.assertTrue(all(run_grader.SHARED_RECORD_BYTE_READERS.values()))
+        self.assertTrue(set(expected) <= run_grader.MEMBERS)
+        self.assertTrue(set(expected).isdisjoint(run_grader.RUN_DIRECTORY_READERS))
+        for name, routes in expected.items():
+            tree = ast.parse((Path(__file__).parent / (name + '.py')).read_text(encoding='utf-8'))
+            imports = [alias.name for node in ast.walk(tree)
+                       if isinstance(node, ast.ImportFrom) and node.module == 'discussion_artifact'
+                       for alias in node.names if alias.name == 'read_record_text' and alias.asname is None]
+            self.assertEqual(['read_record_text'], imports)
+            calls = Counter()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'read_record_text':
+                    kind = next((keyword.value for keyword in node.keywords if keyword.arg == 'kind'),
+                                node.args[1] if len(node.args) > 1 else None)
+                    calls[(ast.unparse(node.args[0]), ast.unparse(kind) if kind is not None else 'default')] += 1
+            self.assertEqual(routes, calls, name)
+        self.assertEqual('text', inspect.signature(discussion_artifact.read_record_text).parameters['kind'].default)
+        self.assertEqual('strict', run_record_reader._HANDWRITTEN_KINDS['text'].decode_errors)
+        self.assertEqual('strict', research_ledger.CLAIM_RECORD_KIND.decode_errors)
+        self.assertEqual('replace', research_ledger.LEGACY_TEXT_KIND.decode_errors)
+        self.assertEqual('replace', research_ledger.LEGACY_CLAIM_RECORD_KIND.decode_errors)
+        self.assertEqual('strict', checks_ledger.WALK_RECORD_KIND.decode_errors)
 
     def test_a_zero_match_mutant_is_unread_rather_than_clean(self):
         evidence = run_grader.walk_text_reads(

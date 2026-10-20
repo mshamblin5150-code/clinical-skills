@@ -216,6 +216,24 @@ The shared boundary belongs to `run_record_reader.DECLARED_LIMITS`; the posted-r
 to `discussion_artifact.DECLARED_LIMITS`, approval joins to `approval_record.DECLARED_LIMITS`, and
 retained bar signatures to `bar_signatures.DECLARED_LIMITS`.
 
+`run_record_reader.read_handwritten_record` is the separately named ADR 0395 boundary for
+agent-authored run records. Its checked text and JSON accessors refuse content damage before
+business parsing. Mixed record decoders and canonical writer callbacks use
+`check_handwritten_text` on the text they already own. Each caller catches a damaged record
+locally, withholds its dependent comparisons, and continues independent records and artifact
+checks. Content damage is a finding (exit 1), contributes no tool-record unread remainder, and
+retains that precedence when a separate machine record is unreadable. The one approval-compared
+start belongs to `run_record_reader:handwritten-damage`; a known older item retains its previous
+reader behavior, an unknown keyed item is current, and writers force refusal. Existing context
+control refusals and retained frozen grades keep their original boundaries. Manual Medatrax
+readings remain a supported mixed-content route even when a producer can write the same target.
+The AAR round's handwritten reversal-candidates input uses the same per-item boundary;
+extraction and rebuild force its check under the existing allocation transaction before publication.
+The direct-read floor in `test_handwritten_record_routes.py` scans non-test tools and declares
+the source shapes it recognizes, including the explicit computed candidate-path constructor;
+its exceptions distinguish source, deliverable, digest-only
+and machine ownership. The complete policy boundary stays in `run_record_reader.DECLARED_LIMITS`.
+
 `run_record_reader.update_tool_record` owns mutable run-record transactions: the exclusive bounded
 lock covers the strict existing read, the caller's history-dependent change, and atomic replacement
 from a same-directory temporary file. `RecordUpdate(None, result)` explicitly performs no write.

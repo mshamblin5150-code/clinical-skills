@@ -77,6 +77,7 @@ from pathlib import Path
 import run_grader
 import reader_remarks
 import completion_checks
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 from block_scan import ASSERTED, read_block
 from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
@@ -584,7 +585,7 @@ def _database_descriptor(system: str, code: str) -> str | None:
 def _rendered_descriptors(path: Path | None) -> dict[str, dict[str, str]]:
     if path is None:
         return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = read_handwritten_record(path, "json").json
     rows = payload["codes"]
     if not isinstance(rows, list):
         raise ValueError("rendered descriptor codes must be a list")
@@ -1674,8 +1675,18 @@ def _run_agreement(argv: list[str]) -> int:
         parser.error("--self-record requires --agreement-read; self-records never enter a brief")
     if args.output is not None and not args.agreement_brief:
         parser.error("--output requires --agreement-brief")
+    run = args.worksheets.parent if args.worksheets.name == "worksheets" else args.worksheets
+    with completion_checks.grading(run, args.submission):
+        return _agreement_command(args)
+
+
+def _agreement_command(args) -> int:
+    descriptor_damage = ""
     try:
         rendered_descriptors = _rendered_descriptors(args.rendered_descriptors)
+    except DamagedRecord as failure:
+        _, descriptor_damage = damaged_record_result(failure, check="rendered descriptor record")
+        rendered_descriptors = {}
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"descriptor agreement: unread rendered-page record ({error})")
         return 2
@@ -1708,6 +1719,9 @@ def _run_agreement(argv: list[str]) -> int:
         if args.show:
             for finding in anchor_findings:
                 print(f"finding: {finding}", file=sys.stderr)
+        if descriptor_damage:
+            print(descriptor_damage, file=sys.stderr)
+            return 1
         return 2 if unread else (1 if anchor_findings else 0)
 
     assert args.agreement_read is not None
@@ -1726,6 +1740,8 @@ def _run_agreement(argv: list[str]) -> int:
     print(f"  unexpected agreement keys                 {result.unexpected_keys}")
     if dated_report:
         print(dated_report)
+    for report in (*result.damage_reports, *((descriptor_damage,) if descriptor_damage else ())):
+        print(report)
     for index, path in enumerate(result.unread_records, 1):
         print(f"  unread agreement record: {run_grader.artifact_label(path, index, len(result.unread_records))}")
     if args.show:
@@ -1735,14 +1751,20 @@ def _run_agreement(argv: list[str]) -> int:
         print(f"  agreement rows outside requested stems: {result.out_of_scope_rows}")
         print("  A scoped read takes that stem's own agreement-self/<stem>.json.")
     metric: int | str = "not measured"
+    self_damaged = False
     if args.self_record is not None:
         try:
             self_result = _grade_agreement(pairs, unread, args.self_record, writer_record=True)
+            self_damaged = bool(self_result.damage_reports)
+            for report in self_result.damage_reports:
+                print(report)
             metric = ("unread self-record coverage" if self_result.unread
                       else len(self_result.passed & result.failed))
         except (OSError, ValueError, KeyError, TypeError):
             metric = "unread self-record"
     print(f"  self-pass / blind-fail subjects (report only)  {metric}")
+    if result.damage_reports or descriptor_damage or self_damaged:
+        return 1
     if result.unread:
         return 2
     return 1 if result.findings else 0
@@ -1761,6 +1783,7 @@ class AgreementRead:
     remarks: tuple[reader_remarks.Remark, ...] = ()
     unexpected_keys: int = 0
     unread_records: tuple[Path, ...] = ()
+    damage_reports: tuple[str, ...] = ()
 
 
 def _grade_agreement(pairs: list[AgreementPair], unread: int,
@@ -1771,8 +1794,25 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
     remarks: list[reader_remarks.Remark] = []
     unexpected_keys = 0
     unread_records: list[Path] = []
+    damage_reports = []
+    damaged_stems: set[str] = set()
+    unknown_damaged_population = False
     for path in paths:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            payload = read_handwritten_record(path, "json").json
+        except DamagedRecord as failure:
+            finding, report = damaged_record_result(failure, check="descriptor agreement record")
+            if finding:
+                damage_reports.append(report)
+                if path.parent.name == "agreement-self":
+                    # The scoped self-read route declares its stem in the
+                    # canonical filename, before any record content is read.
+                    damaged_stems.add(path.stem)
+                else:
+                    # A generic file may carry several pairs. Its unavailable
+                    # contents cannot establish which missing joins it owned.
+                    unknown_damaged_population = True
+            continue
         before_unread = unread
         before_keys = unexpected_keys
         writer = writer_record or path.parent.name == "agreement-self"
@@ -1810,7 +1850,7 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
     expected_stems = {pair.stem for pair in pairs}
     unread += len(set(record_pairs) - expected_stems)
 
-    findings: list[str] = []
+    findings: list[str] = list(damage_reports)
     unread_routes: list[str] = []
     excluded_code_tokens: list[str] = []
     passed: set[tuple[str, str]] = set()
@@ -1824,7 +1864,8 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         ]
         record_pair = record_pairs.get(pair.stem)
         if record_pair is None:
-            unread += len(pair.subjects) or 1
+            if not unknown_damaged_population and pair.stem not in damaged_stems:
+                unread += len(pair.subjects) or 1
             continue
         record_rows = record_pair.get("codes", [])
         valid_rows = [row for row in record_rows if isinstance(row, dict)]
@@ -1944,7 +1985,7 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
 
     return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed,
                          out_of_scope, column_remarks, tuple(dict.fromkeys(remarks)),
-                         unexpected_keys, tuple(unread_records))
+                         unexpected_keys, tuple(unread_records), tuple(damage_reports))
 
 
 def main(argv: list[str]) -> int:

@@ -49,7 +49,8 @@ from docx_write import markdown_tables, split_row
 # is #108's duplication and the failure ``reference_scan`` records against
 # itself. A test asserts the two are one object *and* drives both.
 from reference_scan import YEAR_TOKEN, read_document, year_key
-from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name
+from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name, read_record_text, record_unavailable
+import run_record_reader as record_reader
 
 
 class DeclaredLimit(NamedTuple):
@@ -139,6 +140,42 @@ DATE_HEADER = re.compile(r"(?mi)^[ \t]*DATE[ \t]*:[ \t]*(\d{4})-(\d{2})-(\d{2})[
 QUALIFIER_CUTOFF = completion_checks.registry()["research_ledger:qualifiers"][0].date()
 QUOTED_QUALIFIER = r'"(?:[^"\\]|\\.)+"'
 QUALIFIER_LIST = re.compile(rf'{QUOTED_QUALIFIER}(?:\s*\|\s*{QUOTED_QUALIFIER})*')
+
+
+def _qualifier_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
+    """Select raw JSON strings; the shared reader owns their decoding/walk."""
+    bodies = []
+    claim = False
+    current = None
+    value = ""
+    def close():
+        if current == "QUALIFIERS":
+            bodies.extend(("QUALIFIERS", match.group(0)) for match in re.finditer(QUOTED_QUALIFIER, value))
+    for line in text.splitlines():
+        if CLAIM.match(line):
+            close()
+            claim, current, value = True, None, ""
+        elif claim:
+            named = FIELD.match(line)
+            if re.match(r"(?i)^[ \t]*REMARK[ \t]*:", line):
+                close()
+                current, value = None, ""
+            elif named:
+                close()
+                current, value = named.group(1).upper(), named.group(2)
+            elif current and line.strip():
+                value = f"{value} {line.strip()}".strip()
+    close()
+    return tuple(bodies)
+
+
+CLAIM_RECORD_KIND = record_reader.HandwrittenKind(
+    "claim-ledger", _qualifier_json_bodies, frozenset({"QUALIFIERS"}))
+RAW_CLAIM_RECORD_KIND = record_reader.HandwrittenKind(
+    "claim-ledger", _qualifier_json_bodies, frozenset({"QUALIFIERS"}), legacy_newlines=False)
+LEGACY_CLAIM_RECORD_KIND = record_reader.HandwrittenKind(
+    "claim-ledger", _qualifier_json_bodies, frozenset({"QUALIFIERS"}), decode_errors="replace")
+LEGACY_TEXT_KIND = record_reader.HandwrittenKind("text", decode_errors="replace")
 
 
 def ledger_date(text: str) -> date | None:
@@ -792,6 +829,7 @@ class Scan:
     reader_unread: int = 0
     reader_remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
+    withheld_rows: tuple[str, ...] = ()
 
 
 def _qualifier_findings(record: Record, as_of: date | None) -> list[Finding]:
@@ -1918,6 +1956,9 @@ def survey(
     uptodate_has_account: bool = True,
     evidence_ungraded_reason: str | None = None,
     kept_returns: tuple[Record, ...] = (),
+    ledger_available: bool = True,
+    policy_available: bool = True,
+    kept_returns_available: bool = True,
 ) -> Scan:
     """Count across one ledger.
 
@@ -1942,7 +1983,7 @@ def survey(
         for record in records
     ]
     sourced = [record for record in records if record.status == SOURCED]
-    if completion_checks.active("research_ledger:refutation-without-kept-return", as_of):
+    if kept_returns_available and completion_checks.active("research_ledger:refutation-without-kept-return", as_of):
         from refutation_apply import FIELDS, refutation_values
 
         kept = {(record.claim, refutation_values(record)) for record in kept_returns}
@@ -1973,15 +2014,17 @@ def survey(
     # they are their own group rather than one more row of a record, and
     # ``--show`` and the count column have to agree about the order.
     on_the_draft = prescription_findings(prescriptions or [], records)
+    if not ledger_available:
+        on_the_draft = [finding for finding in on_the_draft if finding.kind == UNREADABLE_DRUG_ROW]
     # The evidence row leads, on the prescription rows' reasoning: it is its
     # own group rather than one more row of a record, and ``--show`` and the
     # count column have to agree about the order.
     on_the_evidence, uptodate_read = (
         ([], None)
-        if carried is None
+        if carried is None or not ledger_available
         else evidence_findings(records, entries, carried)
     )
-    if carried is not None and uptodate_currency is not None:
+    if ledger_available and policy_available and carried is not None and uptodate_currency is not None:
         on_the_evidence += uptodate_reread_findings(
             records,
             entries,
@@ -1992,19 +2035,28 @@ def survey(
         )
         on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
     mastheads = None
-    if carried is not None and uptodate_details is not None:
+    if ledger_available and carried is not None and uptodate_details is not None:
         mastheads = uptodate_masthead_findings(records, entries, uptodate_details)
         on_the_evidence += list(mastheads.findings)
         on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
     on_the_draft_references = (
         draft_reference_findings(records, entries) if prescriptions is not None else []
     )
+    if not policy_available:
+        graded = [(record, [finding for finding in findings
+                            if finding.kind not in {UNKNOWN_SOURCE_CLASS, STALE_UNEXCUSED}])
+                  for record, findings in graded]
     found = (
         on_the_evidence
         + on_the_draft_references
         + on_the_draft
         + [f for _, per_record in graded for f in per_record]
     )
+    withheld = set(KINDS) - {UNREADABLE_DRUG_ROW} if not ledger_available else set()
+    if not policy_available:
+        withheld.update((UNKNOWN_SOURCE_CLASS, STALE_UNEXCUSED, UPTODATE_REREAD_DUE))
+    if not kept_returns_available:
+        withheld.add("refutation-without-kept-return")
     return Scan(
         as_of=as_of,
         records=len(records),
@@ -2062,6 +2114,7 @@ def survey(
         uptodate_mastheads=mastheads,
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
+        withheld_rows=tuple(sorted(withheld)),
         local_documents_unread=local_documents_unread(sourced),
         reader_unread=sum(r.unread for r in records),
         reader_remarks=tuple(reader_remarks.Remark(f"CLAIM: {r.claim}", text) for r in records for text in r.remarks),
@@ -2180,6 +2233,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             scan.evidence_topics is None or scan.uptodate_citations is None
         ) and kind in EVIDENCE_ROWS:
             shown = NOT_GRADED
+        if kind in scan.withheld_rows and not count:
+            shown = f"{NOT_GRADED} — damaged text"
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
     lines.extend((run_grader.format_unread_remainder(scan.reader_unread + scan.local_documents_unread), reader_remarks.report(scan.reader_remarks)))
@@ -2257,10 +2312,11 @@ def _load(parsed: run_grader.Parsed) -> Source:
     bar_path = path.with_name("bar.md")
     if not bar_path.is_file():
         raise run_grader.SourceError("the ledger run needs bar.md")
-    bar = read_bar(bar_path.read_text(encoding="utf-8", errors="replace"))
+    bar_text = read_record_text(bar_path, LEGACY_TEXT_KIND)
+    bar = LedgerBar(DEFAULT_SOURCE_CLASSES, 5, None) if record_unavailable(bar_path) else read_bar(bar_text)
     import bar_signatures
     signature_failed, signature_report = bar_signatures.completion_gate(path.parent)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_record_text(path, LEGACY_CLAIM_RECORD_KIND)
     records = tuple(read_records(text))
 
     draft = parsed.value("--draft")
@@ -2314,7 +2370,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
             carried = {topic.title for topic in uptodate_details}
         cited_entries = [record.value("REFERENCE") for record in records] + list(entries or ())
         if any(uptodate_topic(entry) for entry in cited_entries):
-            if bar.uptodate_recency_window_years is None:
+            if bar.uptodate_recency_window_years is None and not record_unavailable(bar_path):
                 raise run_grader.SourceError(
                     "bar.md needs an UPTODATE-RECENCY-WINDOW-YEARS field when UpToDate evidence is graded"
                 )
@@ -2358,6 +2414,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     from refutation_apply import read_blocks
 
     kept_returns = []
+    kept_returns_available = True
     if completion_checks.active("research_ledger:refutation-without-kept-return", source.as_of):
         try:
             directory = source.path.parent / "refutations"
@@ -2365,7 +2422,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             for path in paths:
                 if path.is_file():
                     try:
-                        blocks, _outside = read_blocks(path.read_text(encoding="utf-8"))
+                        blocks, _outside = read_blocks(read_record_text(path, CLAIM_RECORD_KIND))
+                        kept_returns_available &= not record_unavailable(path)
                         kept_returns.extend(block.record for block in blocks if not block.unread)
                     except (OSError, UnicodeError):
                         pass  # An unread return cannot supply a matching block.
@@ -2390,9 +2448,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             else None
         ),
         kept_returns=tuple(kept_returns),
+        ledger_available=not record_unavailable(source.path),
+        policy_available=not record_unavailable(source.path.with_name("bar.md")),
+        kept_returns_available=kept_returns_available,
     )
     diagnostics: list[str] = []
-    if not source.records:
+    ledger_available = not record_unavailable(source.path)
+    if not source.records and ledger_available:
         diagnostics.append(f"no claim records found in {source.path.name}")
     if source.evidence_not_filed:
         diagnostics.append(
@@ -2400,13 +2462,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " python tools/uptodate_store.py ingest with that file, or point --evidence"
             " at the exact file that was ingested. Every other row still ran."
         )
-    if source.as_of is None:
+    if source.as_of is None and ledger_available:
         diagnostics.append(
             f"{source.path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
             f" {source.recency_window_years}-year window, read-date check, nor stated-expiry check was applied"
             " to any record in it."
         )
-    if source.stated_expiry_unscanned:
+    if source.stated_expiry_unscanned and ledger_available:
         diagnostics.append(
             f"{source.path.name} carries STATED-EXPIRY nowhere, so it predates #498's"
             " required question. Every other row still ran."
@@ -2461,12 +2523,12 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         or scan.evidence_at_fault
     )
     coverage_failed = bool(
-        not source.records
+        (not source.records and ledger_available)
         or scan.reader_unread
         or scan.local_documents_unread
-        or source.as_of is None
+        or (source.as_of is None and ledger_available)
         or source.evidence_not_filed
-        or source.stated_expiry_unscanned
+        or (source.stated_expiry_unscanned and ledger_available)
         or (source.prescriptions is not None and not source.prescriptions)
     )
     return run_grader.Grade(
@@ -2504,7 +2566,12 @@ def main(argv: list[str]) -> int:
         if not path.is_file():
             print(f"no ledger file named {path.name}", file=sys.stderr)
             return 2
-        records = read_records(path.read_text(encoding="utf-8", errors="replace"))
+        try:
+            text = record_reader.read_handwritten_record(path, LEGACY_CLAIM_RECORD_KIND).require_text()
+        except record_reader.DamagedRecord as failure:
+            print(record_reader.damaged_record_result(failure, check="the claim heading digests")[1], file=sys.stderr)
+            return 1
+        records = read_records(text)
         if not records:
             print(f"no claim records found in {path.name}", file=sys.stderr)
             return 2

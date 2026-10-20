@@ -71,7 +71,15 @@ def posted_reading_check(
 
 
 def main(argv: list[str]) -> int:
-    return run_grader.collect_record_errors(lambda: _dispatch(argv))
+    def invoke():
+        if not argv or argv[0].startswith("--"):
+            return _dispatch(argv)
+        submission = None
+        if "--submission" in argv and argv.index("--submission") + 1 < len(argv):
+            submission = argv[argv.index("--submission") + 1]
+        with completion_checks.grading(Path(argv[0]), submission):
+            return _dispatch(argv)
+    return run_grader.collect_record_errors(invoke)
 
 
 def _dispatch(argv: list[str]) -> int:
@@ -86,7 +94,22 @@ def _dispatch(argv: list[str]) -> int:
             if frozen is not None:
                 print(frozen)
                 return 0
-        envelope = assignment_bar.parse((run / "bar.md").read_text(encoding="utf-8"))
+        from run_record_reader import DamagedRecord, damaged_record_result, read_handwritten_record
+        try:
+            envelope = assignment_bar.parse(read_handwritten_record(run / "bar.md").text)
+        except DamagedRecord as failure:
+            damaged_record_result(failure, check="signed assignment bar")
+            if "--bar-only" in argv:
+                return 1
+            if "--artifact" not in argv or argv.index("--artifact") + 1 >= len(argv):
+                raise run_grader.SourceError("a damaged bar needs an explicit artifact to locate independent checks")
+            artifact = Path(argv[argv.index("--artifact") + 1])
+            branches = {".pptx": ("deck_scan", "deck"), ".docx": ("assignment_docx_scan", "docx")}
+            branch = branches.get(artifact.suffix.casefold())
+            if branch is None:
+                raise run_grader.SourceError("the artifact extension does not identify an assignment adapter")
+            adapter, kind = branch
+            return _import_adapter(adapter).main(_adapter_arguments(argv, kind))
         failed, report = assignment_bar.completion_gate(run)
         print(report)
         if failed:

@@ -174,6 +174,14 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertEqual("Professional Edition 2026", receipt["sources"]["cpt"]["edition"])
         self.assertEqual("2026-12-31", receipt["sources"]["cpt"]["valid_through"])
 
+    def test_crlf_handwritten_manifest_keeps_the_existing_clean_receipt(self):
+        manifest = json.dumps(self.load_manifest(), indent=2) + "\n"
+        self.manifest.write_bytes(manifest.replace("\n", "\r\n").encode("utf-8"))
+        status, output = self.run_gate()
+        self.assertEqual(0, status, output)
+        self.assertEqual("coding-freshness: PASS\n", output)
+        self.assertEqual("PASS", json.loads(self.output.read_text(encoding="utf-8"))["verdict"])
+
     def test_rebuilt_source_fingerprint_is_recorded_without_a_private_input_receipt(self):
         database = self.directory / "procedure.sqlite"
         database.write_bytes(gate.procedure_codes_lookup.DEFAULT_DATABASE.read_bytes())

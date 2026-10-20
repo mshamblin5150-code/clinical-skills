@@ -25,6 +25,7 @@ from urllib.parse import urlsplit
 import completion_checks
 from console_codec import require_python_floor, use_utf8
 import coursework_run
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 from run_record_reader import (read_tool_record, object_record, RecordShapeError, UnreadableRecord,
                                fault_report, collecting_errors, update_tool_record, RecordUpdate, locked_record)
 
@@ -41,6 +42,7 @@ DECLARED_LIMITS = (
     ("reader-record", "Recorded frame reads, clinician answers and quotation locations are declarations, not observed listening or semantic verification."),
     ("case-kind", "A false non-video declaration or unrecorded quotation cannot be detected from prose."),
     ("av-offsets-unmeasured", "Timestamps locate decoded media; unusual audio/video offsets and word timing errors require a video check."),
+    ("handwritten input damage", "Original vocabulary input and keyed clinician reviews use the shared C0 reader; retained worker capture records keep their separate strict machine schema. Damaged reviews withhold only their own checks, and vocabulary input refuses before capture writes."),
 )
 
 
@@ -52,9 +54,9 @@ def digest(path: Path) -> str:
     return result.hexdigest()
 
 
-def read_json(path: Path):
+def read_json(path: Path, *, artifact: str | None = None, force: bool = False):
     """Read clinician/agent input; ownership does not follow its basename."""
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_handwritten_record(path, "json").require_json(artifact=artifact, force=force)
 
 
 def read_capture_json(path: Path):
@@ -258,12 +260,12 @@ def prepare(args, root: Path) -> None:
 
 def transcribe(args, root: Path) -> None:
     """Heavy environment only: read frames first, then run both local models."""
+    terms = read_json(Path(args.terms), force=True)
     from faster_whisper import WhisperModel
 
     record = valid_capture(root)
     if record["state"] != "prepared":
         raise ValueError("use a new capture directory for another transcription")
-    terms = read_json(Path(args.terms))
     names = [row["file"] for row in record["frames"]]
     if sorted(terms["frames_read"]) != sorted(names) or not isinstance(terms["terms"], str) or not terms["terms"].strip() or not terms["model_reason"].strip():
         raise ValueError("read every frame and supply its vocabulary and the model-size rationale")
@@ -306,7 +308,7 @@ def nonempty(value) -> bool:
 
 def check_review(run: Path, key: str, draft: bytes | str | None) -> tuple[int, int]:
     """Check the declared source route and all owed confirmations for one draft."""
-    review = read_json(run / "case-video" / f"{key}.json")
+    review = read_json(run / "case-video" / f"{key}.json", artifact=key)
     if review["kind"] == "none":
         if not nonempty(review["reason"]):
             raise ValueError("non-video declaration needs a reason")
@@ -366,14 +368,31 @@ def completion_gate(run: Path, submission: str | None, drafts: dict[str, bytes |
         return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied"
     try:
         keys = coursework_run.submission_keys(submission)
-        counts = [check_review(run, key, (drafts or {}).get(key)) for key in keys]
+        counts = []
+        reports = []
+        failed = False
+        for key in keys:
+            try:
+                counts.append(check_review(run, key, (drafts or {}).get(key)))
+            except DamagedRecord as failure:
+                finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=key)
+                failed |= finding
+                reports.append(report)
+            except UnreadableRecord as failure:
+                if not collecting_errors():
+                    raise
+                reports.append(fault_report(failure, check=EXPECTED_ROW))
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError):
+                failed = True
+                reports.append(f"{EXPECTED_ROW}: finding - missing, changed or incomplete capture review; inspect the private record and capture files")
     except UnreadableRecord as failure:
         if not collecting_errors():
             raise
         return False, fault_report(failure, check=EXPECTED_ROW)
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError):
         return True, f"{EXPECTED_ROW}: finding - missing, changed or incomplete capture review; inspect the private record and capture files"
-    return False, f"{EXPECTED_ROW}: clean; frames read {sum(c[0] for c in counts)}; confirmations {sum(c[1] for c in counts)}"
+    summary = f"{EXPECTED_ROW}: {'checked' if reports else 'clean'}; frames read {sum(c[0] for c in counts)}; confirmations {sum(c[1] for c in counts)}"
+    return failed, "\n".join((*reports, summary))
 
 
 def apply_completion_gate(grade, run: Path, submission: str | None, drafts: dict[str, bytes | str]):
@@ -382,6 +401,11 @@ def apply_completion_gate(grade, run: Path, submission: str | None, drafts: dict
 
 
 def main(argv: list[str]) -> int:
+    from run_grader import collect_record_errors
+    return collect_record_errors(lambda: _main(argv))
+
+
+def _main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "transcribe", "check"))
     parser.add_argument("run", type=Path)
@@ -405,9 +429,10 @@ def main(argv: list[str]) -> int:
             drafts = {args.submission: args.draft.read_bytes()} if args.draft else {}
             failed, report = completion_gate(run, args.submission, drafts)
             print(report)
+            if failed:
+                return 1
             if "not graded - tool-written record unreadable" in report:
-                from run_grader import format_unread_remainder
-                print(format_unread_remainder(1))
+                # The native command's collector owns the single record count.
                 return 2
             return int(failed)
         root = inside(run, args.capture)
@@ -428,6 +453,8 @@ def main(argv: list[str]) -> int:
             # Leaf replacements take their own shared record locks; the worker
             # inherits this root operation rather than reacquiring the root lock.
             with locked_record(root):
+                if args.action == "transcribe":
+                    read_json(Path(args.terms), force=True)
                 if args.action != "prepare":
                     valid_capture(root)
                 with (root / f"{args.action}.log").open("w", encoding="utf-8") as log:
@@ -443,11 +470,11 @@ def main(argv: list[str]) -> int:
         if args.action == "transcribe":
             print(f"disagreeing spans {len(read_capture_json(root / 'disagreements.json'))}; clinician review required")
         return 0
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check=EXPECTED_ROW, force=True)[1])
+        return 1
     except UnreadableRecord as failure:
-        print(fault_report(failure, check=EXPECTED_ROW))
-        from run_grader import format_unread_remainder
-        print(format_unread_remainder(1))
-        return 2
+        raise  # The command collector prints and counts this record exactly once.
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, ImportError) as failure:
         # Error messages from decoders and downloaders may carry private text.
         if args.worker:

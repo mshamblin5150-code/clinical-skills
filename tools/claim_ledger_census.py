@@ -25,6 +25,8 @@ from research_ledger import (
 )
 from repo_root import scratch_path
 import scratch_census
+import run_record_reader as records
+from research_ledger import LEGACY_CLAIM_RECORD_KIND
 
 
 USAGE = "usage: claim_ledger_census.py"
@@ -43,6 +45,7 @@ class RootRead:
     sourced_without_refutation: int = 0
     snapshots: int = 0
     ledgerless_runs: int = 0
+    damaged_ledgers: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,7 @@ class Census:
     sourced_without_refutation: int
     snapshots: int
     ledgerless_runs: int
+    damaged_ledgers: int = 0
 
 
 def read_root(root: Path) -> RootRead | None:
@@ -73,7 +77,7 @@ def read_root(root: Path) -> RootRead | None:
     if not runs.is_dir():
         raise OSError("runs is not a directory")
 
-    ledgers = dated = without_refutation = snapshots = ledgerless = 0
+    ledgers = dated = without_refutation = snapshots = ledgerless = damaged = 0
     statuses = [0] * (len(STATUSES) + 1)
     for run in runs.iterdir():
         if not run.is_dir():
@@ -87,8 +91,12 @@ def read_root(root: Path) -> RootRead | None:
             ledgerless += int(bool(claim_files))
             continue
         snapshots += len(claim_files) - 1
-        contents = ledger.read_text(encoding="utf-8", errors="replace")
         ledgers += 1
+        try:
+            contents = records.read_handwritten_record(ledger, LEGACY_CLAIM_RECORD_KIND).require_text(force=True)
+        except records.DamagedRecord:
+            damaged += 1
+            continue
         dated += int(DATE_HEADER.search(contents) is not None)
         for record in read_records(contents):
             status = record.status
@@ -98,7 +106,7 @@ def read_root(root: Path) -> RootRead | None:
                 status == SOURCED and not has_substantive_refutation(record)
             )
     return RootRead(
-        ledgers, dated, tuple(statuses), without_refutation, snapshots, ledgerless
+        ledgers, dated, tuple(statuses), without_refutation, snapshots, ledgerless, damaged
     )
 
 
@@ -106,7 +114,7 @@ def scan_corpus(checkout: Path) -> Census:
     """Aggregate completed roots without retaining private paths or text."""
     worktrees = scratch_census.worktree_roots(checkout)
     roots_read = roots_unreadable = ledgers = dated = without_refutation = 0
-    snapshots = ledgerless = 0
+    snapshots = ledgerless = damaged = 0
     statuses = [0] * (len(STATUSES) + 1)
     for worktree in worktrees:
         try:
@@ -122,10 +130,11 @@ def scan_corpus(checkout: Path) -> Census:
         without_refutation += found.sourced_without_refutation
         snapshots += found.snapshots
         ledgerless += found.ledgerless_runs
+        damaged += found.damaged_ledgers
         statuses = [left + right for left, right in zip(statuses, found.statuses)]
     return Census(
         len(worktrees), roots_read, roots_unreadable, ledgers, dated,
-        tuple(statuses), without_refutation, snapshots, ledgerless,
+        tuple(statuses), without_refutation, snapshots, ledgerless, damaged,
     )
 
 
@@ -145,6 +154,8 @@ def format_report(census: Census) -> str:
             f"sourced without substantive refutation {census.sourced_without_refutation}",
             f"snapshots beside a ledger          {census.snapshots}",
             f"runs with claim files and no ledger {census.ledgerless_runs}",
+            f"damaged ledgers, not graded        {census.damaged_ledgers}",
+            f"unread remainder {census.damaged_ledgers}",
         )
     )
     return "\n".join(lines)
@@ -160,6 +171,8 @@ def main(argv: list[str]) -> int:
         print("NOT SCANNED: registered checkout population unavailable", file=sys.stderr)
         return 2
     print(format_report(result))
+    if result.damaged_ledgers:
+        return 1
     if result.roots_unreadable:
         print("NOT SCANNED: registered scratch root unreadable", file=sys.stderr)
         return 2

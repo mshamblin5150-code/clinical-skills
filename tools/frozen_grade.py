@@ -15,7 +15,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 from run_record_reader import (read_tool_record, frozen_record, state_record,
-                               locked_record, UnreadableRecord, fault_report)
+                               locked_record, UnreadableRecord, fault_report,
+                               DamagedRecord, damaged_record_result)
 
 RECORD = "frozen-grades.json"
 DECLARED_LIMITS = (
@@ -99,6 +100,13 @@ def report(run: Path, submission: str, *, adopt_history: bool = True) -> str | N
     from run_record_reader import collecting_errors
     try:
         return _report(run, submission, adopt_history=adopt_history)
+    except DamagedRecord as failure:
+        if not collecting_errors():
+            raise
+        damaged_record_result(failure, check="historical adoption", artifact=submission, force=True)
+        # Existing retained grades remain authoritative; damaged evidence
+        # cannot establish a new adoption, nor abort independent fresh checks.
+        return _report(run, submission, adopt_history=False)
     except UnreadableRecord:
         if not collecting_errors():
             raise
@@ -107,6 +115,9 @@ def report(run: Path, submission: str, *, adopt_history: bool = True) -> str | N
 
 def _report(run: Path, submission: str, *, adopt_history: bool = True) -> str | None:
     if adopt_history:
+        retained = _report(run, submission, adopt_history=False)
+        if retained is not None:
+            return retained
         adopt(run)
     approval = approved(run, submission)
     if approval is None:
@@ -158,7 +169,9 @@ def adopt(run: Path) -> Adoption:
     except (TypeError, ValueError):
         covered = []
     try:
-        readings = {reading.artifact: reading for reading in read_posted_reading_file(run / "reread.md", collect=False)}
+        readings = {reading.artifact: reading for reading in read_posted_reading_file(
+            run / "reread.md", collect=False, force=True,
+            artifacts=tuple(item["submission"] for _spec, item in population))}
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError):
@@ -232,11 +245,16 @@ def main(argv: list[str]) -> int:
     parser.add_argument("runs", nargs="+", type=Path)
     args = parser.parse_args(argv)
     clean = adopted = 0
+    damaged = False
     for path in args.runs:
         runs = (path,) if path.name != "runs" else tuple(p for p in path.iterdir() if p.is_dir())
         for run in runs:
             try:
                 result = adopt(run)
+            except DamagedRecord as failure:
+                print(damaged_record_result(failure, check="historical adoption", force=True)[1])
+                damaged = True
+                continue
             except UnreadableRecord as failure:
                 print(fault_report(failure, check="frozen grade"))
                 from run_grader import format_unread_remainder
@@ -247,7 +265,7 @@ def main(argv: list[str]) -> int:
             for line in result.lines:
                 print(line)
     print(f"adoption: graded clean {clean}; frozen at adoption, never graded clean {adopted}")
-    return 0
+    return 1 if damaged else 0
 
 
 if __name__ == "__main__":

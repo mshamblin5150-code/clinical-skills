@@ -4344,6 +4344,9 @@ class EveryGatedRowSetFollowsTheSentinelConvention(unittest.TestCase):
                 if isinstance(node, ast.Attribute)
                 and isinstance(node.value, ast.Name)
                 and node.value.id == "scan"
+                # Damage can withhold tuple-named rows too; this contract
+                # covers optional groups declared by nullable integer fields.
+                and node.attr in EveryGatedRowSetFollowsTheSentinelConvention.nullable_int_fields()
             }
             for sentinel in sentinels:
                 joins.setdefault(sentinel, set()).update(row_sets)

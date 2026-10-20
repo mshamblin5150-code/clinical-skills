@@ -38,6 +38,8 @@ import re
 from pathlib import Path
 
 import run_grader
+from run_record_reader import (read_handwritten_record, check_handwritten_text,
+                               HandwrittenKind, DamagedRecord, damaged_record_result)
 
 
 # The checkout running the grade: its skills are the rules this run was bound by.
@@ -46,6 +48,7 @@ CHECKOUT = Path(__file__).resolve().parent.parent
 
 EXPECTED_ROW = "the delegated answers"
 RECORD = "delegated-answers.md"
+RECORD_KIND = HandwrittenKind("delegated-answers", decode_errors="replace")
 NONE_FOUND = "none found"
 # Where a governing rule may be written. A rule anywhere else is not one a run
 # was bound by.
@@ -185,7 +188,8 @@ def _section_digests(answer: Answer) -> dict[str, str]:
 def reader_brief(run: Path) -> dict:
     """Give the separate reader answer lines and their current sections, never rules."""
     raw = (run / RECORD).read_bytes()
-    answers, problems = answer_sections(run, raw.decode("utf-8"))
+    text = check_handwritten_text(raw.decode("utf-8"), run / RECORD, "raw-text").require_text(force=True)
+    answers, problems = answer_sections(run, text)
     if problems:
         raise ValueError("delegated answer note/section pointers do not resolve")
     return {
@@ -207,11 +211,13 @@ def _unique_fields(pairs: list[tuple[str, object]]) -> dict:
     return fields
 
 
-def reader_verdicts(run: Path, answers: tuple[Answer, ...]) -> tuple[int, int, int]:
+def reader_verdicts(
+    run: Path, answers: tuple[Answer, ...], *, artifact: str | None = None, force: bool = False
+) -> tuple[int, int, int]:
     """Count current agreements/disagreements and every unread answer once."""
     try:
-        with (run / READER_RECORD).open(encoding="utf-8", newline="") as source:
-            payload = json.load(source, object_pairs_hook=_unique_fields)
+        text = read_handwritten_record(run / READER_RECORD, "json").require_text(artifact=artifact, force=force)
+        payload = json.loads(text, object_pairs_hook=_unique_fields)
         if (not isinstance(payload, dict) or set(payload) != {"route", "answers_sha256", "answers"}
                 or payload["answers_sha256"] != sha256((run / RECORD).read_bytes()).hexdigest()
                 or payload["route"] not in {"separate context", "not run - no second context"}
@@ -315,7 +321,20 @@ def completion_gate(
     path = run / RECORD
     if not path.is_file():
         return False, f"{EXPECTED_ROW}: none recorded - {RECORD} is absent", 0
-    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = read_handwritten_record(path, RECORD_KIND).require_text(artifact=submission, force=pre_approval)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=submission, force=pre_approval)
+        # The unavailable answer population withholds binding/count comparisons,
+        # but the separate reader's own text is still independently observable.
+        try:
+            read_handwritten_record(run / READER_RECORD, "json").require_text(artifact=submission, force=pre_approval)
+        except DamagedRecord as reader_failure:
+            _, reader_report = damaged_record_result(reader_failure, check="the delegated answer reader", artifact=submission, force=pre_approval)
+            report += "\n" + reader_report
+        except (OSError, UnicodeError, ValueError):
+            pass  # No answer population exists to count missing/stale verdicts.
+        return finding, report, 0
     total, settled, none, findings = grade_text(
         text,
         root or CHECKOUT,
@@ -326,7 +345,11 @@ def completion_gate(
         findings.extend(pointers)
     agreed = disagreed = unread = 0
     if completion_checks.active(ANSWER_READER):
-        agreed, disagreed, unread = reader_verdicts(run, answers)
+        try:
+            agreed, disagreed, unread = reader_verdicts(run, answers, artifact=submission, force=pre_approval)
+        except DamagedRecord as failure:
+            _, report = damaged_record_result(failure, check="the delegated answer reader", artifact=submission, force=pre_approval)
+            findings.append(report)
     counts = (
         f"{total} recorded, {settled} settled by a quoted written rule,"
         f" {none} with no governing rule to name at the go-ahead"
@@ -369,8 +392,7 @@ def verify_shown_answers(run: Path, reply_at: float | None, *, transcripts=None)
     if reply_at is None:
         return ReplyVerification("unreadable", "delegated answer transcript not verified")
     try:
-        with path.open(encoding="utf-8", newline="") as source:
-            text = source.read()
+        text = read_handwritten_record(path, "raw-text").require_text(force=True)
         required = tuple(_normalized(match.group(0)) for match in FIELD.finditer(text) if match.group(1) == "ANSWER")
         boundary = path.stat().st_mtime
     except (OSError, UnicodeError):

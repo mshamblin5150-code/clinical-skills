@@ -19,7 +19,8 @@ import file_digest
 from console_codec import use_utf8, require_python_floor
 from run_record_reader import (read_tool_record, object_record, RecordShapeError,
                                UnreadableRecord, collecting_errors, fault_report, mark_not_graded,
-                               update_tool_record, RecordUpdate)
+                               update_tool_record, RecordUpdate, read_handwritten_record,
+                               check_handwritten_text, DamagedRecord, damaged_record_result)
 
 
 RECORD = "bar-signatures.json"
@@ -117,7 +118,7 @@ def _sign(run: Path, clinician_reply: str, previous_record: dict | None, *, skil
 
     bar = run / "bar.md"
     original = bar.read_bytes()
-    text = original.decode("utf-8")
+    text = check_handwritten_text(original.decode("utf-8"), bar, "raw-text").require_text(force=True)
     if len(re.findall(r"(?m)^SIGNED\s*:", text)) > 1:
         raise run_grader.SourceError("bar.md has a duplicate SIGNED field")
     signed = f"SIGNED: {date.today().isoformat()}\n"
@@ -177,11 +178,13 @@ def _sign(run: Path, clinician_reply: str, previous_record: dict | None, *, skil
                         entry, rollback=rollback)
 
 
-def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
+def _completion_gate(
+    run: Path, *, skill: str | None = None, artifact: str | None = None
+) -> tuple[bool, str]:
     """Refuse changed or unrecorded current bars at every public gate."""
     try:
         run = Path(run)
-        text = (run / "bar.md").read_text(encoding="utf-8")
+        text = read_handwritten_record(run / "bar.md").require_text(artifact=artifact)
         signed = signed_date(text)
         if skill == "course-assignment":
             validate(text, skill)
@@ -216,9 +219,24 @@ def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
         return True, EXPECTED_ROW + ": not clean - " + str(failure)
 
 
-def latest_digest(run: Path) -> str | None:
+def completion_gate(
+    run: Path, *, skill: str | None = None, artifact: str | None = None
+) -> tuple[bool, str]:
+    """Report content damage locally while observing independent bookkeeping."""
+    try:
+        return _completion_gate(run, skill=skill, artifact=artifact)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=artifact)
+        try:
+            _signatures(Path(run))
+        except UnreadableRecord as record_failure:
+            report += "\n" + fault_report(record_failure, check=EXPECTED_ROW)
+        return finding, report
+
+
+def latest_digest(run: Path, *, artifact: str | None = None) -> str | None:
     """Return the verified latest bar identity, or None for a legacy exemption."""
-    failed, report = completion_gate(run)
+    failed, report = _completion_gate(run, artifact=artifact)
     if failed:
         raise run_grader.SourceError(report)
     try:
@@ -234,7 +252,7 @@ def apply_completion_gate(grade, run: Path, skill: str, submission: str | None):
     from dataclasses import replace
     if submission is None:
         return grade
-    failed, report = completion_gate(run, skill=skill)
+    failed, report = completion_gate(run, skill=skill, artifact=submission)
     return replace(grade, findings_failed=grade.findings_failed or failed,
                    reports=(*grade.reports, report))
 
@@ -247,6 +265,9 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         entry = sign(args.run, args.reply, skill=args.skill)
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check=EXPECTED_ROW, force=True)[1])
+        return 1
     except UnreadableRecord as failure:
         print(fault_report(failure, check=EXPECTED_ROW))
         print(run_grader.format_unread_remainder(1))

@@ -11,7 +11,7 @@ from datetime import date
 
 import run_grader
 from console_codec import use_utf8, require_python_floor
-from run_record_reader import UnreadableRecord, fault_report
+from run_record_reader import UnreadableRecord, fault_report, DamagedRecord, damaged_record_result
 
 
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
@@ -98,6 +98,9 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         entry = sign(args.run, args.reply)
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check=EXPECTED_ROW, force=True)[1])
+        return 1
     except UnreadableRecord as failure:
         print(fault_report(failure, check=EXPECTED_ROW))
         print(run_grader.format_unread_remainder(1))

@@ -15,7 +15,7 @@ import completion_checks
 from console_codec import require_python_floor, use_utf8
 import medatrax_posting
 import run_grader
-from run_record_reader import UnreadableRecord, read_tool_record
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 EXPECTED_ROW = "visit-times"
 DECLARED_LIMITS = (
@@ -23,7 +23,7 @@ DECLARED_LIMITS = (
     "Portal values are not compared with note values.",
     "Unlabeled times and tier-block restatements are neither graded nor counted unread.",
     "The candidate reader recognizes physical lines carrying Start time or End time; other labels are outside coverage.",
-    "Shift control-character handling follows ADR 0395 once its shared hand-written record reader is built.",
+    "Shift evidence uses the shared handwritten reader before clock and duration parsing; damaged content withholds only the shift-window comparison while note-duration and spacing checks continue.",
 )
 CANDIDATE = re.compile(r"\b(start|end)[ \t]+time\b", re.I)
 FIELD = re.compile(
@@ -42,6 +42,7 @@ class Result:
     window_checked: bool = False
     population_checked: bool = True
     graded: bool = True
+    damage_report: str = ""
 
     @property
     def incomplete(self) -> bool:
@@ -89,8 +90,8 @@ def read_window(run: Path) -> tuple[int, int] | None:
             raise ValueError("invalid shift duration")
         return start, hours * 60 + minutes
     try:
-        return read_tool_record(run / "shift-values.json", decode)
-    except UnreadableRecord:
+        return decode(read_handwritten_record(run / "shift-values.json", "json").text)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return None
 
 
@@ -145,9 +146,17 @@ def check(run: Path, *, batch: bool, note: Path | None = None) -> Result:
             pair, residue = None, 1
         pairs.append(pair)
         unread += residue
-    window = read_window(run)
+    damage_report = ""
+    damage_findings = ()
+    try:
+        window = read_window(run)
+    except DamagedRecord as failure:
+        finding, damage_report = damaged_record_result(failure, check="visit-time shift window")
+        damage_findings = (damage_report,) if finding else ()
+        window = None
     return Result(len(paths), sum(pair is not None for pair in pairs),
-                  check_pairs(tuple(pairs), window), unread, window is not None, bool(paths))
+                  (*check_pairs(tuple(pairs), window), *damage_findings), unread,
+                  window is not None, bool(paths), damage_report=damage_report)
 
 
 def report(result: Result, *, show: bool = False) -> str:
@@ -158,8 +167,10 @@ def report(result: Result, *, show: bool = False) -> str:
         lines.append("visit times: incomplete coverage - a note has no unique readable Start time / End time pair")
     if not result.population_checked:
         lines.append("visit times: not checked - no posted note resolved; supply --note for a standalone note")
-    if not result.window_checked:
+    if not result.window_checked and not result.damage_report:
         lines.append("visit times: not checked - shift values absent or unreadable; record start and duration in shift-values.json")
+    if result.damage_report:
+        lines.append(result.damage_report)
     if show:
         lines.extend(result.findings)
     return "\n".join(lines)

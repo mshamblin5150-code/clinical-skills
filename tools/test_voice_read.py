@@ -100,7 +100,13 @@ class QuoteCheck(unittest.TestCase):
             return original_read(path, *args, **kwargs)
 
         (self.root / voice_read.PLANTER_RECORD_NAME).write_text("hidden answer key", encoding="utf-8")
-        with mock.patch.object(Path, "read_text", read):
+        shared_read = voice_read.read_handwritten_record
+        def checked_read(path, *args, **kwargs):
+            opened.append(path)
+            if path.name == voice_read.PLANTER_RECORD_NAME:
+                raise AssertionError("answer key was opened")
+            return shared_read(path, *args, **kwargs)
+        with mock.patch.object(Path, "read_text", read), mock.patch.object(voice_read, "read_handwritten_record", checked_read):
             status, output = self.check()
         self.assertEqual(0, status, output)
         self.assertEqual({self.reader, self.planted, self.draft}, set(opened))

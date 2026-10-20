@@ -20,14 +20,47 @@ from urllib.parse import parse_qs, urlparse
 import file_digest
 from run_record_reader import (
     RecordShapeError, UnreadableRecord, collecting_errors, read_tool_record,
-    unreadable_kind,
+    unreadable_kind, DamagedRecord, HandwrittenKind, check_handwritten_text,
+    read_handwritten_record, damaged_record_result, handwritten_record_damage,
 )
 from imagery_proposals import WORKING_MARKER
 from run_grader import EvidenceDisposition
 
 
+def _record_views(checked, keys, *, check: str, collect: bool = True, force: bool = False):
+    views = {}
+    for key in keys:
+        try:
+            views[key] = checked.require_text(artifact=key, force=force)
+        except DamagedRecord as failure:
+            damaged_record_result(failure, check=check, artifact=key, force=force)
+            if not collect or not collecting_errors():
+                raise
+    return views
+
+
+def read_record_text(path: Path, kind: str | HandwrittenKind = "text", *,
+                     artifact: str | None = None, artifacts: tuple[str, ...] = (),
+                     check: str = "the handwritten record") -> str:
+    """Withhold one unavailable dependency inside a captured owning command.
+
+    Callers must use record_unavailable before deriving missing/member findings
+    from the empty placeholder. Outside a command the classified damage raises.
+    """
+    views = _record_views(read_handwritten_record(path, kind), artifacts or (artifact,), check=check)
+    return next(iter(views.values()), "")
+
+
+def record_unavailable(path: Path, artifact: str | None = None) -> bool:
+    """Only this actual path and this item's own approval can withhold a join."""
+    damage = handwritten_record_damage(path)
+    return bool(damage and damaged_record_result(
+        damage, check="the handwritten record", artifact=artifact)[0])
+
+
 DECLARED_LIMITS = (
     'discussion_artifact record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+    'Anonymous parser text has no file identity or approval moment; handwritten damage is checked by the owning file reader before parsing. A mixed-item reader retains a legacy view only for explicitly known historical keys and withholds current or unknown dependent joins by actual path.',
 )
 
 
@@ -480,19 +513,35 @@ def decode_posted_readings(text: str) -> tuple[PostedReading, ...]:
     return readings
 
 
-def read_posted_reading_file(path: Path, *, collect: bool = True) -> tuple[PostedReading, ...]:
+def read_posted_reading_file(path: Path, *, collect: bool = True,
+                             artifact: str | None = None,
+                             artifacts: tuple[str, ...] = (), force: bool = False) -> tuple[PostedReading, ...]:
     """Keep absence empty; retain a present fault for the command's coverage report."""
     try:
-        return read_tool_record(path, decode_posted_readings) or ()
+        def decode(text):
+            checked = check_handwritten_text(text, path, "raw-text")
+            if artifacts:
+                views = _record_views(checked, artifacts, check="the posted reading", collect=collect, force=force)
+                return tuple(reading for reading in decode_posted_readings(next(iter(views.values())))
+                             if reading.artifact in views) if views else ()
+            return decode_posted_readings(checked.require_text(artifact=artifact, force=force))
+        return read_tool_record(path, decode) or ()
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="the posted reading", artifact=artifact, force=force)
+        if not collect or not collecting_errors():
+            raise
+        return ()
     except UnreadableRecord:
         if not collect or not collecting_errors():
             raise
         return ()
 
 
-def posted_reading_unavailable() -> bool:
+def posted_reading_unavailable(run: Path | None = None, artifact: str | None = None) -> bool:
     """A captured one-run command cannot establish this join from damaged bookkeeping."""
-    return any(unreadable_kind(name) for name in ("reread.md", "posting-approvals.json", "submission-gates.json"))
+    damaged = handwritten_record_damage(run / "reread.md") if run is not None else None
+    return bool(damaged and damaged_record_result(damaged, check="the posted reading", artifact=artifact)[0]) or any(
+        unreadable_kind(name) for name in ("reread.md", "posting-approvals.json", "submission-gates.json"))
 
 
 POSTED_READING_MESSAGES = {
@@ -562,7 +611,7 @@ def check_posted_reading(
     Presence and fingerprint always run; each other piece is explicitly enabled.
     Outcome codes and messages belong here; finding names belong to the caller.
     """
-    if posted_reading_unavailable():
+    if posted_reading_unavailable(run, reading.artifact if reading else None):
         return ()
     if reading is None:
         return (PostedReadingOutcome("missing-record"),)

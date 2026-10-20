@@ -19,6 +19,7 @@ import discussion_artifact
 import reference_alphabets
 import run_grader
 import spelling_scan
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 
 ABBREVIATION_EXEMPTIONS = frozenset((
@@ -79,6 +80,7 @@ DECLARED_LIMITS = (
     "Only reference titles parsed from an italic span or the title immediately after the reference date are excluded as cited titles.",
     "A group author is recognized from the reference author field without personal-name initials; ambiguous author grammar remains outside this read.",
     "Word surfaces inherit coursework_style's projection limits.",
+    "Damaged handwritten handling records withhold handling-dependent uncertain-hit checks; independent artifact mechanics still grade. Historical approval protection applies per artifact.",
 )
 RECORD_NAME = "coursework-mechanics.json"
 ABBREVIATION = re.compile(r"(?<!\w)(?:[A-Z]\.){2,}|\b[A-Z]{2,}\b")
@@ -256,12 +258,12 @@ def survey(markdown: str, artifact: str, language: str, handling: dict | None = 
     return Scan(language, artifact, tuple(findings), digest(markdown))
 
 
-def _read_handling(root: Path) -> tuple[dict, str | None, bool]:
+def _read_handling(root: Path, artifact: str | None = None) -> tuple[dict, str | None, bool]:
     path = root / RECORD_NAME
     if not path.exists():
         return {}, None, False
     try:
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = read_handwritten_record(path, "json").require_json(artifact=artifact)
     except (OSError, UnicodeError) as failure:
         return {}, f"mechanics record unread: {failure}", True
     except ValueError:
@@ -285,10 +287,12 @@ def _read_handling(root: Path) -> tuple[dict, str | None, bool]:
     return result, None, False
 
 
-def format_report(scan: Scan, show: bool = False) -> str:
+def format_report(scan: Scan, show: bool = False, *, handling_damaged: bool = False) -> str:
     lines = [f"coursework mechanics ({scan.artifact}; language {scan.language})"]
     for row in ROWS:
         outcome = str(sum(finding.kind == row for finding in scan.findings)) if scan.language == "en" else f"not graded - language {scan.language}"
+        if handling_damaged and row in {"uncertain-prefix", "uncertain-digit"}:
+            outcome = "not graded — damaged text"
         lines.append(f"{row}: {outcome}")
     if show:
         lines.append("SURFACE-SHA256: " + scan.surface_sha256)
@@ -305,27 +309,39 @@ def apply_grade(grade, root: Path, surfaces: tuple[tuple[str, str], ...], parsed
             Path(parsed.value("--profile")) if parsed.value("--profile") else None,
         )
     language = reference_alphabets.language_name(language)
-    records, error, unread = _read_handling(root) if language == "en" else ({}, None, False)
     reports = list(grade.reports)
-    failed = bool(error) and not unread
+    failed = False
+    any_unread = False
     for name, markdown in surfaces:
+        damaged = False
+        try:
+            records, error, unread = _read_handling(root, name) if language == "en" else ({}, None, False)
+        except DamagedRecord as failure:
+            damage_finding, report = damaged_record_result(failure, check="coursework mechanics handling", artifact=name)
+            reports.append(report)
+            failed |= damage_finding
+            records, error, unread, damaged = {}, None, False, True
+        failed |= bool(error) and not unread
+        any_unread |= unread
         record = records.get(name)
         stale = record is not None and record["sha256"] != digest(markdown)
         scan = survey(markdown, name, language, record["hits"] if record and not stale else None)
         findings = completion_checks.filter_findings("coursework_mechanics", scan.findings)
+        if damaged:
+            findings = tuple(finding for finding in findings if not finding.kind.startswith("uncertain-"))
         if stale:
             findings = (*findings, Finding("mechanics-record", name))
         if error and not unread:
             findings = (*findings, Finding("mechanics-record", name))
         scan = replace(scan, findings=findings)
         failed = failed or bool(findings)
-        reports.append(format_report(scan, parsed.show))
-    if error:
-        reports.append(error)
+        reports.append(format_report(scan, parsed.show, handling_damaged=damaged))
+        if error:
+            reports.append(error)
     reports.extend("mechanics limit: " + limit for limit in DECLARED_LIMITS)
     return replace(grade, findings_failed=grade.findings_failed or failed,
-                   coverage_failed=grade.coverage_failed or language != "en" or unread,
-                   coverage_limbs=(*grade.coverage_limbs, *((coverage_limb,) if coverage_limb and (language != "en" or unread) else ())),
+                   coverage_failed=grade.coverage_failed or language != "en" or any_unread,
+                   coverage_limbs=(*grade.coverage_limbs, *((coverage_limb,) if coverage_limb and (language != "en" or any_unread) else ())),
                    reports=tuple(reports))
 
 

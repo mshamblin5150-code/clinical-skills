@@ -155,9 +155,9 @@ class ReversalCandidates(unittest.TestCase):
 
     def test_reversal_files_are_never_reopened_as_review_cursors(self):
         original = aar_scan.read_review
-        def read_review(path):
+        def read_review(path, **kwargs):
             self.assertFalse(path.name.endswith(".reversal-candidates.md"))
-            return original(path)
+            return original(path, **kwargs)
         with mock.patch.object(aar_scan, "read_review", side_effect=read_review):
             self.extract()
             self.assertEqual(0, self.command()[0])

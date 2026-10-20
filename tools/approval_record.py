@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from discussion_artifact import read_posted_reading_file
+from discussion_artifact import read_posted_reading_file, record_unavailable
 
 from discussion_artifact import check_posted_reading
 from run_record_reader import UnreadableRecord, RecordUpdate, update_tool_record, posting_record
@@ -742,7 +742,7 @@ def completion_gate(
     root = Path(run).resolve()
     try:
         payload = _read(root)
-        readings = read_posted_reading_file(root / "reread.md")
+        readings = read_posted_reading_file(root / "reread.md", artifacts=keys)
     except UnreadableRecord as failure:
         from run_record_reader import collecting_errors, fault_report
         if not collecting_errors():
@@ -755,6 +755,7 @@ def completion_gate(
         return False, f"{label}: not graded - tool-written posted reading unreadable"
     by_submission = {reading.artifact: reading for reading in readings}
     incomplete = False
+    damaged_reading = False
     for key in keys:
         item = _matching_item(payload, skill, key)
         if item is None:
@@ -789,7 +790,9 @@ def completion_gate(
                 return True, f"{label}: finding - a whole clinician reply was not found"
             incomplete = incomplete or result.state == "unreadable"
         reading = by_submission.get(key)
-        outcomes = check_posted_reading(reading, expected)
+        unavailable = record_unavailable(root / "reread.md", key)
+        damaged_reading |= unavailable
+        outcomes = () if unavailable else check_posted_reading(reading, expected)
         if outcomes:
             return True, f"{label}: finding - {outcomes[0].message}"
         if skill in POSTING_GO_AHEAD_SKILLS and item.get("posting_route") == PostingRoute.AGENT.value:
@@ -811,6 +814,8 @@ def completion_gate(
                     return True, f"{label}: finding - {key} has no Posting go-ahead after its content go-ahead"
     if incomplete:
         return CompletionResult(False, f"{label}: incomplete coverage - {REPLY_UNREADABLE}", True)
+    if damaged_reading:
+        return False, f"{label}: approval checks clean; posted-reading join: not graded — damaged text"
     return False, f"{label}: clean"
 
 

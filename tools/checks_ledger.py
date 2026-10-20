@@ -199,6 +199,9 @@ import case_video
 import approval_record
 import heading_read
 import research_ledger
+from discussion_artifact import read_record_text, record_unavailable
+import run_record_reader as record_reader
+
 from discussion_artifact import PostedReading
 import post_html
 import case_study_render
@@ -214,6 +217,15 @@ EXPECTED_COMPLETION_CHECKS = (
     case_video.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
+
+
+WALK_RECORD_KIND = record_reader.HandwrittenKind(
+    "pre-review-walk", lambda text: (("", text),), frozenset({
+        "entries", "sources", "none", "diagnosis", "element", "statement", "outcome",
+        "position", "faculty_line", "section", "wrapper_clause", "departure", "order",
+        "source", "test", "kind", "subject", "receiving_item", "education_receiving_item",
+        "numeric_value", "bar_sha256",
+    }))
 
 
 class DeclaredLimit(NamedTuple):
@@ -636,6 +648,7 @@ class Scan:
     image_answer_unread: int = 0
     reader_remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
+    withheld_rows: tuple[str, ...] = ()
 
 
 def read_records(text: str) -> list[Record]:
@@ -856,7 +869,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
     ]
     for kind, count in scan.counts:
-        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+        if kind in scan.withheld_rows and not count:
+            count = f"{NOT_GRADED} — damaged text"
+        elif kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             count = NOT_GRADED
         lines.append(f"  {ROWS[kind]} - {kind:<{KIND_COLUMN}} {count}")
     lines.append("")
@@ -933,10 +948,12 @@ def posted_reading_check(
     bar = run / 'bar.md'
     composer = bar.is_file() and re.search(
         r'(?m)^SUBMISSION-TYPE:\s*canvas-composer\s*$',
-        bar.read_text(encoding='utf-8'),
+        read_record_text(bar, artifact=submission),
     ) is not None
     reread = run / 'reread.md'
-    readings = read_posted_reading_file(reread)
+    readings = read_posted_reading_file(reread, artifact=submission)
+    if record_unavailable(bar, submission):
+        return ()
     route = _posting_route(run, submission) if composer else None
     return _posted_reading_outcomes(run, submission, document, composer, readings, route)
 
@@ -967,7 +984,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     path = Path(parsed.source)
     if not path.is_file():
         raise run_grader.SourceError(f"no checks file named {path.name}")
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_record_text(path, research_ledger.LEGACY_TEXT_KIND)
     submission = parsed.value("--submission")
     document_value = parsed.value("--document")
     if submission is None and document_value is None:
@@ -988,17 +1005,17 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         ) from failure
     claims_path = path.with_name("claims.md")
     claims_text = (
-        claims_path.read_text(encoding="utf-8", errors="replace")
+        read_record_text(claims_path, research_ledger.LEGACY_CLAIM_RECORD_KIND, artifact=document.name)
         if claims_path.is_file()
         else ""
     )
     reread_path = path.parent / "reread.md"
     try:
-        readings = read_posted_reading_file(reread_path)
+        readings = read_posted_reading_file(reread_path, artifact=submission)
         bar = path.with_name("bar.md")
         composer_run = bar.is_file() and re.search(
             r"(?m)^SUBMISSION-TYPE:\s*canvas-composer\s*$",
-            bar.read_text(encoding="utf-8"),
+            read_record_text(bar, artifact=document.name),
         ) is not None
         if submission is not None and composer_run:
             reading = next(
@@ -1057,10 +1074,8 @@ def _first_draft_moment(checks_text: str) -> str | None:
     return drafted[0] if parsed.tzinfo is not None else None
 
 
-def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
+def pre_review_walks(run: Path, checks_text: str, *, artifact: str | None = None) -> list[Finding]:
     """Read closed outcomes only; completeness and clinical truth stay reader-owned."""
-    import json
-
     if not completion_checks.active("checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(checks_text)):
         return []
     contracts = {
@@ -1080,11 +1095,15 @@ def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
     found = []
     for filename, (subject, outcomes) in contracts.items():
         try:
-            record = json.loads((run / filename).read_text(encoding="utf-8"))
+            record = record_reader.read_handwritten_record(run / filename, WALK_RECORD_KIND).require_json(artifact=artifact)
             entries = record["entries"]
             if filename == "bar-walk.json":
                 import bar_signatures
-                digest = bar_signatures.latest_digest(run)
+                try:
+                    digest = bar_signatures.latest_digest(run, artifact=artifact)
+                except record_reader.DamagedRecord as failure:
+                    record_reader.damaged_record_result(failure, check="bar-walk signature", artifact=artifact)
+                    digest = None
                 if digest is not None and completion_checks.active("checks_ledger:bar-walk-signature"):
                     if record.get("bar_sha256") != digest:
                         raise ValueError("bar walk does not match the latest signature")
@@ -1116,6 +1135,8 @@ def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
                     "negative history", "result qualifier",
                 }:
                     raise ValueError("trace needs its stated kind")
+        except record_reader.DamagedRecord as failure:
+            record_reader.damaged_record_result(failure, check="the pre-review walk", artifact=artifact)
         except (OSError, UnicodeError, ValueError, KeyError, TypeError, run_grader.SourceError):
             found.append(Finding(PRE_REVIEW_WALKS, filename, "missing or malformed pre-review walk"))
     return found
@@ -1125,14 +1146,12 @@ def _walk_text(value: object) -> bool:
     return isinstance(value, str) and bool(SUBSTANCE.search(value))
 
 
-def routing_walk(run: Path, checks_text: str) -> list[Finding]:
+def routing_walk(run: Path, checks_text: str, *, artifact: str | None = None) -> list[Finding]:
     """Grade recorded routing shape; sources and clinical routes remain reader-owned."""
-    import json
-
     if not completion_checks.active("checks_ledger:" + ROUTING_WALK, _first_draft_moment(checks_text)):
         return []
     try:
-        record = json.loads((run / "routing-walk.json").read_text(encoding="utf-8"))
+        record = record_reader.read_handwritten_record(run / "routing-walk.json", WALK_RECORD_KIND).require_json(artifact=artifact)
         entries = record["entries"]
         if not isinstance(entries, list) or (not entries and not _walk_text(record.get("none"))):
             raise ValueError("entries need a list and an empty-list reason")
@@ -1148,6 +1167,9 @@ def routing_walk(run: Path, checks_text: str) -> list[Finding]:
             numeric = "numeric_value" in entry or "source" in entry
             if numeric and any(not _walk_text(entry.get(field)) for field in ("numeric_value", "source")):
                 raise ValueError("numeric row needs its value and source")
+    except record_reader.DamagedRecord as failure:
+        record_reader.damaged_record_result(failure, check="the routing walk", artifact=artifact)
+        return []
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return [Finding(ROUTING_WALK, "routing-walk.json", "missing or malformed routing record")]
     return []
@@ -1181,6 +1203,7 @@ def _grade(
                     source.claims,
                     source.path.parent,
                     as_of=research_ledger.ledger_date(source.claims_text),
+                    record_path=source.path,
                 ),
             ),
         )
@@ -1203,14 +1226,19 @@ def _grade(
             failing_checks=0,
             missing=(),
             findings=(),
+            withheld_rows=KINDS if record_unavailable(source.path, source.document.name) else (),
         )
     submission = _parsed.value("--submission")
+    if not source.records and record_unavailable(source.path, source.document.name):
+        scan = _add_findings(scan, pre_review_walks(
+            source.path.parent, "", artifact=source.document.name) + routing_walk(
+                source.path.parent, "", artifact=source.document.name))
     rendered_report = f"the rendered pass: {NOT_GRADED} - no check records were read"
     if source.records:
         passes = render_pass.read_passes(source.path.parent / "render")
         extra: list[Finding] = (
-            list(heading_extra) + pre_review_walks(source.path.parent, source.text)
-            + routing_walk(source.path.parent, source.text)
+            list(heading_extra) + pre_review_walks(source.path.parent, source.text, artifact=source.document.name)
+            + routing_walk(source.path.parent, source.text, artifact=source.document.name)
         )
         rendered = next(
             (
@@ -1299,7 +1327,7 @@ def _grade(
         scan = _add_findings(scan, extra)
         rendered_report = f"the rendered pass: {'finding' if extra else 'clean'}"
     diagnostics: list[str] = []
-    if not source.records:
+    if not source.records and not record_unavailable(source.path, source.document.name):
         diagnostics.append(f"no check records found in {source.path.name}")
     if scan.failing_checks:
         tickets = sorted({ROWS[kind] for kind, count in scan.counts if count})
@@ -1315,7 +1343,7 @@ def _grade(
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.failing_checks) or aar_failed,
-        coverage_failed=not source.records or bool(heading.unread) or bool(scan.reader_unread),
+        coverage_failed=(not source.records and not record_unavailable(source.path, source.document.name)) or bool(heading.unread) or bool(scan.reader_unread),
         diagnostics=tuple(diagnostics),
         reports=(
             heading_read.protocol_coverage(source.claims_text, source.text, (source.document.name,), report_other_files=False),
@@ -1378,7 +1406,7 @@ class WalksScan:
 def _load_walks(parsed: run_grader.Parsed) -> tuple[Path, str]:
     path = Path(parsed.source)
     try:
-        return path, path.read_text(encoding="utf-8")
+        return path, read_record_text(path)
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read checks file {path.name}") from failure
 

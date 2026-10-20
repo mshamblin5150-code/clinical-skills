@@ -22,6 +22,7 @@ from discussion_artifact import PostedReading, read_posted_readings
 from run_grader import EvidenceDisposition, RUN_RECORD_STEMS, is_run_record
 from console_codec import require_python_floor, use_utf8
 from run_record_reader import read_tool_record, UnreadableRecord, fault_report, RecordUpdate, update_tool_record
+from run_record_reader import check_handwritten_text, DamagedRecord, damaged_record_result
 
 
 NOTE_NUMBER = re.compile(r"note-(?P<number>\d+)\.md", re.IGNORECASE)
@@ -105,7 +106,7 @@ def source_sha256(paths: tuple[Path, ...]) -> str:
 
 
 def posted_reading(run: Path, submission: str) -> PostedReading | None:
-    records = read_posted_reading_file(run / "reread.md", collect=False)
+    records = read_posted_reading_file(run / "reread.md", collect=False, artifact=submission)
     matches = tuple(record for record in records if record.artifact == submission)
     return matches[0] if len(matches) == 1 else None
 
@@ -136,7 +137,7 @@ def posted_reading_check(
         raise ValueError(f"could not identify {unit}")
     return check_posted_reading(
         posted_reading(run, submission), source_sha256(paths),
-        expected_visits=len(paths), matches_only=True,
+        expected_visits=len(paths), matches_only=True, run=run,
         expected_patients=tuple(NOTE_NUMBER.fullmatch(path.name)["number"] for path in paths) if batch else None,
     )
 
@@ -153,6 +154,8 @@ def completion_gate(
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"
     try:
         outcomes = posted_reading_check(run, submission, batch=batch)
+    except DamagedRecord as failure:
+        return damaged_record_result(failure, check="the Medatrax posted reading", artifact=submission)
     except UnreadableRecord as failure:
         from run_record_reader import collecting_errors, fault_report
         if not collecting_errors():
@@ -245,8 +248,13 @@ def main(argv: list[str]) -> int:
         if args.batch and any(NOTE_NUMBER.fullmatch(path.name) is None for path in paths):
             raise ValueError("batch notes must have numbered filenames")
         target = args.run / "reread.md"
+        def decode_existing(text):
+            checked = check_handwritten_text(text, target, "raw-text")
+            text = checked.require_text(force=args.action == "write", artifact=args.submission)
+            return decode_posted_readings(text), text
         if args.action == "check":
-            existing = read_tool_record(target, lambda text: (decode_posted_readings(text), text))
+            with completion_checks.grading(args.run, args.submission):
+                existing = read_tool_record(target, decode_existing)
             if existing is None:
                 raise ValueError("posted reading is missing")
             _checked_record(existing[1], args.submission, paths, batch=args.batch)
@@ -259,7 +267,8 @@ def main(argv: list[str]) -> int:
                         problem = portal_record_problem(record, expected_visits=len(record.visits))
                         if problem:
                             raise ValueError("existing posted reading is malformed")
-                payload = read_tool_record(args.input, json.loads)
+                payload = read_tool_record(args.input, lambda text:
+                    check_handwritten_text(text, args.input, "json").require_json(force=True))
                 text = _record_text(payload, args.submission, paths)
                 _checked_record(text, args.submission, paths, batch=args.batch)
                 if existing is not None:
@@ -275,9 +284,13 @@ def main(argv: list[str]) -> int:
                         text = current.rstrip() + "\n\n" + text
                 _checked_record(text, args.submission, paths, batch=args.batch)
                 return RecordUpdate(text.encode("utf-8"))
-            update_tool_record(target, lambda text: (decode_posted_readings(text), text), change)
+            update_tool_record(target, decode_existing, change)
         print("Medatrax posted reading: clean")
         return 0
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check="Medatrax posted reading",
+                                   artifact=args.submission, force=args.action == "write")[1])
+        return 1
     except UnreadableRecord as failure:
         from run_grader import format_unread_remainder
         print(fault_report(failure, check="Medatrax posted reading"))

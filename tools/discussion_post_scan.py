@@ -91,6 +91,7 @@ import coursework_style
 import coursework_mechanics
 import heading_read
 import research_ledger
+from discussion_artifact import read_record_text, record_unavailable
 
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
@@ -497,6 +498,7 @@ class Scan:
     citation_coverage: CitationCoverage = CitationCoverage()
     reader_records_unread: int = 0
     image_answer_unread: int = 0
+    withheld_rows: tuple[str, ...] = ()
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -945,18 +947,19 @@ def load(parsed: run_grader.Parsed) -> RunSource:
                 f"submission {draft.name} does not belong to run directory {root.name}"
             )
     try:
-        bar = _read_bar(bar_path.read_text(encoding="utf-8"))
-        claims = claims_path.read_text(encoding="utf-8")
+        bar_text = read_record_text(bar_path, artifact=draft.name)
+        bar = Bar(0, None, 0) if record_unavailable(bar_path, draft.name) else _read_bar(bar_text)
+        claims = read_record_text(claims_path, research_ledger.CLAIM_RECORD_KIND, artifact=draft.name)
         draft_bytes = draft.read_bytes()
         draft_text = draft.read_text(encoding="utf-8")
         heading_read_path = root / "heading-read.md"
         heading_read_text = (
-            heading_read_path.read_text(encoding="utf-8")
+            read_record_text(heading_read_path, artifact=draft.name)
             if heading_read_path.is_file()
             else ""
         )
         section = read_reference_section(draft_text, REFERENCE_HEADING)
-        readings = read_posted_reading_file(reread_path)
+        readings = read_posted_reading_file(reread_path, artifact=draft.stem)
         initial_reading = next(
             (item for item in readings if item.artifact == draft.stem), None
         )
@@ -965,7 +968,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             posted=approval_record.graded_posting_route(
                 root, skill="discussion-post", submission=draft.stem
             ) in {"agent", "clinician"},
-            has_reading=initial_reading is not None,
+            has_reading=initial_reading is not None or record_unavailable(reread_path, draft.stem),
         )
         if initial_reading is not None and initial_reading.composer_outcome not in {
             "inline", "attachment"
@@ -973,7 +976,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             raise run_grader.SourceError(
                 "initial post REREAD needs COMPOSER-OUTCOME: inline or attachment"
             )
-        post_text = post_path.read_text(encoding="utf-8") if post_path.is_file() else ""
+        post_text = read_record_text(post_path, artifact=draft.name) if post_path.is_file() else ""
         saved_post_url, outside_posting_fields = _posting_link(post_text)
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
@@ -991,7 +994,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if render_passes else None
         )
         editor_readback = (
-            readback_path.read_text(encoding="utf-8")
+            read_record_text(readback_path, canvas_readback.RECORD_KIND, artifact=draft.name)
             if readback_path is not None and readback_path.is_file() else None
         )
         built_html = html.read_text(encoding="utf-8") if html is not None else None
@@ -1076,13 +1079,15 @@ def posted_reading_check(
         html = Path(value) if (value := parsed.value('--html')) is not None else None
         docx = Path(value) if (value := parsed.value('--docx')) is not None else None
         reread = run / 'reread.md'
-        readings = read_posted_reading_file(reread)
+        readings = read_posted_reading_file(reread, artifact=submission)
         reading = next((item for item in readings if item.artifact == submission), None)
         post_path = run / 'post.md'
         route = approval_record.graded_posting_route(run, skill="discussion-post", submission=submission)
         if route not in {"agent", "clinician"}:
             return ()
-        saved_url, _ = _posting_link(post_path.read_text(encoding='utf-8') if post_path.is_file() else '')
+        saved_url, _ = _posting_link(read_record_text(post_path, artifact=submission) if post_path.is_file() else '')
+        if record_unavailable(post_path, submission):
+            return ()
         return check_posted_reading(
             reading, file_digest.sha256(draft), posted_fields=True,
             verdict=True, entry_link=True, composer=True,
@@ -1205,6 +1210,9 @@ class RenderedPageSurvey:
 
 
 def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
+    if record_unavailable(source.path / "post.md", source.draft.name) or record_unavailable(
+            source.path / "reread.md", source.draft.stem):
+        return RenderedPageSurvey(())
     if source.html is None:
         return RenderedPageSurvey(())
     canvas_pass_exists = any(
@@ -1323,6 +1331,8 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
 
 def _attachment_page_findings(source: RunSource) -> RenderedPageSurvey:
     """Grade the last retained Word pass after a refused inline attempt."""
+    if record_unavailable(source.path / "post.md", source.draft.name):
+        return RenderedPageSurvey(())
     if not source.render_passes or not source.rendered_readings:
         return RenderedPageSurvey((Finding(
             RENDERED_PAGES, "render", "no visually checked Word render pass"
@@ -1392,6 +1402,9 @@ def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int
         return (), 0, 0
     number = source.render_passes[-1][0]
     path = source.path / "render" / f"pass-{number}" / "editor-readback.json"
+    if record_unavailable(path, source.draft.name) or record_unavailable(
+            source.path / "reread.md", source.draft.stem):
+        return (), 0, 0
     retained = source.editor_readback
     built = source.built_html
     if (source.rendered_readings and source.rendered_readings[-1].measure == "PAGES") or any(
@@ -1410,6 +1423,18 @@ def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int
 
 @completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
+    withheld = set()
+    for path, key, rows in (
+        (source.path / "claims.md", source.draft.name, (UNTRACED_NUMBER, UNTRACED_CITATION, RESPENT_RECORD, LEGAL_REFERENCE_NAME)),
+        (source.path / "heading-read.md", source.draft.name, (*HEADING_READ_ROWS, UNTRACED_NUMBER)),
+        (source.path / "post.md", source.draft.name, (RENDERED_PAGES,)),
+        (source.path / "reread.md", source.draft.stem, (*POSTED_READING_KINDS.values(), RENDERED_PAGES, EDITOR_READBACK)),
+        (source.path / "bar.md", source.draft.name, (WORD_FLOOR, REFERENCE_MINIMUM)),
+    ):
+        if record_unavailable(path, key):
+            withheld.update(rows)
+    if source.render_passes and record_unavailable(source.path / "render" / f"pass-{source.render_passes[-1][0]}" / "editor-readback.json", source.draft.name):
+        withheld.add(EDITOR_READBACK)
     editor_findings, editor_units_read, editor_units_total = _editor_readback_result(source)
     initial_reading = next(
         (item for item in source.readings if item.artifact == source.draft.stem), None
@@ -1474,6 +1499,7 @@ def survey(source: RunSource) -> Scan:
             heading_read_unread=heading.unread,
             posted_reading_unread=posted_reading_unread,
             findings=findings + _posted_reading_findings(source),
+            withheld_rows=tuple(sorted(withheld)),
         )
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
@@ -1599,6 +1625,11 @@ def survey(source: RunSource) -> Scan:
                 f"{shortfall} short",
             )
         )
+    if record_unavailable(source.path / "claims.md", source.draft.name):
+        findings = [finding for finding in findings if finding.kind not in {
+            UNTRACED_NUMBER, UNTRACED_CITATION, RESPENT_RECORD}]
+    elif record_unavailable(source.path / "heading-read.md", source.draft.name):
+        findings = [finding for finding in findings if finding.kind != UNTRACED_NUMBER]
     return Scan(
         words=words,
         word_floor=source.bar.word_floor,
@@ -1635,6 +1666,7 @@ def survey(source: RunSource) -> Scan:
         heading_read_unread=heading.unread,
         posted_reading_unread=posted_reading_unread,
         findings=tuple(findings),
+        withheld_rows=tuple(sorted(withheld)),
         citation_coverage=coverage,
     )
 
@@ -1714,7 +1746,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+        if kind in scan.withheld_rows and not any(finding.kind == kind for finding in scan.findings):
+            lines.append(f"{kind}: {NOT_GRADED} — damaged text")
+        elif kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == EDITOR_READBACK and not scan.editor_readback_graded:
             lines.append(f"{kind}: {NOT_GRADED} - awaiting a Canvas-box load")

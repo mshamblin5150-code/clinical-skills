@@ -91,6 +91,13 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     ("run_grader-record-coverage", 'run_grader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
+    (
+        "shared handwritten decode classification",
+        "The separate shared-boundary floor names literal read_record_text routes and their "
+        "default or declared kind bindings, supported by native byte controls; aliases, "
+        "computed kind selection and other indirect readers remain outside this floor.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
 WALK_CEILING = DECLARED_LIMITS[0][1]
 TEXT_READ_WALK_CEILING = DECLARED_LIMITS[1][1]
@@ -303,6 +310,14 @@ RUN_DIRECTORY_BYTE_REASON = (
     "the shared run-directory reader preserves the other artifacts in the set"
 )
 
+SHARED_RECORD_BYTE_READERS: Mapping[str, str] = MappingProxyType(
+    {
+        "assignment_docx_scan": "required record reads use discussion_artifact.read_record_text with strict default and claim kinds; decode failures become SourceError",
+        "deck_scan": "required record reads use discussion_artifact.read_record_text with strict default and claim kinds; decode failures become SourceError",
+        "checks_ledger": "the main ledger and claims use explicit replacement kinds and retain readable rows; the separate walks-only ledger read remains strict and refuses decode failures",
+    }
+)
+
 UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
     {
         "grade": MappingProxyType(
@@ -312,7 +327,7 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
                     for name in sorted(RUN_DIRECTORY_READERS)
                 },
                 "case_study_scan": "the draft and optional skill reads use replacement so their readable text remains gradeable",
-                "checks_ledger": "the ledger read uses replacement and grades the rows it can recover",
+                "checks_ledger": SHARED_RECORD_BYTE_READERS["checks_ledger"],
                 "reference_scan": "the draft read uses replacement and grades the references it can recover",
                 "research_ledger": "the run artifacts use replacement and grade the records they can recover",
                 "aar_scan": "direct transcript and handwritten review reads preserve readable text; tool bookkeeping uses the shared decoder outside this direct-read AST floor",
@@ -755,11 +770,12 @@ def collect_record_errors(invoke: Callable[[], int]) -> int:
     """Share one fault population through a dispatcher and its selected grader."""
     if _REPORTING_RECORD_ERRORS.get():
         return invoke()
-    from run_record_reader import capture_errors, UnreadableRecord, RecordContentError, fault_report
+    from run_record_reader import (capture_errors, capture_handwritten_damage,
+                                   UnreadableRecord, RecordContentError, fault_report)
     output = io.StringIO()
     token = _REPORTING_RECORD_ERRORS.set(True)
     try:
-        with capture_errors() as faults, contextlib.redirect_stdout(output):
+        with capture_errors() as faults, capture_handwritten_damage() as damaged, contextlib.redirect_stdout(output):
             try:
                 status = invoke()
             except UnreadableRecord as failure:
@@ -771,6 +787,16 @@ def collect_record_errors(invoke: Callable[[], int]) -> int:
     finally:
         _REPORTING_RECORD_ERRORS.reset(token)
     report = output.getvalue()
+    for failure in damaged.values():
+        if failure.finding:
+            status = 1
+            for check in sorted(failure.checks or {"dependent handwritten record checks"}):
+                line = f"{check}: not graded — damaged text"
+                if line not in report:
+                    report += line + "\n"
+            for diagnostic in failure.diagnostics:
+                if diagnostic not in report:
+                    report += diagnostic + "\n"
     if faults:
         # Older callers can publish subordinate remainder lines; the family
         # aggregation repair owns their population union. Keep the largest

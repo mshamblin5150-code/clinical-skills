@@ -1,11 +1,13 @@
 """Split source text and retain agent-read openers; append identity rows (ADR 0427).
 
 Private inputs and outputs contain patient information. Reports contain counts only.
-The JSON contract and its validation live here; all record reads use read_tool_record.
+The JSON contract and its validation live here; handwritten inputs and machine
+bookkeeping retain their separate shared reader boundaries.
 """
 from __future__ import annotations
 
 import argparse
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 from datetime import date
 import hashlib
 import json
@@ -165,7 +167,7 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
     text = raw.decode("utf-8")
     if not text.strip():
         raise ValueError("empty source")
-    items = read_tool_record(supplied, lambda value: population(json.loads(value)))
+    items = population(read_handwritten_record(supplied, "json").require_json(force=True))
     if items is None:
         raise ValueError("supplied opener readings are missing")
     if mode == "split":
@@ -264,7 +266,7 @@ def append_identity(run: Path, note: int, reference: str, target: Path, collisio
         raise ValueError("note is not in the opener record")
     if item["name"] is None and not item["name_asked"]:
         raise ValueError("missing name must first be asked at the confirmation stop")
-    rulings = {} if collision_file is None else read_tool_record(collision_file, json.loads)
+    rulings = {} if collision_file is None else read_handwritten_record(collision_file, "json").require_json(force=True)
     if not isinstance(rulings, dict):
         raise ValueError("collision rulings must map references to reasons")
     for key, value in rulings.items():
@@ -334,6 +336,9 @@ def main(argv: list[str] | None = None) -> int:
             append_identity(args.run, args.note, args.reference, args.map, args.collisions)
             print("identity rows added 1")
         return 0
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check="encounter openers", force=True)[1], file=sys.stderr)
+        return 1
     except UnreadableRecord as failure:
         print(fault_report(failure, check="encounter openers"), file=sys.stderr)
         print("unread remainder 1")

@@ -70,6 +70,7 @@ import case_video
 import approval_record
 import heading_read
 import research_ledger
+from discussion_artifact import read_record_text, record_unavailable
 import coursework_style
 import coursework_mechanics
 
@@ -299,6 +300,7 @@ class Scan:
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
     reader_records_unread: int = 0
     image_answer_unread: int = 0
+    withheld_rows: tuple[str, ...] = ()
 
 
 def _heading_lines(text: str) -> list[str]:
@@ -343,6 +345,8 @@ def _heading_findings(source: RunSource) -> tuple[Finding, ...]:
 
 
 def _address_findings(source: RunSource) -> tuple[Finding, ...]:
+    if any(record_unavailable(path, "critique.md") for path in (source.path / "posts").glob("*.md")):
+        return ()
     opening = next(
         (line.strip() for line in source.body.splitlines() if line.strip()),
         "",
@@ -387,6 +391,9 @@ def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
 
 
 def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
+    if record_unavailable(source.path / "claims.md", "critique.md") or record_unavailable(
+            source.path / "heading-read.md", "critique.md"):
+        return ()
     believed, disbelieved, restatement_numbers = _claim_tokens(source.claims)
     own_figures = heading_read.own_figures(source.heading_read_text, "critique.md")
     artifact_numbers = tuple(dict.fromkeys(_body_numeric_tokens(source)))
@@ -457,11 +464,11 @@ def posted_reading_check(
         if submission != 'critique.md':
             raise run_grader.SourceError('posted reading names another critique')
         reread = run / 'reread.md'
-        readings = read_posted_reading_file(reread)
+        readings = read_posted_reading_file(reread, artifact=submission)
         reading = next((item for item in readings if item.artifact == submission), None)
         return check_posted_reading(
             reading, file_digest.sha256(run / 'critique.md'),
-            posted_fields=True, verdict=True, legacy_display=True,
+            posted_fields=True, verdict=True, legacy_display=True, run=run,
         )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
@@ -476,7 +483,8 @@ def _posted_reading_states(source: RunSource) -> tuple[approval_record.PostedRea
         raise run_grader.SourceError(str(failure)) from failure
     return (approval_record.PostedReadingState(
         submission="critique.md", posted=posted,
-        has_reading=any(reading.artifact == "critique.md" for reading in source.readings),
+        has_reading=any(reading.artifact == "critique.md" for reading in source.readings)
+        or record_unavailable(source.path / "reread.md", "critique.md"),
     ),)
 
 
@@ -494,6 +502,16 @@ def _reread_findings(
 @completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
     """Grade one run and return its counts and findings."""
+    withheld = set()
+    for filename, rows in (
+        ("claims.md", (UNTRACED_NUMBER,)),
+        ("heading-read.md", (*HEADING_READ_ROWS, UNTRACED_NUMBER)),
+        ("reread.md", tuple(POSTED_READING_KINDS.values())),
+    ):
+        if record_unavailable(source.path / filename, "critique.md"):
+            withheld.update(rows)
+    if any(record_unavailable(path, "critique.md") for path in (source.path / "posts").glob("*.md")):
+        withheld.add(ADDRESSED_NAME)
 
     posted_reading_states = _posted_reading_states(source)
     heading = heading_read.scan(
@@ -541,6 +559,7 @@ def survey(source: RunSource) -> Scan:
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
             findings=structural,
+            withheld_rows=tuple(sorted(withheld)),
             posted_reading_states=posted_reading_states,
         )
     words = _word_count(source.body)
@@ -581,6 +600,7 @@ def survey(source: RunSource) -> Scan:
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
         findings=tuple(findings),
+        withheld_rows=tuple(sorted(withheld)),
         posted_reading_states=posted_reading_states,
     )
 
@@ -624,7 +644,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         UNTRACED_NUMBER,
     }
     for kind in ROWS:
-        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+        if kind in scan.withheld_rows and not any(finding.kind == kind for finding in scan.findings):
+            lines.append(f"{kind}: {NOT_GRADED} — damaged text")
+        elif kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
             state.posted for state in scan.posted_reading_states
@@ -661,16 +683,16 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         posts = sorted((directory / "posts").glob("*.md"))
         roster = []
         for path in posts:
-            found = AUTHOR_FIELD.search(path.read_text(encoding="utf-8"))
+            found = AUTHOR_FIELD.search(read_record_text(path, "copied-post", artifact="critique.md"))
             if found:
                 roster.append(found.group("value").strip())
         claims_path = directory / "claims.md"
-        claims = claims_path.read_text(encoding="utf-8") if claims_path.is_file() else ""
+        claims = read_record_text(claims_path, research_ledger.CLAIM_RECORD_KIND, artifact="critique.md") if claims_path.is_file() else ""
         reread_path = directory / "reread.md"
-        readings = read_posted_reading_file(reread_path)
+        readings = read_posted_reading_file(reread_path, artifact="critique.md")
         heading_read_path = directory / "heading-read.md"
         heading_read_text = (
-            heading_read_path.read_text(encoding="utf-8")
+            read_record_text(heading_read_path, artifact="critique.md")
             if heading_read_path.is_file()
             else ""
         )
@@ -678,7 +700,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         raise run_grader.SourceError(
             f"could not read the run: {failure}", exit_2_limb=NO_RUN_DIRECTORY
         ) from failure
-    if not roster:
+    if not roster and not any(record_unavailable(path, "critique.md") for path in posts):
         raise run_grader.SourceError(
             f"no posts/*.md in {directory.name} carries an AUTHOR line", exit_2_limb=NO_ROSTER
         )

@@ -19,12 +19,14 @@ import coursework_run
 import file_digest
 import run_grader
 from console_codec import require_python_floor, use_utf8
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 
 EXPECTED_ROW = "the LMS attachment identity"
 DECLARED_LIMITS = (
     ("unrecorded-linked-file", "A linked file the run never recorded is unseen."),
     ("page-before-disk-unobservable", "The page-before-disk order is not observable."),
+    ("handwritten attachment damage", "The shared reader checks the appendix's raw C0 and decoded JSON before local paths; a damaged appendix withholds its file checks while other keyed appendices continue."),
 )
 _FIELDS = frozenset({
     "file_id", "name", "size", "sha256", "local_sha256", "local_path",
@@ -34,12 +36,12 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 TScan = TypeVar("TScan")
 
 
-def _records(path: Path) -> list[dict]:
-    text = path.read_text(encoding="utf-8").strip()
+def _records(path: Path, artifact: str | None = None) -> list[dict]:
+    text = read_handwritten_record(path, "attachments").require_text(artifact=artifact).strip()
     if text == "ATTACHMENTS: none":
         return []
     header, separator, body = text.partition("\n")
-    if header != "ATTACHMENTS: files" or not separator:
+    if header.rstrip("\r") != "ATTACHMENTS: files" or not separator:
         raise ValueError("attachment declaration is invalid")
     rows = json.loads(body)
     if not isinstance(rows, list) or not rows:
@@ -90,7 +92,11 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     for key in keys:
         record = run / "lms-attachments" / f"{key}.md"
         try:
-            rows = _records(record)
+            rows = _records(record, key)
+        except DamagedRecord as failure:
+            _failed, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=key)
+            findings.append(report)
+            continue
         except (OSError, UnicodeError, ValueError) as failure:
             detail = "record is missing" if isinstance(failure, FileNotFoundError) else "record is unreadable or invalid"
             findings.append(f"{key}: {detail}")

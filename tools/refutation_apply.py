@@ -147,6 +147,11 @@ def _apply(ledger: Path, returns: list[Path], show: bool, text: str | None) -> r
     if text is None:
         print("ledger could not be read")
         return records.RecordUpdate(None, (2, 1))
+    try:
+        records.check_handwritten_text(text, ledger, research_ledger.RAW_CLAIM_RECORD_KIND).require_text(force=True)
+    except records.DamagedRecord as failure:
+        print(records.damaged_record_result(failure, check="the saved refuter application", force=True)[1])
+        return records.RecordUpdate(None, (1, 0))
     original = text.encode("utf-8")
     if not research_ledger.read_records(text):
         print("ledger contains no record")
@@ -160,9 +165,16 @@ def _apply(ledger: Path, returns: list[Path], show: bool, text: str | None) -> r
     for file_number, path in enumerate(returns, 1):
         counts = dict.fromkeys(("read", "applied", "replaced", "already applied", "refused", "unmatched"), 0)
         try:
-            raw = path.read_bytes()
-            blocks, outside = read_blocks(raw.decode("utf-8"))
+            checked = records.read_handwritten_record(path, research_ledger.RAW_CLAIM_RECORD_KIND)
+            text = checked.require_text(force=True)
+            raw = text.encode("utf-8")
+            blocks, outside = read_blocks(text)
             unread += outside
+        except records.DamagedRecord as failure:
+            print(records.damaged_record_result(failure, check="the saved refuter return", force=True)[1])
+            failed = True
+            report_counts(file_number, len(returns), counts)
+            continue
         except (OSError, UnicodeError):
             print(f"file {file_number} of {len(returns)}: input could not be read")
             report_counts(file_number, len(returns), counts)
