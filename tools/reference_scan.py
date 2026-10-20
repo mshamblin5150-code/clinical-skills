@@ -259,6 +259,7 @@ from discussion_artifact import (
     legal_reference_lacks_name,
     personal_authors,
 )
+import completion_checks
 from docx_write import HEADING as RENDERER_MARKDOWN_HEADING
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
@@ -2266,6 +2267,7 @@ def findings(document: Document, as_of: date | None, paper_language: str | None 
     return sorted(found, key=lambda f: order[f.kind])
 
 
+@completion_checks.dated_scan
 def survey(document: Document, as_of: date | None, paper_language: str | None = None) -> Scan:
     """Count across one draft. Takes a parsed document rather than a path, so the
     counts carry no provenance of their own -- the file's **name** is printed by

@@ -1,6 +1,7 @@
 """ADR 0419 legal forms through the four public graders. Synthetic only."""
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import timedelta
+from dataclasses import replace
 import io
 from pathlib import Path
 import tempfile
@@ -14,6 +15,10 @@ import discussion_artifact as artifact
 import discussion_reply_scan
 import peer_critique_scan
 import reference_scan
+import assignment_docx
+import assignment_docx_scan
+import run_grader
+from test_assignment_docx_scan import empty_population_input
 from test_discussion_post_scan import Run as PostRun, BODY as POST_BODY
 from test_discussion_reply_scan import Run as ReplyRun, BODY as REPLY_BODY
 from test_peer_critique_scan import build_run, REFERENCES
@@ -101,6 +106,30 @@ class LegalCitationFormGraders(unittest.TestCase):
                 self.assertEqual((finding,), completion_checks.filter_findings(
                     module, (finding,), moment=start))
                 self.assertEqual((finding,), completion_checks.filter_findings(module, (finding,)))
+
+    def test_word_reference_grading_obeys_the_draft_row_start_without_a_freeze(self):
+        start, _ = completion_checks.registry()["reference_scan:" + KIND]
+        with tempfile.TemporaryDirectory() as temp:
+            case = empty_population_input(Path(temp))
+            artifact_path = Path(case.argv[2])
+            spec = replace(
+                assignment_docx.fixture_spec(),
+                sections=(assignment_docx.Section("Purpose", ("The rule applies (42 C.F.R. § 482.13, 2024).",)),),
+                references=(ENTRY,),
+            )
+            assignment_docx.build(spec, artifact_path, force=True)
+            source = assignment_docx_scan.load(run_grader.Parsed(
+                source=case.argv[0], values={"--docx": str(artifact_path)}))
+            for approval, expected in ((start - timedelta(seconds=1), False), (start, True)):
+                token = completion_checks.MOMENTS.set({"approval": approval})
+                try:
+                    scan = assignment_docx_scan.survey(source)
+                finally:
+                    completion_checks.MOMENTS.reset(token)
+                self.assertEqual(expected, any(
+                    finding.kind == assignment_docx_scan.REFERENCE_DEFECT
+                    and "write the legal source's name and the entry's year" in finding.detail
+                    for finding in scan.findings))
 
 
 if __name__ == "__main__":
