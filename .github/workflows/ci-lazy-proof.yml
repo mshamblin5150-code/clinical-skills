@@ -1,0 +1,60 @@
+# Proof only for #2013. One approved push, no PR, rerun, or adoption authority.
+name: lazy suite-ID preliminary proof
+
+on:
+  push:
+    branches: [diagnostic/2013-lazy-proof-20261020]
+
+permissions:
+  contents: read
+
+jobs:
+  lazy-proof:
+    if: github.run_attempt == 1
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Observer and reviewed candidate source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: observer
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /diagnostics/
+            /tools/test_suite_ids.py
+
+      - name: Immutable baseline
+        uses: actions/checkout@v7
+        with:
+          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          path: baseline
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Immutable candidate starting tree
+        uses: actions/checkout@v7
+        with:
+          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact maintainer interpreter, no packages
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+
+      - name: Gate and measure the lazy-message change only
+        shell: pwsh
+        run: |
+          # Independently computed after the focused baseline RED and candidate
+          # GREEN; checked against observer source before copying to candidate.
+          $candidateHash = 'f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275'
+          python observer/diagnostics/measure_lazy_suite_ids.py --observer observer --baseline baseline --candidate candidate --candidate-sha256 $candidateHash
+          exit $LASTEXITCODE
+
+# Deliberately no upload-artifact step, workflow_dispatch, PR event, matrix,
+# parallel experiment, package installation, secret, or changed existing workflow.
