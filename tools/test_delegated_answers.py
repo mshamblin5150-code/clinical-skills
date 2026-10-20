@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401 -- the graders below reach artifact_lock
+import artifact_lock
 import delegated_answers as d
 import differential_scan
 import filled_vitals_census
@@ -286,6 +287,33 @@ class AnswerReader(unittest.TestCase):
 
 
 class ClinicalAnswerApproval(unittest.TestCase):
+    def test_clinical_answer_checks_run_inside_the_canonical_approval_transaction(self):
+        fixture = clinical_tests.ClinicalCoverageApproval("runTest")
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        (fixture.run / d.RECORD).write_text(NONE + "NOTE: note-1.md\nSECTIONS: P\n", encoding="utf-8")
+        write_reader(fixture.run)
+        for skill in ("clinical-note", "batch-shift"):
+            with self.subTest(skill=skill):
+                fixture.skill = skill
+                (fixture.run / clinical_tests.approvals.RECORD).unlink(missing_ok=True)
+                prepared = fixture.prepare()
+                fixture.show("\n".join(prepared.coverage) + "\nANSWER: two weeks, named at the go-ahead.")
+                def under_lock(function):
+                    def checked(*args, **kwargs):
+                        with self.assertRaises(artifact_lock.ArtifactBusy):
+                            with artifact_lock.hold(fixture.run / clinical_tests.approvals.RECORD,
+                                                    "competing clinical approval"):
+                                self.fail("delegated-answer check ran outside approval ownership")
+                        return function(*args, **kwargs)
+                    return checked
+                with mock.patch.object(d, "pre_approval", side_effect=under_lock(d.pre_approval)) as pregrade, \
+                     mock.patch.object(d, "verify_shown_answers", side_effect=under_lock(d.verify_shown_answers)) as shown:
+                    fixture.approve()
+                pregrade.assert_called_once()
+                shown.assert_called_once()
+                self.assertEqual("verified", fixture.item()["delegated_answers_verification"])
+
     def assert_delegation_survives_record_and_stop_read(self, fixture):
         expected = {name: fixture.item()[name] for name in
                     ("delegated_answers_verification", "delegated_answers_reason")}
