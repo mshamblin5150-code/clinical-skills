@@ -108,6 +108,7 @@ def _owner(stream: BinaryIO) -> str:
 
 
 def _prepare(stream: BinaryIO) -> None:
+    """Initialize byte zero only while this stream owns its kernel lock."""
     stream.seek(0, os.SEEK_END)
     if stream.tell() == 0:
         stream.write(b"\0")
@@ -139,7 +140,6 @@ def _handoff(scoped_record_path: Path, artifact: Path) -> Iterator[None]:
     """Serialize the short ownership handoff, never the artifact operation."""
     handoff_path = scoped_record_path.parent / "handoff"
     with handoff_path.open("a+b") as stream:
-        _prepare(stream)
         deadline = time.monotonic() + 1.0
         while True:
             try:
@@ -153,6 +153,7 @@ def _handoff(scoped_record_path: Path, artifact: Path) -> Iterator[None]:
                     ) from None
                 time.sleep(0.001)
         try:
+            _prepare(stream)
             yield
         finally:
             _unlock(stream)
@@ -168,17 +169,19 @@ def _hold_read(
     try:
         with _handoff(scoped_record_path, artifact):
             with scoped_record_path.open("a+b") as writer:
-                _prepare(writer)
                 try:
                     _try_lock(writer)
                 except (BlockingIOError, PermissionError) as failure:
                     raise _busy(artifact, _owner(writer), reader=True) from failure
                 else:
-                    _unlock(writer)
+                    try:
+                        _prepare(writer)
+                    finally:
+                        _unlock(writer)
 
             reader = reader_path.open("a+b")
-            _prepare(reader)
             _try_lock(reader)
+            _prepare(reader)
             _record(reader, action)
     except Exception:
         if reader is not None:
@@ -205,7 +208,6 @@ def _hold_write(
     artifact: Path, scoped_record_path: Path, action: str
 ) -> Iterator[Path]:
     writer = scoped_record_path.open("a+b")
-    _prepare(writer)
     try:
         with _handoff(scoped_record_path, artifact):
             try:
@@ -213,10 +215,11 @@ def _hold_write(
             except (BlockingIOError, PermissionError) as failure:
                 raise _busy(artifact, _owner(writer), reader=False) from failure
 
+            _prepare(writer)
+
             scoped_readers = scoped_record_path.parent.glob("reader.*")
             for reader_path in scoped_readers:
                 with reader_path.open("a+b") as reader:
-                    _prepare(reader)
                     try:
                         _try_lock(reader)
                     except (BlockingIOError, PermissionError) as failure:
@@ -224,7 +227,10 @@ def _hold_write(
                         _unlock(writer)
                         raise _busy(artifact, owner, reader=False) from failure
                     else:
-                        _unlock(reader)
+                        try:
+                            _prepare(reader)
+                        finally:
+                            _unlock(reader)
                 reader_path.unlink(missing_ok=True)
 
             _record(writer, action)
