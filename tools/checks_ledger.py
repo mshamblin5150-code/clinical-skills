@@ -1100,7 +1100,7 @@ def pre_review_walks(run: Path, checks_text: str, *, artifact: str | None = None
             if filename == "bar-walk.json":
                 import bar_signatures
                 try:
-                    digest = bar_signatures.latest_digest(run)
+                    digest = bar_signatures.latest_digest(run, artifact=artifact)
                 except record_reader.DamagedRecord as failure:
                     record_reader.damaged_record_result(failure, check="bar-walk signature", artifact=artifact)
                     digest = None

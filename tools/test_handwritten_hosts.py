@@ -120,6 +120,18 @@ class HandwrittenHosts(unittest.TestCase):
         checks.write_text('FIRST-DRAFT: 2099-01-01T00:00:00Z\n', encoding='utf-8')
         bar = self.run / 'bar.md'
         bar.write_bytes(bar.read_bytes() + b'DETAIL: bad\x07text\n')
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        token = completion_checks.MOMENTS.set({'approval': old})
+        item = completion_checks.ITEM_MOMENTS.set({'old': old})
+        try:
+            with records.capture_handwritten_damage():
+                findings = checks_ledger.pre_review_walks(self.run, checks.read_text(encoding='utf-8'), artifact='unknown')
+                self.assertFalse(findings)
+                self.assertIsNotNone(records.handwritten_record_damage(bar))
+        finally:
+            completion_checks.ITEM_MOMENTS.reset(item)
+            completion_checks.MOMENTS.reset(token)
         for independent_fault in (False, True):
             with self.subTest(independent_fault=independent_fault):
                 if independent_fault:

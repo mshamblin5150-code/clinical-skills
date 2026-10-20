@@ -234,9 +234,9 @@ def completion_gate(
         return finding, report
 
 
-def latest_digest(run: Path) -> str | None:
+def latest_digest(run: Path, *, artifact: str | None = None) -> str | None:
     """Return the verified latest bar identity, or None for a legacy exemption."""
-    failed, report = _completion_gate(run)
+    failed, report = _completion_gate(run, artifact=artifact)
     if failed:
         raise run_grader.SourceError(report)
     try:
