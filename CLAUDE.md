@@ -1809,6 +1809,14 @@ dates graded. Other blob dates are counted per top-level area; `--show` reveals
 them. The report counts blobs committed under multiple paths. Commit messages,
 path records, and tracker records keep their existing grading.
 
+**History verdicts bind one immutable file version.** The ledger's
+`blob_findings` rows use the full blob id, line, rule and containing-line digest;
+`--draft-verdicts` produces blank candidates without matched text. Before ruling
+a historical finding, follow [Finding verdicts](docs/agents/issue-tracker.md#finding-verdicts)
+and ADR 0438: agents classify only blobs marked origin-reachable in `--show`.
+Every surface with a corpus-name finding prints `phi_scan.review_hint` when
+unreviewed names remain; that pointer is a review route, not a finding verdict.
+
 **The recurring trigger is the tracker event, owned by Actions.** Issue and
 pull-request titles and bodies, issue comments, review bodies and review
 comments run [.github/workflows/tracker.yml](.github/workflows/tracker.yml) when

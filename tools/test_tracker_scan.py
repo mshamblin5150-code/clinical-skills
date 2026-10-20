@@ -30,6 +30,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from collections import Counter
 from contextlib import redirect_stdout
 from datetime import date as CalendarDate, timedelta
@@ -387,6 +388,11 @@ class MainInATempRepo(ATempRepo):
         phi_scan.missing_corpus_sources = lambda: []
         phi_scan.corpus_identifiers = lambda: ({NAME}, {DATE})
         self.addCleanup(self._restore)
+        for name, value in (("corpus_coverage", None), ("harvest_entries", []),
+                            ("reviewed_names", set())):
+            patch = mock.patch.object(phi_scan, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def _restore(self):
         phi_scan.REPO_ROOT = self._root
@@ -1002,6 +1008,7 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
                 "verdict": "",
                 "reason": "",
             }],
+            "blob_findings": [],
         })
         self.assertNotIn(NAME, draft.read_text(encoding="utf-8"))
 
@@ -1069,7 +1076,7 @@ class TheCommittedRulingPopulationIsLive(unittest.TestCase):
     def test_every_committed_ruling_matches_one_real_finding(self):
         path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
         rows = json.loads(path.read_text(encoding="utf-8"))["commit_findings"]
-        rulings, _ = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
+        rulings, _, _ = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
         self.assertTrue(rows)
         self.assertEqual(len(rows), rulings.total())
 
@@ -1141,7 +1148,7 @@ class TheCommittedHarvestVerdictPopulationIsLoadable(unittest.TestCase):
     def test_every_harvest_row_loads_without_a_line_number(self):
         path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
         rows = json.loads(path.read_text(encoding="utf-8"))["harvest_findings"]
-        _, rulings = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
+        _, rulings, _ = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
 
         self.assertTrue(rows)
         self.assertTrue(all("line" not in row for row in rows))

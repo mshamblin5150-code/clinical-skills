@@ -108,10 +108,18 @@ The host entry points remain `tracker_publish_hook.py` and `tracker_event_checks
 holds the full commit id, line, rule and SHA-256 digest of the containing line.
 A harvest row holds the public record locator, rule and line digest; it carries
 no line number because edits above an unchanged occurrence must not expire its
-verdict. Each row clears one occurrence. Add a harvest row only after reading
+verdict. A blob row holds the full blob id, line, rule and containing-line
+digest: a later version needs its own verdict. Each row clears one occurrence.
+Add a harvest row only after reading
 `--show` on that already-public surface and positively classifying the match as
 non-identifying; escalate anything else. Reasons name the kind and never repeat
 the literal.
+
+For historical file versions, read [ADR 0438](../adr/0438-a-history-scan-finding-in-an-old-file-version-takes-a-verdict-keyed-on-that-exact-version-and-an-agent-may-rule-one-the-public-repository-reaches.md)
+before classifying a blob finding. `--history --show` marks each blob's origin
+reachability. Agent-authored verdicts require `origin-reachable: yes`; local-only
+findings remain for the clinician. The ledger does not encode author identity
+or infer permission from an existing row.
 
 `tracker_scan.py --draft-verdicts <path>` writes pasteable candidate rows with
 blank verdicts and reasons and no matched value. The report counts both applied
