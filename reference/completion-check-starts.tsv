@@ -483,6 +483,10 @@ assignment_bar:the assignment bar signature	2026-10-12T18:28:56Z	confirmation
 research_ledger:refutation-without-kept-return	2026-10-12T00:00:00Z	ledger
 reference_scan:missing-article	2026-10-12T15:22:17-04:00	approval
 reference_scan:format-bracket	2026-10-12T15:22:17-04:00	approval
+reference_scan:missing-drug-description	2026-10-19T23:00:00-04:00	approval
+reference_scan:parent-first-author	2026-10-19T23:00:00-04:00	approval
+reference_scan:bracketed-document-number	2026-10-19T23:00:00-04:00	approval
+reference_scan:hyphenated-range	2026-10-19T23:00:00-04:00	approval
 reference_scan:italic-identifier	2026-10-12T15:22:17-04:00	approval
 reference_scan:site-repeats-author	2026-10-12T15:22:17-04:00	approval
 assignment_docx_scan:heading-read-own-figure-absent	2026-10-12T19:15:53Z	approval

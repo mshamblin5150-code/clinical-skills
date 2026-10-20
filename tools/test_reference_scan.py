@@ -113,6 +113,76 @@ class LowercaseAuthors(unittest.TestCase):
         self.assertEqual(self.findings_for(body, entry), ())
 
 
+class CertainReferenceShapesCommand(unittest.TestCase):
+    """#1580: exercise the public command on synthetic Module 4 shapes."""
+
+    def command(self, entry, citation="Example Group", expected=0, kind=None):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "draft.md"
+            path.write_text(f"A finding ({citation}, 2026).\n\n## References\n\n{entry}\n", encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([str(path), "--as-of", "2026-10-19", "--paper-language", "English", "--show"])
+            report = stdout.getvalue() + stderr.getvalue()
+            self.assertEqual(expected, status, report)
+            if kind:
+                self.assertRegex(report, rf"{re.escape(kind)}\s+1\b")
+
+    def test_patient_faq_path_and_title_with_and_without_retrieval_dates(self):
+        for title, url in (
+            ("Patient guidance", "https://www.acog.org/womens-health/faqs/topic-one"),
+            ("Patient guidance", "https://www.acog.org/FAQ/topic-two"),
+            ("Patient guidance", "https://www.acog.org/patients/FAQs/topic-three"),
+            ("Patient FAQ", "https://example.org/patients"),
+            ("Frequently asked questions", "https://example.org/patients"),
+            ("Patient guidance. Frequently asked questions", "https://example.org/patients"),
+        ):
+            entry = f"Example Group. (2026). *{title}*. "
+            with self.subTest(title=title, url=url):
+                self.command(entry + "Retrieved October 19, 2026, from " + url, expected=1, kind="retrieval-date-on-archived")
+                self.command(entry + url)
+
+    def test_site_query_and_partial_path_do_not_classify_a_faq(self):
+        for url in ("https://faq.example.org/topic", "https://example.org/faq-guide", "https://example.org/topic?type=faq", "https://www.cdc.gov/patients"):
+            self.command(f"Example Group. (2026). *Patient guidance*. {url}")
+        self.command("Example Group. (2026). *Patient guidance*. FAQ. Retrieved October 19, 2026, from https://example.org/topic")
+
+    def test_dailymed_requires_a_description_but_accepts_other_wording(self):
+        entry = "Example Group. (2026). *Amoxicillin tablet*"
+        url = "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1234-5678-9012"
+        self.command(entry + ". DailyMed. " + url, expected=1, kind="missing-drug-description")
+        for description in ("Drug information", "Drug label", "Package insert", "Prescribing information"):
+            with self.subTest(description=description):
+                self.command(entry + f" [{description}]. DailyMed. " + url)
+        for host in ("drugs.com", "dailymed.nlm.nih.gov.example.org"):
+            self.command(entry + ". https://" + host + "/drug")
+        self.command("Example Group [EG]. (2026). *Amoxicillin tablet*. DailyMed [Website]. " + url, expected=1, kind="missing-drug-description")
+
+    def test_malformed_url_does_not_crash_source_classification(self):
+        self.command("Example Group. (2026). *Patient guidance*. https://[broken/topic")
+        self.command("Example Group. (2026). *Patient FAQ*. Retrieved October 19, 2026, from https://[broken/topic", expected=1, kind="retrieval-date-on-archived")
+
+    def test_parent_first_author_and_closed_agency_unit_words(self):
+        for unit in ("Office", "Division", "Bureau", "Center", "National Center", "Institute", "National Institute", "Branch", "Program"):
+            self.command(f"National Institutes of Health, {unit} of Dietary Supplements. (2026). *Fact sheet*. https://example.org/topic", citation=f"National Institutes of Health, {unit} of Dietary Supplements", expected=1, kind="parent-first-author")
+        self.command("Office of Dietary Supplements. (2026). *Fact sheet*. National Institutes of Health. https://example.org/topic", citation="Office of Dietary Supplements")
+        self.command("World Health Organization. (2026). *Fact sheet*. https://example.org/topic", citation="World Health Organization")
+        self.command("Smith, A., & Office, B. (2026). *Fact sheet*. https://example.org/topic", citation="Smith & Office")
+
+    def test_number_in_brackets_is_refused_and_parentheses_pass(self):
+        for bracket in ("Committee statement No. 26", "Reports Nos. A26", "Report No. NASA/CR-2018-220043"):
+            self.command(f"Example Group. (2026). *Report* [{bracket}]. https://example.org/report", expected=1, kind="bracketed-document-number")
+        for suffix in ("(Committee Statement No. 26)", "(NIH Publication No. 18-2059)", "(Report No. NASA/CR-2018-220043)", "[NG136]", "[Version 2]"):
+            self.command(f"Example Group. (2026). *Report* {suffix}. https://example.org/report")
+
+    def test_page_and_year_range_hyphens_are_refused(self):
+        for text in ("Article. *Journal, 12*(3), e212-e316.", "Article. *Journal, 12*(3), 212-316.", "Chapter. In A. Smith (Ed.), *Book* (pp. e212-e316). Press.", "*Vaccination for 2025-2026*."):
+            self.command(f"Example Group. (2026). {text} https://example.org/topic", expected=1, kind="hyphenated-range")
+            self.command(f"Example Group. (2026). {text.replace('-', '–')} https://example.org/topic")
+        for text in ("*Children aged 5-12 and doses of 10-20 mg*.", "*Report* (NIH Publication No. 2025-2026).", "*Report* (Report No. NASA/CR-2018-220043).", "*Report*. https://example.org/2025-2026", "*Report*. https://doi.org/10.1000/2025-2026", "*Report*. doi:10.1000/2025-2026"):
+            self.command(f"Example Group. (2026). {text}")
+
+
 class BoldReferenceLabelCommand(unittest.TestCase):
     def test_a_label_is_a_line_boundary_without_surrounding_blank_lines(self):
         text = "A finding (Ross, 2025).\n**References**\nRoss, J. (2025). A topic. https://example.org/topic\n"
@@ -1984,6 +2054,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # table still states the wide rule, because the table is the rule; what changed
     # is that it now says beside the wide row how far the command reaches.
     ROW_PHRASES = {
+        scan.MISSING_DRUG_DESCRIPTION: "A DailyMed entry missing a bracketed description after its title",
+        scan.PARENT_FIRST_AUTHOR: "A parent-first group author",
+        scan.BRACKETED_DOCUMENT_NUMBER: "A document number inside square brackets",
+        scan.HYPHENATED_RANGE: "A hyphenated page or four-digit year range",
         scan.LEGAL_CITATION_SECTION_FORM: "A legal citation written as a section instead of its source name",
         scan.MISSING_ARTICLE: "A certain article number missing the `Article` label",
         scan.FORMAT_BRACKET: "A bracket containing only a file format",
@@ -2171,6 +2245,9 @@ Course material arrived with Links to an external site. attached. qxmarkerxq
 # One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
 # comment above each names the row it is there for.
 LEAKY_ENTRIES = (
+    "American College of Obstetricians and Gynecologists. (2026). *Patient FAQ*. Retrieved August 19, 2026, from https://www.acog.org/womens-health/faqs/patient-topic",
+    "Example Drug Author. (2026). *Drug label*. https://dailymed.nlm.nih.gov/label",
+    "National Institutes of Health, Office of Dietary Supplements. (2026). *Report* [Committee statement No. 26]. https://example.org/report",
     "zentrova Labs. (2025). A label. https://example.org/label",
     "Patient rights, 42 C.F.R. § 482.13 (2024).",
     "Example Group. (2026). *Example report (Report No. 12345)* [PDF]. Example Group. https://example.org/report",
@@ -2247,6 +2324,14 @@ class TheReportCannotCarryTheDraftsProse(unittest.TestCase):
         does not happen to fire is not a reason for this to go red."""
         fired = {f.kind for f in self.findings}
         self.assertGreaterEqual(len(fired), 12, sorted(fired))
+
+    def test_adr_0367_shapes_fire_in_the_whole_draft_control(self):
+        fired = {finding.kind for finding in self.findings}
+        self.assertLessEqual({
+            scan.MISSING_DRUG_DESCRIPTION, scan.PARENT_FIRST_AUTHOR,
+            scan.BRACKETED_DOCUMENT_NUMBER, scan.HYPHENATED_RANGE,
+            scan.RETRIEVAL_DATE_ON_ARCHIVED,
+        }, fired)
 
     def test_every_declared_body_row_actually_fires(self):
         """The half of liveness that binds a future row.
@@ -2563,6 +2648,13 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "unrecognized patient FAQ": self.unrecognized_patient_faq,
+            "drug information outside DailyMed": self.drug_information_outside_dailymed,
+            "drug-entry date and layered site element": self.drug_date_and_site,
+            "missing or substituted parent agency": self.parent_agency_reading,
+            "agency unit outside the closed list": self.unlisted_agency_unit,
+            "bare bracketed document code": self.bare_bracketed_code,
+            "numeric hyphen outside page and year ranges": self.other_digit_hyphens,
             "unlisted lowercase author": self.unlisted_lowercase_author,
             "ambiguous lowercase-group sentence opening": self.ambiguous_lowercase_group_opening,
             "all-digit journal number absent from its DOI": self.bare_number,
@@ -2596,6 +2688,36 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def unrecognized_patient_faq(self):
+        entry = "Example Group. (2026). *Patient education*. Retrieved October 19, 2026, from https://example.org/patients"
+        self.assertNotIn(scan.RETRIEVAL_DATE_ON_ARCHIVED, kinds(draft(entry)))
+
+    def drug_information_outside_dailymed(self):
+        entry = "Example Group. (2026). *Drug label*. https://drugs.example.org/label"
+        self.assertNotIn(scan.MISSING_DRUG_DESCRIPTION, kinds(draft(entry)))
+
+    def drug_date_and_site(self):
+        entry = "Example Group. (2026). *Drug label* [Package insert]. DailyMed, U.S. National Library of Medicine. https://dailymed.nlm.nih.gov/label"
+        self.assertNotIn(scan.MISSING_DRUG_DESCRIPTION, kinds(draft(entry)))
+        self.assertNotIn(scan.MALFORMED_DATE, kinds(draft(entry)))
+
+    def parent_agency_reading(self):
+        for site in ("", "Substituted Publisher. "):
+            entry = f"Office of Dietary Supplements. (2026). *Work*. {site}https://example.org/work"
+            self.assertNotIn(scan.PARENT_FIRST_AUTHOR, kinds(draft(entry)))
+
+    def unlisted_agency_unit(self):
+        entry = "Example Group, Department of Health. (2026). *Work*. https://example.org/work"
+        self.assertNotIn(scan.PARENT_FIRST_AUTHOR, kinds(draft(entry)))
+
+    def bare_bracketed_code(self):
+        entry = "Example Group. (2026). *Guideline* [NG136]. https://example.org/work"
+        self.assertNotIn(scan.BRACKETED_DOCUMENT_NUMBER, kinds(draft(entry)))
+
+    def other_digit_hyphens(self):
+        for tail in ("*Children aged 5-12 taking 10-20 mg*.", "*Work* (Report No. 2025-2026).", "*Work*. https://example.org/2025-2026", "*Work*. doi:10.1000/2025-2026"):
+            self.assertNotIn(scan.HYPHENATED_RANGE, kinds(draft("Example Group. (2026). " + tail)))
 
     def unlisted_lowercase_author(self):
         result = kinds(draft("Ross, J. (2025). A book. Publisher.",
@@ -3353,7 +3475,7 @@ class MechanicalReferenceElements(unittest.TestCase):
     def test_silent_controls_and_declared_misses(self):
         entries = [
             f"Example Group. (2026). *Work ({value})*. https://example.org/work"
-            for value in ("COVID-19", "HP2030", "2000-2019", "CMS-1807-F")
+            for value in ("COVID-19", "HP2030", "2000–2019", "CMS-1807-F")
         ] + [
             "Example Group. (2026). *Work* [PowerPoint slides]. https://example.org/work",
             "Example Group. (2026). *Work* [EPUB]. https://example.org/work",

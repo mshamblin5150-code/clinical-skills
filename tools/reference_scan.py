@@ -239,6 +239,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from urllib.parse import SplitResult, urlsplit
 
 import run_grader
 import reference_alphabets
@@ -559,6 +560,24 @@ MISSING_ARTICLE = "missing-article"
 FORMAT_BRACKET = "format-bracket"
 ITALIC_IDENTIFIER = "italic-identifier"
 SITE_REPEATS_AUTHOR = "site-repeats-author"
+# #1580 / ADR 0367: certain source, author, number, and range shapes.
+MISSING_DRUG_DESCRIPTION = "missing-drug-description"
+PARENT_FIRST_AUTHOR = "parent-first-author"
+BRACKETED_DOCUMENT_NUMBER = "bracketed-document-number"
+HYPHENATED_RANGE = "hyphenated-range"
+URL_OR_DOI = re.compile(r"https?://\S+|\bdoi:\s*\S+|\b10\.\d{4,9}/\S+", re.I)
+FAQ_TITLE = re.compile(r"\bFAQ\b|\bFrequently asked questions\b", re.I)
+AGENCY_UNIT = re.compile(
+    r",\s*(?:Office|Division|Bureau|Center|National Center|Institute|"
+    r"National Institute|Branch|Program)\b", re.I
+)
+DOCUMENT_NUMBER = re.compile(r"\bNos?\.\s+[A-Za-z0-9]+", re.I)
+PAGE_RANGE = r"[A-Za-z]*\d+\s*-\s*[A-Za-z]*\d+"
+LOCATOR_RANGE = re.compile(
+    r"(?:\bpp\.\s*|,\s*\d+\s*\([^()]+\)\s*,\s*)" + PAGE_RANGE,
+    re.I,
+)
+YEAR_RANGE = re.compile(r"(?<![\w-])\d{4}\s*-\s*\d{4}(?![\w-])")
 ITALIC_SPAN = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)|(?<!_)_([^_\n]+)_(?!_)")
 BARE_JOURNAL_LOCATOR = re.compile(
     r",\s*\d+(?:\s*\([^()]+\))?\s*,\s*(?P<number>[A-Za-z]*\d+)\.(?=\s|$)"
@@ -572,6 +591,7 @@ IDENTIFIER_WORD = re.compile(
     r"Edition\b|Issue\b|Series\b|Table\b|Project\b|Document\b)|\d{5,}", re.I
 )
 REFERENCE_BUCKETS = (
+    ReferenceBucket("patient-faq", ("Webpage on a website",)),
     ReferenceBucket("uptodate", ("UpToDate article",)),
     ReferenceBucket("statpearls", ("StatPearls",)),
     ReferenceBucket("legal", ("State nursing practice act (NPA)",)),
@@ -643,6 +663,10 @@ NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 # body: *a checker built from the ticket as written would look in the wrong file
 # and find nothing.* A column headed with one file name would have reproduced that.
 ROWS = {
+    MISSING_DRUG_DESCRIPTION: "apa7 21",
+    PARENT_FIRST_AUTHOR: "apa7 15",
+    BRACKETED_DOCUMENT_NUMBER: "apa7 15",
+    HYPHENATED_RANGE: "apa7 39",
     LEGAL_CITATION_SECTION_FORM: "apa7 8",
     MISSING_ARTICLE: "apa7 10",
     FORMAT_BRACKET: "apa7 39",
@@ -732,6 +756,13 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    ("unrecognized patient FAQ", "Only a faq/faqs URL path segment or FAQ/Frequently asked questions in the title settles this genre; other patient-education pages and whether other pages are designed to change remain readings."),
+    ("drug information outside DailyMed", "Only the exact dailymed.nlm.nih.gov host establishes the drug-label class; other hosts remain readings."),
+    ("drug-entry date and layered site element", "A year-only date, a layered DailyMed site element, and a date taken from a data feed rather than the page remain readings."),
+    ("missing or substituted parent agency", "The scanner holds no agency hierarchy; missing or substituted parent publishers remain readings."),
+    ("agency unit outside the closed list", "Only Office, Division, Bureau, Center, National Center, Institute, National Institute, Branch, and Program after a comma in an author without personal initials are refused."),
+    ("bare bracketed document code", "A bracketed code such as [NG136] without No. or Nos. remains a reading."),
+    ("numeric hyphen outside page and year ranges", "URLs, DOIs, parentheticals containing No., and digit hyphens outside a volume-and-issue or pp. page locator or a four-digit year range are excluded, including title dose and age spans."),
     ("unlisted lowercase author", "A lowercase first word is read only when its author is named in this draft's reference list; an absent entry cannot be reported as an unlisted citation."),
     ("ambiguous lowercase-group sentence opening", "The opening row stays silent after abbreviations, initials, ellipses, or a soft line break without a clear sentence boundary."),
     ("all-digit journal number absent from its DOI", "A bare number can be a one-page article's page; report it as a reader candidate rather than a finding."),
@@ -1298,10 +1329,44 @@ class Entry:
         return int(leading.group(1)) if leading else series_number(rest)
 
 
+def _entry_urls(entry: Entry) -> tuple[SplitResult, ...]:
+    urls = []
+    for match in re.finditer(r"https?://\S+", entry.text, re.I):
+        try:
+            urls.append(urlsplit(match.group().rstrip(".,;)")))
+        except ValueError:
+            # The scanner grades reference form, not address validity. An invalid
+            # address supplies no host/path evidence for these closed predicates.
+            continue
+    return tuple(urls)
+
+
+def _title_parts(entry: Entry) -> tuple[str, str]:
+    """Separate the title from following elements, preserving italic punctuation."""
+    year = entry._year_match
+    tail = entry.text[year.end():].lstrip(". \t") if year else ""
+    italic = ITALIC_SPAN.match(tail)
+    if italic:
+        return italic.group(1) or italic.group(2), tail[italic.end():]
+    end = re.search(r"\[|\.\s|\.$", tail)
+    return (tail[:end.start()], tail[end.start():]) if end else (tail, "")
+
+
+def _patient_faq(entry: Entry) -> bool:
+    title, _rest = _title_parts(entry)
+    return bool(FAQ_TITLE.search(title)) or any(
+        segment.casefold() in {"faq", "faqs"}
+        for url in _entry_urls(entry)
+        for segment in url.path.split("/")
+    )
+
+
 def classify_entry(entry: Entry) -> ReferenceBucket:
     """Return the narrowest bucket the entry string itself can support."""
 
-    if entry.is_uptodate:
+    if _patient_faq(entry):
+        name = "patient-faq"
+    elif entry.is_uptodate:
         name = "uptodate"
     elif STATPEARLS_HOST.search(entry.text):
         name = "statpearls"
@@ -2000,10 +2065,38 @@ def _site_repeats_author(entry: Entry) -> bool:
     return compact_tail[:-len(compact_author)].endswith(".")
 
 
+def _reference_shape_findings(entry: Entry) -> list[Finding]:
+    """ADR 0367's closed predicates; source semantics stay with the reader."""
+    found = []
+    where = f"entry on line {entry.line}"
+    year = entry._year_match
+    # Ignore brackets in the author and in addresses: neither describes the title.
+    tail = entry.text[year.end():] if year else ""
+    tail = URL_OR_DOI.sub("", tail)
+    brackets = re.findall(r"\[([^\]]+)\]", tail)
+    _title, after_title = _title_parts(entry)
+    description = re.match(r"\s*\.?\s*\[[^\]]+\]", after_title)
+    if any(url.hostname == "dailymed.nlm.nih.gov" for url in _entry_urls(entry)) and not description:
+        found.append(Finding(MISSING_DRUG_DESCRIPTION, where, entry.text + " - add a bracketed description after the title; any appropriate wording is accepted", entry.line))
+    author = entry.text[:year.start()] if year else ""
+    if not personal_authors(author) and AGENCY_UNIT.search(author):
+        found.append(Finding(PARENT_FIRST_AUTHOR, where, entry.text + " - use the specific agency as author and put its parent agency after the title", entry.line))
+    if any(DOCUMENT_NUMBER.search(value) for value in brackets):
+        found.append(Finding(BRACKETED_DOCUMENT_NUMBER, where, entry.text + " - put the document number after the title in parentheses, e.g., (Committee Statement No. 26)", entry.line))
+    # Remove addresses before emphasis markers: an underscore may belong to a DOI.
+    range_text = URL_OR_DOI.sub("", entry.text)
+    range_text = re.sub(r"\([^()]*\bNo\.[^()]*\)", "", range_text, flags=re.I)
+    range_text = range_text.replace("*", "").replace("_", "")
+    if LOCATOR_RANGE.search(range_text) or YEAR_RANGE.search(range_text):
+        found.append(Finding(HYPHENATED_RANGE, where, entry.text + " - use an en dash in the page or four-digit year range", entry.line))
+    return found
+
+
 def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     found: list[Finding] = []
     where = f"entry on line {entry.line}"
     at = entry.line
+    found.extend(_reference_shape_findings(entry))
     locator = _bare_locator(entry)
     if locator is not None and locator[1]:
         found.append(Finding(MISSING_ARTICLE, where, entry.text, at))
