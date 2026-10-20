@@ -59,6 +59,20 @@ from unittest.mock import patch
 
 import artifact_lock_test_support  # noqa: F401
 import differential_scan as ds
+import visit_times
+from unittest.mock import patch as _times_patch
+
+
+def setUpModule():
+    # These controls isolate the pre-existing clinical floors. The new times row
+    # has unmocked public-command controls in test_visit_times.py.
+    global _times_control
+    _times_control = _times_patch.object(ds.visit_times, "check", return_value=visit_times.Result(graded=False))
+    _times_control.start()
+
+
+def tearDownModule():
+    _times_control.stop()
 import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
 
@@ -500,7 +514,8 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
 
         documented = " ".join((ds.__doc__ or "").split())
         limbs = tuple(limb for limb, _argv in cases)
-        self.assertEqual(limbs + (ds.approval_record.REPLY_UNREADABLE,), ds.GRADER.exit_2_limbs)
+        self.assertEqual(limbs[:-1] + (ds.VISIT_TIMES_INCOMPLETE, limbs[-1],
+                                     ds.approval_record.REPLY_UNREADABLE,), ds.GRADER.exit_2_limbs)
         self.assertIn(ds.approval_record.REPLY_UNREADABLE, documented)
         exact_enumeration = (
             "scanned** -- "

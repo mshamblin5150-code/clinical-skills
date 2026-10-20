@@ -318,6 +318,10 @@ shift.
 
 **Where the notes are on disk, the counting half is a command rather than a reading:**
 
+The command also checks visit times on the numbered posted notes against the Times rule
+and `shift-values.json`. A times finding blocks the Review sheet until the notes are
+re-timed. Unread times or an unrecorded shift window leave incomplete coverage.
+
 Run-grader findings, reader candidates, and unread remainders name their files
 beside the row counts. The shared `run_grader.artifact_label` checks a batch
 filename before printing its stem; other files use reader-order positions.
