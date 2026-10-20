@@ -513,6 +513,9 @@ Run [icd10-cpt](../icd10-cpt/SKILL.md) over the complete note plus its tier bloc
 
 The note body also carries one E/M logical paragraph. H&P places it at the end of Medical Decision Making; SOAP places it after Final diagnosis and before age-appropriate screening. Write `E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.` for office or clinic. For an ED encounter, end at `<code>, emergency department service.` because patient status is not an ED level axis. The sentence may wrap naturally but is one paragraph. Select the complexity the encounter earns; never default to moderate.
 
+For the problems, data, and risk reasons, follow [icd10-cpt](../icd10-cpt/SKILL.md)
+step 5's documented-action wording under ADR 0376 ruling 2.
+
 Save the private `icd10-cpt` pass's complete anchored worksheet under the run's `worksheets/`
 subdirectory with the same filename stem as the note. The saved worksheet is run evidence and is
 never rendered into the finished note. Keeping it apart from the notes is required: run graders
@@ -690,6 +693,15 @@ See **Directed agent** in [CONTEXT.md](../../CONTEXT.md) and the risk reading in
 Grounded, and expected:
 
 - Route, frequency, and duration for a drug the shorthand names — `zithromax 200/5ml 3/4 t x 3 days` becomes azithromycin 3.75 mL PO **daily** for 3 days.
+  **Every filled part of a Plan drug's sig fits the entered diagnosis.** When the
+  shorthand or the clinician's recorded answer names a drug but omits its dose,
+  frequency, or length, fill each missing part for the diagnosis the note enters,
+  never one the same note refuses. Where the entered code leaves severity open,
+  use the least severe reading the note's own findings support; findings that
+  support the more serious reading require entering that diagnosis instead. A
+  site-unspecified urinary infection beside a refused pyelonephritis takes the
+  cystitis course. This follows [ADR 0376](../../docs/adr/0376-a-filled-sig-fits-the-entered-diagnosis-and-the-e-m-reasoning-says-not-documented-rather-than-not-done.md)
+  ruling 1.
 - A medication proposed in the **Plan** for a condition in the history — lisinopril where the history carries hypertension. This is the clinical reasoning being graded; make it.
 - Standard supportive care, health promotion, and return precautions for the stated diagnosis.
 - Testing for a documented infectious exposure — see below.
