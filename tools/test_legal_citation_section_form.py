@@ -44,10 +44,11 @@ def command(main, arguments):
 
 class LegalCitationFormGraders(unittest.TestCase):
     def test_post_resolves_each_form_and_refuses_only_section_forms(self):
+        self.assertIn("(Patient rights, 2024)", POST_BODY)
         for form, refused in FORMS:
             with self.subTest(form=form), tempfile.TemporaryDirectory() as temp:
                 run = PostRun(Path(temp))
-                run.draft.write_text(POST_BODY.replace("(Patient Rights, 2024)", form) + f"\n{ENTRY}\n", encoding="utf-8")
+                run.draft.write_text(POST_BODY.replace("(Patient rights, 2024)", form) + f"\n{ENTRY}\n", encoding="utf-8")
                 status, report, errors = run.grade("--show")
                 self.assertEqual(int(refused), status, report + errors)
                 self.assertIn(f"{KIND}: {int(refused)}", report)
