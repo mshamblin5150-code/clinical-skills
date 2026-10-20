@@ -275,6 +275,14 @@ setup cannot claim the saved upload-access entry is present; it does not verify 
 
 ## Standing rules
 
+**`tools/encounter_openers.py` is a Required command for `batch-shift` and `clinical-note`.**
+It records agent-read opening details, splits batch source text with complete source coverage
+or records a single encounter, retains hand-cut reasons and clinician name answers, and writes
+new identity-map rows under the artifact lock. Follow
+[Encounter openers](skills/_shared/reference/encounter-openers.md); a refusal blocks its step.
+Without clean required runs the opener and new identity-map row are not mechanically verified.
+Its complete boundary belongs to `encounter_openers.DECLARED_LIMITS`.
+
 These bind every skill in this repo.
 
 1. **No PHI is ever committed.** Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).

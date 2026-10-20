@@ -1323,6 +1323,14 @@ Load only the branch's template.
 
 ### 4. Tier every element, then draft
 
+Before processing a standalone pasted encounter, retain its UTF-8 source and run the Required
+`encounter_openers.py record --mode single` command through
+[Encounter openers](../_shared/reference/encounter-openers.md). Supply the name, age and sex as
+read, with `null` for an omission. Ask for a missing name before processing and record the
+clinician's answer (or inability to supply it) with the documented `answer` command. A batch
+pass instead reads its own encounter from the shift's existing `openers.json`; it never
+reparses demographics independently. Later identity-map writes use that same record.
+
 Assign each element a tier before writing, then draft into the branch template. Obey the rubric's own formatting instructions inside that template exactly — they are the school's, not yours. Where it says short succinct statements and no sentences, write fragments.
 
 **One heading departs from the rubric, and it is the only one.** The H&P's conclusion is written `Final diagnosis:` rather than the rubric's `Actual diagnosis/diagnoses with ICD-10 codes:` — the clinician's ruling on 2026-08-16, so that both branches name the conclusion the same way. [HP.md](HP.md) carries the reasoning and what it costs. **The authorization is named here because the instruction above is here**: a pass reading this step and then finding a template that does not match the rubric quoted inside it would otherwise have to guess which of the two was stale, and guessing against a rubric is how a graded heading gets silently restored.
@@ -1697,7 +1705,7 @@ difference from an existing record without blocking or replacing it. Use `--repl
 deliberately discarding that record. Either command's refusal blocks portal entry until the input is
 corrected and both commands succeed.
 
-Follow [the Medatrax entry procedure](../../reference/medatrax-fields.md#entering-encounters) one patient at a time. Enter the derived Entry copy in the note form. Put a newly generated Patient Reference into the private identity map immediately. Leave Add Visit Data empty. Read the saved Patient Detail against the approved field block and the saved note form against the Entry copy. Correct an ordinary mismatch to the approved value and read it again; for any other discrepancy, stop for the clinician. On the `VISIT:` line append `correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A clean first read needs no correction clause.
+Follow [the Medatrax entry procedure](../../reference/medatrax-fields.md#entering-encounters) one patient at a time. Enter the derived Entry copy in the note form. Put a newly generated Patient Reference into the private identity map immediately through the Required `encounter_openers.py identity` command in [Encounter openers](../_shared/reference/encounter-openers.md), including a reason for every same-name existing reference when they are different people. Leave Add Visit Data empty. Read the saved Patient Detail against the approved field block and the saved note form against the Entry copy. Correct an ordinary mismatch to the approved value and read it again; for any other discrepancy, stop for the clinician. On the `VISIT:` line append `correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A clean first read needs no correction clause.
 
 After an interruption, sign back in, read what saved, and search the Patient Visit List for a record created during the interruption. Resume only when none exists. If a partial record exists, stop for the clinician; never delete it.
 

@@ -93,6 +93,7 @@ DECLARED_SECTIONS = {
     "corpus_census": "Corpus census",
     "day_file_text": "Day-file text",
     "entry_copy": "Medatrax Entry copy",
+    "encounter_openers": "Encounter openers and identity rows",
     "exam_scheme": "Examination scheme",
     "differential_scan": "Differential scan",
     "visit_times": "Filled-vitals census",

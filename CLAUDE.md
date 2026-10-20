@@ -154,6 +154,15 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 ## Maintainer tooling
 
+### Encounter openers and identity rows
+
+`python tools/encounter_openers.py` owns the `record`, `answer`, and `identity` commands under
+ADR 0427 build 1. The private JSON contract and consumer steps live in
+[Encounter openers](skills/_shared/reference/encounter-openers.md). It imports the shared
+`NOTE_DELIMITER`, reads records through `run_record_reader.read_tool_record`, checks source
+coverage and literal shorthand-name presence, and appends identity rows atomically under the
+artifact lock. Its complete boundary belongs to `encounter_openers.DECLARED_LIMITS`.
+
 ### Clinical go-ahead disclosure
 
 `approval_record.prepare` retains the paired clinical completion grade before the ask. Its

@@ -133,7 +133,11 @@ This table carried four percentages until 2026-08-11 — `69% / 15% / 12% / 5%` 
 
 **Match case-insensitively.** Real files carry `Note 3`, `NOte 3`, and `NOte 4` in the same document. A case-sensitive match silently merges encounters.
 
-Split on `Note N` and nothing else. Fall back to heuristics — a new age/sex opener, an unconnected new chief complaint — only where the numbering is broken or absent, and say so when you do.
+Run the Required split-and-opener command through [Encounter openers](../_shared/reference/encounter-openers.md).
+It writes `encounters/encounter-N.txt`, `encounters/unassigned.txt`, and `openers.json` in this
+shift's run directory, recording the name, age and sex you read rather than guessing them. Split
+on `Note N` and nothing else. Broken or absent numbering exits 2; use the documented hand-cut
+mode with a stated reason only then, retaining full source coverage and the Unassigned list.
 
 Assign **every line** to exactly one encounter. The day header, and anything else belonging to no encounter, goes to an **Unassigned** list — never folded into the nearest patient.
 
@@ -149,14 +153,20 @@ Found N encounters:
   2. …
 Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
-Openers missing age or sex: <which encounters, and which field>
+Openers missing name, age or sex: <which encounters, and which field>
 Branch for the whole shift: <the one the clinician named, or "SOAP by default — say the word and it is an H&P">
 Day file read with: <PyMuPDF | the agent's own PDF reader — shift text did not reach the corpus>
 ```
 
 Show the first and last line of each encounter verbatim — that is what lets the clinician spot a bad boundary at a glance. Naming a low-confidence boundary explicitly is part of the output; silence there reads as certainty you do not have.
 
-**An opener that omits age or sex is reported here, not later.** It is not a boundary problem, so it does not belong on the low-confidence line, and it is not the kind of gap that survives to be filled downstream — age sets `Patient Time`, and no amount of reading the encounter recovers it. This stop is the cheapest moment it can be answered: the clinician still remembers the patient. After this, the only source left is the Medatrax record.
+**An opener that omits name, age or sex is reported here, not later.** It is not a boundary
+problem, so it does not belong on the low-confidence line. Ask for the missing name now and
+record the answer with the shared opener command's `answer` route; a clinician-supplied name
+is labeled as his answer and exempt from the shorthand in-text check. With no name supplied,
+record that response so the eventual reference goes under *Cannot be matched*. Age sets
+`Patient Time`, and no amount of rereading the encounter recovers an omitted age. This stop
+is the cheapest moment it can be answered: the clinician still remembers the patient.
 
 **The branch is settled here, once, for the whole shift — and this stop is why it can be.** Step 5 says the shift takes one branch. [clinical-note](../clinical-note/SKILL.md) step 3 defaults to SOAP where nobody named one, which is right for a shift and **wrong during the first six encounters of a course**, exactly when nobody thinks to name one. Standalone, that default can only be announced after the fact. **Here it is announced before a single note is written**, on a block the run is already stopping on, so the correction costs one word instead of eleven regenerations.
 
@@ -513,7 +523,10 @@ clean posted reading.
 For every final `note-N.md`, run `python tools/entry_copy.py <path to note-N.md>` and require exit 0 before portal entry. The derived files live in that run's `entry-copies/` subdirectory and can be regenerated from a finished note returned to an existing run after its Plan is relabeled. Then run `python tools/form_sections.py <entry-copies/note-N.md>` for each copy and require exit 0. It reports six line counts and lengths, creates a missing `private/form-sections/note-N.json`, and reports a difference from an existing record without blocking or replacing it. Use `--replace` only when deliberately discarding that record. Either refusal blocks the shift's entry until the input is corrected and both commands succeed. Enter each derived Entry copy's four sections, while `SUBMISSION-SHA256` continues to use the finished `note-N.md` bytes.
 
 Enter one patient at a time by the reference procedure. Put each new Patient Reference into the
-private identity map immediately after Medatrax generates it. Leave Add Visit Data empty. After each
+private identity map immediately after Medatrax generates it through the Required
+`encounter_openers.py identity` command in [Encounter openers](../_shared/reference/encounter-openers.md),
+including a reason for every same-name existing reference when they are different people.
+Leave Add Visit Data empty. After each
 save, read Patient Detail against that encounter's approved field block and the saved note form against its
 derived Entry copy. Correct an ordinary mismatch to the approved value and read it again; any other discrepancy
 stops for the clinician. On that patient's `VISIT:` line, append
