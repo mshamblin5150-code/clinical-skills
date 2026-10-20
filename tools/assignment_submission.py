@@ -250,9 +250,10 @@ def approval_surface(staged: StagedUpload) -> str:
 def project_context_posting(run: Path, submission: str):
     """Expose the assignment approval's keyed upload state to the shared reader."""
     from approval_record import ProjectContextPosting
-    if not (run / RECORD).exists():
+    from run_record_reader import read_tool_record, submission_record
+    payload = read_tool_record(run / RECORD, submission_record)
+    if payload is None:
         return ProjectContextPosting(False)
-    payload = _read(run)
     artifact = payload.get("artifact")
     if not isinstance(artifact, str) or Path(artifact).stem != submission:
         return ProjectContextPosting(False)

@@ -54,9 +54,12 @@ def digest(path: Path) -> str:
 
 
 def read_json(path: Path):
-    machine = {"capture.json", "pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json"}
-    if path.name not in machine:
-        return json.loads(path.read_text(encoding="utf-8"))  # clinician/agent review, not tool-written
+    """Read clinician/agent input; ownership does not follow its basename."""
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_capture_json(path: Path):
+    """Read a retained record written by the capture worker."""
     value = read_tool_record(path, lambda text: _decode_machine(path.name, text))
     if value is None:
         raise FileNotFoundError()
@@ -67,7 +70,7 @@ def _decode_machine(kind: str, text: str):
     from run_record_reader import json_record
     value = json_record(text)
     if kind in {"pass-1.json", "pass-2.json", "disagreements.json"}:
-        if not isinstance(value, list) or (kind != "disagreements.json" and not value):
+        if not isinstance(value, list):
             raise RecordShapeError("record items")
         identifiers = set()
         for row in value:
@@ -165,12 +168,12 @@ def disagreements(first: list[dict], second: list[dict]) -> list[dict]:
 
 
 def valid_capture(root: Path, *, transcribed: bool = False) -> dict:
-    record = read_json(root / "capture.json")
+    record = read_capture_json(root / "capture.json")
     # Establish each tool record's readable shape before a changed fingerprint
     # can misclassify torn bookkeeping as a content finding.
     for name in ("pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json"):
         if name in record["files"]:
-            read_json(root / name)
+            read_capture_json(root / name)
     checked_files(root, record["files"])
     if record["route"] not in {"youtube", "local", "winx"}:
         raise ValueError("unknown acquisition route")
@@ -191,11 +194,11 @@ def valid_capture(root: Path, *, transcribed: bool = False) -> dict:
         for name in ("pass-1.json", "pass-2.json", "disagreements.json", "transcript.md", "slide-terms.json"):
             if name not in record["files"]:
                 raise ValueError("transcription evidence is not fingerprinted")
-        terms = read_json(root / "slide-terms.json")
+        terms = read_capture_json(root / "slide-terms.json")
         if sorted(terms["frames_read"]) != sorted(row["file"] for row in frames) or not nonempty(terms["terms"]) or not nonempty(terms["model_reason"]):
             raise ValueError("slide vocabulary or the complete pre-transcription read is missing")
-        expected = disagreements(read_json(root / "pass-1.json"), read_json(root / "pass-2.json"))
-        if read_json(root / "disagreements.json") != expected:
+        expected = disagreements(read_capture_json(root / "pass-1.json"), read_capture_json(root / "pass-2.json"))
+        if read_capture_json(root / "disagreements.json") != expected:
             raise ValueError("disagreement population does not match the two passes")
     return record
 
@@ -334,7 +337,7 @@ def check_review(run: Path, key: str, draft: bytes | str | None) -> tuple[int, i
         raise ValueError("frame reading is incomplete")
     if not nonempty(review["narration_review"]):
         raise ValueError("narration-only clinical-data review is missing")
-    first = read_json(root / "pass-1.json")
+    first = read_capture_json(root / "pass-1.json")
     narration = " ".join(row["text"] for row in first)
     extras = review["narration_only"]
     if not isinstance(extras, list):
@@ -348,7 +351,7 @@ def check_review(run: Path, key: str, draft: bytes | str | None) -> tuple[int, i
         extra_ids.append(row["id"])
     if len(set(extra_ids)) != len(extra_ids):
         raise ValueError("narration-only entries are duplicated")
-    owed = {row["id"] for row in read_json(root / "disagreements.json")} | set(extra_ids)
+    owed = {row["id"] for row in read_capture_json(root / "disagreements.json")} | set(extra_ids)
     answers = review["answers"]
     if not isinstance(answers, dict) or set(answers) != owed or not all(nonempty(value) for value in answers.values()):
         raise ValueError("a confirmation-list entry has no clinician answer or the list changed")
@@ -442,7 +445,7 @@ def main(argv: list[str]) -> int:
         record = valid_capture(root, transcribed=args.action == "transcribe")
         print(f"Case video capture: {record['state']}; frames {len(record['frames'])}")
         if args.action == "transcribe":
-            print(f"disagreeing spans {len(read_json(root / 'disagreements.json'))}; clinician review required")
+            print(f"disagreeing spans {len(read_capture_json(root / 'disagreements.json'))}; clinician review required")
         return 0
     except UnreadableRecord as failure:
         print(fault_report(failure, check=EXPECTED_ROW))

@@ -328,10 +328,10 @@ def _write(path: Path, payload: dict[str, object]) -> None:
 def _read(run: Path, *, missing_ok: bool = False) -> dict[str, object]:
     from run_record_reader import read_tool_record, posting_record
     path = run / RECORD
-    if missing_ok and not path.exists():
-        return {"version": 1, "approval_revision": 0, "items": []}
     value = read_tool_record(path, posting_record)
     if value is None:
+        if missing_ok:
+            return {"version": 1, "approval_revision": 0, "items": []}
         raise ApprovalRecordError("durable approval records are missing")
     return value
 

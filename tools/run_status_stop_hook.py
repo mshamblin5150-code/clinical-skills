@@ -424,12 +424,12 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     for run in touched_runs(records):
         try:
             approved = approvals(run)
+            if not approved:
+                continue
             state = _state(run)
         except UnreadableRecord as failure:
             unreadable_runs[run] = failure
             open_runs.append((run, (), "unreadable"))
-            continue
-        if not approved:
             continue
         revision = _approval_revision(approved)
         if state.get("status") == "complete" and state.get("approval_revision") == revision:

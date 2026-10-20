@@ -136,6 +136,30 @@ class ToolRecordCommands(unittest.TestCase):
             self.damaged(path, lambda: case_video.main(arguments), wrong=wrong, wrong_cause='wrong shape: ' + rule)
             path.write_bytes(original)
 
+    def test_transcription_vocabulary_input_keeps_agent_authored_ownership(self):
+        import json
+        import sys
+        from types import SimpleNamespace
+        from test_case_video import CaptureGate
+        fixture = CaptureGate('runTest')
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        record = case_video.valid_capture(fixture.root)
+        record['state'] = 'prepared'
+        source = fixture.run / 'slide-terms.json'
+        source.write_bytes(b'{')
+        args = SimpleNamespace(terms=str(source))
+        worker = SimpleNamespace(WhisperModel=mock.Mock())
+        with (mock.patch.dict(sys.modules, {'faster_whisper': worker}),
+              mock.patch.object(case_video, 'valid_capture', return_value=record),
+              records.capture_errors() as faults):
+            with self.assertRaises(json.JSONDecodeError) as caught:
+                case_video.transcribe(args, fixture.root)
+            self.assertNotIsInstance(caught.exception, records.UnreadableRecord)
+            self.assertEqual({}, faults)
+        worker.WhisperModel.assert_not_called()
+        self.assertEqual(b'{', source.read_bytes())
+
     def test_medatrax_writer_check_and_replace_preserve_unreadable_markdown(self):
         from test_medatrax_readback_command import ReadbackCommand
         fixture = ReadbackCommand('runTest')

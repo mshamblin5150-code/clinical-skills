@@ -1194,13 +1194,12 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
             continue
         extract = path.with_name(f"{path.stem}.extract.md")
         extract_fields: dict[str, str] = {}
-        if extract.exists():
-            try:
-                extract_fields, _identifiers = _extract_metadata(extract)
-            except UnreadableRecord:
-                raise
-            except ValueError:
-                extract_fields = {}
+        try:
+            extract_fields, _identifiers = _extract_metadata(extract)
+        except UnreadableRecord:
+            raise
+        except ValueError:
+            extract_fields = {}
         _append_review_cursors(cursors, review, extract_fields)
     return cursors
 
@@ -1590,8 +1589,7 @@ def _check_snapshot_posted_reading(run: Path, submission: str) -> None:
     if frozen_grade.report(run, submission) is not None:
         return
 
-    approvals = run / approval_record.RECORD
-    items = approval_record._read(run).get("items", []) if approvals.exists() else []
+    items = approval_record._read(run, missing_ok=True).get("items", [])
     matching = [
         item for item in items
         if isinstance(item, dict) and item.get("submission") == submission
@@ -1601,13 +1599,14 @@ def _check_snapshot_posted_reading(run: Path, submission: str) -> None:
     if matching:
         skill = matching[0].get("skill")
         args = matching[0].get("grader_args")
-    elif (run / assignment_submission.RECORD).exists():
-        gate = assignment_submission._read(run)
+    else:
+        from run_record_reader import submission_record
+        gate = read_tool_record(run / assignment_submission.RECORD, submission_record)
+        if gate is None:
+            raise ValueError("cannot determine the submission's skill from its approval record")
         skill = "course-assignment"
         artifact = gate.get("artifact_path")
         args = [str(run), "--artifact", artifact] if isinstance(artifact, str) and artifact else None
-    else:
-        raise ValueError("cannot determine the submission's skill from its approval record")
     if not isinstance(skill, str) or skill not in COMPLETION_GRADERS:
         raise ValueError("approval record has no supported skill")
     if not isinstance(args, list) or not args or not all(isinstance(arg, str) for arg in args):
@@ -1721,7 +1720,7 @@ def _review_cursors_before_round(
     for earlier in range(1, round_number):
         review_file = review_path(run, submission, earlier)
         extract_file = extract_path(run, submission, earlier)
-        if not review_file.is_file() or not extract_file.is_file():
+        if not review_file.is_file():
             raise ValueError(f"earlier review round {earlier} is incomplete")
         review = read_review(review_file)
         fields, _identifiers = _extract_metadata(extract_file)

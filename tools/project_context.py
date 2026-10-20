@@ -1172,7 +1172,7 @@ def retain_heading_context(run: Path) -> None:
         directory = run / "private" / "heading-contexts"
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / (digest + ".md")
-        if not path.exists():
+        if read_tool_record(path, _decode_context_text) is None:
             path.write_bytes(text.encode("utf-8"))
 
 
@@ -1191,7 +1191,7 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
     try:
         path = run / "private" / "heading-contexts" / (digest + ".md")
         # An unchanged legacy record can supply its own retained population.
-        if not path.is_file() and digest == recorded_digest(run):
+        if read_tool_record(path, _decode_context_text) is None and digest == recorded_digest(run):
             retain_heading_context(run)
         previous = _read_context(path)
         current = _read_context(run / RECORD_NAME)

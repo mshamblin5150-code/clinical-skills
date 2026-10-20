@@ -18,7 +18,7 @@ EXCEPTIONS = {
     "artifact_repairs.read_json": "agent-authored repair scope; tool ledger has its own shared decoder",
     "assignment_docx.main": "agent-authored document recipe",
     "browser_tab_hook._load_tool_schemas": "installed tool schemas, outside run directories",
-    "case_video.read_json": "only agent-authored review names take this branch; machine names use shared reader",
+    "case_video.read_json": "agent-authored review and transcription vocabulary input; retained capture copies use a separate shared-reader entrypoint",
     "checks_ledger.routing_walk": "agent-authored routing walk",
     "checks_ledger.pre_review_walks": "agent-authored review walks",
     "claude_output_access.main": "user settings",

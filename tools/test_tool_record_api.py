@@ -48,6 +48,28 @@ class PublicRecordApis(unittest.TestCase):
             grader_args=(str(self.root),), content_approved=True, clinician_reply='Synthetic approval.',
         ))
 
+    def test_only_shared_absence_can_start_a_new_approval_history(self):
+        self.assertEqual([], approval_record._read(self.root, missing_ok=True)['items'])
+        self.assertFalse(assignment_submission.project_context_posting(self.root, 'synthetic').posted)
+        for name, action in (
+            (approval_record.RECORD, lambda: approval_record.approve(
+                self.root, skill='discussion-post', submission='synthetic', sources=(self.source,),
+                grader_args=(str(self.root),), content_approved=True, clinician_reply='Synthetic approval.')),
+            (assignment_submission.RECORD, lambda: assignment_submission.project_context_posting(self.root, 'synthetic')),
+        ):
+            path = self.root / name
+            try:
+                path.symlink_to(self.root / 'missing-target.json')
+            except OSError:
+                self.skipTest('symbolic link creation unavailable')
+            try:
+                with self.assertRaisesRegex(records.UnreadableRecord, 'could not be opened'):
+                    action()
+                self.assertTrue(path.is_symlink())
+                self.assertFalse(path.exists())
+            finally:
+                path.unlink()
+
     def test_prepare_refuses_both_damaged_approval_history_and_receipt(self):
         context = SimpleNamespace(finding=False, coverage=False, report='project context: clean')
         def prepare():
@@ -102,6 +124,25 @@ class PublicRecordApis(unittest.TestCase):
                     else:
                         self.assertEqual(content, path.read_bytes())
                         path.unlink()
+
+    def test_damaged_state_does_not_open_a_run_without_an_approval(self):
+        transcript = self.root / 'session.jsonl'
+        transcript.write_text('', encoding='utf-8')
+        state = self.root / hook.STATE_RECORD
+        for content in (b'{', b'[]', None):
+            if content is None:
+                state.mkdir()
+            else:
+                state.write_bytes(content)
+            with mock.patch.object(hook, 'touched_runs', return_value=(self.root,)):
+                self.assertEqual({}, hook.handle({'transcript_path': str(transcript),
+                    'last_assistant_message': 'Ordinary reply; no approved run.'}))
+            if content is None:
+                self.assertEqual([], list(state.iterdir()))
+                state.rmdir()
+            else:
+                self.assertEqual(content, state.read_bytes())
+                state.unlink()
 
     def test_receipt_prepare_including_coverage_only_and_verify_refuse_damage(self):
         path = reader_remarks._receipt_path(self.root, 'discussion-post', 'synthetic')
