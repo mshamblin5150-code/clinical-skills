@@ -983,7 +983,7 @@ def _rendered_grade(
     source: Source, submission: str | None
 ) -> RenderedAssessment:
     if record_unavailable(source.root / "rendered.md", source.deck.name):
-        return RenderedAssessment((), 0, 0, 0, "rendered record: not graded — damaged text")
+        return RenderedAssessment((), 0, 0, 0, f"rendered record: {run_grader.NOT_GRADED} — damaged text")
     records = _rendered_records(source.rendered_text or "")
     passes = render_pass.read_passes(source.root / "render")
     found: list[Finding] = []
@@ -1342,11 +1342,11 @@ def survey(source: Source) -> Scan:
     )
     slide_limit_denominator = len(source.slides)
     counted_slides: int | None = slide_limit_denominator if source.bar is not None else None
-    slide_limit_matcher = "PowerPoint slide parts" if source.bar is not None else "not graded — damaged signed bar"
+    slide_limit_matcher = "PowerPoint slide parts" if source.bar is not None else f"{run_grader.NOT_GRADED} — damaged signed bar"
     slide_limit_unread = 0
     if source.bar is not None and source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
         counted_slides = None
-        slide_limit_matcher = "not graded — damaged presentation intent"
+        slide_limit_matcher = f"{run_grader.NOT_GRADED} — damaged presentation intent"
     if source.bar is not None and source.bar.slide_limit_scope == "content" and not record_unavailable(source.root / "intent.md", source.deck.name):
         slide_limit_matcher = "intent.md CONTENT-SLIDES"
         intent_records = _presentation_intent_records(source)
@@ -1431,7 +1431,7 @@ def survey(source: Source) -> Scan:
         findings.append(Finding(UNTRACED_FIGURE, None, detail))
     return Scan(
         len(source.slides),
-        source.bar.slide_limit_scope if source.bar is not None else "not graded",
+        source.bar.slide_limit_scope if source.bar is not None else run_grader.NOT_GRADED,
         counted_slides,
         slide_limit_denominator,
         slide_limit_matcher,
@@ -1502,7 +1502,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
     for row in ROWS:
         count = sum(finding.kind == row for finding in scan.findings)
         if not count and row in scan.withheld_rows:
-            count = "not graded — damaged text"
+            count = f"{run_grader.NOT_GRADED} — damaged text"
         elif row in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             count = run_grader.NOT_GRADED
         lines.append(f"{row}: {count}")

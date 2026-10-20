@@ -2731,7 +2731,7 @@ def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
             continue
         scan = survey(run, submission)
         if scan.findings or scan.unread or scan.unread_remainder:
-            damage_reports = tuple(report for report in scan.memory_reports if "not graded — damaged text" in report)
+            damage_reports = tuple(report for report in scan.memory_reports if f"{NOT_GRADED} — damaged text" in report)
             return "\n".join((f"{EXPECTED_ROW} is incomplete for {submission}", *damage_reports))
     return None
 

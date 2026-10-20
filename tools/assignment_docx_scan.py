@@ -630,7 +630,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
     ]
     for row in ROWS:
         count = sum(finding.kind == row for finding in scan.findings)
-        value = "not graded — damaged text" if not count and row in scan.withheld_rows else count
+        value = f"{NOT_GRADED} — damaged text" if not count and row in scan.withheld_rows else count
         lines.append(f"{row}: {value}")
     if show:
         lines.extend(("", "findings:"))
