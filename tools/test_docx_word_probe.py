@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import contextlib
 import io
 import json
