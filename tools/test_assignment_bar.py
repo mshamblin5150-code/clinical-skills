@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import artifact_lock_test_support
 import unittest
-import artifact_lock_test_support
 import json
 import os
 from contextlib import redirect_stdout, redirect_stderr

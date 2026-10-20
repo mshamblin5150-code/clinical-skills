@@ -46,7 +46,6 @@ import ast
 import io
 import json
 import unittest
-import artifact_lock_test_support
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory

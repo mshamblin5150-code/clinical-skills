@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-import artifact_lock_test_support
 
 import frozen_grade
 import file_digest

@@ -8,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import artifact_lock_test_support
 from pathlib import Path
 
 import lms_attachments

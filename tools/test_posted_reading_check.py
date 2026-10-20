@@ -2,7 +2,6 @@
 
 import artifact_lock_test_support
 import unittest
-import artifact_lock_test_support
 import ast
 import tempfile
 from dataclasses import replace

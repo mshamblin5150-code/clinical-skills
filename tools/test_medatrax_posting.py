@@ -8,7 +8,6 @@ import artifact_lock_test_support
 import json
 import tempfile
 import unittest
-import artifact_lock_test_support
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch

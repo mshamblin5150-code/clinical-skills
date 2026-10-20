@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import artifact_lock_test_support
 from unittest import mock
 
 import run_status_stop_hook as hook

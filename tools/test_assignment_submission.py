@@ -7,7 +7,6 @@ import tempfile
 import json
 import os
 import unittest
-import artifact_lock_test_support
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path

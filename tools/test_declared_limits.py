@@ -14,7 +14,6 @@ import ast
 import re
 import tempfile
 import unittest
-import artifact_lock_test_support
 import assignment_submission
 from dataclasses import dataclass
 from pathlib import Path

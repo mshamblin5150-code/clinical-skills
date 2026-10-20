@@ -11,7 +11,6 @@ import artifact_lock_test_support
 import importlib
 import re
 import unittest
-import artifact_lock_test_support
 from pathlib import Path
 
 import heading_read
