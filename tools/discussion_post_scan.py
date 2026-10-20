@@ -961,6 +961,9 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         initial_reading = next(
             (item for item in readings if item.artifact == draft.stem), None
         )
+        if initial_reading is not None or post_fields.get("POST-URL") or post_fields.get("POSTED"):
+            # Refuse unreadable route evidence at the loader's exit-2 boundary.
+            approval_record.posting_route(root, skill="discussion-post", submission=draft.stem)
         if initial_reading is not None and initial_reading.composer_outcome not in {
             "inline", "attachment"
         }:
@@ -1078,10 +1081,15 @@ def posted_reading_check(
         return check_posted_reading(
             reading, file_digest.sha256(draft), posted_fields=True,
             verdict=True, entry_link=True, composer=True,
+            posting_route=approval_record.posting_route(
+                run, skill="discussion-post", submission=submission
+            ),
             html_bytes=html.stat().st_size if html is not None else None,
             run=run, docx=docx,
             saved_post_url=fields.get('POST-URL'), saved_posted=fields.get('POSTED'),
         )
+    except approval_record.ApprovalRecordError as failure:
+        raise run_grader.SourceError(str(failure)) from failure
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 

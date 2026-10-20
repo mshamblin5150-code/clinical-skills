@@ -1832,6 +1832,34 @@ class RoutingWalkThroughCommand(unittest.TestCase):
 
 
 class ComposerAttachmentOutcome(unittest.TestCase):
+    def test_unreadable_posting_record_exits_two(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "attachment")
+            (path.parent / checks.approval_record.RECORD).write_text("{", encoding="utf-8")
+            status, report, error = self.grade_submission(path)
+            self.assertEqual(2, status, report + error)
+            self.assertIn("could not read durable approval records", error)
+
+    def test_clinician_attachment_without_refusal_still_checks_posted_bytes(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "attachment")
+            reread = path.parent / "reread.md"
+            reread.write_text(re.sub(r"(?m)^REFUSAL:.*\n", "", reread.read_text(encoding="utf-8")), encoding="utf-8")
+            record = path.parent / checks.approval_record.RECORD
+            for route, expected in (("agent", 1), ("clinician", 0)):
+                record.write_text(json.dumps({"items": [{
+                    "skill": "practicum-case-study", "submission": "case-study",
+                    "posting_route": route,
+                }]}), encoding="utf-8")
+                status, report, error = self.grade_submission(path)
+                self.assertEqual(expected, status, report + error)
+            (path.parent / "posted" / "case-study.docx").write_bytes(b"changed Word bytes")
+            status, report, error = self.grade_submission(path)
+            self.assertEqual(1, status, report + error)
+            self.assertIn("posted-attachment", report)
+
     def prepare(self, path: Path, outcome: str | None) -> None:
         (path.parent / "bar.md").write_text(
             "SUBMISSION-TYPE: canvas-composer\n", encoding="utf-8"

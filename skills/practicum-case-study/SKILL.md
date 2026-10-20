@@ -1272,6 +1272,24 @@ flag is available after recovery; it is never a substitute for recovery. **The c
 command's and not this step's** — #279's decision 2 is that a written instruction to look first is
 exactly what the ticket exists to reject — so there is nothing here to run before the render.
 
+**A Word edit after the step 9 checks opens a new round of changes.** Read his saved `.docx`,
+carry the edit into the Markdown and, where it changes a supported claim, the claim ledger.
+Then re-render under the destination guard above and retain a new render pass. The re-render
+is the file posted; the Markdown remains the only authoritative artifact and both approvals
+keep `sources=(output_markdown,)`. Run the leftovers read under `the leftovers of every change
+after the first draft` and the visual read of the new pass under `the rendered document` again.
+His "no re-read" means he does not read it again himself. It waives neither reader. The next
+showing follows [Revisions](../_shared/reference/revisions.md), lists his edit in the computed
+change list, shows the new render, and takes a fresh content go-ahead. If the carried edit
+rewords or removes an approved proposed image, also reconfirm that change as a separate image
+question at the go-ahead under [imagery-proposals.md](../_shared/reference/imagery-proposals.md).
+
+Stop before re-rendering if the Word writer cannot reproduce any part of the edit. Show him
+exactly what cannot be carried and the closest producible form: a live hyperlink as a plain
+URL, for example, or a carried tab or control character as a space. Manual font or spacing
+changes, comments and tracked changes also need this stop. Wait for him to accept the proposed
+form or direct otherwise, then carry his accepted form through the same edit-and-review route.
+
 **A `warning:` line from that command means a table row put a cell separator into its own
 text.** That is the shape
 [#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe
@@ -1920,6 +1938,16 @@ incomplete coverage does not block, while a finding refuses the record. From thi
 every reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own keyed
 line, and no classmate or patient name enters it.
+On the Composer branch, post inline first, always. Only a visible message-size refusal opens
+the shared attachment fallback. If he directs an attachment without that refusal, say once:
+"Your standing rule for these boards is inline first, and the inline body now carries your edit."
+Proceed inline through the existing loaded-box stop unless he repeats the direction.
+If he repeats the direction, hand him the checked re-rendered `.docx` to attach and post himself.
+Do not submit the entry. After he reports posting, record it through
+`approval_record.record_clinician_posting(run, skill="practicum-case-study", submission=output_markdown.stem)`.
+The posted reading still compares the posted file's fingerprint with the checked local `.docx`;
+only this clinician-posted attachment may omit the dated `REFUSAL`.
+
 Read the shared `canvas-editor.md` sheet for either posting branch.
 The `file-upload` branch stages the `.docx` and reads its displayed filename and size. On `canvas-composer`, build the `.html` from the checked
 Markdown with `python tools/post_html.py <output Markdown> <same-stem .html>`, load it by the
@@ -1956,7 +1984,7 @@ READ: <ISO date of this reading>
 SUBMISSION-SHA256: <SHA-256 of the output Markdown>
 COMPOSER-OUTCOME: <inline or attachment, only for canvas-composer>
 HTML-BYTES: <byte count of the built HTML, only for canvas-composer>
-REFUSAL: <ISO date> - <wording observed on the page, attachment only>
+REFUSAL: <ISO date> - <wording observed on the page, run-posted attachment only>
 POSTED-FILE: <shared Posted files line, attachment only>
 VERDICT: matches - <what was compared with the submitted artifact>
 ```

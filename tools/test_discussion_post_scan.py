@@ -1658,6 +1658,32 @@ REFUTATION: stands - the page addresses the cited proposition.
 
 
 class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
+    def test_clinician_attachment_without_refusal_keeps_file_identity_checks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(re.sub(r"(?m)^REFUSAL:.*\n", "", reread.read_text(encoding="utf-8")), encoding="utf-8")
+            record = run.root / scan.approval_record.RECORD
+            for route, expected in (("agent", 1), ("clinician", 0)):
+                record.write_text(json.dumps({"items": [{
+                    "skill": "discussion-post", "submission": run.draft.stem,
+                    "posting_route": route,
+                }]}), encoding="utf-8")
+                status, report, error = run.grade("--html", str(html), "--docx", str(document))
+                self.assertEqual(expected, status, report + error)
+            (run.root / "posted" / document.name).write_bytes(b"changed Word bytes")
+            status, report, error = run.grade("--html", str(html), "--docx", str(document))
+            self.assertEqual(1, status, report + error)
+            self.assertIn("posted-attachment: 1", report)
+
+    def test_unreadable_posting_record_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            (run.root / scan.approval_record.RECORD).write_text("{", encoding="utf-8")
+            status, report, error = run.grade("--html", str(html), "--docx", str(document))
+            self.assertEqual(2, status, report + error)
+            self.assertIn("could not read durable approval records", error)
+
     POST_URL = "https://example.org/courses/1/discussion_topics/2?entry_id=41"
 
     def posted_run(self, root: Path) -> Run:

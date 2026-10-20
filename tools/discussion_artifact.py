@@ -511,6 +511,7 @@ def check_posted_reading(
     roster_ids: Collection[str] = (),
     duplicate_ids: Collection[str] = (),
     composer: bool = False,
+    posting_route: str | None = None,
     html_bytes: int | None = None,
     run: Path | None = None,
     docx: Path | None = None,
@@ -554,7 +555,7 @@ def check_posted_reading(
         ):
             codes.append("html-bytes")
         if reading.composer_outcome == "attachment":
-            if not reading.refusal_is_dated:
+            if posting_route != "clinician" and not reading.refusal_is_dated:
                 codes.append("refusal")
             try:
                 if docx is None:
