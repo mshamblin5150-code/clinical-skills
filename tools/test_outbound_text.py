@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import artifact_lock_test_support
 import mechanics_test_support
@@ -109,13 +110,13 @@ class GraderBoundaries(unittest.TestCase):
                 with self.subTest(char=char, notes=notes), tempfile.TemporaryDirectory() as directory:
                     run = DeckRun(Path(directory))
                     run.write_deck((slide_xml('Synthetic', 'Safe words'),))
-                    _status, report, error = run.grade()
+                    _status, report, error = run.grade('--paper-language', 'en')
                     self.assertIn('outbound-text: 0', report, error)
                     run.write_deck((slide_xml('Synthetic', 'Safe words' if notes else char + 'words'),),
                                    notes=(notes_xml(char + 'words'),) if notes else (),
                                    parts={'ppt/slides/_rels/slide1.xml.rels': relationships_xml(
                                        ('rIdNotes', 'notesSlide', '../notesSlides/notesSlide1.xml'))} if notes else {})
-                    status, report, error = run.grade()
+                    status, report, error = run.grade('--paper-language', 'en')
                     self.assertEqual(1, status, report + error)
                     self.assertIn('outbound-text: 1', report)
                     self.assertIn('outbound text: slide 1: line ', report)
@@ -127,24 +128,51 @@ class GraderBoundaries(unittest.TestCase):
                            parts={'ppt/notesSlides/notesSlide7.xml': notes_xml('\twords'),
                                   'ppt/slides/_rels/slide2.xml.rels': relationships_xml(
                                       ('rIdNotes', 'notesSlide', '../notesSlides/notesSlide7.xml'))})
-            status, report, error = run.grade()
+            status, report, error = run.grade('--paper-language', 'en')
             self.assertEqual(1, status, report + error)
             self.assertIn('outbound text: slide 2: line 1: U+0009', report)
             self.assertNotIn('outbound text: slide 7:', report)
             run.write_deck((slide_xml('First', 'Safe'),), notes=(notes_xml('\twords'),))
-            status, report, error = run.grade()
+            status, report, error = run.grade('--paper-language', 'en')
             self.assertEqual(1, status, report + error)
             self.assertIn('outbound text: unassociated speaker note: line 1: U+0009', report)
 
     def test_initial_post_reports_damage_as_a_finding_even_without_a_carrier(self):
         with tempfile.TemporaryDirectory() as directory:
             run = PostRun(Path(directory))
-            self.assertEqual(0, run.grade()[0])
+            self.assertEqual(0, run.grade('--paper-language', 'en')[0])
             run.draft.write_bytes(run.draft.read_bytes() + b'\nSYNTHETIC-PRIVATE\rwords\n')
-            status, report, error = run.grade()
+            status, report, error = run.grade('--paper-language', 'en')
             self.assertEqual(1, status, report + error)
             self.assertIn('outbound-text: 1', report)
             self.assertNotIn('SYNTHETIC-PRIVATE', report + error)
+
+    def test_handwritten_damage_keeps_outbound_findings_and_withholds_only_its_joins(self):
+        for kind in ('deck', 'post'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = DeckRun(root) if kind == 'deck' else PostRun(root)
+                if kind == 'deck':
+                    run.write_deck((slide_xml('Synthetic', '\x7fwords'),))
+                else:
+                    run.draft.write_bytes(run.draft.read_bytes() + b'\n\x7fwords\n')
+                records = (root / 'bar.md', root / 'claims.md')
+                for path, damage in zip(records, (b'\x07', b'\x0b')):
+                    path.write_bytes(path.read_bytes() + b'\nDETAIL: damaged' + damage + b'text\n')
+                before = tuple(path.read_bytes() for path in records)
+                # The post must not rebuild its damaged outbound source, but
+                # must still preserve all handwritten dependency withholding.
+                with mock.patch('discussion_post_scan._editor_readback_result',
+                                side_effect=AssertionError('damaged source rebuilt')):
+                    status, report, error = run.grade('--paper-language', 'en', '--show')
+                self.assertEqual(1, status, report + error)
+                self.assertIn('outbound-text: 1', report)
+                self.assertIn('U+007F', report)
+                self.assertIn('U+0007', report)
+                self.assertIn('U+000B', report)
+                self.assertIn('not graded — damaged text', report)
+                self.assertNotIn('run not scanned', report + error)
+                self.assertEqual(before, tuple(path.read_bytes() for path in records))
 
     def test_completion_policy_changes_at_its_recorded_approval_boundary(self):
         for key in ('checks_ledger:outbound-text', 'discussion_post_scan:outbound-text',
