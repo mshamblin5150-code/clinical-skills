@@ -31,7 +31,7 @@
 | bacterial vaginosis screening, preterm delivery prevention | bacterial vaginosis screening, preterm delivery prevention | sheet | bacterial-vaginosis-screening-preterm-delivery-prevention.md | source pages accounted for on 2026-08-30; independent checks passed |
 | beta-lactam antibiotic dosing | beta-lactam antibiotic dosing | sheet | beta-lactam-antibiotic-dosing.md | recommendation sweep reported `nothing-found`; full document read |
 | bladder cancer screening | bladder cancer screening | none | bladder-cancer-screening.md | complete source read found no patient-action decision point; null span blindly corroborated |
-| blood cholesterol | blood cholesterol, dyslipidemia | sheet | blood-cholesterol.md | source pages accounted for on 2026-08-30; independent checks passed |
+| blood cholesterol | blood cholesterol, dyslipidemia | unread | blood-cholesterol.md | superseded grundy-et-al-2018-2018-aha-acc-aacvpr-aapa-abc-acpm-ada-ags-apha-aspc-nla-pcna-guideline-on-the-management-of-blood.pdf by AHA ACC/blumenthal-et-al-2026-2026-acc-aha-aacvpr-abc-acpm-ada-ags-apha-aspc-nla-pcna-guideline-on-the-management-of.pdf; fetched 2026-08-30; sha256 0f41a29f5757a7824a223895546a2757a35b06c12ef88870618dc6889e70e110 |
 | blood pressure in chronic kidney disease | blood pressure in chronic kidney disease, high blood pressure | sheet | blood-pressure-in-chronic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | bradycardia and cardiac conduction delay | bradycardia and cardiac conduction delay | sheet | bradycardia-and-cardiac-conduction-delay.md | source pages accounted for on 2026-08-30; independent checks passed |
 | BRCA-related cancer risk assessment and genetic testing | BRCA-related cancer risk assessment and genetic testing | sheet | brca-related-cancer-risk-assessment-and-genetic-testing.md | source pages accounted for on 2026-08-30; independent checks passed |
@@ -120,7 +120,7 @@
 | latent tuberculosis infection screening | latent tuberculosis infection screening | sheet | latent-tuberculosis-infection-screening.md | exact recommendation index available; full document distilled |
 | leishmaniasis | leishmaniasis | sheet | leishmaniasis.md | full-document read complete |
 | lipid disorder screening | dyslipidemia | sheet | lipid-disorder-screening.md | exact recommendation index available; full document distilled |
-| lipid management in chronic kidney disease | dyslipidemia, lipid management in chronic kidney disease | sheet | lipid-management-in-chronic-kidney-disease.md | full-document read complete |
+| lipid management in chronic kidney disease | dyslipidemia, lipid management in chronic kidney disease | unread | lipid-management-in-chronic-kidney-disease.md | superseded KDIGO-2013-Lipids-Guideline.pdf by KDIGO/KDIGO-2024-CKD-Guideline.pdf; fetched 2026-08-30; sha256 0b77a9e32ca6c7bbccbddf902be4427bf8bc0d2dd7e3ffbc18042f602f371b27 |
 | living kidney donor evaluation and care | living kidney donor evaluation and care | sheet | living-kidney-donor-evaluation-and-care.md | bound recommendation record available; full document distilled |
 | lower extremity peripheral artery disease | lower extremity peripheral artery disease | sheet | lower-extremity-peripheral-artery-disease.md | exact recommendation index available; full document distilled |
 | lung cancer screening | lung cancer screening | sheet | lung-cancer-screening.md | exact recommendation index available; full document distilled |
