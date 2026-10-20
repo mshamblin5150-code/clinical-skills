@@ -168,7 +168,7 @@ class MatchRecord(unittest.TestCase):
         path = self.run / match.RECORD_NAME
         raw = path.read_bytes() + b"\x07"
         path.write_bytes(raw)
-        boundary = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        boundary = datetime(2026, 10, 20, 17, 31, 27, tzinfo=timezone.utc)
         for moment, expected in ((boundary - timedelta(microseconds=1), False), (boundary, True), (None, True)):
             token = completion_checks.ITEM_MOMENTS.set({"draft.md": moment})
             try:
@@ -202,7 +202,7 @@ class MatchRecord(unittest.TestCase):
         self.assertNotIn("NOT RUN -- no model", report)
 
     def test_unknown_member_cannot_inherit_an_old_global_or_sibling(self):
-        boundary = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        boundary = datetime(2026, 10, 20, 17, 31, 27, tzinfo=timezone.utc)
         old = boundary - timedelta(microseconds=1)
         for items in ({}, {"other.md": old}):
             global_token = completion_checks.MOMENTS.set({"approval": old})
@@ -333,6 +333,21 @@ class ComposedVoice(unittest.TestCase):
         self.assertTrue(voice_read.completion_gate(self.run, "submission", surface,
             approved_points=frozenset({("submission", "Synthetic point.")})).finding)
 
+    def test_new_question_uses_its_first_runtime_commit_boundary(self):
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        del reader["unused_recorded_image"]
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        cutoff = datetime(2026, 10, 20, 17, 31, 27, tzinfo=timezone.utc)
+        for observed, coverage in ((cutoff - timedelta(microseconds=1), False), (cutoff, True), (None, True)):
+            token = completion_checks.ITEM_MOMENTS.set({"submission": observed})
+            try:
+                grade = self.grade()
+                self.assertFalse(grade.findings_failed)
+                self.assertEqual(grade.coverage_failed, coverage)
+                self.assertEqual((grade.scan.model_unread, grade.scan.image_match_unread), (0, 0))
+            finally:
+                completion_checks.ITEM_MOMENTS.reset(token)
+
     def test_image_changing_plant_is_dated_and_an_intact_image_twin_passes(self):
         source = self.fixture.model.read_text(encoding="utf-8") + "\n> This is the original sentence.\n"
         self.fixture.model.write_bytes(source.encode("utf-8"))
@@ -345,7 +360,7 @@ class ComposedVoice(unittest.TestCase):
         reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
         reader["model_sha256"] = digest
         self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
-        cutoff = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        cutoff = datetime(2026, 10, 20, 17, 54, 24, tzinfo=timezone.utc)
         with mock.patch.object(repo_root, "canonical_voice_model", return_value=resolution):
             for observed, failed in ((cutoff - timedelta(microseconds=1), False), (cutoff, True), (None, True)):
                 token = completion_checks.ITEM_MOMENTS.set({"submission": observed})

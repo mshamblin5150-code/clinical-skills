@@ -1,15 +1,15 @@
 check	start	compared-with
-recorded_image_match:completion_gate	2026-10-20T17:22:53Z	approval
-recorded_image_match:recorded image match	2026-10-20T17:22:53Z	approval
-voice_read:unused-recorded-image	2026-10-20T17:22:53Z	approval
-voice_read:recorded-image-plant	2026-10-20T17:22:53Z	approval
-deck_scan:recorded image match	2026-10-20T17:22:53Z	approval
-assignment_docx_scan:recorded image match	2026-10-20T17:22:53Z	approval
-discussion_post_scan:recorded image match	2026-10-20T17:22:53Z	approval
-discussion_reply_scan:recorded image match	2026-10-20T17:22:53Z	approval
-peer_critique_scan:recorded image match	2026-10-20T17:22:53Z	approval
-checks_ledger:recorded image match	2026-10-20T17:22:53Z	approval
-course_assignment_scan:recorded image match	2026-10-20T17:22:53Z	approval
+recorded_image_match:completion_gate	2026-10-20T17:31:27Z	approval
+recorded_image_match:recorded image match	2026-10-20T17:31:27Z	approval
+voice_read:unused-recorded-image	2026-10-20T17:31:27Z	approval
+voice_read:recorded-image-plant	2026-10-20T17:54:24Z	approval
+deck_scan:recorded image match	2026-10-20T17:31:27Z	approval
+assignment_docx_scan:recorded image match	2026-10-20T17:31:27Z	approval
+discussion_post_scan:recorded image match	2026-10-20T17:31:27Z	approval
+discussion_reply_scan:recorded image match	2026-10-20T17:31:27Z	approval
+peer_critique_scan:recorded image match	2026-10-20T17:31:27Z	approval
+checks_ledger:recorded image match	2026-10-20T17:31:27Z	approval
+course_assignment_scan:recorded image match	2026-10-20T17:31:27Z	approval
 delegated_answers:note-sections	2026-10-20T07:06:51Z	approval
 delegated_answers:answer-reader	2026-10-20T07:06:51Z	approval
 delegated_answers:shown-answers	2026-10-20T07:06:51Z	approval
