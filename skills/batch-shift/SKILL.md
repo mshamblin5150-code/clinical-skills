@@ -424,7 +424,7 @@ reply check can discover that run's transcript. The reply must follow the source
 and match his own whole message; a mismatch or unreadable transcript blocks the pass receipt.
 A delegated run never records `clinician-answer`; retain the skill's account-backed fallback.
 Each evidence kind also carries
-plus an `evidence_sha256` fingerprint of that private evidence, and the
+an `evidence_sha256` fingerprint of that private evidence, and the
 normalized SHA-256 of that clinical note plus visible worksheet. Normalize as UTF-8 with LF line
 endings, remove trailing whitespace from every line, and end with exactly one newline; exclude tier
 blocks, Medatrax fields, and technical receipts. Then run:
