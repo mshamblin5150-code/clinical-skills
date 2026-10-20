@@ -1096,7 +1096,7 @@ def _posting_link(text: str) -> tuple[str | None, int]:
     inside = False
     url = None
     outside = 0
-    for line in text.splitlines():
+    for line in text.split("\n"):
         if re.match(r"^##\s", line):
             inside = line == "## POSTING: post.md"
         match = FIELD.fullmatch(line)

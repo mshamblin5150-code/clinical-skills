@@ -1709,7 +1709,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             self.assertIn("no recorded posting route", report + error)
 
     def test_only_column_zero_uppercase_links_in_the_block_are_read(self):
-        for key in ("Post-Url", " POST-URL"):
+        for key in ("Post-Url", " POST-URL", "\vPOST-URL"):
             with self.subTest(key=key), tempfile.TemporaryDirectory() as temp:
                 run = self.posted_run(Path(temp))
                 post = run.root / "post.md"
