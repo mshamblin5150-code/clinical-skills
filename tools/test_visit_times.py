@@ -18,6 +18,18 @@ import filled_vitals_census
 import visit_times
 
 
+class ModulePatchIsolation(unittest.TestCase):
+    def test_nested_census_controls_restore_the_real_visit_time_checker(self):
+        result = subprocess.run(
+            [sys.executable, '-m', 'unittest',
+             'test_filled_vitals_census.EveryBehaviorLimitHasALiveControl',
+             'test_visit_times.PublicCommands'],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True, encoding='utf-8', errors='replace',
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
 class PublicCommands(unittest.TestCase):
     def test_all_three_commands_enforce_each_ruled_case(self):
         cases = (

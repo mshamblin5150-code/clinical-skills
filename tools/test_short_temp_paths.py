@@ -36,6 +36,7 @@ class ShortTempPathRefusals(unittest.TestCase):
             "test_bar_signatures.SharedBarSigning.test_native_success_keeps_another_creators_reused_temporary_name",
             "test_bar_signatures.SharedBarSigning.test_shared_signer_native_refusals_preserve_each_new_skill_history",
             "test_approval_record.ApprovalRecordContract.test_note_approval_checks_every_source_before_recording",
+            "test_filled_vitals_census.EveryBehaviorLimitHasALiveControl",
             "test_visit_times.PublicCommands",
         )
         with tempfile.TemporaryDirectory(prefix="clinical skills temp alias ") as temporary:
