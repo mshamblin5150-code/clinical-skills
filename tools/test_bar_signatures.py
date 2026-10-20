@@ -19,6 +19,12 @@ from datetime import timedelta
 
 
 class SharedBarSigning(unittest.TestCase):
+    def test_retained_signature_boundary_names_the_shared_owner(self):
+        instructions = (Path(__file__).resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("retained bar signatures to `bar_signatures.DECLARED_LIMITS`", instructions)
+        self.assertNotIn("assignment_bar.DECLARED_LIMITS", instructions)
+        self.assertTrue(any("Unreadable retained signature bookkeeping" in line for line in bar_signatures.DECLARED_LIMITS))
+
     def test_damaged_signature_history_preserves_independent_ledger_findings(self):
         import test_research_ledger as ledger_tests
         with tempfile.TemporaryDirectory() as directory:

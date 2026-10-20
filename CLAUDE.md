@@ -214,7 +214,7 @@ source-shape floor; aliases, intermediate variables and indirect I/O remain outs
 
 The shared boundary belongs to `run_record_reader.DECLARED_LIMITS`; the posted-record syntax belongs
 to `discussion_artifact.DECLARED_LIMITS`, approval joins to `approval_record.DECLARED_LIMITS`, and
-retained bar signatures to `assignment_bar.DECLARED_LIMITS`.
+retained bar signatures to `bar_signatures.DECLARED_LIMITS`.
 
 `run_record_reader.update_tool_record` owns mutable run-record transactions: the exclusive bounded
 lock covers the strict existing read, the caller's history-dependent change, and atomic replacement
