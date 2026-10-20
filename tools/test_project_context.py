@@ -252,7 +252,7 @@ class CourseHistory(ProjectContextFixture):
 class SubjectRetrieval(ProjectContextFixture):
     """Synthetic declared reads exercise both fields through the public command."""
 
-    def prepare(self, field, values=(), *, confirmed="2026-10-20T04:14:58Z", project=False):
+    def prepare(self, field, values=(), *, confirmed="2026-10-20T04:19:44Z", project=False):
         other = "PRIOR-WORK" if field == "MEMORY-FILE" else "MEMORY-FILE"
         lines = [
             "PROJECT-CONTEXT: Atlas" if project else "PROJECT-CONTEXT: none - no project",
@@ -322,7 +322,7 @@ class SubjectRetrieval(ProjectContextFixture):
                 self.assertIn("record fingerprint is invalid", report)
 
     def test_pre_build_record_is_not_backfilled(self):
-        self.prepare("MEMORY-FILE", confirmed="2026-10-20T04:14:57Z", project=True)
+        self.prepare("MEMORY-FILE", confirmed="2026-10-20T04:19:43Z", project=True)
         path = self.run / context.RECORD_NAME
         path.write_text(path.read_text(encoding="utf-8").replace(
             "PRIOR-WORK: none - no match\n", ""), encoding="utf-8")
@@ -332,6 +332,19 @@ class SubjectRetrieval(ProjectContextFixture):
         self.assertIn("prior work: not graded", report)
         self.assertNotIn("MEMORY-FILE:", path.read_text(encoding="utf-8"))
         self.assertNotIn("PRIOR-WORK:", path.read_text(encoding="utf-8"))
+
+    def test_each_check_starts_at_the_first_implementation_instant(self):
+        for field in ("MEMORY-FILE", "PRIOR-WORK"):
+            for instant, expected in (("2026-10-20T04:19:43.999999Z", 0),
+                                      ("2026-10-20T04:19:44Z", 1)):
+                with self.subTest(field=field, instant=instant):
+                    self.prepare(field, confirmed=instant, project=True)
+                    code, report = self.command()
+                    self.assertEqual(expected, code, report)
+                    if expected:
+                        self.assertIn(f"{field} is missing", report)
+                    else:
+                        self.assertIn(field.lower().replace("-", " ") + ": not graded", report)
 
     def test_heading_read_rejects_a_changed_declared_list(self):
         self.prepare("MEMORY-FILE", (str(self.plan),))
