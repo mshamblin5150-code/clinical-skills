@@ -731,6 +731,14 @@ overlying pain; tib/fib film ordered, no result
 
 A direct coding consultation offers the supporting elements unless the user asks for a level. A `clinical-note` call is the request: select the final supported E/M code, state new-or-established status only from the private identity map, Medatrax, or the clinician's recorded answer to the earlier-visit conflict question in `clinical-note` or `batch-shift`, and render the problems, data, and risk elements with concise patient-specific support. No patient record means new; an unresolved identity match is not a finding of no record. Unknown status blocks selection; never infer it from other encounters in the shift.
 
+**Describe what is documented.** The E/M problems, data, and risk reasons
+describe what the note documents; none states that the clinician did not do
+something. An element graded low on shorthand silence says "not documented",
+never "not done": "no prescription drug management documented", rather than
+"he directed no drug". This wording rule follows
+[ADR 0376](../../docs/adr/0376-a-filled-sig-fits-the-entered-diagnosis-and-the-e-m-reasoning-says-not-documented-rather-than-not-done.md)
+ruling 2 and leaves the level unchanged.
+
 **Problems addressed.** Apply `definition-problem-addressed` from the passing
 sheet. Count a condition only where the clinician's shorthand or recorded answer
 shows he evaluated or treated it this visit. A skill-proposed Plan line for a
@@ -749,6 +757,17 @@ and note's E/M paragraph list only the problems that counted. Keep the answer
 with the run's private pre-approval answers. Ask no question when the condition
 would not change the level. Where pre-approval questions are delegated, the
 lower level stands; a delegate cannot supply the clinician's answer.
+
+**A level-changing drug question.** When risk is below moderate only because
+no drug management is documented, and moderate risk would raise the E/M level,
+select the lower level and put one question in the run's existing pre-approval
+questions: whether the clinician gave or prescribed a drug at this visit,
+naming both levels. A yes, with the drug he names, enters the note as his order
+and counts toward risk. Keep the answer with the run's private pre-approval
+answers. Ask no question when moderate risk would leave the level unchanged.
+Where pre-approval questions are delegated, the lower level stands; a delegate
+cannot supply the clinician's answer. ADR 0376 ruling 3 extends ADR 0308 ruling 2
+to the risk element in this shape.
 
 **Threat to life or bodily function.** Apply `definition-threat-life-function`.
 Read the clinician's own evaluation and treatment — what the shorthand orders,
