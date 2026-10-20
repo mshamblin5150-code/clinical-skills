@@ -145,7 +145,7 @@ class PostedRecordCommands(unittest.TestCase):
                 with (
                     mock.patch.object(command.aar_scan, 'completion_gate', return_value=(False, 'AAR: clean')),
                     mock.patch.object(command.artifact_repairs, 'completion_gate', return_value=(False, 'repairs: clean')),
-                    mock.patch.object(command.delegated_answers, 'completion_gate', return_value=(False, 'answers: clean')),
+                    mock.patch.object(command.delegated_answers, 'completion_gate', return_value=(False, 'answers: clean', 0)),
                     mock.patch.object(command.approval_record, 'completion_gate', return_value=(False, 'approval: clean')),
                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err),
                 ):

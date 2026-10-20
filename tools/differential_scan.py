@@ -159,6 +159,8 @@ violations and look like a pass.
 
 Submission grading also declares **approval reply transcript unreadable** when the
 shared approval re-check cannot read the clinician's message evidence.
+It declares **delegated answers not independently checked** when current answer-reader
+verdicts are absent or stale; each such answer enters the same unread remainder.
 
 **Where a violation and an incomplete scan both hold, 1 wins, and that ordering
 is a decision.** A run carrying a real row-22 failure *and* a bare mark is
@@ -1691,6 +1693,7 @@ NO_NUMBERED_ITEM = "no numbered item in a labeled block"
 BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
 UNREADABLE_THRESHOLD_SHEET = "a cited threshold sheet did not parse"
 VISIT_TIMES_INCOMPLETE = "visit times not fully checked"
+ANSWER_READER_INCOMPLETE = "delegated answers not independently checked"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_DIRECTORY,
@@ -1702,6 +1705,7 @@ EXIT_2_LIMBS = (
     VISIT_TIMES_INCOMPLETE,
     run_grader.UNREADABLE_RUN_ARTIFACT,
     approval_record.REPLY_UNREADABLE,
+    ANSWER_READER_INCOMPLETE,
 )
 
 
@@ -1837,9 +1841,11 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         source.directory, _parsed.value("--submission"),
         chain_paths + tuple(sorted((source.directory / "worksheets").glob("*.md")))
     )
-    delegated_failed, delegated_report = delegated_answers.completion_gate(
+    delegated_failed, delegated_report, delegated_unread = delegated_answers.completion_gate(
         source.directory, _parsed.value("--submission")
     )
+    if delegated_unread:
+        coverage_limbs.append(ANSWER_READER_INCOMPLETE)
     outbound_failed, outbound_report = outbound_search.completion_gate(
         source.directory, _parsed.value("--submission")
     )
@@ -1849,11 +1855,11 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=(
             has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed or bool(times.findings)
         ),
-        coverage_failed=coverage_failed or times.incomplete or "Outbound searches: unreadable" in outbound_report,
+        coverage_failed=coverage_failed or times.incomplete or bool(delegated_unread) or "Outbound searches: unreadable" in outbound_report,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
         reports=(run_grader.run_records_report(source.directory), visit_times.report(times, show=_parsed.show),
-                 run_grader.format_unread_remainder(times.unread), aar_report, posting_report, chain_report, delegated_report, outbound_report),
+                 run_grader.format_unread_remainder(times.unread + delegated_unread), aar_report, posting_report, chain_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")

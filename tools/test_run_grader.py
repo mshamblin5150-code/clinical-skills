@@ -332,6 +332,7 @@ class ArtifactAttributionIsOwnedAndInherited(unittest.TestCase):
     def test_every_path_reader_consumer_opts_in_to_the_real_command_case(self):
         tools = Path(__file__).parent
         consumers = set()
+        helper_consumers = set()
         for path in tools.glob("*.py"):
             if path.name.startswith("test") or path.stem == "run_grader":
                 continue
@@ -340,7 +341,10 @@ class ArtifactAttributionIsOwnedAndInherited(unittest.TestCase):
                 isinstance(node.func, ast.Attribute) and node.func.attr == "read_run_artifacts"
                 or isinstance(node.func, ast.Name) and node.func.id == "read_run_artifacts"
             ) for node in ast.walk(tree)):
-                consumers.add(path.stem)
+                if any(isinstance(node, ast.FunctionDef) and node.name == "main" for node in tree.body):
+                    consumers.add(path.stem)
+                else:
+                    helper_consumers.add(path.stem)
         adopters = set()
         for path in tools.glob("test*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -362,6 +366,10 @@ class ArtifactAttributionIsOwnedAndInherited(unittest.TestCase):
                 ):
                     adopters.add(imports[node.args[0].id])
         self.assertTrue(consumers)
+        # Pointer resolution is a public helper, not an executable attribution
+        # command. Keep this separate population explicit so a new helper must
+        # receive its own coverage rather than silently escaping this floor.
+        self.assertEqual({"delegated_answers"}, helper_consumers)
         self.assertEqual(consumers, adopters)
 
 

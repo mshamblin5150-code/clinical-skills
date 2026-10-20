@@ -1661,11 +1661,61 @@ quoted from this repository; an answer that contradicts a quoted rule is not app
 written rule governs, the delegate may answer, and the go-ahead message names that answer. Record
 each such question in the run's `delegated-answers.md`: one `## QUESTION:` record with
 `RULE: <repository path>: "<the governing sentence, verbatim>"` or `RULE: none found`, and
-`ANSWER:` stating what the run did. The completion grader refuses a quoted rule the cited file
-does not contain.
+`ANSWER:` stating what the run did. Every record also has `NOTE: <exact note filename>` and
+`SECTIONS: A | P` (the actual heading names, separated by ` | `). For a question about no single
+note, use `NOTE: shift` and qualify every section, such as
+`SECTIONS: note-1.md#A | note-2.md#P`. The shared run reader excludes the run records themselves;
+a record cannot name `delegated-answers.md` as its note. The completion grader refuses a quoted
+rule the cited file does not contain or a note/section pointer it cannot resolve.
 A blanket delegation never supplies the clinician's words for promoting a recommendation:
 the item stays a recommendation, and its `delegated-answers.md` record quotes the promotion
-sentence in the proposal rules as its `RULE:`.
+sentence in the proposal rules as its `RULE:` (ADR 0433 ruling 4).
+
+#### Delegated answer reader
+
+Before the go-ahead, use `delegated_answers.reader_brief(run)` to obtain each exact `ANSWER:`
+line and the current text and fingerprints of its named sections. Send only that brief to a
+fresh **Second reader** in a separate context that wrote neither the notes nor the answers.
+This **Second reader** applies [standing rule 6](../../AGENTS.md).
+This is a dedicated read after the questions are settled, separate from descriptor agreement.
+The reader compares each answer with its sections and writes one verdict per answer into
+`<run>/answer-reader/read.json`:
+
+```json
+{
+  "route": "separate context",
+  "answers_sha256": "<the brief's answer-file fingerprint>",
+  "answers": [
+    {
+      "answer": 1,
+      "sections": {"note-1.md#p": "<the brief's section fingerprint>"},
+      "verdict": "agrees",
+      "disagreement": ""
+    }
+  ]
+}
+```
+
+Use the brief's ordinal and canonical section pointers. A `disagrees` verdict records the words
+that disagree in `disagreement`. A current disagreement holds the go-ahead. Rewrite a wrong
+description; repair a wrong note through [standing rule 6](../../AGENTS.md)'s bounded recorded-scope route and show
+it in `REPAIRS`. Rebuild any affected manifest and field blocks and rerun coding freshness after
+a note repair. Send the changed answers and sections to a fresh Second reader; a missing verdict
+or moved answer-file or section fingerprint is unread, never agreement.
+
+With no second context, record `route: "not run - no second context"`, the current
+`answers_sha256`, and `answers: []` instead of self-checking. The grade is incomplete (exit 2).
+At the go-ahead say plainly that the delegated answers were not independently checked and name
+the sections each rests on. Both note graders and approval preparation read the same gate;
+the answer count joins their one unread remainder and a finding still exits 1.
+
+Quote **every recorded `ANSWER:` line word for word, on its own line**, at the go-ahead rather
+than summarizing it. Approval verifies those lines in main-session assistant text after
+`delegated-answers.md` last changed and before the clinician's reply. Readable missing lines
+refuse; an unreadable transcript records incomplete, never clean. The quote check shares the
+existing transcript observation while keeping its own window. It grants no authority to leave
+coding-reader remarks or promote recommendations. The reader's complete boundary belongs to
+`delegated_answers.DECLARED_LIMITS`.
 
 Then show the clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
 and the finalized E/M line. Beside the note, list every interpreted abdominal location from step 2:

@@ -515,7 +515,8 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
         documented = " ".join((ds.__doc__ or "").split())
         limbs = tuple(limb for limb, _argv in cases)
         self.assertEqual(limbs[:-1] + (ds.VISIT_TIMES_INCOMPLETE, limbs[-1],
-                                     ds.approval_record.REPLY_UNREADABLE,), ds.GRADER.exit_2_limbs)
+                                     ds.approval_record.REPLY_UNREADABLE,
+                                     ds.ANSWER_READER_INCOMPLETE), ds.GRADER.exit_2_limbs)
         self.assertIn(ds.approval_record.REPLY_UNREADABLE, documented)
         exact_enumeration = (
             "scanned** -- "

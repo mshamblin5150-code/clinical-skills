@@ -491,6 +491,10 @@ re-approval.
 Record that re-approval through `approval_record.approve` with `clinician_reply` quoting the new
 reply whole.
 Beside `PRE-APPROVAL PATIENT QUESTIONS`, show the `REPAIRS` block produced by standing rule 6's command, including `none` when there were no repairs. Keep it outside the Review sheet. The clinician reads any marked changed sections outside the named scope; those section marks alone do not block approval.
+Complete [clinical-note's delegated answer reader](../clinical-note/SKILL.md#delegated-answer-reader)
+before this go-ahead. Quote every recorded `ANSWER:` line exactly on its own line beside the
+patient questions, outside the Review sheet. With no second context, disclose that the answers
+were not independently checked and name their sections; a disagreement holds this ask.
 Before asking, call `approval_record.prepare(run, skill="batch-shift", submission=shift_key,
 sources=medatrax_posting.note_paths(run, batch=True), grader_args=(str(run),))`.
 Give every returned coding remark an `Outcome("fixed", "<what changed>")` or
