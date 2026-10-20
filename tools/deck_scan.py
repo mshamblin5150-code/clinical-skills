@@ -318,7 +318,7 @@ class Source:
     root: Path
     deck: Path
     deck_bytes: bytes
-    bar: Bar
+    bar: Bar | None
     slides: tuple[Slide, ...]
     notes: tuple[str, ...]
     claims: str
@@ -850,9 +850,9 @@ def load(
     if not deck.is_file():
         raise run_grader.SourceError(f"no PowerPoint file at {deck}")
     try:
-        from run_record_reader import read_handwritten_record
-        bar_text = read_handwritten_record(bar_path).require_text(artifact=deck.name)
-        bar = _read_bar(bar_text, envelope)
+        bar_text = read_record_text(bar_path, artifact=deck.name, check="signed bar comparisons")
+        bar_available = not record_unavailable(bar_path, deck.name)
+        bar = _read_bar(bar_text, envelope) if bar_available else None
         claims = read_record_text(claims_path, kind=research_ledger.CLAIM_RECORD_KIND,
                                   artifact=deck.name, check="claim record comparisons")
         deck_bytes = deck.read_bytes()
@@ -906,10 +906,10 @@ def load(
         readings,
         reference_alphabets.paper_language(
             parsed.value("--paper-language") if parsed.value("--paper-language") is not None
-            else (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
+            else ((envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE") if bar_available else None),
             Path(parsed.value("--profile")) if parsed.value("--profile") else None,
         ),
-        date.fromisoformat((envelope or assignment_bar.parse(bar_text)).fields["SIGNED"]),
+        date.fromisoformat((envelope or assignment_bar.parse(bar_text)).fields["SIGNED"]) if bar_available else None,
     )
 
 
@@ -1182,9 +1182,9 @@ def _presentation_intent_findings(source: Source) -> tuple[Finding, ...]:
         found.append(Finding(PRESENTATION_INTENT_RECORD, None, "intent record names another deck"))
     if record.value("DRAFT") != file_digest.sha256(source.deck):
         found.append(Finding(PRESENTATION_INTENT_RECORD, None, "intent record is stale for the deck bytes"))
-    if record.value("AUDIENCE-PURPOSE") != source.bar.audience_purpose:
+    if source.bar is not None and record.value("AUDIENCE-PURPOSE") != source.bar.audience_purpose:
         found.append(Finding(PRESENTATION_INTENT_RECORD, None, "AUDIENCE-PURPOSE does not match bar.md"))
-    if record.value("TALK-STYLE") != source.bar.talk_style:
+    if source.bar is not None and record.value("TALK-STYLE") != source.bar.talk_style:
         found.append(Finding(PRESENTATION_INTENT_RECORD, None, "TALK-STYLE does not match bar.md"))
 
     content = _slide_population(record, "CONTENT-SLIDES")
@@ -1301,6 +1301,8 @@ def _claim_figures(text: str) -> tuple[set[str], set[str]]:
 @completion_checks.dated_scan
 def survey(source: Source) -> Scan:
     withheld = set()
+    if source.bar is None:
+        withheld.update((SLIDE_COUNT, BULLETS_PER_SLIDE, WORDS_PER_BULLET, FONT_POINTS))
     for name, rows in (
         ("claims.md", (UNTRACED_FIGURE, heading_read.UNKNOWN_HEADING, heading_read.DROPPED_HEADING, heading_read.QUALIFIER_COUNT)),
         ("heading-read.md", (*HEADING_READ_ROWS, UNTRACED_FIGURE)),
@@ -1311,7 +1313,7 @@ def survey(source: Source) -> Scan:
     ):
         if record_unavailable(source.root / name, source.deck.name):
             withheld.update(rows)
-    if source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
+    if source.bar is not None and source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
         withheld.add(SLIDE_COUNT)
     document, reference_unread, indent_findings = _reference_document(source)
     reference_grade = reference_scan.survey(document, source.signed, source.paper_language)
@@ -1339,13 +1341,13 @@ def survey(source: Source) -> Scan:
         for finding in reference_grade.findings if finding.kind in REFERENCE_ROWS
     )
     slide_limit_denominator = len(source.slides)
-    counted_slides: int | None = slide_limit_denominator
-    slide_limit_matcher = "PowerPoint slide parts"
+    counted_slides: int | None = slide_limit_denominator if source.bar is not None else None
+    slide_limit_matcher = "PowerPoint slide parts" if source.bar is not None else "not graded — damaged signed bar"
     slide_limit_unread = 0
-    if source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
+    if source.bar is not None and source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
         counted_slides = None
         slide_limit_matcher = "not graded — damaged presentation intent"
-    if source.bar.slide_limit_scope == "content" and not record_unavailable(source.root / "intent.md", source.deck.name):
+    if source.bar is not None and source.bar.slide_limit_scope == "content" and not record_unavailable(source.root / "intent.md", source.deck.name):
         slide_limit_matcher = "intent.md CONTENT-SLIDES"
         intent_records = _presentation_intent_records(source)
         content_population = (
@@ -1366,7 +1368,7 @@ def survey(source: Source) -> Scan:
             slide_limit_unread = len(
                 {slide.number for slide in source.slides} - classified
             )
-    if counted_slides is not None and counted_slides > source.bar.slide_max:
+    if source.bar is not None and counted_slides is not None and counted_slides > source.bar.slide_max:
         findings.append(
             Finding(
                 SLIDE_COUNT,
@@ -1377,21 +1379,21 @@ def survey(source: Source) -> Scan:
     bullets_read = words_read = font_runs_read = 0
     for slide in source.slides:
         bullets_read += len(slide.bullets)
-        if len(slide.bullets) > source.bar.bullets_per_slide:
+        if source.bar is not None and len(slide.bullets) > source.bar.bullets_per_slide:
             findings.append(Finding(BULLETS_PER_SLIDE, slide.number, f"{len(slide.bullets)} bullets exceeds {source.bar.bullets_per_slide}"))
         for bullet in slide.bullets:
             count = len(WORD.findall(strip_discussion_markers(bullet)))
             words_read += count
-            if count > source.bar.words_per_bullet:
+            if source.bar is not None and count > source.bar.words_per_bullet:
                 findings.append(Finding(WORDS_PER_BULLET, slide.number, f"{count} words exceeds {source.bar.words_per_bullet}"))
         font_failures = []
         for text, points in slide.font_sizes:
             font_runs_read += 1
-            violates = points is None or (
+            violates = source.bar is not None and (points is None or (
                 source.bar.font_direction == "ceiling" and points > source.bar.font_points
             ) or (
                 source.bar.font_direction == "floor" and points < source.bar.font_points
-            )
+            ))
             if violates:
                 detail = "font size is not explicit" if points is None else f"{points:g} points violates {source.bar.font_direction} {source.bar.font_points}"
                 font_failures.append(detail)
@@ -1429,7 +1431,7 @@ def survey(source: Source) -> Scan:
         findings.append(Finding(UNTRACED_FIGURE, None, detail))
     return Scan(
         len(source.slides),
-        source.bar.slide_limit_scope,
+        source.bar.slide_limit_scope if source.bar is not None else "not graded",
         counted_slides,
         slide_limit_denominator,
         slide_limit_matcher,

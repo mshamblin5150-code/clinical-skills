@@ -162,7 +162,7 @@ class Source:
     root: Path
     docx: Path
     docx_bytes: bytes
-    bar: Bar
+    bar: Bar | None
     paragraphs: tuple[Paragraph, ...]
     package_findings: tuple[Finding, ...]
     claims: str
@@ -365,9 +365,9 @@ def load(
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     try:
-        from run_record_reader import read_handwritten_record
-        bar_text = read_handwritten_record(bar_path).require_text(artifact=docx.name)
-        bar = _read_bar(bar_text, envelope)
+        bar_text = read_record_text(bar_path, artifact=docx.name, check="signed bar comparisons")
+        bar_available = not record_unavailable(bar_path, docx.name)
+        bar = _read_bar(bar_text, envelope) if bar_available else None
         claims = read_record_text(claims_path, kind=research_ledger.CLAIM_RECORD_KIND,
                                   artifact=docx.name, check="claim record comparisons")
         docx_bytes = docx.read_bytes()
@@ -398,7 +398,7 @@ def load(
         document,
         reference_alphabets.paper_language(
             parsed.value("--paper-language") if parsed.value("--paper-language") is not None
-            else (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
+            else ((envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE") if bar_available else None),
             Path(parsed.value("--profile")) if parsed.value("--profile") else None,
         ),
     )
@@ -509,6 +509,8 @@ def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
 @completion_checks.dated_scan
 def survey(source: Source) -> Scan:
     withheld = set()
+    if source.bar is None:
+        withheld.update((WORD_RANGE, REFERENCE_MINIMUM))
     for name, rows in (
         ("claims.md", (CLAIM_LEDGER, UNTRACED_NUMBER, UNTRACED_CITATION,
             heading_read.UNKNOWN_HEADING, heading_read.DROPPED_HEADING, heading_read.QUALIFIER_COUNT)),
@@ -519,7 +521,7 @@ def survey(source: Source) -> Scan:
             withheld.update(rows)
     markdown, references = _document_parts(source.paragraphs)
     document = reference_scan.read_document(markdown)
-    reference_grade = reference_scan.survey(document, source.bar.signed, source.paper_language)
+    reference_grade = reference_scan.survey(document, source.bar.signed if source.bar is not None else None, source.paper_language)
     findings = list(source.package_findings)
     heading = heading_read.scan(
         source.heading_read_text,
@@ -541,14 +543,14 @@ def survey(source: Source) -> Scan:
     )
     body = document.body
     body_words = len(WORD.findall(strip_discussion_markers(body)))
-    if body_words < source.bar.word_min:
+    if source.bar is not None and body_words < source.bar.word_min:
         findings.append(
             Finding(
                 WORD_RANGE,
                 f"{body_words} body words is below {source.bar.word_min}",
             )
         )
-    if len(references) < source.bar.reference_min:
+    if source.bar is not None and len(references) < source.bar.reference_min:
         findings.append(
             Finding(
                 REFERENCE_MINIMUM,

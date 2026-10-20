@@ -24,6 +24,7 @@ import assignment_bar
 import approval_record
 import assignment_submission
 import frozen_grade
+import course_assignment_scan
 import anchor_scan
 import completion_checks
 from datetime import timedelta
@@ -35,6 +36,58 @@ class HandwrittenHosts(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)
+
+    def test_native_damaged_bars_do_not_hide_sibling_damage_or_docx_package_checks(self):
+        import zipfile
+        from xml.etree import ElementTree
+        for kind in ('deck', 'docx'):
+            with self.subTest(kind=kind):
+                root = self.run / kind
+                root.mkdir()
+                if kind == 'deck':
+                    fixture = deck_fixture.Run(root)
+                    fixture.write_deck((deck_fixture.slide_xml('Plan', 'Plain synthetic text', points=99),))
+                    artifact = fixture.deck
+                    direct = lambda: fixture.grade('--show')[:2]
+                    run = root
+                else:
+                    fixture = docx_fixture.empty_population_input(root)
+                    run = Path(fixture.argv[0])
+                    artifact = Path(fixture.argv[2])
+                    with zipfile.ZipFile(artifact) as archive:
+                        parts = {name: archive.read(name) for name in archive.namelist()}
+                    core = ElementTree.fromstring(parts['docProps/core.xml'])
+                    core.find(assignment_docx_scan.DC + 'title').text = ''
+                    parts['docProps/core.xml'] = ElementTree.tostring(core)
+                    with zipfile.ZipFile(artifact, 'w') as archive:
+                        for name, value in parts.items():
+                            archive.writestr(name, value)
+                    def direct():
+                        output = io.StringIO()
+                        with redirect_stdout(output):
+                            status = assignment_docx_scan.main([*fixture.argv, '--show', '--paper-language', 'en'])
+                        return status, output.getvalue()
+                bar = run / 'bar.md'
+                claims = run / 'claims.md'
+                bar.write_bytes(bar.read_bytes() + b'\nDETAIL: bad\x07text\n')
+                claims.write_bytes(claims.read_bytes() + b'\nDETAIL: bad\x0btext\n')
+                for operation in (direct, lambda: self._assignment_dispatch(run, artifact)):
+                    status, report = operation()
+                    self.assertEqual(1, status, report)
+                    self.assertIn('U+0007', report)
+                    self.assertIn('U+000B', report)
+                    self.assertNotIn('run not scanned', report)
+                    self.assertIn('not graded — damaged text', report)
+                    if kind == 'deck':
+                        self.assertIn('font-points: not graded — damaged text', report)
+                    else:
+                        self.assertIn('package-structure: 1', report)
+
+    def _assignment_dispatch(self, run, artifact):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = course_assignment_scan.main([str(run), '--artifact', str(artifact), '--show', '--paper-language', 'en'])
+        return status, output.getvalue()
 
     def test_both_prepare_entrypoints_refuse_context_formfeed_before_receipts(self):
         context = self.run / 'project-context.md'
