@@ -1434,7 +1434,7 @@ Covered by `tools/test_project_context.py` and `tools/test_heading_read.py`.
 `discussion-post` produces one graded initial post. This grades it against the bar that post was
 signed to.
 
-A reread record beside a post that lacks both `POST-URL` and `POSTED` is a shared unread remainder. With no reread record, the posted-reading rows remain `not graded` rather than becoming a candidate population.
+A reread record whose posting is not recorded in the approval record is a shared unread remainder. With no recorded posting route, the posted-reading rows remain `not graded` rather than becoming a candidate population.
 
 ```bash
 python tools/post_html.py <the Markdown> <the HTML submission>

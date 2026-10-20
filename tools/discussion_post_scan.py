@@ -219,6 +219,11 @@ UNJOINED_SOURCE_FIELDS_LIMIT = (
 
 DECLARED_LIMITS = (
     (
+        "posting before approval records",
+        "A run older than the approval record cannot show it was posted; no legacy fields or backfill establish a posting route.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "page-fingerprint-origin",
         "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
         EvidenceDisposition.BEHAVIOR,
@@ -403,8 +408,7 @@ class RunSource:
     built_html: str | None
     missing_pass_numbers: int
     refused_label: str | None
-    post_url: str | None
-    post_posted: str | None
+    posted_reading_state: approval_record.PostedReadingState
     readings: tuple[PostedReading, ...]
 
 
@@ -945,14 +949,6 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             else ""
         )
         section = read_reference_section(draft_text, REFERENCE_HEADING)
-        post_fields = (
-            {
-                match.group("name"): match.group("value").strip()
-                for match in FIELD.finditer(post_path.read_text(encoding="utf-8"))
-            }
-            if post_path.is_file()
-            else {}
-        )
         readings = (
             read_posted_readings(reread_path.read_text(encoding="utf-8"))
             if reread_path.is_file()
@@ -961,9 +957,13 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         initial_reading = next(
             (item for item in readings if item.artifact == draft.stem), None
         )
-        if initial_reading is not None or post_fields.get("POST-URL") or post_fields.get("POSTED"):
-            # Refuse unreadable route evidence at the loader's exit-2 boundary.
-            approval_record.posting_route(root, skill="discussion-post", submission=draft.stem)
+        posted_reading_state = approval_record.PostedReadingState(
+            submission=draft.stem,
+            posted=approval_record.posting_route(
+                root, skill="discussion-post", submission=draft.stem
+            ) in {"agent", "clinician"},
+            has_reading=initial_reading is not None,
+        )
         if initial_reading is not None and initial_reading.composer_outcome not in {
             "inline", "attachment"
         }:
@@ -1025,8 +1025,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         built_html=built_html,
         missing_pass_numbers=missing_pass_numbers,
         refused_label=section.refused_label,
-        post_url=post_fields.get("POST-URL"),
-        post_posted=post_fields.get("POSTED"),
+        posted_reading_state=posted_reading_state,
         readings=readings,
     )
 
@@ -1074,19 +1073,17 @@ def posted_reading_check(
         readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
         reading = next((item for item in readings if item.artifact == submission), None)
         post_path = run / 'post.md'
-        fields = {
-            match.group('name'): match.group('value').strip()
-            for match in FIELD.finditer(post_path.read_text(encoding='utf-8'))
-        } if post_path.is_file() else {}
+        route = approval_record.posting_route(run, skill="discussion-post", submission=submission)
+        if route not in {"agent", "clinician"}:
+            return ()
+        saved_url, _ = _posting_link(post_path.read_text(encoding='utf-8') if post_path.is_file() else '')
         return check_posted_reading(
             reading, file_digest.sha256(draft), posted_fields=True,
             verdict=True, entry_link=True, composer=True,
-            posting_route=approval_record.posting_route(
-                run, skill="discussion-post", submission=submission
-            ),
+            posting_route=route,
             html_bytes=html.stat().st_size if html is not None else None,
             run=run, docx=docx,
-            saved_post_url=fields.get('POST-URL'), saved_posted=fields.get('POSTED'),
+            saved_post_url=saved_url or '',
         )
     except approval_record.ApprovalRecordError as failure:
         raise run_grader.SourceError(str(failure)) from failure
@@ -1094,18 +1091,42 @@ def posted_reading_check(
         raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 
 
+def _posting_link(text: str) -> tuple[str | None, int]:
+    """Read the saved link only in POSTING blocks; count stray fields separately."""
+    inside = False
+    url = None
+    outside = 0
+    for line in text.splitlines():
+        if re.match(r"^##\s", line):
+            inside = line == "## POSTING: post.md"
+        match = FIELD.fullmatch(line)
+        if match is None:
+            continue
+        name = match.group("name")
+        if inside and name == "POST-URL":
+            url = match.group("value").strip()
+        elif not inside and name in {"POST-URL", "POSTED"}:
+            outside += 1
+    return url, outside
+
+
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     submission = source.draft.stem
-    reading = next((item for item in source.readings if item.artifact == submission), None)
-    posting_absent = source.post_url is None and source.post_posted is None
-    if posting_absent and reading is None:
+    if not source.posted_reading_state.posted:
         return ()
     outcomes = posted_reading_check(source.path, submission, (
         str(source.path), "--draft", str(source.draft),
         *(('--html', str(source.html)) if source.html is not None else ()),
         *(('--docx', str(source.docx)) if source.docx is not None else ()),
     ))
-    findings = [Finding(POSTED_READING_KINDS[item.code], submission, item.message) for item in outcomes]
+    findings = [Finding(POSTED_READING_KINDS[item.code], submission, item.message) for item in outcomes if item.code != "post-metadata"]
+    post_path = source.path / "post.md"
+    url, outside = _posting_link(post_path.read_text(encoding="utf-8") if post_path.is_file() else "")
+    if not url:
+        findings.append(Finding(
+            MISSING_POSTED_READING, submission,
+            f"POST-URL is missing from the saved posting record; {outside} posting-field lines outside the block; move the link under ## POSTING: post.md",
+        ))
     return tuple(findings)
 
 
@@ -1187,7 +1208,7 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
         or any(pixel.name.startswith("capture-") for pixel in retained.pixels)
         for _, retained in source.render_passes
     )
-    if not canvas_pass_exists and source.post_url is None and source.post_posted is None and not source.readings:
+    if not canvas_pass_exists and not source.posted_reading_state.posted:
         return RenderedPageSurvey((), engine_available=False, waiting_for_load=True)
     if not source.rendered_readings:
         return RenderedPageSurvey(
@@ -1394,12 +1415,8 @@ def survey(source: RunSource) -> Scan:
         _attachment_page_findings(source)
         if attachment else _rendered_page_findings(source)
     )
-    has_posted_reading = any(
-        item.artifact == source.draft.stem for item in source.readings
-    )
-    posting_fields_absent = source.post_url is None and source.post_posted is None
-    posted_reading_graded = has_posted_reading or not posting_fields_absent
-    posted_reading_unread = int(has_posted_reading and posting_fields_absent)
+    posted_reading_graded = source.posted_reading_state.posted
+    posted_reading_unread = int(source.posted_reading_state.unrecorded_reading)
     heading = heading_read.scan(
         source.heading_read_text,
         (
@@ -1683,6 +1700,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.posted_reading_unread
         ),
+        *(["posted reading: incomplete coverage - posting is not recorded"] if scan.posted_reading_unread else []),
         (
             f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, {NOT_GRADED})"
             if scan.docx_graded

@@ -415,11 +415,12 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
     (unread / "post.md").write_text(BODY, encoding="utf-8")
     (unread / "reread.md").write_text(reread, encoding="utf-8")
     (twin / "post.md").write_text(
-        "POST-URL: https://example.org/t?entry_id=41\n"
-        "POSTED: 2026-08-28T19:30:00-04:00\n\n"
-        + BODY,
+        BODY + "\n## POSTING: post.md\nPOST-URL: https://example.org/t?entry_id=41\n",
         encoding="utf-8",
     )
+    (twin / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+        "skill": "discussion-post", "submission": twin_run.draft.stem, "posting_route": "agent",
+    }]}), encoding="utf-8")
     (twin / "reread.md").write_text(
         reread.replace(unread_run.draft.stem, twin_run.draft.stem),
         encoding="utf-8",
@@ -526,6 +527,9 @@ class CanvasSubmissionRows(unittest.TestCase):
             post = run.root / "post.md"
             posting = "\n## POSTING: post.md\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
             post.write_text(post.read_text(encoding="utf-8") + posting, encoding="utf-8")
+            (run.root / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+                "skill": "discussion-post", "submission": run.draft.stem, "posting_route": "agent",
+            }]}), encoding="utf-8")
             (run.root / "reread.md").write_text(
                 f"## REREAD: {run.draft.stem}\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
                 f"READ: 2026-10-11\nSUBMISSION-SHA256: {hashlib.sha256(run.draft.read_bytes()).hexdigest()}\n"
@@ -1658,6 +1662,83 @@ REFUTATION: stands - the page addresses the cited proposition.
 
 
 class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
+    def test_a_stray_link_after_the_block_does_not_replace_the_saved_link(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            post = run.root / "post.md"
+            post.write_text(post.read_text(encoding="utf-8") + "\n## Other record\nPOST-URL: https://example.org/?entry_id=99\n", encoding="utf-8")
+            status, report, error = run.grade()
+            self.assertEqual(0, status, report + error)
+            self.assertIn("borrowed-locator: 0", report)
+
+    def test_a_posted_bare_link_names_the_outside_field_count(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            (run.root / "post.md").write_text(BODY + f"\nPOST-URL: {self.POST_URL}\nPOSTED: today\n", encoding="utf-8")
+            status, report, error = run.grade("--show")
+            self.assertEqual(1, status, report + error)
+            self.assertIn("missing-posted-reading: 1", report)
+            self.assertIn("2 posting-field lines outside the block", report)
+            self.assertIn("move the link under ## POSTING: post.md", report)
+            _, counts, _ = run.grade()
+            self.assertNotIn("move the link", counts)
+
+    def test_a_reading_without_an_approval_record_is_incomplete_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            (run.root / scan.approval_record.RECORD).unlink()
+            status, report, error = run.grade()
+            self.assertEqual(2, status, report + error)
+            self.assertIn("incomplete coverage - posting is not recorded", report)
+            self.assertIn("missing-posted-reading: not graded", report)
+
+    def test_a_block_without_a_route_is_ungraded_until_completion(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            (run.root / "reread.md").unlink()
+            record = run.root / scan.approval_record.RECORD
+            record.write_text(json.dumps({"items": [{
+                "skill": "discussion-post", "submission": run.draft.stem,
+            }]}), encoding="utf-8")
+            status, report, error = run.grade()
+            self.assertEqual(0, status, report + error)
+            self.assertIn("missing-posted-reading: not graded", report)
+            (run.root / "reread.md").write_text("", encoding="utf-8")
+            status, report, error = run.grade("--submission", run.draft.stem)
+            self.assertNotEqual(0, status)
+            self.assertIn("no recorded posting route", report + error)
+
+    def test_only_column_zero_uppercase_links_in_the_block_are_read(self):
+        for key in ("Post-Url", " POST-URL"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as temp:
+                run = self.posted_run(Path(temp))
+                post = run.root / "post.md"
+                post.write_text(post.read_text(encoding="utf-8").replace("POST-URL:", key + ":"), encoding="utf-8")
+                status, report, error = run.grade()
+                self.assertEqual(1, status, report + error)
+                self.assertIn("missing-posted-reading: 1", report)
+
+    def test_saved_posted_is_ignored_and_a_posted_route_needs_a_reading(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            post = run.root / "post.md"
+            post.write_text(post.read_text(encoding="utf-8") + "POSTED: ignored\n", encoding="utf-8")
+            status, report, error = run.grade()
+            self.assertEqual(0, status, report + error)
+            (run.root / "reread.md").unlink()
+            status, report, error = run.grade()
+            self.assertEqual(1, status, report + error)
+            self.assertIn("missing-posted-reading: 1", report)
+
+    def test_stray_posting_fields_do_not_post_an_entry(self):
+        for field in ("POSTED: today", f"POST-URL: {self.POST_URL}"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "post.md").write_text(BODY + "\n" + field + "\n", encoding="utf-8")
+                status, report, error = run.grade()
+                self.assertEqual(0, status, report + error)
+                self.assertIn("missing-posted-reading: not graded", report)
+
     def test_clinician_attachment_without_refusal_keeps_file_identity_checks(self):
         with tempfile.TemporaryDirectory() as temp:
             run, html, document = self.attachment_run(Path(temp))
@@ -1689,11 +1770,12 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
     def posted_run(self, root: Path) -> Run:
         run = Run(root)
         (root / "post.md").write_text(
-            f"POST-URL: {self.POST_URL}\n"
-            "POSTED: 2026-08-28T19:30:00-04:00\n\n"
-            + BODY,
+            BODY + f"\n## POSTING: post.md\nPOST-URL: {self.POST_URL}\n",
             encoding="utf-8",
         )
+        (root / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+            "skill": "discussion-post", "submission": run.draft.stem, "posting_route": "agent",
+        }]}), encoding="utf-8")
         (root / "reread.md").write_text(
             f"## REREAD: {run.draft.stem}\n"
             f"POST-URL: {self.POST_URL}\n"
@@ -1845,7 +1927,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual("", stderr)
         self.assertIn("missing-posted-reading: 0", stdout)
 
-    def test_a_finding_in_an_unread_posting_candidate_outranks_coverage(self):
+    def test_a_posted_entry_with_no_saved_link_still_grades_its_fingerprint(self):
         with tempfile.TemporaryDirectory() as temp:
             run = self.posted_run(Path(temp))
             (run.root / "post.md").write_text(BODY, encoding="utf-8")
@@ -1863,7 +1945,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             status, stdout, _stderr = run.grade()
 
         self.assertEqual(1, status)
-        self.assertIn("unread remainder 1", stdout.splitlines())
+        self.assertIn("unread remainder 0", stdout.splitlines())
         self.assertIn(f"{scan.SUBMISSION_FINGERPRINT}: 1", stdout)
         self.assertNotIn("not graded", next(
             line for line in stdout.splitlines() if line.startswith(f"{scan.SUBMISSION_FINGERPRINT}:")
@@ -2958,6 +3040,10 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "posting before approval records": (
+            "APostedInitialEntryHasItsOwnReading.test_a_reading_without_an_approval_record_is_incomplete_coverage",
+            "APostedInitialEntryHasItsOwnReading.test_a_complete_initial_post_reading_passes",
+        ),
         "page-fingerprint-origin": (
             "APostedInitialEntryHasItsOwnReading.test_page_fingerprint_matches_without_a_posted_copy",
             "APostedInitialEntryHasItsOwnReading.test_page_fingerprint_defects_are_public_command_findings",
