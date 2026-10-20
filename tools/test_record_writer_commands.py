@@ -73,6 +73,36 @@ class NativeWriterTransactions(unittest.TestCase):
         fixture.input.write_text(refuters.returned(), encoding='utf-8')
         self.check_refusals(fixture.path, lambda: refutation_apply.main([str(fixture.path), str(fixture.input)]))
 
+    def test_signer_native_copy_failure_and_collision_are_safe_and_preserve_prior_evidence(self):
+        fixture = bars.BarSignatures()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        fixture.draft(bars.DOCX_BAR)
+        fixture.sign()
+        history = fixture.run / assignment_bar.RECORD
+        before = history.read_bytes(), fixture.bar.read_bytes()
+        copy = fixture.run / 'signed-bars/bar-2.md'
+        reply = 'Confirm this second synthetic bar.'
+        fixture.messages.append({'type': 'user', 'timestamp': '2100-10-09T12:01:00Z',
+                                 'message': {'content': reply}})
+        original_open = Path.open
+        def interrupted(path, mode='r', *args, **kwargs):
+            if path == copy and mode == 'xb':
+                raise OSError('PRIVATE-PLANTED-COPY')
+            return original_open(path, mode, *args, **kwargs)
+        with mock.patch.object(Path, 'open', interrupted):
+            status, report = invoke(lambda: assignment_bar.main([str(fixture.run), '--reply', reply]))
+        self.assertEqual(status, 2, report)
+        self.assertIn('bar-signatures.json: unreadable — could not be opened', report)
+        self.assertNotIn('PRIVATE-PLANTED-COPY', report)
+        self.assertFalse(copy.exists())
+        copy.write_bytes(b'other creator evidence')
+        status, report = invoke(lambda: assignment_bar.main([str(fixture.run), '--reply', reply]))
+        self.assertEqual(status, 2, report)
+        self.assertIn('bar-signatures.json: unreadable — could not be opened', report)
+        self.assertEqual(copy.read_bytes(), b'other creator evidence')
+        self.assertEqual((history.read_bytes(), fixture.bar.read_bytes()), before)
+
     def test_independent_refuter_finding_wins_over_persistence_coverage(self):
         fixture = refuters.ApplyReturns()
         fixture.setUp()
@@ -86,6 +116,27 @@ class NativeWriterTransactions(unittest.TestCase):
         self.assertIn('not graded', report)
         self.assertIn('unread remainder 1', report)
         self.assertEqual(fixture.path.read_bytes(), before)
+
+    def test_refuter_snapshot_failure_is_safe_and_preserves_finding_precedence(self):
+        for finding, expected in ((False, 2), (True, 1)):
+            with self.subTest(independent_finding=finding):
+                fixture = refuters.ApplyReturns()
+                fixture.setUp()
+                self.addCleanup(fixture.doCleanups)
+                text = refuters.returned() + (refuters.returned('different synthetic claim') if finding else '')
+                fixture.input.write_text(text, encoding='utf-8')
+                before = fixture.path.read_bytes()
+                original_open = Path.open
+                def interrupted(path, mode='r', *args, **kwargs):
+                    if path.name == 'claims-snapshot-1.md' and mode == 'xb':
+                        raise OSError('PRIVATE-PLANTED-SNAPSHOT')
+                    return original_open(path, mode, *args, **kwargs)
+                with mock.patch.object(Path, 'open', interrupted):
+                    status, report = invoke(lambda: refutation_apply.main([str(fixture.path), str(fixture.input)]))
+                self.assertEqual(status, expected, report)
+                self.assertIn('unreadable — could not be opened', report)
+                self.assertNotIn('PRIVATE-PLANTED-SNAPSHOT', report)
+                self.assertEqual(fixture.path.read_bytes(), before)
 
     def test_opener_record_and_answer_commands_share_the_transaction(self):
         fixture = openers.OpenerCommands()
@@ -103,6 +154,25 @@ class NativeWriterTransactions(unittest.TestCase):
         for command in commands:
             with self.subTest(command=command[0]):
                 self.check_refusals(record, lambda: encounter_openers.main(command))
+
+    def test_opener_native_temporary_collision_keeps_competing_file_and_prior_record(self):
+        fixture = openers.OpenerCommands()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.assertEqual(0, fixture.record('Note 1\nadult female\n',
+                                          [{'note': 1, 'name': None, 'age': 'adult', 'sex': 'female'}]).returncode)
+        record = fixture.run / 'openers.json'
+        before = record.read_bytes()
+        candidate = record.with_name(record.name + '.collision.partial')
+        candidate.write_bytes(b'other creator evidence')
+        with mock.patch.object(records.uuid, 'uuid4', return_value=mock.Mock(hex='collision')):
+            status, report = invoke(lambda: encounter_openers.main([
+                'answer', '--run', str(fixture.run), '--note', '1', '--name', 'Example Person',
+                '--reply', 'The synthetic name is Example Person.']))
+        self.assertEqual(status, 2, report)
+        self.assertIn('openers.json: unreadable — could not be opened', report)
+        self.assertEqual(record.read_bytes(), before)
+        self.assertEqual(candidate.read_bytes(), b'other creator evidence')
 
     def test_capture_worker_commands_preserve_each_existing_machine_kind(self):
         fixture = videos.CaptureGate()

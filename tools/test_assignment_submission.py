@@ -244,7 +244,7 @@ class TwoGateUpload(unittest.TestCase):
             docx = root / "assignment.docx"
             docx.write_bytes(b"canonical Word artifact")
             write_none_context(root)
-            replace_file = assignment_submission.os.replace
+            replace_file = os.replace
 
             def fail_approval_write(source, destination):
                 if Path(destination).name == assignment_submission.RECORD:
@@ -252,12 +252,13 @@ class TwoGateUpload(unittest.TestCase):
                 return replace_file(source, destination)
 
             with mock.patch.object(
-                assignment_submission.os, "replace", side_effect=fail_approval_write
+                os, "replace", side_effect=fail_approval_write
             ):
-                with self.assertRaises(OSError):
+                with self.assertRaises(assignment_submission.UnreadableRecord):
                     self.stage(root, docx, artifact_approved=True)
 
             self.assertEqual((), tuple(root.glob("*.building")))
+            self.assertEqual((), tuple(root.glob("*.partial")))
 
     def test_approval_is_refused_until_the_run_directory_pre_upload_grade_is_clean(self):
         with tempfile.TemporaryDirectory() as directory:

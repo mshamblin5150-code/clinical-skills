@@ -1880,22 +1880,27 @@ def _rebuilt_update(run: Path, submission: str, round_number: int,
     rebuilt_text = _render_rebuilt_extract(header, population)
     _extract_document_text(rebuilt_text)
     refused_root = run / "aar" / "refused"
-    refused_root.mkdir(parents=True, exist_ok=True)
     archived = refused_root / destination.name
-    suffix = 2
-    while archived.exists():
-        archived = refused_root / f"{destination.stem}.{suffix}{destination.suffix}"
-        suffix += 1
     created_archive = False
     try:
+        refused_root.mkdir(parents=True, exist_ok=True)
+        suffix = 2
+        while archived.exists():
+            archived = refused_root / f"{destination.stem}.{suffix}{destination.suffix}"
+            suffix += 1
         with archived.open("xb") as stream:
             created_archive = True
             stream.write(refused_text.encode("utf-8"))
             stream.flush()
             os.fsync(stream.fileno())
-    except BaseException:
+    except BaseException as failure:
         if created_archive:
-            archived.unlink(missing_ok=True)
+            try:
+                archived.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if isinstance(failure, OSError):
+            raise UnreadableRecord(destination, "could not be opened") from failure
         raise
     return RecordUpdate(rebuilt_text.encode("utf-8"), (destination, len(population), archived),
                         rollback=lambda: archived.unlink(missing_ok=True))

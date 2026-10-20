@@ -47,16 +47,20 @@ def atomic_write(path: Path, content: bytes) -> None:
     path = private_target(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    created_temporary = False
     try:
         with temporary.open("xb") as stream:
+            created_temporary = True
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        created_temporary = False
         if path.read_bytes() != content:
             raise ValueError("written artifact did not read back")
     finally:
-        temporary.unlink(missing_ok=True)
+        if created_temporary:
+            temporary.unlink(missing_ok=True)
 
 
 def digest(data: bytes) -> str:
@@ -202,9 +206,12 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
         if existing is not None and existing != record:
             # Later missing-name answers may change readings; never silently replace evidence.
             raise ValueError("opener record exists; use the answer command for a missing name")
-        for item in records:
-            atomic_write(run / item["file"], text[item["start"]:item["end"]].encode("utf-8"))
-        atomic_write(run / "encounters/unassigned.txt", text[:unassigned_end].encode("utf-8"))
+        try:
+            for item in records:
+                atomic_write(run / item["file"], text[item["start"]:item["end"]].encode("utf-8"))
+            atomic_write(run / "encounters/unassigned.txt", text[:unassigned_end].encode("utf-8"))
+        except OSError as failure:
+            raise UnreadableRecord(path, "could not be opened") from failure
         return RecordUpdate((json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     update_tool_record(path, decode_record, change)
     return read_openers(run)

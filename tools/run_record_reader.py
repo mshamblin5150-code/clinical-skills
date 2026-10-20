@@ -338,6 +338,7 @@ def update_tool_record(
         if update.payload is None:
             return update.result
         temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".partial")
+        created_temporary = False
         try:
             if append:
                 with path.open("ab") as stream:
@@ -346,10 +347,22 @@ def update_tool_record(
                     os.fsync(stream.fileno())
             else:
                 with temporary.open("xb") as stream:
+                    created_temporary = True
                     stream.write(update.payload)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.replace(temporary, path)
+                deadline = time.monotonic() + 1.0
+                while True:
+                    try:
+                        os.replace(temporary, path)
+                        created_temporary = False  # The candidate was consumed by the replace.
+                        break
+                    except PermissionError as failure:
+                        # Retry transient Windows sharing failures without releasing
+                        # canonical ownership or extending the bounded refusal indefinitely.
+                        if getattr(failure, "winerror", None) not in {5, 32, 33} or time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.01)
         except BaseException as failure:
             if update.rollback is not None:
                 try:
@@ -360,8 +373,9 @@ def update_tool_record(
                 raise UnreadableRecord(path, "could not be opened") from failure
             raise
         finally:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass  # A refused write keeps its original classified cause.
+            if created_temporary:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass  # A refused write keeps its original classified cause.
         return update.result

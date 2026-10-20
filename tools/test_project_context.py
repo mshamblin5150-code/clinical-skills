@@ -1175,7 +1175,7 @@ class GoAheadRechecks(ProjectContextFixture):
         claims = self.run / "heading-read.md"
         claims.write_text(claims.read_text(encoding="utf-8").replace("e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf", context.recorded_digest(self.run)), encoding="utf-8")
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(run_record_reader.os, "replace", side_effect=OSError("synthetic write failure")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
-            with self.assertRaisesRegex(approval_record.ApprovalRecordError, "could not be written"):
+            with self.assertRaisesRegex(run_record_reader.UnreadableRecord, "project-context.md: unreadable.*could not be opened"):
                 approval_record.approve(self.run, skill="discussion-reply", submission="submission", sources=(self.run / "response-maren.md",), grader_args=(str(self.run),), content_approved=True, clinician_reply="Approve the synthetic reply.")
         self.assertFalse((self.run / approval_record.RECORD).exists())
 

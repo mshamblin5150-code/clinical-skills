@@ -104,6 +104,53 @@ class LockedRecordWrites(unittest.TestCase):
                                            lambda old: records.RecordUpdate(b'{}', rollback=rollback))
         self.assertEqual(self.path.read_bytes(), before)
 
+    def test_exclusive_temporary_collision_preserves_other_creators_evidence(self):
+        temporary = self.path.with_name(self.path.name + '.collision.partial')
+        temporary.write_bytes(b'other creator evidence')
+        before = self.path.read_bytes()
+        with mock.patch.object(records.uuid, 'uuid4', return_value=mock.Mock(hex='collision')):
+            with self.assertRaisesRegex(records.UnreadableRecord, 'could not be opened'):
+                records.update_tool_record(self.path, records.object_record, self.change)
+        self.assertEqual(temporary.read_bytes(), b'other creator evidence')
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_append_never_removes_an_unowned_temporary_candidate(self):
+        temporary = self.path.with_name(self.path.name + '.collision.partial')
+        temporary.write_bytes(b'other creator evidence')
+        with mock.patch.object(records.uuid, 'uuid4', return_value=mock.Mock(hex='collision')):
+            records.update_tool_record(self.path, records.object_record,
+                                       lambda old: records.RecordUpdate(b'\n'), append=True)
+        self.assertEqual(temporary.read_bytes(), b'other creator evidence')
+
+    def test_transient_windows_delete_sharing_refusal_retries_under_lock(self):
+        original_replace = records.os.replace
+        attempts = []
+        def replace(source, destination):
+            attempts.append(True)
+            with self.assertRaises(artifact_lock.ArtifactBusy):
+                with artifact_lock.hold(self.path, 'competing replace'):
+                    self.fail('replace retry released the record lock')
+            if len(attempts) == 1:
+                failure = PermissionError('PRIVATE-PLANTED-SHARING')
+                failure.winerror = 32
+                raise failure
+            return original_replace(source, destination)
+        with mock.patch.object(records.os, 'replace', side_effect=replace):
+            records.update_tool_record(self.path, records.object_record, self.change)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(json.loads(self.path.read_bytes()), {'first': 1, 'second': 2})
+
+    def test_persistent_windows_sharing_refusal_is_bounded_and_preserves_prior(self):
+        failure = PermissionError('PRIVATE-PLANTED-SHARING')
+        failure.winerror = 5
+        before = self.path.read_bytes()
+        started = time.monotonic()
+        with mock.patch.object(records.os, 'replace', side_effect=failure):
+            with self.assertRaisesRegex(records.UnreadableRecord, 'could not be opened'):
+                records.update_tool_record(self.path, records.object_record, self.change)
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertEqual(self.path.read_bytes(), before)
+
     def test_append_validates_prior_bytes_and_keeps_both_entries(self):
         path = self.root / 'outbound-searches.jsonl'
         decode = lambda text: [json.loads(line) for line in text.splitlines()]

@@ -153,27 +153,37 @@ def _sign(run: Path, clinician_reply: str, previous_record: dict | None) -> Reco
     if bar.read_bytes() != original:
         raise run_grader.SourceError(f"bar changed during signing; {REMEDY}")
     copies = run / "signed-bars"
-    copies.mkdir(exist_ok=True)
     copy = copies / f"bar-{len(history) + 1}.md"
-    with copy.open("xb") as output:
-        output.write(content)
-    entry = {
-        "copy": copy.relative_to(run).as_posix(),
-        "sha256": file_digest.sha256(copy),
-        "clinician_reply": clinician_reply,
-        "reply_verification": "verified" if verification.state == "verified" else "not verified",
-        "reply_reason": verification.reason,
-        "reply_matched_at": verification.matched_at,
-        "recorded_at": datetime.now(timezone.utc).isoformat(),
-    }
+    created_copy = False
     def rollback():
         copy.unlink(missing_ok=True)
         if bar.read_bytes() == content:
             _replace(bar, original)
     try:
+        copies.mkdir(exist_ok=True)
+        with copy.open("xb") as output:
+            created_copy = True
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        entry = {
+            "copy": copy.relative_to(run).as_posix(),
+            "sha256": file_digest.sha256(copy),
+            "clinician_reply": clinician_reply,
+            "reply_verification": "verified" if verification.state == "verified" else "not verified",
+            "reply_reason": verification.reason,
+            "reply_matched_at": verification.matched_at,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
         _replace(bar, content)
-    except BaseException:
-        rollback()
+    except BaseException as failure:
+        if created_copy:
+            try:
+                rollback()
+            except BaseException:
+                pass
+        if isinstance(failure, OSError):
+            raise UnreadableRecord(run / RECORD, "could not be opened") from failure
         raise
     return RecordUpdate((json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"),
                         entry, rollback=rollback)

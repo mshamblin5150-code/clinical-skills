@@ -104,12 +104,24 @@ def _snapshot_ledger(path: Path, original: bytes) -> None:
     number = 1
     while True:
         snapshot = path.with_name(f"{path.stem}-snapshot-{number}{path.suffix}")
+        created_snapshot = False
         try:
             with snapshot.open("xb") as stream:
+                created_snapshot = True
                 stream.write(original)
             break
         except FileExistsError:
+            if created_snapshot:
+                snapshot.unlink(missing_ok=True)
+                raise
             number += 1
+        except OSError:
+            if created_snapshot:
+                try:
+                    snapshot.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
 
 
 def apply(ledger: Path, returns: list[Path], show: bool = False) -> int:
@@ -223,7 +235,8 @@ def _apply(ledger: Path, returns: list[Path], show: bool, text: str | None) -> r
             _snapshot_ledger(ledger, original)
             payload = updated
         except OSError:
-            print("ledger could not be written")
+            print(records.fault_report(records.UnreadableRecord(ledger, "could not be opened"),
+                                       check="the saved refuter application"))
             unread += 1
     return records.RecordUpdate(payload, (1 if failed else 2 if unread else 0, unread))
 

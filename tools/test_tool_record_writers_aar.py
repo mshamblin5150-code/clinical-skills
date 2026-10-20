@@ -224,7 +224,7 @@ class WriterTransactions(unittest.TestCase):
                     stream.write(b'other creator evidence')
             return original_open(path, mode, *args, **kwargs)
         with mock.patch.object(Path, 'open', collide):
-            with self.assertRaises(FileExistsError):
+            with self.assertRaisesRegex(records.UnreadableRecord, 'could not be opened'):
                 aar_scan.rebuild_extract(fixture.run, fixture.submission, 1)
         self.assertEqual(before, extract.read_bytes())
         self.assertEqual(b'other creator evidence', archive.read_bytes())
@@ -240,6 +240,67 @@ class WriterTransactions(unittest.TestCase):
         self.assertIn('held by another task:', output)
         self.assertFalse(target.exists())
         self.assertFalse(aar_scan.baseline_path(fixture.run, fixture.submission).exists())
+
+    def test_native_rebuild_sanitizes_archive_publication_failure(self):
+        fixture = self.aar()
+        fixture.extract()
+        extract = aar_scan.extract_path(fixture.run, fixture.submission)
+        before = extract.read_bytes()
+        archive = extract.parent / 'refused' / extract.name
+        original_open = Path.open
+        def interrupted(path, mode='r', *args, **kwargs):
+            if path == archive and mode == 'xb':
+                raise OSError('PRIVATE-PLANTED-ARCHIVE')
+            return original_open(path, mode, *args, **kwargs)
+        with mock.patch.object(Path, 'open', interrupted):
+            status, report = self.capture(lambda: aar_scan.main([
+                str(fixture.run), '--submission', fixture.submission, '--extract',
+                '--rebuild-round', '1', '--memory-index', str(fixture.memory)]))
+        self.assertEqual(status, 2, report)
+        self.assertIn('unreadable — could not be opened', report)
+        self.assertNotIn('PRIVATE-PLANTED-ARCHIVE', report)
+        self.assertEqual(extract.read_bytes(), before)
+        self.assertFalse(archive.exists())
+
+    def test_each_native_aar_writer_refuses_held_and_interrupted_record_publication(self):
+        for route in ('extract', 'baseline', 'rebuild', 'measurement'):
+            for failure in ('held', 'replace'):
+                with self.subTest(route=route, failure=failure):
+                    fixture = self.aar()
+                    fixture.write_clean()
+                    first = aar_scan.extract_path(fixture.run, fixture.submission)
+                    baseline = aar_scan.baseline_path(fixture.run, fixture.submission)
+                    arguments = [str(fixture.run), '--submission', fixture.submission]
+                    if route == 'measurement':
+                        target = aar_scan.memory_measurement_path(fixture.run, fixture.submission)
+                        arguments += ['--measure-memory', '--round', '1']
+                    else:
+                        arguments += ['--extract', '--memory-index', str(fixture.memory), '--transcript', str(fixture.transcript)]
+                        if route == 'rebuild':
+                            target = first
+                            arguments += ['--rebuild-round', '1']
+                        elif route == 'baseline':
+                            aar_scan.review_path(fixture.run, fixture.submission).unlink()
+                            target = aar_scan.baseline_path(fixture.run, fixture.submission, 2)
+                        else:
+                            aar_scan.review_path(fixture.run, fixture.submission).unlink()
+                            target = aar_scan.extract_path(fixture.run, fixture.submission, 2)
+                    before = target.read_bytes() if target.exists() else None
+                    prior_round = first.read_bytes(), baseline.read_bytes()
+                    original_replace = records.os.replace
+                    def interrupted(source, destination):
+                        if Path(destination) == target:
+                            raise OSError('PRIVATE-PLANTED-PUBLICATION')
+                        return original_replace(source, destination)
+                    manager = (artifact_lock.hold(target, 'synthetic AAR holder') if failure == 'held'
+                               else mock.patch.object(records.os, 'replace', side_effect=interrupted))
+                    with manager:
+                        status, report = self.capture(lambda: aar_scan.main(arguments))
+                    self.assertEqual(status, 2, report)
+                    self.assertIn('held by another task:' if failure == 'held' else 'could not be opened', report)
+                    self.assertNotIn('PRIVATE-PLANTED-PUBLICATION', report)
+                    self.assertEqual(target.read_bytes() if target.exists() else None, before)
+                    self.assertEqual((first.read_bytes(), baseline.read_bytes()), prior_round)
 
     def test_aar_concurrent_rounds_allocate_distinct_records(self):
         fixture = self.aar()
