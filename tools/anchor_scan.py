@@ -76,6 +76,7 @@ from pathlib import Path
 
 import run_grader
 import reader_remarks
+import completion_checks
 from block_scan import ASSERTED, read_block
 from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
@@ -123,6 +124,11 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    (
+        "remarks concealed in agreement answers",
+        "A remark inside threshold or another free-text answer cannot be distinguished from ordinary evidence.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
     (
         "CPT or HCPCS anchor placement on the line documenting today's act",
         "Whether the quoted line documents an act done in this encounter is a reading.",
@@ -1335,7 +1341,17 @@ NO_WAIT_PENDING_PATTERN = re.compile(
 )
 
 
+AGREEMENT_CODE_FIELDS = frozenset({
+    "subject_id", "system", "code", "role", "agreeing_words", "route",
+    "encounter_evidence", "open_status_evidence", "column_ground", "threshold", "waits_on_result",
+})
+
+
 AGREEMENT_READER_INSTRUCTIONS = (
+    "A blind reader's note entry has a remarks list of nonempty strings, empty when there are none. "
+    "The Writer self-record has no remarks field. "
+    "Put a problem outside the agreement question there and nowhere else; it never changes an answer. "
+    "A remark about a code names that code. Retain every earlier remark when replacing a reader record. "
     "Writer self-records exist privately; do not read them or request their text as a retry hint. "
     "For every code, record agreeing_words, route, encounter_evidence, "
     "open_status_evidence, column_ground, threshold, and waits_on_result; use 'none' when absent. "
@@ -1649,6 +1665,7 @@ def _run_agreement(argv: list[str]) -> int:
     mode.add_argument("--agreement-brief", action="store_true")
     mode.add_argument("--agreement-read", type=Path, nargs="+")
     parser.add_argument("--stem", action="append", default=None)
+    parser.add_argument("--submission", help="owning note's approval key for dated checks")
     parser.add_argument("--self-record", type=Path, nargs="+",
                         help="writer records for report-only blind-read comparison")
     parser.add_argument("--output", type=Path, help="write the agreement brief as BOM-free UTF-8")
@@ -1695,16 +1712,24 @@ def _run_agreement(argv: list[str]) -> int:
 
     assert args.agreement_read is not None
     try:
-        result = _grade_agreement(pairs, unread, args.agreement_read,
-                                  set(args.stem) if args.stem else None)
+        run = args.worksheets.parent if args.worksheets.name == "worksheets" else args.worksheets
+        with completion_checks.grading(run, args.submission):
+            result = _grade_agreement(pairs, unread, args.agreement_read,
+                                      set(args.stem) if args.stem else None)
+            dated_report = completion_checks.report()
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"descriptor agreement read: unread record ({error})")
         return 2
     print(_agreement_report(pairs, result.findings, result.unread,
                             result.unread_routes, result.excluded_code_tokens, args.show))
     print(f"  medicine columns resting on reader ground  {len(result.column_remarks)}")
+    print(f"  unexpected agreement keys                 {result.unexpected_keys}")
+    if dated_report:
+        print(dated_report)
+    for index, path in enumerate(result.unread_records, 1):
+        print(f"  unread agreement record: {run_grader.artifact_label(path, index, len(result.unread_records))}")
     if args.show:
-        print(reader_remarks.report(tuple(result.column_remarks)))
+        print(reader_remarks.report((*result.remarks, *result.column_remarks)))
     print(run_grader.run_records_report(args.worksheets, args.notes))
     if result.out_of_scope_rows:
         print(f"  agreement rows outside requested stems: {result.out_of_scope_rows}")
@@ -1712,7 +1737,7 @@ def _run_agreement(argv: list[str]) -> int:
     metric: int | str = "not measured"
     if args.self_record is not None:
         try:
-            self_result = _grade_agreement(pairs, unread, args.self_record)
+            self_result = _grade_agreement(pairs, unread, args.self_record, writer_record=True)
             metric = ("unread self-record coverage" if self_result.unread
                       else len(self_result.passed & result.failed))
         except (OSError, ValueError, KeyError, TypeError):
@@ -1733,14 +1758,28 @@ class AgreementRead:
     failed: set[tuple[str, str]]
     out_of_scope_rows: int = 0
     column_remarks: list[reader_remarks.Remark] = field(default_factory=list)
+    remarks: tuple[reader_remarks.Remark, ...] = ()
+    unexpected_keys: int = 0
+    unread_records: tuple[Path, ...] = ()
 
 
 def _grade_agreement(pairs: list[AgreementPair], unread: int,
-                     paths: list[Path], requested: set[str] | None = None) -> AgreementRead:
+                     paths: list[Path], requested: set[str] | None = None,
+                     *, writer_record: bool = False) -> AgreementRead:
     record_pairs: dict[str, dict] = {}
     out_of_scope = 0
+    remarks: list[reader_remarks.Remark] = []
+    unexpected_keys = 0
+    unread_records: list[Path] = []
     for path in paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        before_unread = unread
+        before_keys = unexpected_keys
+        writer = writer_record or path.parent.name == "agreement-self"
+        check_keys = completion_checks.active("anchor_scan:unexpected-reader-keys")
+        check_remarks = completion_checks.active("anchor_scan:reader-remarks")
+        if check_keys:
+            unexpected_keys += len(set(payload) - {"pairs"})
         supplied_pairs = payload["pairs"]
         if not isinstance(supplied_pairs, list):
             raise TypeError("pairs is not a list")
@@ -1749,12 +1788,25 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
                 unread += 1
                 continue
             stem = row["stem"]
+            if check_keys:
+                unexpected_keys += len(set(row) - ({"stem", "codes"} if writer else {"stem", "codes", "remarks"}))
+                for code_row in row.get("codes", []) if isinstance(row.get("codes"), list) else ():
+                    if isinstance(code_row, dict):
+                        unexpected_keys += len(set(code_row) - AGREEMENT_CODE_FIELDS)
+            if not writer and check_remarks:
+                read_remarks, malformed = reader_remarks.record_remarks(row.get("remarks", []), f"AGREEMENT: {stem}")
+                unread += malformed
+                if requested is None or stem in requested:
+                    remarks.extend(read_remarks)
             if requested is not None and stem not in requested:
                 out_of_scope += 1
             if stem in record_pairs or not isinstance(row.get("codes"), list):
                 unread += 1
                 continue
             record_pairs[stem] = row
+        unread += unexpected_keys - before_keys
+        if unread != before_unread:
+            unread_records.append(path)
     expected_stems = {pair.stem for pair in pairs}
     unread += len(set(record_pairs) - expected_stems)
 
@@ -1891,7 +1943,8 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         excluded_code_tokens.extend(pair_excluded_tokens)
 
     return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed,
-                         out_of_scope, column_remarks)
+                         out_of_scope, column_remarks, tuple(dict.fromkeys(remarks)),
+                         unexpected_keys, tuple(unread_records))
 
 
 def main(argv: list[str]) -> int:

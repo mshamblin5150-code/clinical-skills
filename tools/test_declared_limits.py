@@ -9,6 +9,7 @@ limits objects remain outside the module-classification and warning walks.
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import ast
 import re
 import tempfile

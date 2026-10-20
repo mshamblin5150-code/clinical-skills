@@ -1,4 +1,17 @@
 check	start	compared-with
+anchor_scan:reader-remarks	2026-10-20T05:11:17Z	approval
+anchor_scan:unexpected-reader-keys	2026-10-20T05:11:17Z	approval
+specificity_scan:reader-remarks	2026-10-20T05:11:17Z	approval
+specificity_scan:bare-flag	2026-08-15T13:00:35-04:00	approval
+specificity_scan:welded-keyword	2026-09-11T18:40:02-04:00	approval
+specificity_scan:unspecified-complete	2026-08-15T13:00:35-04:00	approval
+specificity_scan:scan:for_entry_codes_without_flag	2026-09-11T00:13:21-04:00	approval
+specificity_scan:scan:unread_remainder	2026-09-14T21:40:02-04:00	approval
+specificity_scan:scan:findings	2026-08-15T13:00:35-04:00	approval
+specificity_scan:scan:failing_flags	2026-08-15T13:00:35-04:00	approval
+specificity_scan:scan:for_entry_codes	2026-09-11T00:13:21-04:00	approval
+specificity_scan:unexpected-reader-keys	2026-10-20T05:11:17Z	approval
+reader_remarks:clinical-go-ahead	2026-10-20T05:11:17Z	approval
 case_video:completion_gate	2026-10-19T15:26:26Z	approval
 case_video:the case video capture	2026-10-19T15:26:26Z	approval
 aar_scan:bare-sustain	2026-09-02T15:26:38-04:00	approval

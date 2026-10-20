@@ -1,4 +1,5 @@
 """Synthetic public freeze/adoption contracts for ADR 0346. No patient data."""
+import artifact_lock_test_support
 import contextlib
 import io
 import json

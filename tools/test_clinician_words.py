@@ -1,5 +1,6 @@
 """Clinician's words are separate from harness envelopes. ADR 0387, #1693."""
 
+import artifact_lock_test_support
 import json
 from pathlib import Path
 import tempfile

@@ -1,5 +1,6 @@
 """The shared run-key and population policy -- issue #417."""
 
+import artifact_lock_test_support
 import tempfile
 import unittest
 from pathlib import Path

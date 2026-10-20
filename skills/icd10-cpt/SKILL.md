@@ -381,6 +381,7 @@ record has this shape:
 ```json
 {
   "read_on": "YYYY-MM-DD",
+  "remarks": [],
   "codes": [{
     "code": "I10",
     "family": [{
@@ -418,10 +419,19 @@ rows keep their existing output.
 
 ```bash
 python tools/specificity_scan.py <run directory> --brief > scratch/specificity-brief.txt
-python tools/specificity_scan.py <run directory> --second-read scratch/specificity-second-read.json
+python tools/specificity_scan.py <run directory> --second-read <run>/specificity-reader/read.json
 ```
 
 The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or specificity flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the separated reader's `"about"` prose for the final eye check; that output is PHI too.
+
+The top-level `remarks` list contains nonempty outside-problem sentences, each naming its
+code, or is empty. Keep the read at `<run>/specificity-reader/read.json`; create it and every
+replacement through `reader_remarks.replace_coding_record(path, payload, kind="specificity")`
+so a retry retains earlier remarks. Every unexpected key in the file, subject, family member,
+or inherited-note object enters the unread remainder. A remark hidden in `about` remains
+indistinguishable from its ordinary prose. Route the remarks through the owning note's
+[clinical go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead), never a
+separate worksheet approval.
 
 Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the separated reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
 
@@ -492,8 +502,9 @@ Keep this shown report private: its findings and generated remarks contain note 
 Before the clinical go-ahead, read every `READER-REMARK:` entry it emits and place
 each code and quoted column ground in the numbered `READER REMARKS` block beside
 the note or Review sheet, with a change made or a proposal to leave it. A count alone
-does not carry the ground. This display step applies even while #1702's general
-coding-reader approval enforcement remains unbuilt.
+does not carry the ground. Follow the clinical
+[reader-remarks route](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead)
+for preparation, numbered outcomes, and the verified clinician reply.
 
 The brief supplies the complete note with its tier block and each code's number, official
 descriptor, system, and role. It supplies no worksheet quotation.
@@ -511,7 +522,13 @@ This **Second reader** applies [standing rule 6](../../AGENTS.md), first reads
 receives only that brief. Its rules have one source, the named module constant
 `anchor_scan.AGREEMENT_READER_INSTRUCTIONS`, which is the brief's `instructions` value.
 Save the record as JSON with one `pairs` entry per filename stem and one `codes` entry per
-brief subject. E/M lines are counted and excluded because their descriptors cannot settle
+brief subject. Each note entry also has `"remarks": []`, containing nonempty strings for
+outside problems when present. A code-specific remark names the code. Create and replace
+the record through `reader_remarks.replace_coding_record(path, payload, kind="agreement")`;
+a retry keeps its predecessor's remarks even before an approval receipt exists.
+The Writer self-record has no remark field. Any other unexpected key at the file, note,
+or code-row level enters the unread remainder; `column_ground` is expected.
+E/M lines are counted and excluded because their descriptors cannot settle
 place of service, patient status, and decision-making level.
 
 `--agreement-read` requires each anchor verbatim in its paired note and the reader's agreeing words

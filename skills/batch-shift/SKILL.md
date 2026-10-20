@@ -474,13 +474,21 @@ reply whole.
 Beside `PRE-APPROVAL PATIENT QUESTIONS`, show the `REPAIRS` block produced by standing rule 6's command, including `none` when there were no repairs. Keep it outside the Review sheet. The clinician reads any marked changed sections outside the named scope; those section marks alone do not block approval.
 Before asking, call `approval_record.prepare(run, skill="batch-shift", submission=shift_key,
 sources=medatrax_posting.note_paths(run, batch=True), grader_args=(str(run),))`.
+Give every returned coding remark an `Outcome("fixed", "<what changed>")` or
+`Outcome("leave", "<proposal and reason>")` from `reader_remarks`, in returned order.
+Show `reader_remarks.surface(prepared, outcomes, clinical=True)` as the numbered `READER REMARKS` block
+beside the patient questions and repairs, outside the Review sheet. Its leave proposals are
+not delegable: approval requires the clinician to name the numbers or explicitly leave all.
+A bare approval leaves them open. Follow the record shapes and retained-retry route in
+[icd10-cpt](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 Show every line in the returned `coverage` exactly as printed in chat beside
 `PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS`, and the UpToDate block, outside the Review sheet.
 These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that approval call `approval_record.approve(run, skill="batch-shift",
 submission=shift_key, sources=medatrax_posting.note_paths(run, batch=True),
-grader_args=(str(run),), content_approved=True, clinician_reply=clinician_reply)`.
+grader_args=(str(run),), content_approved=True, clinician_reply=clinician_reply,
+remark_outcomes=outcomes)`.
 A changed grade, a grade run after the reply, or a readable transcript missing a required line
 refuses: prepare again, show the new lines, and ask again. An unreadable transcript records
 incomplete coverage with its reason, never clean. Shown incomplete coverage does not block,

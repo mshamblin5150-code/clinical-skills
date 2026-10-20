@@ -1,5 +1,6 @@
 """Standalone checks for the shared posted-reading boundary (synthetic records)."""
 
+import artifact_lock_test_support
 import unittest
 import ast
 import tempfile

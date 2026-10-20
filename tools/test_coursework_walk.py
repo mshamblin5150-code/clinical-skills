@@ -3,6 +3,7 @@
 All paths and draft content are synthetic.
 """
 
+import artifact_lock_test_support
 import io
 import json
 import os

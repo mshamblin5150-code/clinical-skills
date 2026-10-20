@@ -73,9 +73,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
+    def test_the_partition_is_three_declared_readings_and_six_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(3, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 

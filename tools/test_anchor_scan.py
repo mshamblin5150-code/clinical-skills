@@ -79,9 +79,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_six_declared_readings_and_eleven_behaviors(self):
+    def test_the_partition_is_seven_declared_readings_and_eleven_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(11, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -2772,7 +2772,10 @@ class CommittedAgreementControls(unittest.TestCase):
     def grade(self, control: str, root: Path | None = None, show: bool = False) -> tuple[int, str]:
         base = root or self.ROOT / control
         output = io.StringIO()
-        with redirect_stdout(output):
+        # Retained records predate ADR 0389's shape checks; keep their original
+        # clinical findings live while grading the later shape as historical.
+        with redirect_stdout(output), patch.object(scan.completion_checks, "approval_moment",
+                return_value="2026-10-19T00:00:00Z"):
             status = scan.main(
                 [
                     str(base / "worksheets"),
@@ -2780,6 +2783,7 @@ class CommittedAgreementControls(unittest.TestCase):
                     str(base / "notes"),
                     "--agreement-read",
                     str(base / "agreement-read.json"),
+                    "--submission", "historical-fixture",
                     *(["--show"] if show else []),
                 ]
             )

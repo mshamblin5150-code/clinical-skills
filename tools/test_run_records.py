@@ -1,5 +1,6 @@
 """Run records stay outside the note population. Issue #1805."""
 
+import artifact_lock_test_support
 import contextlib
 import importlib
 import io

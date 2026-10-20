@@ -1,5 +1,6 @@
 """Clinical pre-ask coverage, shared transcript snapshot and selector floor. #1845."""
 
+import artifact_lock_test_support
 from datetime import datetime, timezone
 import json
 import os

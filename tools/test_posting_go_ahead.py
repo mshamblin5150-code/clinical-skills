@@ -1,4 +1,5 @@
 """Posting approval kinds and the dated historical boundary. #1502."""
+import artifact_lock_test_support
 import json
 import tempfile
 import unittest
