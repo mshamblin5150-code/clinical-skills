@@ -199,10 +199,23 @@ class CauseRecords(unittest.TestCase):
 
     def test_before_and_exact_extraction_boundary_preserve_old_rounds(self):
         self.correction(classifier=None, final=None)
-        moment = datetime.fromisoformat(self.fixture.fields["EXTRACTED-AT"].replace("Z", "+00:00"))
-        with mock.patch.object(aar_scan, "UNVERIFIED_CAUSE_CUTOFF", moment + timedelta(microseconds=1)):
-            self.assertEqual(self.grade()[0], 0)
-        with mock.patch.object(aar_scan, "UNVERIFIED_CAUSE_CUTOFF", moment):
+        (self.fixture.memory.parent / "correction.md").write_text(
+            "# Corrected workflow\n", encoding="utf-8")
+        self.fixture.memory.write_text("# Index\n- [Correction](correction.md) — synthetic workflow\n", encoding="utf-8")
+        cutoff = datetime(2026, 10, 20, 16, 13, 19, tzinfo=timezone.utc)
+        for check in ("cause-line", "cause-overrule", "unverified-disposition", "unverified-publication"):
+            self.assertEqual(aar_scan.completion_checks.registry()["aar_scan:" + check], (cutoff, "extraction"))
+        path = aar_scan.extract_path(self.fixture.run, "synthetic")
+        original = path.read_text(encoding="utf-8")
+        moment = self.fixture.fields["EXTRACTED-AT"]
+        path.write_text(original.replace(moment, (cutoff - timedelta(microseconds=1)).isoformat()), encoding="utf-8")
+        aar_scan.measure_memory(self.fixture.run, "synthetic", 1)
+        with mock.patch.object(aar_scan, "UNVERIFIED_CAUSE_CUTOFF", cutoff):
+            status, report = self.grade()
+            self.assertEqual(status, 0, report)
+        path.write_text(original.replace(moment, cutoff.isoformat()), encoding="utf-8")
+        aar_scan.measure_memory(self.fixture.run, "synthetic", 1)
+        with mock.patch.object(aar_scan, "UNVERIFIED_CAUSE_CUTOFF", cutoff):
             status, report = self.grade()
         self.assertEqual(status, 1, report)
         self.assertIn("cause-line", report)
