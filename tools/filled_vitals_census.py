@@ -798,9 +798,10 @@ def grade(
     posting_failed, posting_report = medatrax_posting.completion_gate(
         directory, parsed.value("--submission"), batch=True
     )
-    delegated_failed, delegated_report = delegated_answers.completion_gate(
+    delegated_failed, delegated_report, delegated_unread = delegated_answers.completion_gate(
         directory, parsed.value("--submission")
     )
+    scan = replace(scan, unread_remainder=scan.unread_remainder + delegated_unread)
     outbound_failed, outbound_report = outbound_search.completion_gate(
         directory, parsed.value("--submission")
     )
@@ -860,7 +861,7 @@ def grade(
         )
     elif unread or scan.unread_remainder:
         candidate_note = (
-            f"{scan.unread_remainder} vital, BMI or visit-time candidate(s) were unread."
+            f"{scan.unread_remainder} vital, BMI, visit-time or delegated-answer candidate(s) were unread."
             if scan.unread_remainder
             else ""
         )

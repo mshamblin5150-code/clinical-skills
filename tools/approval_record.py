@@ -24,6 +24,7 @@ from typing import Iterable
 import aar_scan
 import docx_write
 import entry_copy
+import delegated_answers
 import reader_remarks
 import run_grader
 import project_context
@@ -376,6 +377,8 @@ def prepare(
     if "--submission" in grader_args:
         raise ApprovalRecordError("the pre-post grader must not receive --submission")
     status, report = _pre_post_grade(skill, grader_args)
+    if skill in CLINICAL_SKILLS:
+        status, report = delegated_answers.pre_approval(root, submission, status, report)
     if status not in {0, 2}:
         raise ApprovalRecordError("the pre-post grade has a finding: " + report)
     if skill in CLINICAL_SKILLS:
@@ -465,6 +468,8 @@ def approve(
         if preceding.state == "unreadable":
             verification = preceding
         grade_status, grade_report = _pre_post_grade(skill, grader_args)
+        if skill in CLINICAL_SKILLS:
+            grade_status, grade_report = delegated_answers.pre_approval(root, submission, grade_status, grade_report)
         if grade_status not in {0, 2}:
             safe_report = grade_report
             for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
@@ -489,6 +494,7 @@ def approve(
                 grade_report += "\n" + shown.reason
 
         coverage = ReplyVerification("exempt", "other skill")
+        answers_shown = ReplyVerification("exempt", "other skill")
         clinical_report = grade_report
         if skill in CLINICAL_SKILLS:
             # Compare the raw paired report before appending transcript qualifiers.
@@ -509,6 +515,13 @@ def approve(
             if shown.state == "unreadable":
                 grade_status = 2
                 grade_report += "\n" + shown.reason
+
+            answers_shown = delegated_answers.verify_shown_answers(root, verification.matched_at, transcripts=transcripts)
+            if answers_shown.state == "not found":
+                raise ApprovalRecordError(answers_shown.reason)
+            if answers_shown.state == "unreadable":
+                grade_status = 2
+                grade_report += "\n" + answers_shown.reason
 
         previous_revision = payload.get("approval_revision", 0)
         revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
@@ -562,6 +575,9 @@ def approve(
             "reply_after": after,
             "source_modified_at": max(path.stat().st_mtime for path in resolved_sources),
         }
+        if skill in CLINICAL_SKILLS:
+            item.update(delegated_answers_verification=answers_shown.state,
+                        delegated_answers_reason=answers_shown.reason)
         history.append({name: item[name] for name in (
             "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
             "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
