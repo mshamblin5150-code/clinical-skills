@@ -77,7 +77,6 @@ class InstallerContract(unittest.TestCase):
 
         self.assertFalse((self.home / ".codex" / "hooks.json").exists())
 
-
     def test_a_rerun_keeps_every_stop_hook_at_its_trust_key_position(self) -> None:
         david = {"hooks": [{"type": "command", "command": "node C:/david.mjs hook"}]}
         old = {"hooks": [{"type": "command", "command": "python old/run_status_stop_hook.py"}]}
@@ -105,6 +104,7 @@ class InstallerContract(unittest.TestCase):
                             installer.main([argument])
                 self.assertEqual(stopped.exception.code, status)
                 install.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

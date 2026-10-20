@@ -103,13 +103,18 @@ def register_in_place(
 ) -> list[object]:
     """Refresh our registration without moving any other hook.
 
-    Codex records hook trust under a positional key,
-    ``hooks.json:<event>:<group>:<handler>``, so removing a registration and
-    appending its replacement shifts every hook after it onto a key whose
-    recorded trust belongs to another hook. The first registration holding only
+    Codex's ``config.toml`` records hook trust under keys shaped
+    ``hooks.json:<event>:<group>:<handler>``. That observed shape is positional,
+    so removing a registration and appending its replacement would move every
+    later hook off the trust recorded for it. The first registration holding only
     handlers whose command names ``filename`` is replaced where it stands; our
     handlers elsewhere are removed, and a registration left empty by that is
     dropped. With no such registration the new one is appended.
+
+    Positions hold only when the list carries at most one registration of ours,
+    held alone. Dropping a duplicate moves the registrations after it, and
+    stripping our handler from a shared registration moves its later handlers.
+    No installer writes either shape; both arise from hand edits.
     """
 
     def ours(handler: object) -> bool:

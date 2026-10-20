@@ -213,10 +213,8 @@ class InstallerContract(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "owning checkout"):
             self.install()
 
-
     def test_a_rerun_keeps_every_stop_hook_at_its_trust_key_position(self) -> None:
-        # Codex keys hook trust by position (hooks.json:stop:<group>:<handler>),
-        # so moving our registration to the end shifts every hook after it.
+        # register_in_place's docstring owns why a position matters.
         hooks = self.home / ".codex" / "hooks.json"
         david = {"hooks": [{"type": "command", "command": "node C:/david.mjs hook"}]}
         old = {"hooks": [{"type": "command", "command": "python old/grilling_stop_hook.py"}]}
@@ -263,14 +261,16 @@ class InPlaceRegistration(unittest.TestCase):
             [first, self.ours(), last],
         )
 
-    def test_a_later_duplicate_is_removed_and_earlier_positions_hold(self) -> None:
+    def test_a_duplicate_is_removed_and_moves_only_what_follows_it(self) -> None:
+        # The declared cost: deduplicating has to shift the registrations after it.
         first = {"hooks": [self.handler("first")]}
         stale = {"hooks": [self.handler("python old/guard.py")]}
+        later = {"hooks": [self.handler("later")]}
         self.assertEqual(
             installer.register_in_place(
-                [first, stale, dict(stale)], "guard.py", self.ours()
+                [first, stale, dict(stale), later], "guard.py", self.ours()
             ),
-            [first, self.ours()],
+            [first, self.ours(), later],
         )
 
     def test_a_shared_registration_keeps_its_other_handlers(self) -> None:
@@ -304,6 +304,7 @@ class CommandLine(unittest.TestCase):
                             installer.main([argument])
                 self.assertEqual(stopped.exception.code, status)
                 install.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

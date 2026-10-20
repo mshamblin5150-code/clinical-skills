@@ -52,7 +52,7 @@ def install(*, home: Path, source_root: Path, owning_checkout: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args(argv)
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     try:
         install(home=Path.home(), source_root=SOURCE_ROOT,
                 owning_checkout=main_repo_root(SOURCE_ROOT / 'tools'))

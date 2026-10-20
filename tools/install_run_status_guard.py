@@ -6,36 +6,20 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
-import tempfile
 
 from console_codec import require_python_floor, use_utf8
-from install_grilling_guard import register_in_place
+from install_grilling_guard import (
+    _hook_command,
+    _read_exact,
+    _write_atomic,
+    register_in_place,
+)
 from repo_root import main_repo_root
 
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 HOOK_FILENAME = "run_status_stop_hook.py"
 HOOK_RELATIVE = Path("tools") / HOOK_FILENAME
-
-
-def _read_exact(path: Path) -> str:
-    with path.open("r", encoding="utf-8", newline="") as stream:
-        return stream.read()
-
-
-def _write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", newline="", dir=path.parent, delete=False
-    ) as stream:
-        stream.write(text)
-        temporary = Path(stream.name)
-    temporary.replace(path)
-
-
-def _hook_command(script: Path) -> str:
-    return f'"{Path(sys.executable).resolve()}" "{script.resolve()}"'
 
 
 def _install_hook(document: object, script: Path) -> dict[str, object]:

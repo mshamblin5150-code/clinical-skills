@@ -274,7 +274,9 @@ measurement, and unreadable-payload posture belong to
 Bash or Monitor command runs. ADR 0299 records the contract. Its complete reading
 boundary belongs to `scanner_pipe_hook.DECLARED_LIMITS`.
 `python tools/install_scanner_pipe_guard.py` installs the Codex branch established
-by the live probe recorded in `docs/agents/scanner-pipe-codex-probe.md`.
+by the live probe recorded in `docs/agents/scanner-pipe-codex-probe.md`. A rerun
+refreshes its registration in place and the command refuses arguments, as
+*Grilling guard* describes.
 
 ### ADR supersession binding
 
@@ -2075,11 +2077,10 @@ beside existing Stop hooks by the owning checkout's absolute path, and replaces 
 memory file named `grill-one-question-at-a-time.md` with a pointer to the tracked source. Repeating
 the command replaces its own block and hook registration instead of appending another copy.
 
-All three Codex hook installers refresh a registration where it stands through
-`install_grilling_guard.register_in_place`. Codex records hook trust under a positional
-`hooks.json:<event>:<group>:<handler>` key, so moving a registration to the end would shift every
-hook after it off its reviewed trust. Each installer takes no arguments: `--help` prints usage and
-any other argument exits 2, both before a user file is written.
+Every Codex hook installer refreshes its registration where it stands through
+`install_grilling_guard.register_in_place`, whose docstring owns why a hook's position matters to
+Codex trust and the hand-edited shapes where positions still move. Each installer takes no
+arguments: `--help` prints usage and any other argument exits 2, both before a user file is written.
 
 The Stop hook grades only the interval between a command that opens a `grilling`, `grill-me`, or
 `grill-with-docs` skill file and an assistant reply carrying the format's fixed closing line. It
@@ -2125,7 +2126,7 @@ in force. New checks use the item's approval time.
 Claude Code registers the hook in `.claude/settings.json`. After this change is present in the
 owning checkout, `python tools/install_run_status_guard.py` installs the same hook beside existing
 user-level Codex Stop hooks by absolute owning-checkout path. Repeating the command replaces only
-its own registration.
+its own registration, in place, and the command refuses arguments as *Grilling guard* describes.
 
 ### Unreadable hook payloads
 

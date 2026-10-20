@@ -58,7 +58,6 @@ class ScannerPipeInstallerTests(unittest.TestCase):
                                   owning_checkout=root)
             self.assertFalse((root / '.codex').exists())
 
-
     def test_refresh_keeps_every_pretooluse_hook_at_its_trust_key_position(self):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder)
@@ -86,6 +85,7 @@ class ScannerPipeInstallerTests(unittest.TestCase):
                             installer.main([argument])
                 self.assertEqual(stopped.exception.code, status)
                 install.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
