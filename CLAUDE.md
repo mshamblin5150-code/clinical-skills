@@ -1255,7 +1255,7 @@ The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the ext
 The AAR reader's cause pointers and the one-way cause overrule follow ADR 0396 and `aar` steps 2–4.
 Unverified causes land through the warning-bearing tracker body-file route, and reports count them
 per round separately from candidates answered `not shown`. The command grades the recorded
-pointers and publication evidence; the reader still owns recognizing the unverified cause.
+pointers and publication evidence; the reader still decides whether the extract shows the claimed explanation.
 
 ### Draft revision change list
 
