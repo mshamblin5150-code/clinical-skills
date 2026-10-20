@@ -166,6 +166,11 @@ def disagreements(first: list[dict], second: list[dict]) -> list[dict]:
 
 def valid_capture(root: Path, *, transcribed: bool = False) -> dict:
     record = read_json(root / "capture.json")
+    # Establish each tool record's readable shape before a changed fingerprint
+    # can misclassify torn bookkeeping as a content finding.
+    for name in ("pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json"):
+        if name in record["files"]:
+            read_json(root / name)
     checked_files(root, record["files"])
     if record["route"] not in {"youtube", "local", "winx"}:
         raise ValueError("unknown acquisition route")

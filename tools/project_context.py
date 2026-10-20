@@ -54,7 +54,6 @@ DECLARED_LIMITS = (
     ("unreadable-tool-record", "Existing decode faults and broken tool-rendered fields propagate through the shared reader; dependent checks are not graded, with incomplete coverage. Control-character damage remains a content finding and writers refuse before replacing evidence."),
     ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
     ("printable-write-damage-unseen", "The write preflight cannot detect damage that leaves only printable characters, such as a lost backslash."),
-    ("later-control-damage-unchecked", "Go-ahead and completion re-reads do not check control characters introduced after the last --write."),
     ("other-record-damage-unchecked", "The write preflight checks only project-context.md and the account registry, not other hand-written run records."),
     ("heredoc-route-ungraded", "The write preflight checks file contents, not whether a heredoc was used to write them."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),

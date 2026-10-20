@@ -479,7 +479,13 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             if not status.startswith("stopped - "):
                 failures.append(f"{unreadable_runs[run]}; this run needs stopped - <reason>.")
             continue
-        state = _state(run)
+        try:
+            state = _state(run)
+        except UnreadableRecord as failure:
+            unreadable_runs[run] = failure
+            if not status.startswith("stopped - "):
+                failures.append(f"{failure}; this run needs stopped - <reason>.")
+            continue
         stopped_here = (
             state.get("status") == "stopped"
             and state.get("approval_revision") == revision

@@ -110,6 +110,21 @@ class ToolRecordReader(unittest.TestCase):
                 frozen_grade.freeze(self.root, 'clinical-note', item)
         self.assertEqual(original, path.read_bytes())
 
+    def test_recursive_busy_owner_metadata_keeps_the_bounded_safe_refusal(self):
+        path = self.root / 'frozen-grades.json'
+        metadata = self.root / 'synthetic-lock.json'
+        metadata.write_bytes(b' ' + b'[' * 2000 + b'0' + b']' * 2000)
+        manager = mock.MagicMock()
+        manager.__enter__.side_effect = artifact_lock.ArtifactBusy('synthetic contention')
+        with (mock.patch.object(artifact_lock, 'hold', return_value=manager),
+              mock.patch.object(artifact_lock, 'lock_path', return_value=metadata),
+              mock.patch.object(records.time, 'monotonic', side_effect=(0, 2)),
+              mock.patch.object(records.json, 'loads', side_effect=RecursionError('PRIVATE-PLANTED'))):
+            with self.assertRaises(records.UnreadableRecord) as caught:
+                with records.locked_record(path):
+                    self.fail('contended lock acquired')
+        self.assertEqual('frozen-grades.json: unreadable — held by another task: another task', str(caught.exception))
+
     def test_both_approval_readers_reject_duplicate_keys_and_missing_item_fields(self):
         import approval_record
         item = {'skill': 'clinical-note', 'submission': 'synthetic', 'sha256': 'a' * 64,
@@ -137,6 +152,37 @@ class ToolRecordReader(unittest.TestCase):
             self.assertEqual({}, response)
         self.assertEqual(b'{', path.read_bytes())
         self.assertFalse((self.root / hook.STATE_RECORD).exists())
+
+    def test_later_state_read_damage_uses_the_same_keyed_stopped_refusal(self):
+        from tool_record_test_support import posting_record
+        source = self.root / 'synthetic.md'
+        source.write_text('Synthetic.', encoding='utf-8')
+        (self.root / 'posting-approvals.json').write_text(json.dumps(posting_record(
+            source, {'skill': 'discussion-post', 'submission': 'synthetic'},
+        )), encoding='utf-8')
+        transcript = self.root / 'session.jsonl'
+        transcript.write_text('', encoding='utf-8')
+        state = self.root / hook.STATE_RECORD
+        original = hook._state
+        for status in ('complete', 'awaiting posting', 'stopped - bookkeeping unreadable'):
+            state.unlink(missing_ok=True)
+            calls = 0
+            def changed(run):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    state.write_bytes(b'{')
+                return original(run)
+            with (mock.patch.object(hook, 'touched_runs', return_value=(self.root,)),
+                  mock.patch.object(hook, '_state', side_effect=changed)):
+                result = hook.handle({'transcript_path': str(transcript),
+                    'last_assistant_message': f'Run status: {self.root.name} — {status}'})
+            if status.startswith('stopped - '):
+                self.assertEqual({}, result)
+            else:
+                self.assertEqual('block', result.get('decision'))
+                self.assertIn('run-status.json: unreadable — does not decode at line 1 column 2', result['reason'])
+            self.assertEqual(b'{', state.read_bytes())
 
     def test_damaged_revision_cannot_restart_and_reuse_an_earlier_frozen_grade(self):
         import assignment_submission

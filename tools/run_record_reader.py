@@ -289,7 +289,7 @@ def locked_record(path: Path):
                     owner = json.loads(raw)
                     if type(owner.get("pid")) is int and owner["pid"] > 0:
                         holder = f"process {owner['pid']}"
-                except (OSError, ValueError, AttributeError):
+                except (OSError, ValueError, AttributeError, RecursionError):
                     pass
                 raise UnreadableRecord(path, f"held by another task: {holder}") from None
             time.sleep(0.01)

@@ -83,14 +83,30 @@ class ToolWrittenAarRecords(unittest.TestCase):
     def test_damaged_posted_reading_is_ungraded_and_independent_findings_survive(self):
         from datetime import datetime, timezone
         path = self.fixture.run / 'reread.md'
-        path.write_bytes(b'\xffPRIVATE-PLANTED')
-        with mock.patch.object(aar_scan, 'POSTED_READING_FINGERPRINT_CUTOFF', datetime.min.replace(tzinfo=timezone.utc)):
-            self.assert_unreadable()
-            review = aar_scan.review_path(self.fixture.run, self.fixture.submission)
-            review.write_text(review.read_text(encoding='utf-8').replace('UNREAD: 0', 'UNREAD: 1'), encoding='utf-8')
-            status, stdout, stderr = legacy.invoke_main(self.arguments)
-        self.assertEqual((status, stderr), (1, ''), stdout)
-        self.assertIn('not graded', stdout)
+        original = path.read_bytes()
+        review = aar_scan.review_path(self.fixture.run, self.fixture.submission)
+        review_text = review.read_text(encoding='utf-8')
+        for damage in (original[:original.index(b'\n') + 1], b'[]', None, b'\xffPRIVATE-PLANTED'):
+            with self.subTest(unopenable=damage is None):
+                path.unlink()
+                if damage is None:
+                    path.mkdir()
+                else:
+                    path.write_bytes(damage)
+                with mock.patch.object(aar_scan, 'POSTED_READING_FINGERPRINT_CUTOFF', datetime.min.replace(tzinfo=timezone.utc)):
+                    self.assert_unreadable()
+                    review.write_text(review_text.replace('UNREAD: 0', 'UNREAD: 1'), encoding='utf-8')
+                    status, stdout, stderr = legacy.invoke_main(self.arguments)
+                self.assertEqual((status, stderr), (1, ''), stdout)
+                self.assertIn('not graded', stdout)
+                review.write_text(review_text, encoding='utf-8')
+                if damage is None:
+                    self.assertEqual([], list(path.iterdir()))
+                    path.rmdir()
+                else:
+                    self.assertEqual(damage, path.read_bytes())
+                    path.unlink()
+                path.write_bytes(original)
 
     def test_independent_review_finding_wins_over_unreadable_bookkeeping(self):
         review = aar_scan.review_path(self.fixture.run, self.fixture.submission)
