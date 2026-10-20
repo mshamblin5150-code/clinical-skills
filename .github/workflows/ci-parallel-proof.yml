@@ -1,6 +1,7 @@
-# One approved A/B diagnostic job, not a population retry or an adopted fix.
-# Both observations are fresh and unprimed; only the pinned ignore input differs.
-name: reader pinned ignore comparison
+# One separately approved proof push; no rerun, PR, or adoption.
+# Publication requires the lazy proof, budget plan, observer, owner source,
+# and both independent review axes to pass. Native controls gate measurement.
+name: reader parallelism preliminary proof
 
 on:
   push:
@@ -10,90 +11,21 @@ permissions:
   contents: read
 
 jobs:
-  preflight-status:
+  parallel-proof:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 150
     steps:
-      - name: Record whole-job deadline origin
+      - name: Record whole-job budget origin
         shell: pwsh
         run: |
-          "PREFLIGHT_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Fresh baseline observer at the failed revision
-        uses: actions/checkout@v7
-        with:
-          ref: 96a8c794b71184881fbaa9b3df471fecf2f9b331
-          path: observer-baseline
-          fetch-depth: 0
-          persist-credentials: false
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /diagnostics/
-            /.github/workflows/ci-parallel-proof.yml
-            /tools/test_suite_ids.py
-            /tools/console_codec.py
-            /tools/python_floor.py
-            /tools/git_paths.py
-
-      - name: Unchanged immutable source seed
-        uses: actions/checkout@v7
-        with:
-          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
-          path: source-seed
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Diagnostic helper separately from observer
+      - name: Observer and reviewed lazy candidate only
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-          path: diagnostic-helper
-          fetch-depth: 1
-          persist-credentials: false
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /diagnostics/preflight_status_diagnostic.py
-            /diagnostics/measure_parallel_readers.py
-            /diagnostics/parallel_reader_capture.py
-            /diagnostics/parallel_reader_diagnostics.py
-            /diagnostics/parallel_reader_scheduler.py
-            /diagnostics/windows_job_probe.py
-            /tools/console_codec.py
-            /tools/python_floor.py
-            /tools/git_paths.py
-
-      - name: Same exact interpreter without project package installation
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.14.4'
-
-      - name: Unprimed baseline original import and first-status prefix
-        id: baseline
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode baseline --observer observer-baseline --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
-          exit $LASTEXITCODE
-
-      - name: Admit a second fresh observation only with time remaining
-        id: second
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          $elapsed = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - [double]$env:PREFLIGHT_JOB_START_EPOCH
-          if ($elapsed -lt 0 -or $elapsed -ge 420) {
-            Write-Output '{"event":"hold","reason":"second_observation_budget_unavailable"}'
-            exit 2
-          }
-          'admitted=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - name: Fresh candidate observer with existing pinned ignore input
-        if: steps.second.outputs.admitted == 'true'
-        uses: actions/checkout@v7
-        with:
-          ref: 96a8c794b71184881fbaa9b3df471fecf2f9b331
-          path: observer-candidate
+          path: observer
           fetch-depth: 0
           persist-credentials: false
           sparse-checkout-cone-mode: false
@@ -106,27 +38,27 @@ jobs:
             /tools/python_floor.py
             /tools/git_paths.py
 
-      - name: Unprimed candidate original import and first-status prefix
-        id: candidate
-        if: steps.second.outputs.admitted == 'true'
-        continue-on-error: true
+      - name: Immutable full source seed
+        uses: actions/checkout@v7
+        with:
+          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          path: source-seed
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact maintainer interpreter without installation of packages
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+
+      - name: Qualify owned trees and budget, then compare full populations
         shell: pwsh
         run: |
-          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode candidate --observer observer-candidate --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
+          # LF-normalized SHA-256 of the independently reviewed planning artifact.
+          # Only CRLF/CR -> LF normalization is allowed; runtime admission still gates.
+          $reviewedBudgetSha256 = 'a50ca5d8e7d73797b03330e23b57b6354bae95cdbd42f4f526bd4fab9ac65a59'
+          python observer/diagnostics/measure_parallel_readers.py --observer observer --seed source-seed --budget-plan observer/diagnostics/parallel-proof-budget.json --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
-      - name: Preserve every hold and state the diagnostic boundary
-        if: always()
-        shell: pwsh
-        env:
-          BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
-          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
-          BASELINE_RESULT: ${{ steps.baseline.outputs.comparison_result }}
-          CANDIDATE_RESULT: ${{ steps.candidate.outputs.comparison_result }}
-        run: |
-          Write-Output '{"event":"diagnostic_boundary","full_original_preflight_passed":false,"controls_run":false,"population_run":false,"speed_claim_allowed":false,"raw_reports_uploaded":false}'
-          if ($env:BASELINE_OUTCOME -ne 'success' -or $env:CANDIDATE_OUTCOME -ne 'success' -or $env:BASELINE_RESULT -ne 'baseline_reproduced' -or $env:CANDIDATE_RESULT -ne 'candidate_clean') { exit 2 }
-          Write-Output '{"event":"comparison_result","baseline_reproduced":true,"candidate_first_guard_clean":true,"mitigation_observed":true,"root_cause_proven":false,"production_adoption":false}'
-
-# No artifact upload, additional workflow, dispatch, PR trigger, matrix, secrets,
-# dependency installation, retry, deletion, or changes to checks.yml/tracker.yml.
+# No artifact upload, workflow_dispatch, PR event, matrix, secret, package install,
+# write token, retry, changed production scheduler, or change to checks.yml.
