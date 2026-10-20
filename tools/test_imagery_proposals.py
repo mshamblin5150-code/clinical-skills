@@ -113,11 +113,20 @@ class CompletionGate(unittest.TestCase):
         result = self.real_grade(text, terminal=False, rows=[], unread=True)
         self.assertFalse(result.finding)
         self.assertTrue(result.coverage)
+
         self.assertEqual(1, result.unread)
         self.assertIn("not verified", result.report)
         result = self.real_grade("[[PROPOSED IMAGE image-1]] " + text, terminal=False, rows=[], unread=True)
         self.assertTrue(result.finding)
         self.assertTrue(result.coverage)
+
+    def test_a_repeated_whole_reply_is_matched_at_the_recorded_later_time(self):
+        self.write(status="proposed-and-approved")
+        self.change_record(ruling={"clinician_reply": "Yes, keep it.", "reply_at": 300, "shown_draft_at": 100})
+        rows = [{"type": "user", "timestamp": stamp, "message": {"content": "Yes, keep it."}}
+                for stamp in ("1970-01-01T00:03:20Z", "1970-01-01T00:05:00Z")]
+        result = self.real_grade("The care plan needs an orbit, not a straight line.", terminal=False, rows=rows)
+        self.assertFalse(result.finding, result.report)
 
     def test_later_changes_are_counted_before_submission_and_require_reconfirmation(self):
         self.write(status="proposed-and-approved")
@@ -358,6 +367,33 @@ class ScopedCompletionGraders(unittest.TestCase):
 
 
 class CompletionGraderIntegration(unittest.TestCase):
+    def test_native_reply_submission_keeps_each_image_answer_cutoff(self):
+        import discussion_reply_scan
+        from test_discussion_reply_scan import Run as ReplyRun
+        fixture = CompletionGate()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        ReplyRun(fixture.run, posted=False)
+        fixture.write(status="proposed-and-removed")
+        path = fixture.run / proposals.RECORD_NAME
+        old = json.loads(path.read_text(encoding="utf-8"))["proposals"][0]
+        old.update(artifact="response-maren.md")
+        old.pop("ruling")
+        new = dict(old, key="new", artifact="response-new.md", ruling={"clinician_reply": "Yes, keep it.", "reply_at": 200, "shown_draft_at": 100})
+        (fixture.run / "response-new.md").write_text((fixture.run / "response-maren.md").read_text(encoding="utf-8"), encoding="utf-8")
+        start = completion_checks.registry()["imagery_proposals:image-stop"][0]
+        for moments, rows, expected in (
+            ({"response-maren.md": start - timedelta(microseconds=1), "response-new.md": start}, [old, new], False),
+            ({"response-maren.md": start - timedelta(microseconds=1), "response-new.md": None}, [old, dict(new, ruling=None)], True),
+        ):
+            # Missing evidence is represented by an absent optional field, as in legacy records.
+            rows = [{k: v for k, v in row.items() if v is not None} for row in rows]
+            path.write_text(json.dumps({"proposals": rows}), encoding="utf-8")
+            output = io.StringIO()
+            with mock.patch.object(completion_checks, "approval_moment", side_effect=lambda run, key: moments[key]), mock.patch.object(repo_root, "canonical_voice_model", return_value=fixture.resolved), mock.patch.object(approval_record, "_main_transcripts", return_value=([[{"type": "user", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": "Yes, keep it."}}]], False)), redirect_stdout(output), redirect_stderr(output):
+                discussion_reply_scan.main([str(fixture.run), "--submission", "response-maren.md,response-new.md"])
+            self.assertEqual(expected, "has no recorded image answer" in output.getvalue(), output.getvalue())
+
     def test_public_pregrade_counts_an_unread_answer_once_and_keeps_finding_precedence(self):
         fixture = CompletionGate()
         fixture.setUp()

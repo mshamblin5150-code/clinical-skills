@@ -150,6 +150,15 @@ def active(key: str, moment=None) -> bool:
     return applies
 
 
+def active_for_item(key: str, artifact: str) -> bool:
+    """Use an item's own moment; an unknown item never inherits a sibling's date."""
+    items = ITEM_MOMENTS.get()
+    if not items:
+        return active(key)
+    observed = items.get(artifact)
+    return True if observed is None else active(key, observed)
+
+
 def approval_moment(run: Path, submission: str):
     import frozen_grade
     from run_record_reader import UnreadableRecord, collecting_errors

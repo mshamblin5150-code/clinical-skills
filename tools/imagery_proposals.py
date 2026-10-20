@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import completion_checks
 import json
+import math
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -220,8 +221,9 @@ def completion_gate(
             False,
             f"{EXPECTED_ROW}: not graded - --submission was not supplied",
         )
-    new_checks = completion_checks.active("imagery_proposals:image-stop")
-    if not terminal and not new_checks:
+    active_artifacts = {artifact for artifact in artifacts
+                        if completion_checks.active_for_item("imagery_proposals:image-stop", artifact)}
+    if not terminal and not active_artifacts:
         return CompletionGate(False, False, f"{EXPECTED_ROW}: not graded - image stop predates check")
     try:
         all_proposals = _read_records(run)
@@ -283,7 +285,7 @@ def completion_gate(
                 findings.append(f"{proposal.key} changed image does not match the draft")
             if terminal:
                 findings.append(f"{proposal.key} changed image was not reconfirmed")
-        if new_checks and proposal.status != "proposed":
+        if proposal.artifact in active_artifacts and proposal.status != "proposed":
             if proposal.ruling is None:
                 findings.append(f"{proposal.key} has no recorded image answer")
             else:
@@ -293,7 +295,8 @@ def completion_gate(
                 shown = completion_checks.instant(proposal.ruling["shown_draft_at"])
                 reply_at = completion_checks.instant(proposal.ruling["reply_at"])
                 verification = approval_record.verify_clinician_reply(run, proposal.ruling["clinician_reply"], (),
-                    source_modified_at=shown.timestamp(), transcripts=transcripts)
+                    source_modified_at=shown.timestamp(),
+                    after=math.nextafter(reply_at.timestamp(), -math.inf), transcripts=transcripts)
                 if verification.state == "unreadable":
                     transcript_unread = True
                 elif verification.state != "verified" or abs(verification.matched_at - reply_at.timestamp()) > 0.000001:
