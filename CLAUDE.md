@@ -2192,7 +2192,11 @@ refuses a stale or malformed declaration through both tracker-writing routes;
 the tracker workflow reports the same changed body after publication. Titles
 are outside the declaration surface at both hosts. The
 pre-commit hook runs `python tools/tracker_measurements.py --staged-adrs` and
-refuses a staged ADR whose declaration differs from that checkout's `HEAD`.
+refuses a staged ADR whose declaration names neither that checkout's pre-commit
+`HEAD` nor its first parent (ADR 0425). The annotation-only exemption tries both
+bases at commit time too. `tools/hooks/post-commit` runs the advisory
+`python tools/tracker_measurements.py --commit HEAD` report over only the ADRs
+the new commit touched, against its first parent; it never refuses the commit.
 With no arguments, the command audits committed ADRs at or after its cutoff
 against each record's last-touch parent so CI can reproduce the publication
 decision. ADR 0334 permits supersession-only maintenance that preserves the
@@ -3294,6 +3298,11 @@ selects staged clinical sheets, or every sheet once when the catalog is staged, 
 `--allow-stale-build` on both routes; the threshold-sheet section explains that flag's cost. `tools/hooks/commit-msg`
 checks the proposed message for spelling and GitHub closing keywords. Both spelling checks are advisory; the
 closing-keyword check refuses on any nonzero scan exit (ADR 0436).
+`tools/hooks/post-commit` reports ADR measurement findings as an advisory after
+an ADR change; CI retains the full committed audit. Like `post-checkout`, it
+resolves the tool through the current checkout even when the hook file comes
+from the owning checkout's absolute `core.hooksPath`. The owning checkout must
+carry the new hook before worktree commits can run it.
 
 **Refusing checks are added deliberately because their findings protect clinical guidance a
 consumer may rely on.** A fabricated citation, a false corpus denominator, an unevidenced subject

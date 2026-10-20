@@ -1,0 +1,22 @@
+#!/bin/sh
+# ADR 0425: report the exact measurement base after the commit exists.
+# Advisory even when the scan fails; CI retains the complete committed audit.
+repo_root=$(git rev-parse --show-toplevel) || exit 0
+changed=$(git diff-tree --root --no-commit-id --name-only -r --no-renames \
+    --diff-filter=ACM -m --first-parent HEAD -- 'docs/adr/*.md') || {
+    echo "publication measurements: commit ADR population not scanned" >&2
+    exit 0
+}
+[ -n "$changed" ] || exit 0
+[ -f "$repo_root/tools/tracker_measurements.py" ] || {
+    echo "publication measurements: checkout tool unavailable; not scanned" >&2
+    exit 0
+}
+for python in python python3 py; do
+    if command -v "$python" >/dev/null 2>&1; then
+        "$python" "$repo_root/tools/tracker_measurements.py" --commit HEAD >&2 || true
+        exit 0
+    fi
+done
+echo "publication measurements: no Python on PATH; commit ADRs not scanned" >&2
+exit 0
