@@ -1,5 +1,6 @@
 """ADR0381 reversal candidates and search-before-landing public controls."""
 # phi-scan: synthetic
+import artifact_lock_test_support
 import contextlib
 from datetime import datetime, timedelta, timezone
 import io
@@ -89,6 +90,26 @@ class ReversalCandidates(unittest.TestCase):
         status, report = self.command()
         self.assertEqual(0, status, report)
         self.assertIn("reversal candidates: 2; answered 2; not a correction 2", report)
+
+    def test_candidate_grade_uses_the_strict_extract_read_and_damage_is_not_empty(self):
+        self.extract("Corrected the workflow.\n")
+        self.append("\n## CANDIDATE: 1\nANSWER: not a correction - the earlier claim was supported\n")
+        path = aar_scan.extract_path(self.run, "synthetic")
+        read_text = Path.read_text
+        def no_unchecked_extract_read(source, *args, **kwargs):
+            self.assertNotEqual(path, source, "candidate grading must reuse the classified extract entries")
+            return read_text(source, *args, **kwargs)
+        with mock.patch.object(Path, "read_text", no_unchecked_extract_read):
+            status, report = self.command()
+        self.assertEqual(0, status, report)
+        for damaged in (b"{", b"SUBMISSION: synthetic\nPOPULATION: wrong\n\n", b"\xff"):
+            with self.subTest(damage=damaged):
+                path.write_bytes(damaged)
+                status, report = self.command()
+                self.assertEqual(2, status, report)
+                self.assertIn("unread remainder 1", report)
+                self.assertIn("extract-dependent checks: not graded", report)
+                self.assertNotIn("reversal-candidates:", report)
 
     def test_answer_must_name_a_recorded_correction_or_have_a_substantive_reason(self):
         self.extract("Corrected the workflow.\n")

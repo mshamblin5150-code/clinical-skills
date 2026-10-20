@@ -2012,10 +2012,10 @@ def read_review(path: Path) -> Review:
 
 def _extract_document(
     path: Path,
-) -> tuple[dict[str, str], set[str], dict[str, str], set[str]]:
+) -> tuple[dict[str, str], set[str], dict[str, str], set[str], tuple[ExtractEntry, ...]]:
     def decode(text: str):
-        _tool_extract_entries(text)
-        return _extract_document_text(text)
+        _fields, entries = _tool_extract_entries(text)
+        return (*_extract_document_text(text), entries)
     document = read_tool_record(path, decode)
     if document is None:
         raise ValueError(f"cannot read extract {path.name}")
@@ -2132,7 +2132,7 @@ def _extract_entries_text(
 
 
 def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
-    fields, identifiers, _entry_kinds, _task_aliases = _extract_document(path)
+    fields, identifiers, _entry_kinds, _task_aliases, _entries = _extract_document(path)
     return fields, identifiers
 
 
@@ -2388,7 +2388,7 @@ def _survey_round(
     population, unread, review_findings = _review_content(review)
     findings.extend(review_findings)
     try:
-        extract_fields, identifiers, entry_kinds, task_aliases = _extract_document(
+        extract_fields, identifiers, entry_kinds, task_aliases, entries = _extract_document(
             extract_path(run, submission, round_number)
         )
     except UnreadableRecord as exc:
@@ -2400,7 +2400,6 @@ def _survey_round(
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
     reversal_check = bool(extracted_at) and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= REVERSAL_CANDIDATES_CUTOFF
     if reversal_check:
-        _, entries = _extract_entries_text(extract_path(run, submission, round_number).read_text(encoding="utf-8"))
         reversal_findings, reversal_report = _grade_reversal_candidates(run, submission, round_number, review, entries)
         findings.extend(reversal_findings)
     else:
