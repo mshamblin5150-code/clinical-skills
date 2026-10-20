@@ -285,6 +285,18 @@ class AnswerReader(unittest.TestCase):
                     self.assertTrue(result[0], result[1])
                     self.assertIn("note/section", result[1])
 
+    def test_helper_pointer_findings_keep_note_names_and_text_private(self):
+        with Checkout() as (root, run):
+            name = "conformance-salted-marker.md"
+            (run / name).write_text("## Plan\nUnselected private marker.\n", encoding="utf-8")
+            (run / d.RECORD).write_text(NONE + f"NOTE: {name}\nSECTIONS: absent\n", encoding="utf-8")
+            finding, report, unread = d.completion_gate(run, "synthetic-submission", root=root)
+            self.assertTrue(finding, report)
+            self.assertIn("record 1: note/section pointer does not resolve", report)
+            self.assertNotIn(name, report)
+            self.assertNotIn("Unselected private marker", report)
+            self.assertEqual(0, unread)
+
 
 class ClinicalAnswerApproval(unittest.TestCase):
     def test_clinical_answer_checks_run_inside_the_canonical_approval_transaction(self):
