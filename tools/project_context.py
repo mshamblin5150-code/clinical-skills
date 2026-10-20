@@ -26,7 +26,9 @@ import repo_root
 import run_grader
 import uptodate_store
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record, update_tool_record, RecordUpdate
+from run_record_reader import (read_tool_record, UnreadableRecord, RecordContentError,
+    fault_report, object_record, update_tool_record, RecordUpdate,
+    DamagedRecord, check_handwritten_text, read_handwritten_record, damaged_record_result)
 
 
 RECORD_NAME = "project-context.md"
@@ -343,19 +345,24 @@ def _duplicates(record: Record) -> list[str]:
     return errors
 
 
-class ContextDamage(RecordContentError):
+class ContextDamage(DamagedRecord):
     """Hand-authored control damage keeps its content-finding meaning."""
 
+    def __str__(self):
+        return super().__str__() + "\nRewrite using AGENTS.md standing rule 6; use spaces for tabs."
 
-def _decode_context_text(text: str) -> str:
-    lines = text.split("\n")
-    damage = []
-    for number, line in enumerate(lines):
-        for index, character in enumerate(line):
-            if ord(character) < 32 and not (character == "\r" and index == len(line) - 1 and number < len(lines) - 1):
-                damage.append(f"project-context.md: line {number + 1}: U+{ord(character):04X}")
-    if damage:
-        raise ContextDamage("project context: finding - damaged text\n" + "\n".join(damage))
+
+def _decode_context_text(text: str, path: Path | None = None, *, force: bool = False,
+                         artifact: str | None = None) -> str:
+    path = path or Path(RECORD_NAME)
+    checked = check_handwritten_text(text, path, "project-context")
+    try:
+        # The original raw-control boundary predates the new shared cutoff.
+        text = checked.require_text(force=force or checked.raw_damage, artifact=artifact)
+    except DamagedRecord as failure:
+        damage = ContextDamage(path, failure.diagnostics, raw_damage=failure.raw_damage)
+        damaged_record_result(damage, check=EXPECTED_ROW, artifact=artifact, force=force or checked.raw_damage)
+        raise damage from failure
     record = read_record(text)
     _record_observations(record)
     _record_go_aheads(record)
@@ -368,15 +375,15 @@ def _decode_context_text(text: str) -> str:
     return text
 
 
-def _read_context_text(path: Path) -> str:
-    text = read_tool_record(path, _decode_context_text)
+def _read_context_text(path: Path, *, artifact: str | None = None) -> str:
+    text = read_tool_record(path, lambda text: _decode_context_text(text, path, artifact=artifact))
     if text is None:
         raise FileNotFoundError(path)
     return text
 
 
-def _read_context(path: Path) -> Record:
-    return read_record(_read_context_text(path))
+def _read_context(path: Path, *, artifact: str | None = None) -> Record:
+    return read_record(_read_context_text(path, artifact=artifact))
 
 
 def _confirmation_error(value: str) -> str | None:
@@ -517,7 +524,7 @@ def _classmate_gate(record: Record, submission: str | None) -> tuple[list[str], 
 def other_classmate_items(run: Path, submission: str) -> tuple[str, ...]:
     """Opened identifiers declared only under another submission's classmate lines."""
     try:
-        record = _read_context(run / RECORD_NAME)
+        record = _read_context(run / RECORD_NAME, artifact=submission)
         declarations = tuple(row for name in CLASSMATE_FIELDS for row in _classmate_lines(record, name))
     except UnreadableRecord:
         raise
@@ -662,10 +669,10 @@ def _integer(entry: Entry, name: str, errors: list[str]) -> int | None:
     return number
 
 
-def recorded_opened_items(run: Path) -> tuple[str, ...]:
+def recorded_opened_items(run: Path, *, artifact: str | None = None) -> tuple[str, ...]:
     """Identifiers of opened items, using the same parser as the context gate."""
     try:
-        record = _read_context(run / RECORD_NAME)
+        record = _read_context(run / RECORD_NAME, artifact=artifact)
     except OSError:
         return ()
     return tuple(
@@ -878,7 +885,7 @@ def _write_context_record(
     if project_name != "none" and not registry_path.is_file():
         return RecordUpdate(None, GateResult(2, "project context NOT SCANNED - project registry is unavailable"))
     try:
-        registry = Registry("", MappingProxyType({})) if project_name == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if project_name == "none" else read_registry(read_handwritten_record(registry_path).require_text(force=True))
         owed = _owed_places(registry, project_name, searches)
     except RegistryCoverage as failure:
         return RecordUpdate(None, GateResult(2, f"project context NOT SCANNED - {failure}"))
@@ -1007,22 +1014,11 @@ def order_waived(run: Path, submission: str, draft_path: str) -> bool:
 def _damaged_lines(path: Path) -> list[str]:
     # Unlike tracker-body #723, tabs and bare CR are damage: Windows path
     # escapes can produce them. Only LF and CR immediately before LF are safe.
-    with path.open(encoding="utf-8", newline="") as source:
-        text = source.read()
-    return _damaged_text(text, path)
+    return list(read_handwritten_record(path).diagnostics)
 
 
 def _damaged_text(text: str, path: Path) -> list[str]:
-    findings = []
-    lines = text.split("\n")
-    for number, line in enumerate(lines, 1):
-        for offset, character in enumerate(line):
-            if ord(character) >= 32:
-                continue
-            if character == "\r" and offset == len(line) - 1 and number < len(lines):
-                continue
-            findings.append(f"{path}: line {number}: U+{ord(character):04X} ({ascii(character)})")
-    return findings
+    return list(check_handwritten_text(text, path).diagnostics)
 
 
 def _write_damage(run: Path) -> GateResult | None:
@@ -1051,17 +1047,14 @@ def _write_damage_report(findings: list[str]) -> GateResult:
 
 def write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
     def decode(text):
-        findings = _damaged_text(text, run / RECORD_NAME)
-        if findings:
-            raise ContextDamage(_write_damage_report(findings).report)
-        return _decode_context_text(text)
+        return _decode_context_text(text, run / RECORD_NAME, force=True)
     try:
         result = update_tool_record(run / RECORD_NAME, decode,
             lambda previous: _write_record(run, previous, service_payloads=service_payloads, submission=submission))
         if result.exit_code == 0:
             retain_heading_context(run)
         return result
-    except ContextDamage as failure:
+    except DamagedRecord as failure:
         return GateResult(1, str(failure))
     except UnreadableRecord as failure:
         return GateResult(2, fault_report(failure, check=EXPECTED_ROW))
@@ -1159,10 +1152,10 @@ def _completion_gate(run: Path, submission: str | None) -> CompletionGate:
     return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
 
 
-def recorded_digest(run: Path) -> str:
+def recorded_digest(run: Path, *, artifact: str | None = None) -> str:
     """Return the machine-written digest for the shared heading-read binding."""
     try:
-        return _read_context(run / RECORD_NAME).value(
+        return _read_context(run / RECORD_NAME, artifact=artifact).value(
             "CONTEXT-DIGEST"
         )
     except UnreadableRecord:
@@ -1174,7 +1167,7 @@ def recorded_digest(run: Path) -> str:
 def retain_heading_context(run: Path) -> None:
     """Keep each context the heading reader can name, before a later refresh."""
     try:
-        update_tool_record(run / RECORD_NAME, _decode_context_text,
+        update_tool_record(run / RECORD_NAME, lambda text: _decode_context_text(text, run / RECORD_NAME, force=True),
                            lambda text: RecordUpdate(None, _retain_context_text(run, text)))
     except UnreadableRecord:
         raise
@@ -1193,7 +1186,7 @@ def _retain_context_text(run: Path, text: str | None) -> None:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as failure:
             raise UnreadableRecord(path, "could not be opened") from failure
-        update_tool_record(path, _decode_context_text,
+        update_tool_record(path, lambda value: _decode_context_text(value, path, force=True),
                            lambda previous: RecordUpdate(text.encode("utf-8") if previous is None else None))
 
 
@@ -1206,16 +1199,16 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
         if item.get("posting_route", item.get("upload_route")) in {"agent", "clinician"}:
             return True
     if digest == "none":
-        return recorded_digest(run) == "none"
+        return recorded_digest(run, artifact=artifact) == "none"
     if not _SHA256.fullmatch(digest):
         return False
     try:
         path = run / "private" / "heading-contexts" / (digest + ".md")
         # An unchanged legacy record can supply its own retained population.
-        if read_tool_record(path, _decode_context_text) is None and digest == recorded_digest(run):
+        if read_tool_record(path, lambda text: _decode_context_text(text, path, artifact=artifact)) is None and digest == recorded_digest(run, artifact=artifact):
             retain_heading_context(run)
-        previous = _read_context(path)
-        current = _read_context(run / RECORD_NAME)
+        previous = _read_context(path, artifact=artifact)
+        current = _read_context(run / RECORD_NAME, artifact=artifact)
         names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS)
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
@@ -1239,9 +1232,9 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
                 if sha256(_file_path(entry, opened).read_bytes()).hexdigest() != opened.digest:
                     return False
         return True
-    except UnreadableRecord:
+    except (UnreadableRecord, DamagedRecord):
         raise
-    except (OSError, UnicodeError, ValueError, TypeError, ContextDamage):
+    except (OSError, UnicodeError, ValueError, TypeError):
         return False
 
 
@@ -1264,7 +1257,7 @@ def _grade_context(run: Path, submission: str | None, *, recheck_files: bool = T
         )
     path = run / RECORD_NAME
     try:
-        record = _read_context(path)
+        record = _read_context(path, artifact=submission)
     except FileNotFoundError:
         return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record is missing")
     except UnreadableRecord:
@@ -1309,7 +1302,7 @@ def _grade_context(run: Path, submission: str | None, *, recheck_files: bool = T
             f"{EXPECTED_ROW}: not scanned - project registry is unavailable",
         )
     try:
-        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(read_handwritten_record(registry_path).text)
         owed = _owed_places(registry, declaration, searches)
     except RegistryCoverage:
         return CompletionGate(
@@ -1478,7 +1471,7 @@ def go_ahead(run: Path, submission: str, *, approval_revision: int | None = None
     keys = coursework_run.submission_keys(submission)
     if len(keys) != 1:
         raise ValueError("check one go-ahead at a time")
-    return update_tool_record(run / RECORD_NAME, _decode_context_text,
+    return update_tool_record(run / RECORD_NAME, lambda text: _decode_context_text(text, run / RECORD_NAME, force=True),
         lambda text: _go_ahead_update(run, submission, approval_revision, text))
 
 

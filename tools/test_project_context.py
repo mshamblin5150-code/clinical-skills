@@ -466,7 +466,7 @@ class DamagedProjectContextIsRefusedBeforeWriting(ProjectContextFixture):
         before = path.read_bytes()
         status, report = self.command()
         self.assertEqual(status, 1)
-        self.assertIn(f"{path}: line 13", report)
+        self.assertIn("project-context.md: line 13", report)
         self.assertIn("U+0007", report)
         self.assertIn("standing rule 6", report)
         self.assertEqual(path.read_bytes(), before)
@@ -496,7 +496,8 @@ class DamagedProjectContextIsRefusedBeforeWriting(ProjectContextFixture):
                     record_before = (self.run / context.RECORD_NAME).read_bytes()
                     status, report = self.command()
                     self.assertEqual(status, 1, report)
-                    self.assertIn(f"{path}: line {line}", report)
+                    label = "file 1 of 1" if field == "registry" else "project-context.md"
+                    self.assertIn(f"{label}: line {line}", report)
                     self.assertIn(f"U+{ord(character):04X}", report)
                     self.assertEqual(path.read_bytes(), before)
                     self.assertEqual((self.run / context.RECORD_NAME).read_bytes(), record_before)
@@ -510,7 +511,7 @@ class DamagedProjectContextIsRefusedBeforeWriting(ProjectContextFixture):
         status, report = self.command()
         self.assertEqual(status, 1)
         for line, character in ((2, "U+0007"), (2, "U+0009"), (3, "U+0000")):
-            self.assertIn(f"{path}: line {line}: {character}", report)
+            self.assertIn(f"project-context.md: line {line}: {character}", report)
         self.assertNotIn("CONFIRMED", report)
         self.assertEqual(path.read_bytes(), before)
 

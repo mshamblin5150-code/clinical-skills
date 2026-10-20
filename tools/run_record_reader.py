@@ -149,6 +149,11 @@ def _handwritten_check_applies(artifact: str | None) -> bool:
     return completion_checks.active(key)
 
 
+def handwritten_check_applies(artifact: str | None = None) -> bool:
+    """Select a shared record's current or unknown member before consuming it."""
+    return _handwritten_check_applies(artifact)
+
+
 @dataclass(frozen=True)
 class HandwrittenKind:
     """Named raw JSON spans and public field vocabulary, never business validation."""

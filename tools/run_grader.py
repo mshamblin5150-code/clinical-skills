@@ -755,11 +755,12 @@ def collect_record_errors(invoke: Callable[[], int]) -> int:
     """Share one fault population through a dispatcher and its selected grader."""
     if _REPORTING_RECORD_ERRORS.get():
         return invoke()
-    from run_record_reader import capture_errors, UnreadableRecord, RecordContentError, fault_report
+    from run_record_reader import (capture_errors, capture_handwritten_damage,
+                                   UnreadableRecord, RecordContentError, fault_report)
     output = io.StringIO()
     token = _REPORTING_RECORD_ERRORS.set(True)
     try:
-        with capture_errors() as faults, contextlib.redirect_stdout(output):
+        with capture_errors() as faults, capture_handwritten_damage() as damaged, contextlib.redirect_stdout(output):
             try:
                 status = invoke()
             except UnreadableRecord as failure:
@@ -771,6 +772,16 @@ def collect_record_errors(invoke: Callable[[], int]) -> int:
     finally:
         _REPORTING_RECORD_ERRORS.reset(token)
     report = output.getvalue()
+    for failure in damaged.values():
+        if failure.finding:
+            status = 1
+            for check in sorted(failure.checks or {"dependent handwritten record checks"}):
+                line = f"{check}: not graded — damaged text"
+                if line not in report:
+                    report += line + "\n"
+            for diagnostic in failure.diagnostics:
+                if diagnostic not in report:
+                    report += diagnostic + "\n"
     if faults:
         # Older callers can publish subordinate remainder lines; the family
         # aggregation repair owns their population union. Keep the largest
