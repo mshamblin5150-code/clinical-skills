@@ -922,7 +922,12 @@ exact ingested file.
 **An untitled dump takes the Titled copy route.** Write a titled copy in the run directory, keep the
 block-to-title mapping there, ingest the copy, and name that exact copy in `--evidence`.
 `uptodate_store.py ingest` merges byte-identical authored blocks and reports the merge, but refuses
-an untitled layout or one candidate title over different bodies. Titles come from the run's reading,
+an untitled layout or one candidate title over different bodies. When one topic appears twice and
+the copies differ only in page chrome (a trailing navigation line, a print footer), keep one copy,
+record the dropped copy and the exact difference in the block-to-title mapping, and then ingest.
+Keep the copy without chrome; where both carry some, keep the first in dump order. Never edit a kept
+block. Copies whose bodies differ in content are not chrome; the store's refusal stands until the
+run resolves which topic each block is. Titles come from the run's reading,
 never from cross-reference text. The membership row trusts those declared titles; its reader-owned
 boundary lives in `research_ledger.DECLARED_LIMITS`.
 
