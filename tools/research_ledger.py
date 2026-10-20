@@ -750,6 +750,8 @@ class Prescription:
     drug: str
     order: str
     declaration: str = ""
+    sig: str = ""
+    refill: str = ""
 
     @property
     def exempt(self) -> bool:
@@ -1595,7 +1597,7 @@ def read_prescriptions(text: str) -> list[Prescription]:
     A pair with no readable row above ``Disp:`` yields the empty sentinel consumed
     by ``UNREADABLE_DRUG_ROW``.
     """
-    return [rx for rows in _table_runs(text) for rx in _prescriptions_in(rows)]
+    return [rx for rows in _table_runs(text) for rx in read_prescription_rows(rows)]
 
 
 def half_anchored_tables(text: str) -> int:
@@ -1608,14 +1610,15 @@ def half_anchored_tables(text: str) -> int:
     )
 
 
-def _prescriptions_in(rows: list[list[str]]) -> list[Prescription]:
+def read_prescription_rows(rows: list[list[str]]) -> list[Prescription]:
     """The drug rows of one run of table lines, empty where it is not a table of
     prescriptions."""
+    rows = [[cell.strip().strip("`").strip() for cell in row] for row in rows]
     opened = [index for index, cells in enumerate(rows) if any(DISP.match(c) for c in cells)]
     if not opened or not any(SIG.match(c) for cells in rows for c in cells):
         return []
     found: list[Prescription] = []
-    for index in opened:
+    for position, index in enumerate(opened):
         above = rows[index - 1] if index else []
         order = next(
             (
@@ -1626,7 +1629,12 @@ def _prescriptions_in(rows: list[list[str]]) -> list[Prescription]:
             "",
         )
         declaration, order = _declaration_of(order)
-        found.append(Prescription(_drug_of(order), order, declaration))
+        stop = opened[position + 1] - 1 if position + 1 < len(opened) else len(rows)
+        cells = [cell.strip().strip("`").strip() for row in rows[index:stop] for cell in row]
+        sig = next((SIG.sub("", cell, count=1).strip() for cell in cells if SIG.match(cell)), "")
+        refill = next((cell.partition(":")[2].strip() for cell in cells
+                       if re.match(r"(?i)^refill\s*:", cell)), "")
+        found.append(Prescription(_drug_of(order), order, declaration, sig, refill))
     return found
 
 
