@@ -133,7 +133,30 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 ## Maintainer tooling
 
-Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
+### Clinical go-ahead disclosure
+
+`python tools/uptodate_block.py --run <run-directory> --notes <final-note-paths>` prints the private
+UpToDate block shown unchanged at either clinical go-ahead. `--batch` selects numbered notes.
+`approval_record.approve` derives it again and compares the last shown block before the matched
+reply, after the notes and outcome logs last changed. Unreadable transcripts record incomplete
+coverage. `outbound_search.py failed-pull` records decision and instrument; its `pull` command
+accepts `--sheet`, `--row`, `--difference`, and `--sheet-kept`. Every passed search needs an outcome.
+The complete boundaries belong to `uptodate_block.DECLARED_LIMITS` and `outbound_search.DECLARED_LIMITS`.
+
+### Medatrax posted-reading writer
+
+`python tools/medatrax_posting.py write --run <directory> --submission <key> --batch --input <readback.json>`
+formats copied portal readings, computes the fingerprint and complete read count, validates through
+the shared posted-reading checks, and atomically saves the record. `check` with the same run,
+submission and note selection checks without writing, before the after-action extract. A standalone
+note uses `--notes <final-output-note>` instead of `--batch`. The input contract lives in
+[Medatrax readback](skills/_shared/reference/medatrax-readback.md). Exit 2 refuses unreadable or invalid
+evidence without printing private values. The complete boundary belongs to `medatrax_posting.DECLARED_LIMITS`.
+`run_record_reader.read_tool_record` distinguishes missing tool-written records from unreadable
+bytes or schema; the caller supplies the decoder. The UpToDate logs and new readback command use it.
+
+This section documents command implementations for maintainers. Consumer requirements belong
+to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.
 
 ### Heredoc write guard
 

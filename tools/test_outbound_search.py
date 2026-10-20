@@ -37,6 +37,19 @@ class OutboundSearchCommand(unittest.TestCase):
         self.assertEqual("pneumonia older adult female", record["query"])
         self.assertEqual("search-a", record["search_id"])
 
+    def test_passed_search_needs_an_outcome_and_failed_gap_pull_counts(self):
+        self.assertEqual(0, self.invoke("pneumonia adult"))
+        failed, report = command.completion_gate(self.run, "note-a")
+        self.assertTrue(failed)
+        self.assertIn("no recorded outcome", report)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            status = command.main(["failed-pull", "--run", str(self.run),
+                "--search-id", "search-a", "--decision", "antibiotic choice",
+                "--instrument", "browser reader"])
+        self.assertEqual(0, status)
+        self.assertFalse(command.completion_gate(self.run, "note-a")[0])
+        self.assertIn("1 failed pull(s)", command.completion_gate(self.run, "note-a")[1])
+
     def test_refused_search_writes_nothing(self):
         for query in ("pneumonia age 42", "pneumonia ２０", "pneumonia October twelve", "Fictional Person pneumonia", "pneumonia private-date", "pneumonia Synthetic Clinic", "pneumonia child adult", "pneumonia older adult adult", "pneumonia female male", "pneumonia male male"):
             with self.subTest(query=query):

@@ -879,7 +879,7 @@ def grade(
         scan=scan,
         source=directory.name,
         findings_failed=findings_failed or outbound_failed,
-        coverage_failed=coverage_failed,
+        coverage_failed=coverage_failed or "Outbound searches: unreadable" in outbound_report,
         diagnostics=diagnostics,
         reports=(run_grader.run_records_report(directory), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
     )

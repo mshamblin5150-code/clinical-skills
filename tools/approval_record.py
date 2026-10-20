@@ -69,6 +69,8 @@ def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str]
                     if isinstance(block, dict) and block.get("type") == "text")
             elif row.get("type") == "response_item":
                 payload = aar_scan._codex_payload(row)
+                if payload.get("channel") == "analysis":
+                    continue
                 if payload.get("type") == "message" and payload.get("role") == "assistant":
                     value = aar_scan._codex_content_text(payload, "output_text")
             if not value:
@@ -79,8 +81,8 @@ def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str]
                 unread = True
                 continue
             if after < written_at < before:
-                shown.append(value)
-    return shown, unread
+                shown.append((written_at, value))
+    return [value for _written_at, value in sorted(shown, key=lambda item: item[0])], unread
 
 
 def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:
@@ -132,6 +134,26 @@ def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | No
     if unread:
         return ReplyVerification("unreadable", "shown-text transcript unreadable")
     return ReplyVerification("not found", f"approved text was not shown: {missing} missing blocks")
+
+
+def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:
+    """Check the generated clinical block in the source-change-to-reply window."""
+    import uptodate_block
+    try:
+        expected = uptodate_block.render(run, sources)
+        boundary = max(path.stat().st_mtime for path in uptodate_block.source_paths(run, sources))
+    except (OSError, UnicodeError, ValueError, TypeError) as failure:
+        raise ApprovalRecordError("UpToDate disclosure could not be derived from private evidence") from failure
+    if reply_at is None:
+        return ReplyVerification("unreadable", "UpToDate shown-block transcript unreadable")
+    shown, unread = assistant_text(run, after=boundary, before=reply_at)
+    # The latest shown block supersedes an earlier one, including an edited block.
+    blocks = [message for message in shown if any(heading in message for heading in uptodate_block.HEADINGS)]
+    if unread:
+        return ReplyVerification("unreadable", "UpToDate shown-block transcript unreadable")
+    if blocks and uptodate_block.shown_matches(blocks[-1], expected):
+        return ReplyVerification("verified", "UpToDate disclosure shown unchanged")
+    return ReplyVerification("not found", "UpToDate disclosure was not shown unchanged before approval")
 
 
 @dataclass(frozen=True)
@@ -451,6 +473,14 @@ def approve(
             grade_status = 2
             grade_report += "\n" + shown.reason
 
+    if skill in {"batch-shift", "clinical-note"}:
+        shown = verify_uptodate_block(root, resolved_sources, verification.matched_at)
+        if shown.state == "not found":
+            raise ApprovalRecordError(shown.reason)
+        if shown.state == "unreadable":
+            grade_status = 2
+            grade_report += "\n" + shown.reason
+
     previous_revision = payload.get("approval_revision", 0)
     revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
     if skill in project_context.SCOPED_SKILLS:
@@ -650,6 +680,8 @@ def completion_gate(
         item = _matching_item(payload, skill, key)
         if item is None:
             return True, f"{label}: finding - {key} has no recorded content approval"
+        if skill in {"batch-shift", "clinical-note"} and item.get("shown_text_verification") == "unreadable":
+            incomplete = True
         if item.get("posting_route") not in {
             PostingRoute.AGENT.value,
             PostingRoute.CLINICIAN.value,

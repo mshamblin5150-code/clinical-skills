@@ -35,7 +35,7 @@ class ApprovalRecordContract(unittest.TestCase):
         self.transcript = self.root / "session.jsonl"
         self.transcript.write_text(json.dumps({
             "type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
-            "message": {"content": "approved post"},
+            "message": {"content": "approved post\nUPTODATE CONFLICTS: none\nUPTODATE FAILED PULLS: none\nUPTODATE MISMATCHED SEARCHES: none\n"},
         }) + "\n" + json.dumps({
             "type": "user", "timestamp": "2100-10-09T12:00:00Z",
             "message": {"content": "Approve this entire post."},

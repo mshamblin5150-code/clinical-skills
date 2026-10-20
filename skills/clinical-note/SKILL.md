@@ -824,6 +824,10 @@ ceiling belongs to `outbound_search.DECLARED_LIMITS`.
 
 Record every successful live pull with
 `python tools/outbound_search.py pull --run <run-directory> --search-id <passed-id> --dump-id <dump-id>`.
+For a threshold conflict add `--sheet <sheet-stem> --row <row-locator> --difference "<what differs>"`.
+The difference may contain clinical numbers but no corpus identifier or date literal. It must
+bind the same sheet, row and dump id as the note's conflict tail. Use `--sheet-kept` when the
+live drug page leaves the sheet in force. Keep these details in the private pull record.
 File its topic through ordinary
 `python tools/uptodate_store.py ingest <retained-topic> --dump-id <dump-id> --module <run-key> --received-on <date>`.
 The topic copy contains publisher text, never the encounter or the query. Both note and shift
@@ -848,10 +852,20 @@ in the note body, and neither proves that the topic's position applies to this p
 
 **A failed live pull keeps the run going.** A gap retains its existing `recalled, no shipped sheet`
 or `sheet does not settle it` verdict. A conflict falls back to the threshold sheet, never the
-stale store copy, and its sheet tail ends `; uptodate pull failed`. Keep the failure and the
-instrument tried in the private run record. At the go-ahead show `UPTODATE CONFLICTS` (sheet,
-row, topic, update date, and what differs) and `UPTODATE FAILED PULLS` (decision and instrument),
-or `none` for each. The after-action review follows its sheet-row ticket route for every conflict
+stale store copy, and its sheet tail ends `; uptodate pull failed`. Record the failure through
+`python tools/outbound_search.py failed-pull --run <run-directory> --search-id <passed-id> --decision "<decision>" --instrument "<instrument tried>"`.
+Every passed search needs a recorded outcome; a gap failure is recorded even though it leaves
+no mark in the note. If the pretyping check itself could not run, do not invent a passed id;
+keep that coverage failure private and report it as unverified.
+Before the go-ahead run the Required command
+`python tools/uptodate_block.py --run <run-directory> --notes <final-output-note>`.
+Show its whole output word for word in chat beside `PRE-APPROVAL PATIENT QUESTIONS` and `REPAIRS`:
+`UPTODATE CONFLICTS`, `UPTODATE FAILED PULLS`, and `UPTODATE MISMATCHED SEARCHES`, each `none`
+when empty. Approval reruns the producer and refuses a missing or changed block; an unreadable
+transcript records incomplete coverage. Keep the block outside the note and Review document.
+Without a clean producer run the disclosure is not established and the go-ahead stops.
+Its complete boundary belongs to `uptodate_block.DECLARED_LIMITS`.
+The after-action review follows its sheet-row ticket route for every conflict
 UpToDate won; it searches for an open ticket before filing PHI-free content.
 
 ### The two silences are not the same silence
@@ -1681,7 +1695,11 @@ TIME-LOG: not requested
 VISIT: 1 | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | finished=<Date Finished as displayed> | matches
 ```
 
-Copy every locator and time from Medatrax; never construct a `resultid`. `Created` is the patient's first creation time, so a returning patient uses the visit date on `VISIT:`. Compute the SHA-256 from the final output file before `/AAR` extracts this block.
+Copy every locator and time from Medatrax; never construct a `resultid`. `Created` is the patient's first creation time, so a returning patient uses the visit date on `VISIT:`.
+Use the Required writer and standalone check in [Medatrax readback](../_shared/reference/medatrax-readback.md)
+with `--notes <final-output-note>` before `/AAR` extracts this block. The writer computes the
+fingerprint and read count; do not hand-build them. Without both clean exits the posted reading
+is not ready for the after-action review. The complete boundary belongs to `medatrax_posting.DECLARED_LIMITS`.
 
 **Then invoke `/AAR`.** Use the encounter's run key plus the submission date as the submission key; where `batch-shift` owns the run, use the shift key that skill supplies rather than creating a second review per nested note. For a standalone note, after `/AAR` exits clean run:
 

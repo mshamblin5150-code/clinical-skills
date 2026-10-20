@@ -1774,7 +1774,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=(
             has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed
         ),
-        coverage_failed=coverage_failed,
+        coverage_failed=coverage_failed or "Outbound searches: unreadable" in outbound_report,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
         reports=(run_grader.run_records_report(source.directory), aar_report, posting_report, chain_report, delegated_report, outbound_report),
