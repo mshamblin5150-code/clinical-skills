@@ -659,6 +659,40 @@ typing and antibody testing for all pregnant women
         self.assertEqual(ut.derive_year(fixture("jama-abstract-multi")), "2024")
         self.assertEqual(ut.derive_year(fixture("annals-abstract")), "2015")
 
+    def test_the_ahrq_publication_date_supplies_the_year_after_the_body(self):
+        page_one = fixture("ahrq-sentence-grade")
+        self.assertEqual(ut.derive_year(page_one), ut.NOT_STATED)
+        self.assertEqual(
+            ut.derive_year(page_one + ["", *fixture("ahrq-publication-date")]),
+            "2004",
+        )
+
+    def test_ahrq_date_does_not_displace_either_existing_year_route(self):
+        publication = fixture("ahrq-publication-date")
+        for dated, expected in (
+            (fixture("jama-abstract-multi"), "2024"),
+            (["Copyright 2025"], "2025"),
+            (["Published online January 14, 2025."], "2025"),
+        ):
+            with self.subTest(dated=dated):
+                self.assertEqual(ut.derive_year(publication + dated), expected)
+
+    def test_ahrq_date_requires_adjacent_own_lines_in_the_first_three_pages(self):
+        for page in (
+            "AHRQ Pub. No. 05-0566-A\n\nNovember 2004",
+            "AHRQ Pub. No. 05-0566-A\nOther text\nNovember 2004",
+            "See AHRQ Pub. No. 05-0566-A\nNovember 2004",
+            "AHRQ Pub. No. 05-0566-A extra\nNovember 2004",
+            "AHRQ Pub. No. 05-0566-A\nNovember 2004 extra",
+            "AHRQ Pub. No.\nNovember 2004",
+        ):
+            with self.subTest(page=page):
+                self.assertEqual(ut.derive_year([page]), ut.NOT_STATED)
+        self.assertEqual(
+            ut.derive_year(["", "", "", *fixture("ahrq-publication-date")]),
+            ut.NOT_STATED,
+        )
+
     def test_the_doi_is_not_mistaken_for_a_year(self):
         """``doi:10.1001/jama.2023.5634`` otherwise reads as the year 1001."""
         self.assertEqual(ut.derive_year(["JAMA. doi:10.1001/jama.2024.27154\nPublished online January 14, 2025.\n"]), "2025")

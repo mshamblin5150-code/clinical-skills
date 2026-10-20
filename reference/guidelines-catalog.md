@@ -283,7 +283,7 @@ python tools/guidelines_catalog.py
 | USPSTF | perinatal-depression-final-rec-statement.pdf | Interventions to Prevent Perinatal Depression: US Preventive Services Task Force Recommendation Statement | perinatal depression prevention | pregnancy, postpartum | 2019 | 8 | recommendation-statement | 10.1001/jama.2019.0007 |
 | USPSTF | prediabetes-type2-diabetes-adult-final-recommendation.pdf | Screening for Prediabetes and Type 2 Diabetes: US Preventive Services Task Force Recommendation Statement | prediabetes and type 2 diabetes screening | adult | 2021 | 8 | recommendation-statement | 10.1001/jama.2021.12531 |
 | USPSTF | prostate-cancer-final-rec-statement-051418.pdf | Screening for Prostate Cancer: US Preventive Services Task Force Recommendation Statement | prostate cancer screening | adult | 2018 | 13 | recommendation-statement | 10.1001/jama.2018.3710 |
-| USPSTF | rhrs.pdf | ? | Rh(D) incompatibility screening | pregnancy | ? | 3 | recommendation-statement | AHRQ Pub. No. 05-0566-A. |
+| USPSTF | rhrs.pdf | ? | Rh(D) incompatibility screening | pregnancy | 2004 | 3 | recommendation-statement | AHRQ Pub. No. 05-0566-A. |
 | USPSTF | scoliosis-final-rec-statement.pdf | Screening for Adolescent Idiopathic Scoliosis: US Preventive Services Task Force Recommendation Statement | adolescent idiopathic scoliosis screening | pediatric, adolescent | 2018 | 8 | recommendation-statement | 10.1001/jama.2017.19342 |
 | USPSTF | Screening for Thyroid Cancer US Preventive Services Task Force Recommendation Statement Cancer Screening, Prevention, Control JAMA JAMA Network.pdf | Screening for Thyroid Cancer: US Preventive Services Task Force Recommendation Statement | thyroid cancer screening | adult | 2017 | 14 | recommendation-statement | 10.1001/jama.2017.4011 |
 | USPSTF | Screening for Thyroid Dysfunction Final RS_Print_5.5.15.pdf | Screening for Thyroid Dysfunction: U.S. Preventive Services Task Force Recommendation Statement | thyroid dysfunction screening | adult | 2015 | 11 | recommendation-statement | 10.7326/M15-0483 |
@@ -353,7 +353,6 @@ maintained beside it — `tools/guidelines_catalog.py` fails if the two disagree
 - `KDIGO-Heart-Failure-in-CKD-Guideline-Scope-of-Work.pdf` — `year` — the document carries no date of its own
 - `KDIGO_2024_Lupus_Nephritis_Guideline.pdf` — `population` — the front matter states no population
 - `rhrs.pdf` — `title` — the title page is headed only *Summary of Recommendations*
-- `rhrs.pdf` — `year` — no date appears anywhere in its three pages
 - `standards-of-care-2026.pdf` — `citation` — the compilation prints a DOI for its introduction, not for the compilation
 - `CDC Clinical Practice Guideline for Prescribing Opioids for Pain — United States, 2022 MMWR.pdf` — `citation` — the document prints a citation for the 2016 edition it replaces, not for itself
 - `GINA-Summary-Guide-2026-WEB-WMS.pdf` — `citation` — the document prints no citation for itself; its society masthead is not one
