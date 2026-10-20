@@ -8,6 +8,24 @@ import time
 import unittest
 from unittest import mock
 
+from code_set_database_test_support import (
+    ICD10_DATABASE_SHA256,
+    PROCEDURE_CODES_DATABASE_SHA256,
+    assert_code_set_database_digest,
+)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+assert_code_set_database_digest(
+    REPO_ROOT / "reference" / "icd10cm-2026.sqlite",
+    ICD10_DATABASE_SHA256,
+    "ICD-10-CM Code-set database",
+)
+assert_code_set_database_digest(
+    REPO_ROOT / "reference" / "procedure-codes-2026.sqlite",
+    PROCEDURE_CODES_DATABASE_SHA256,
+    "procedure-code Code-set database",
+)
+
 import aar_scan
 import approval_record as approvals
 import completion_checks
