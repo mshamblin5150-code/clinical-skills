@@ -1,6 +1,7 @@
 """ADR 0410 public-command controls; all notes below are synthetic."""
 # phi-scan: synthetic
 import contextlib
+from datetime import timedelta
 import io
 import json
 import re
@@ -130,3 +131,12 @@ class PublicCommands(unittest.TestCase):
             self.assertFalse(result.incomplete)
         finally:
             visit_times.completion_checks.MOMENTS.reset(token)
+
+    def test_the_exact_build_boundary_preserves_earlier_approvals(self):
+        start, _ = visit_times.completion_checks.registry()['visit_times:visit-times']
+        for observed, graded in ((start - timedelta(microseconds=1), False), (start, True)):
+            token = visit_times.completion_checks.MOMENTS.set({'approval': observed})
+            try:
+                self.assertEqual(graded, visit_times.check(Path('absent'), batch=True).graded)
+            finally:
+                visit_times.completion_checks.MOMENTS.reset(token)
