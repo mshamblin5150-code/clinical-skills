@@ -693,6 +693,7 @@ the worksheet explains why that otherwise repeated code belongs in the MDM.
 --- NOT CODED, NOTHING ESTABLISHED IT ---
 <the suspected diagnosis, and what documents the suspicion>
   NOT CODED: <code and official descriptor>
+  ANCHOR: "<the code-and-descriptor half of the note's welded NOT CODED: clause>"
   CONFIDENCE: <verified against the applicable committed code set | verify this number>
   needs: <the result that would establish it>
   proposed instead: <the code the encounter does document>
@@ -721,6 +722,7 @@ Z68.36 — BMI 36.4 derived from a filled height (5'4") and a given weight (212 
 --- NOT CODED, NOTHING ESTABLISHED IT ---
 COVID-19, suspected from a documented household contact and a congruent presentation
   NOT CODED: U07.1  COVID-19
+  ANCHOR: "U07.1  COVID-19"
   needs: a positive test. The contact alone does not establish the disease
   proposed instead: Z20.822  Contact with and (suspected) exposure to COVID-19
 ```
@@ -734,6 +736,7 @@ COVID-19, suspected from a documented household contact and a congruent presenta
 Contiguous osteomyelitis of the right tibia or fibula, suspected on a chronic wound with
 overlying pain; tib/fib film ordered, no result
   NOT CODED: M86.9  Osteomyelitis, unspecified
+  ANCHOR: "M86.9  Osteomyelitis, unspecified"
   needs: a film that resulted, or a bone biopsy
   proposed instead: M79.604  Pain in right leg
 ```

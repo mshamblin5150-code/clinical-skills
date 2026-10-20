@@ -1378,6 +1378,10 @@ The two FILLED lines together are **the FILLED block** — everything generated,
 
 **A decision not to do something the encounter did is not a forward action**, and `FILLED·proposed` is not where it goes — nowhere is. Declining to order a test the clinician did not order is ordinary reasoning and belongs here; declining one he **did** order is *A given order is a given*, and the order stays in the Plan whatever this block says about it.
 
+No pass, first draft or repair, turns a test, drug, or referral the note recommends into an order,
+given or ordered, unless the clinician's own words say so. A skill-proposed test written as an
+actual Plan order still follows *Orders and provenance* and drift row 21's results-line landing.
+
 A value can occupy two lines at once, and one routinely does: a BMI derived from a filled height is written under `DERIVED` with its arithmetic *and* under `FILLED·asserted` naming the filled input. Listing it only as derived hides that it was invented; listing it only as filled hides that it was computed.
 
 **A guideline citation rides on the `FILLED·proposed` item and does not move it.** There is no fourth tier and no `FILLED·cited` line. The three tiers answer *what did this encounter supply*, and for a screening item the answer is still **nothing — this skill wrote it**; a citation answers a different question, which is what stands behind the content. Two axes, so the citation is a tail on the line rather than a new heading. **The load-bearing part is that a cited item stays under FILLED**, where the clinician's confirmation pass reads it: moving cited items out would remove a generated screening list from the block the preceptor must confirm. Format and obligation are under *Guideline sheets*.
@@ -1659,6 +1663,10 @@ each such question in the run's `delegated-answers.md`: one `## QUESTION:` recor
 `RULE: <repository path>: "<the governing sentence, verbatim>"` or `RULE: none found`, and
 `ANSWER:` stating what the run did. The completion grader refuses a quoted rule the cited file
 does not contain.
+A blanket delegation never supplies the clinician's words for promoting a recommendation:
+the item stays a recommendation, and its `delegated-answers.md` record quotes the promotion
+sentence in the proposal rules as its `RULE:`.
+
 Then show the clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
 and the finalized E/M line. Beside the note, list every interpreted abdominal location from step 2:
 shorthand, region written, and deciding encounter evidence or corner-fallback reason. Show `none`
@@ -1687,6 +1695,14 @@ outside the note and Review document. Keep it beside the patient questions and r
 leave proposals are outside the delegable block. A bare approval cannot leave one: the
 clinician's own reply must name its number or explicitly cover all proposed leaves.
 Use [icd10-cpt's reader record shapes and retry route](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
+
+Run `python tools/differential_scan.py <run> --note <the finished note> --show` for the private
+pair list. Beside the coverage lines, list every proposed-item/Objective pair from the scanner's private
+`--show` output, or `none`. A proposed test written as an actual Plan order is allowed; a
+recommendation promoted to given or ordered without the clinician's words is a defect.
+Incorporate the clinician's corrections before approval; approval confirms each listed pair
+it does not correct. The count is informational and never graded.
+
 Show every line in the returned `coverage` exactly as printed in chat beside
 `PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS`, and the UpToDate block, outside the note and Review
 document. These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
