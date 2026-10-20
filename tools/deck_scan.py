@@ -358,6 +358,7 @@ class Scan:
     paper_language: str = "unspecified"
     reference_order_graded: bool = True
     reader_records_unread: int = 0
+    image_answer_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1454,7 +1455,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  citation key disagreement {len(scan.citation_coverage.disagreements)}",
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.unread_members + scan.slide_limit_unread
-            + scan.reference_slides_unread + scan.citation_unread + scan.reader_records_unread
+            + scan.reference_slides_unread + scan.citation_unread + scan.reader_records_unread + scan.image_answer_unread
         ),
         *([f"unread slide-limit candidates: {scan.slide_limit_unread}"] if scan.slide_limit_unread else []),
         *([f"unread referenced diagram or chart members: {scan.unread_members}"] if scan.unread_members else []),
@@ -1542,7 +1543,8 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.root,
-        {submission: voice_text} if submission is not None else None,
+        {submission or source.deck.stem: voice_text},
+        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")

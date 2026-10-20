@@ -633,6 +633,7 @@ class Scan:
     missing: tuple[str, ...]
     findings: tuple[Finding, ...]
     reader_unread: int = 0
+    image_answer_unread: int = 0
     reader_remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
 
@@ -1327,8 +1328,6 @@ def _grade(
         ),
     )
     grade, reader_unread = reader_remarks.apply_readers(grade, source.claims, (), (source.document.name,))
-    grade = replace(grade, reports=grade.reports + (
-        run_grader.format_unread_remainder(heading.unread + scan.reader_unread + reader_unread),))
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path.parent, submission
     )
@@ -1343,10 +1342,11 @@ def _grade(
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.path.parent,
-        {submission: source.document_bytes.decode("utf-8", errors="replace")}
-        if submission is not None
-        else None,
+        {submission or source.document.stem: source.document_bytes.decode("utf-8", errors="replace")},
+        terminal=submission is not None,
     )
+    grade = replace(grade, reports=grade.reports + (
+        run_grader.format_unread_remainder(heading.unread + scan.reader_unread + reader_unread + grade.scan.image_answer_unread),))
     grade = project_context.apply_completion_gate(
         grade, source.path.parent, submission
     )

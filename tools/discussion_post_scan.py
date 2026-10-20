@@ -496,6 +496,7 @@ class Scan:
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
     reader_records_unread: int = 0
+    image_answer_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1699,7 +1700,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ),
         f"heading-read records: {scan.heading_reads}",
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread
+            scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread + scan.image_answer_unread
         ),
         *([f"posted reading: incomplete coverage - posting is not recorded; unread {scan.posted_reading_unread}"] if scan.posted_reading_unread else []),
         (
@@ -1819,7 +1820,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.path,
-        {submission: source.draft_text} if submission is not None else None,
+        {submission or source.draft.stem: source.draft_text},
+        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")

@@ -298,6 +298,7 @@ class Scan:
     findings: tuple[Finding, ...] = ()
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
     reader_records_unread: int = 0
+    image_answer_unread: int = 0
 
 
 def _heading_lines(text: str) -> list[str]:
@@ -609,7 +610,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ),
         f"heading-read records: {scan.heading_reads}",
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread
+            scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread + scan.image_answer_unread
         ),
         *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
         f"findings: {len(scan.findings)}",
@@ -772,7 +773,8 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.path,
-        {submission: source.critique} if submission is not None else None,
+        {submission or "critique": source.critique},
+        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(
         grade,

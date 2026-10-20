@@ -12,6 +12,7 @@ from unittest import mock
 import imagery_proposals as proposals
 import peer_critique_scan
 import repo_root
+import approval_record
 from prose_bind import NAMING, bind
 from test_peer_critique_scan import build_run
 
@@ -54,6 +55,7 @@ class CompletionGate(unittest.TestCase):
                     "domain": domain or self.domain_evidence,
                     "behavior": "keeps the competing force active",
                     "status": status,
+                    "ruling": {"clinician_reply": "Yes, keep it.", "reply_at": 200, "shown_draft_at": 100},
                 }
             ]
         }
@@ -64,7 +66,7 @@ class CompletionGate(unittest.TestCase):
     def grade(self, text: str) -> proposals.CompletionGate:
         with mock.patch.object(
             repo_root, "canonical_voice_model", return_value=self.resolved
-        ):
+        ), mock.patch.object(approval_record, "_main_transcripts", return_value=([[{"type": "user", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": "Yes, keep it."}}]], False)):
             return proposals.completion_gate(
                 self.run,
                 {"submission": text},
@@ -81,6 +83,13 @@ class CompletionGate(unittest.TestCase):
         result = self.grade("[[PROPOSED IMAGE image-1]] The care plan needs an orbit.")
         self.assertTrue(result.finding)
         self.assertIn("proposed 1; approved 0; unresolved 1", result.report)
+
+    def test_a_pregrade_refuses_the_unanswered_proposal_before_submission(self) -> None:
+        self.write(status="proposed")
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=self.resolved):
+            result = proposals.completion_gate(self.run, {"submission": "[[PROPOSED IMAGE image-1]] The care plan needs an orbit."}, terminal=False)
+        self.assertTrue(result.finding)
+        self.assertIn("unresolved", result.report)
 
     def test_a_proposal_from_an_unrecorded_domain_is_refused(self) -> None:
         self.write(status="proposed-and-approved", domain="shipbuilding")
