@@ -16,6 +16,8 @@ import run_grader
 import completion_checks
 import file_digest
 from console_codec import use_utf8, require_python_floor
+from run_record_reader import (read_tool_record, object_record, RecordShapeError,
+                               UnreadableRecord, collecting_errors, fault_report, mark_not_graded)
 
 
 RECORD = "bar-signatures.json"
@@ -26,6 +28,7 @@ DECLARED_LIMITS = (
     "Whole-message verification proves the clinician wrote the reply, not that it concerned the shown bar.",
     "Changed-line display and completeness of a transcribed case-study bar remain reader-owned.",
     "Writes retain atomic replacement without a shared artifact lock; the locked-writer migration belongs to #1905.",
+    "Unreadable retained signature bookkeeping grants no historical waiver; dependent checks are not graded while independent artifact checks continue.",
 )
 
 def signed_date(text: str) -> str:
@@ -61,16 +64,23 @@ def validate(text: str, skill: str) -> None:
 def _signatures(run: Path) -> list[dict]:
     """Read retained signing history; a damaged record is never a legacy bar."""
     path = run / RECORD
-    if not path.exists():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        rows = payload["signatures"]
-        if not isinstance(rows, list) or not rows or not all(isinstance(row, dict) for row in rows):
-            raise ValueError("signatures must be a nonempty object population")
-        return rows
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
-        raise run_grader.SourceError(f"bar signature history unreadable; {REMEDY}") from failure
+    payload = read_tool_record(path, _decode_signatures)
+    return payload["signatures"] if payload is not None else []
+
+
+def _decode_signatures(text: str) -> dict:
+    """The single retained-history schema, shared with the assignment wrapper."""
+    payload = object_record(text)
+    rows = payload.get("signatures")
+    if not isinstance(rows, list) or not rows:
+        raise RecordShapeError("record items")
+    for position, row in enumerate(rows, 1):
+        if (not isinstance(row, dict) or row.get("copy") != f"signed-bars/bar-{position}.md"
+                or not isinstance(row.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+                or not isinstance(row.get("clinician_reply"), str) or not row["clinician_reply"].strip()
+                or row.get("reply_verification") not in {"verified", "not verified"}):
+            raise RecordShapeError("record item fields")
+    return payload
 
 
 def _replace(path: Path, content: bytes) -> None:
@@ -172,6 +182,10 @@ def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
             raise run_grader.SourceError(f"bar signature reply unreadable; {REMEDY}")
         suffix = " - clinician reply not verified" if latest["reply_verification"] == "not verified" else ""
         return False, EXPECTED_ROW + ": clean" + suffix
+    except UnreadableRecord as failure:
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check=EXPECTED_ROW)
     except (OSError, UnicodeError, run_grader.SourceError) as failure:
         return True, EXPECTED_ROW + ": not clean - " + str(failure)
 
@@ -181,7 +195,11 @@ def latest_digest(run: Path) -> str | None:
     failed, report = completion_gate(run)
     if failed:
         raise run_grader.SourceError(report)
-    history = _signatures(Path(run))
+    try:
+        history = _signatures(Path(run))
+    except UnreadableRecord as failure:
+        mark_not_graded(failure, check="bar-walk signature")
+        return None
     return history[-1]["sha256"] if history else None
 
 
@@ -203,6 +221,10 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         entry = sign(args.run, args.reply, skill=args.skill)
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check=EXPECTED_ROW))
+        print(run_grader.format_unread_remainder(1))
+        return 2
     except (OSError, UnicodeError, run_grader.SourceError) as failure:
         print(f"bar not signed: {failure}", file=sys.stderr)
         return 2

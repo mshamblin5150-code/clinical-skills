@@ -1,5 +1,6 @@
 """Synthetic public signing and changed-bar controls for ADR 0397."""
 # phi-scan: synthetic
+import artifact_lock_test_support
 import io
 import json
 import os
@@ -18,6 +19,25 @@ from datetime import timedelta
 
 
 class SharedBarSigning(unittest.TestCase):
+    def test_damaged_signature_history_preserves_independent_ledger_findings(self):
+        import test_research_ledger as ledger_tests
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            text = "SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference\nRECENCY-WINDOW-YEARS: 5\n"
+            self.sign(run, "discussion-reply", text)
+            record = run / bar_signatures.RECORD
+            record.write_bytes(b'{')
+            claims = run / "claims.md"
+            for body, expected in ((ledger_tests.ledger_text(ledger_tests.CLEAN), 2), ("DATE: 2026-09-02\n\n## CLAIM: Synthetic statement.\nSTATUS: invented\n", 1)):
+                claims.write_text(body, encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(output):
+                    status = research_ledger.main([str(claims)])
+                self.assertEqual(expected, status, output.getvalue())
+                self.assertIn("unread tool-written records 1", output.getvalue())
+                self.assertIn("not graded", output.getvalue())
+            self.assertEqual(b'{', record.read_bytes())
+
     def test_historical_completion_starts_at_the_exact_approval_boundary(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
@@ -78,6 +98,11 @@ class SharedBarSigning(unittest.TestCase):
             records["bar-walk.json"]["bar_sha256"] = latest["sha256"]
             (run / "bar-walk.json").write_text(json.dumps(records["bar-walk.json"]), encoding="utf-8")
             self.assertEqual(0, grade())
+            (run / bar_signatures.RECORD).write_bytes(b'{')
+            self.assertEqual(2, grade())  # Signature-dependent comparison is not graded.
+            records["bar-walk.json"]["entries"] = [{"element": "Synthetic requirement", "outcome": "invented"}]
+            (run / "bar-walk.json").write_text(json.dumps(records["bar-walk.json"]), encoding="utf-8")
+            self.assertEqual(1, grade())  # Independent walk content still refuses.
 
     def test_each_new_skill_signs_and_refuses_changed_bytes(self):
         for skill in ("discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"):
