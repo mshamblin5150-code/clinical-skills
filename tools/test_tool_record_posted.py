@@ -24,7 +24,7 @@ import course_assignment_scan
 import assignment_bar
 import assignment_submission
 import frozen_grade
-from test_assignment_bar import BarSignatures
+import test_assignment_bar as bar_fixtures
 
 
 class PostedRecordCommands(unittest.TestCase):
@@ -264,7 +264,7 @@ class ContextDependentCommands(unittest.TestCase):
             self.exercise(path.parent, path, lambda: checks.run(arguments, bind=False))
 
     def test_dispatcher_machine_faults_keep_independent_artifact_checks(self):
-        fixture = BarSignatures()
+        fixture = bar_fixtures.BarSignatures()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         run = decks.TheRenderedDeckRecordNamesTheTerminalPass().a_run(fixture.run)
@@ -309,7 +309,7 @@ class ContextDependentCommands(unittest.TestCase):
                             path.write_bytes(original)
 
     def test_dispatcher_keeps_valid_frozen_bypass_and_refuses_unreadable_bar_only(self):
-        fixture = BarSignatures()
+        fixture = bar_fixtures.BarSignatures()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         run = decks.TheRenderedDeckRecordNamesTheTerminalPass().a_run(fixture.run)

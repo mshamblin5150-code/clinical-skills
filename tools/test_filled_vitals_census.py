@@ -330,12 +330,18 @@ class CommandSurface(unittest.TestCase):
     def test_submission_refuses_a_missing_note_fingerprint(self) -> None:
         self.write_posted_reading(None)
 
-        status, _stdout, stderr = invoke_main(
+        record = self.run / "reread.md"
+        before = record.read_bytes()
+        status, stdout, _stderr = invoke_main(
             [str(self.run), "--submission", "shift-2026-08-17"]
         )
 
         self.assertEqual(1, status)
-        self.assertIn("SUBMISSION-SHA256 is missing", stderr)
+        self.assertIn("wrong shape: record header fields", stdout)
+        self.assertIn("dependent record checks: not graded", stdout)
+        self.assertIn("unread tool-written records 1", stdout)
+        self.assertIn("the after-action review: finding", stdout)
+        self.assertEqual(record.read_bytes(), before)
 
     def test_submission_refuses_a_stale_note_fingerprint(self) -> None:
         self.write_posted_reading(self.note_digest())
