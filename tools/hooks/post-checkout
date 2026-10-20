@@ -5,9 +5,9 @@
 NULL_OID=0000000000000000000000000000000000000000
 [ "$1" = "$NULL_OID" ] || exit 0
 
-# core.hooksPath is absolute in the owning checkout's shared configuration. The
-# hook can therefore come from that checkout while the tree needing repair is the
-# new worktree Git has just made current.
+# core.hooksPath is the relative tools/hooks, so Git runs this file from the new
+# worktree it has just made current (#1880). The tool is still resolved through
+# that tree, which also covers a clone whose hooksPath names another checkout.
 repo_root=$(git rev-parse --show-toplevel) || exit 0
 [ -f "$repo_root/tools/skills_mirror.py" ] || exit 0
 
