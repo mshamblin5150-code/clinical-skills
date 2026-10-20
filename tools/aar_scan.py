@@ -54,7 +54,7 @@ import browser_tab_hook
 import tree_walk
 from run_record_reader import (
     RecordShapeError, UnreadableRecord, fault_report, object_record, read_tool_record,
-    locked_record, update_tool_record, RecordUpdate,
+    locked_record, update_tool_record, RecordUpdate, mark_not_graded,
 )
 
 
@@ -1148,6 +1148,8 @@ def legacy_orphan_paths(run: Path) -> tuple[Path, ...]:
 
 def retire_orphan_pointers(run: Path) -> None:
     """Move legacy pointer files aside in place; their evidence is never deleted."""
+    if not legacy_orphan_paths(run):
+        return
     with locked_record(run / "aar" / ".record-allocation"):
         _retire_orphan_pointers(run)
 
@@ -1160,7 +1162,10 @@ def _retire_orphan_pointers(run: Path) -> None:
             while destination.exists():
                 destination = path.with_name(f"retired-{suffix}-{path.name}")
                 suffix += 1
-            path.replace(destination)
+            try:
+                path.replace(destination)
+            except OSError as failure:
+                raise UnreadableRecord(path, "could not be opened") from failure
 
 
 def _hash(path: Path) -> str | None:
@@ -2827,6 +2832,10 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
         return run_grader.EarlyExit(0, stdout=(f"private memory index measurement written: {destination.name}",))
     try:
         retire_orphan_pointers(run)
+    except UnreadableRecord as exc:
+        if parsed.enabled("--extract"):
+            return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="legacy AAR pointer retirement"),))
+        mark_not_graded(exc, check="legacy AAR pointer retirement")
     except OSError as exc:
         return run_grader.EarlyExit(
             2,

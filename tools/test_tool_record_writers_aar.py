@@ -251,6 +251,28 @@ class WriterTransactions(unittest.TestCase):
         for round_number in (1, 2):
             self.assertTrue(aar_scan.baseline_path(fixture.run, fixture.submission, round_number).is_file())
 
+    def test_busy_legacy_retirement_preserves_independent_review_grade(self):
+        fixture = self.aar()
+        fixture.write_clean()
+        command = [str(fixture.run), '--submission', fixture.submission]
+        self.assertEqual(0, self.capture(lambda: aar_scan.main(command))[0])
+        pointer = fixture.run / 'aar/orphaned-synthetic.json'
+        pointer.write_bytes(b'{"retained":true}\n')
+        before = pointer.read_bytes()
+        review = aar_scan.review_path(fixture.run, fixture.submission)
+        original = review.read_text(encoding='utf-8')
+        for finding, expected in ((False, 2), (True, 1)):
+            with self.subTest(independent_finding=finding):
+                review.write_text(original.replace('UNREAD: 0', 'UNREAD: 1') if finding else original, encoding='utf-8')
+                with artifact_lock.hold(pointer, 'synthetic retirement holder'):
+                    status, report = self.capture(lambda: aar_scan.main(command))
+                self.assertEqual(status, expected, report)
+                self.assertIn('legacy AAR pointer retirement: not graded', report)
+                self.assertIn('held by another task:', report)
+                if finding:
+                    self.assertIn('unread candidates               1', report)
+                self.assertEqual(pointer.read_bytes(), before)
+
 
 if __name__ == '__main__':
     unittest.main()
