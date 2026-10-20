@@ -12,6 +12,20 @@ import completion_checks
 
 
 class HandwrittenRecords(unittest.TestCase):
+    def test_copied_post_leading_padding_does_not_turn_metadata_into_body(self):
+        for padding in ('\n', '\n\n', '  \r\n'):
+            for header in ('AUTHOR:\tSynthetic Author', 'AUTHOR\t: Synthetic Author'):
+                source = padding + header + '\nREPLIES: 2\nPOST-URL: https://example.org\n\nCopied\tbody\n'
+                self.path.write_bytes(source.encode('utf-8'))
+                with self.assertRaises(records.DamagedRecord):
+                    records.read_handwritten_record(self.path, 'copied-post').text
+                clean = source.replace(header, 'AUTHOR: Synthetic Author')
+                self.path.write_bytes(clean.encode('utf-8'))
+                self.assertIn('Copied\tbody', records.read_handwritten_record(self.path, 'copied-post').text)
+        split_metadata = '\nAUTHOR: Synthetic Author\n\nPOST-URL:\thttps://example.org\n\nCopied\tbody\n'
+        self.path.write_bytes(split_metadata.encode('utf-8'))
+        with self.assertRaises(records.DamagedRecord):
+            records.read_handwritten_record(self.path, 'copied-post').text
     def test_context_json_spans_follow_the_owners_case_and_space_grammar(self):
         for name, body in (('go-ahead', '{"submission":"bad\\u0000key"}'),
                            ('Order-Observation', '{"draft":"bad\\u0007text"}'),

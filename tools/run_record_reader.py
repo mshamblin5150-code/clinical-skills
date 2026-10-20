@@ -312,8 +312,17 @@ def check_handwritten_text(text: str, path: Path, kind: str | HandwrittenKind = 
     if isinstance(kind, str):
         kind = _HANDWRITTEN_KINDS[kind]
     label = checked_label(path)
-    body_after = next((index for index, line in enumerate(text.split("\n"), 1)
-                       if not line.removesuffix("\r")), len(text.split("\n")))
+    lines = text.split("\n")
+    # A leading blank is padding, not the copied-body delimiter. Locate the
+    # first metadata block before allowing the named exception in its body.
+    metadata_fields = {}
+    for index, line in enumerate(lines):
+        if match := re.match(r"(?i)^(AUTHOR|REPLIES|POST-URL)[ \t]*:", line):
+            metadata_fields.setdefault(match[1].upper(), index)
+    metadata = max(metadata_fields.values(), default=None)
+    body_after = next((index for index, line in enumerate(lines, 1)
+                       if metadata is not None and index > metadata + 1
+                       and not line.removesuffix("\r").strip(" ")), len(lines))
     diagnostics = [f"{label}: line {line}: U+{ord(character):04X}"
                    for line, character in _handwritten_damage(text)
                    if not (character == "\t" and kind.name in COPIED_TEXT_TAB_KINDS and line > body_after)]
