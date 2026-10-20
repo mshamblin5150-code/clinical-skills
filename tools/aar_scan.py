@@ -115,7 +115,13 @@ EXTRACTOR_WRITTEN_ENTRY_KINDS = frozenset(
 
 ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
     {
-        "clinician": "user row with no harness flag or recognized envelope",
+        "clinician": "Clinician's words in an unflagged user row, apart from recognized envelopes",
+        "agents-instructions": "Codex injected instructions item",
+        "codex-question": "Codex question and question identifier",
+        "codex-app-page": "Codex open page envelope",
+        "codex-skill": "Codex skill envelope",
+        "cross-session-message": "relayed session envelope",
+        "david-lifecycle-wake": "DAVID lifecycle wake envelope",
         "assistant": "assistant text block",
         "tool-call": "tool invocation",
         "tool-status": "tool completion status",
@@ -143,6 +149,12 @@ ENVELOPE_KINDS: Mapping[str, str] = MappingProxyType(
         "task-notification": "task-notification",
         "system-reminder": "system-reminder",
         "command-name": "command-name",
+        "command-message": "command-name",
+        "external_codex_apps_open_page": "codex-app-page",
+        "skill": "codex-skill",
+        "cross-session-message": "cross-session-message",
+        "david_lifecycle_wake": "david-lifecycle-wake",
+        "send_user_message_question_reply": "codex-question",
         "local-command-stdout": "local-command-stdout",
         "ci-monitor-event": "ci-monitor-event",
         "recommended_plugins": "recommended-plugins",
@@ -150,18 +162,7 @@ ENVELOPE_KINDS: Mapping[str, str] = MappingProxyType(
         "environment_context": "environment-context",
     }
 )
-ENVELOPE_ENTRY_KINDS = frozenset(
-    {
-        "task-notification",
-        "system-reminder",
-        "command-name",
-        "local-command-stdout",
-        "ci-monitor-event",
-        "recommended-plugins",
-        "codex-delegation",
-        "environment-context",
-    }
-)
+ENVELOPE_ENTRY_KINDS = frozenset(ENVELOPE_KINDS.values()) | {"agents-instructions"}
 ENVELOPE_TAG = re.compile(r"<(?P<tag>[a-z][a-z0-9_-]*)(?:\s|>)")
 TASK_ID = re.compile(r"<task-id>\s*(?P<id>[^<\s]+)\s*</task-id>")
 TOOL_USE_ID = re.compile(r"<tool-use-id>\s*(?P<id>[^<\s]+)\s*</tool-use-id>")
@@ -458,6 +459,7 @@ class ExtractDiagnostics:
     notifications_without_join_key: int
     browser: BrowserDiagnostics
     undeclared_system_subtypes: int = 0
+    agents_instructions: int = 0
 
     @property
     def unread_remainder(self) -> int:
@@ -621,7 +623,7 @@ def _human_text(row: Mapping[str, Any]) -> str:
         ).strip()
     else:
         return ""
-    if value.startswith("<command-message>") or value.startswith("<local-command-caveat>"):
+    if value.startswith("<local-command-caveat>"):
         return ""
     return value
 
@@ -645,44 +647,124 @@ def _human_kind(row: Mapping[str, Any], value: str) -> str:
     return "clinician"
 
 
-def clinician_text(row: Mapping[str, Any]) -> str:
-    """Read the human remainder of a main-session user row for approval evidence.
+def _text_pieces(value: str) -> list[tuple[str, str]]:
+    """Read declared envelopes without opening their contents, except answer fields."""
+    pieces: list[tuple[str, str]] = []
+    cursor = 0
+    tags = ENVELOPE_KINDS.keys() | {"command-args"}
+    for match in ENVELOPE_TAG.finditer(value):
+        if match.start() < cursor or match.group("tag") not in tags:
+            continue
+        tag = match.group("tag")
+        # Match nested instances of the same envelope before resuming outside it.
+        tokens = re.finditer(r"</?" + re.escape(tag) + r"(?:\s[^>]*|)>", value[match.start():])
+        depth = 0
+        end = len(value)
+        content_start = match.end()
+        content_end = end
+        for token in tokens:
+            if token.start() == 0:
+                content_start = match.start() + token.end()
+            depth += -1 if token.group().startswith("</") else 1
+            if depth == 0:
+                content_end = match.start() + token.start()
+                end = match.start() + token.end()
+                break
+        before = value[cursor:match.start()].strip()
+        if before:
+            pieces.append(("clinician", before))
+        body = value[match.start():end].strip()
+        inside = value[content_start:content_end].strip()
+        if tag == "command-args":
+            if inside:
+                pieces.append(("clinician", inside))
+        elif tag == "send_user_message_question_reply":
+            try:
+                answers = json.loads(inside)
+            except (ValueError, TypeError):
+                answers = None
+            if (isinstance(answers, list) and answers and all(
+                isinstance(item, dict) and all(isinstance(item.get(key), str)
+                for key in ("question", "questionItemId", "answer")) for item in answers
+            )):
+                pieces.append(("codex-question", json.dumps([
+                    {key: item[key] for key in ("question", "questionItemId")}
+                    for item in answers
+                ], ensure_ascii=False)))
+                pieces.extend(("clinician", item["answer"].strip())
+                              for item in answers if item["answer"].strip())
+            else:
+                pieces.append(("codex-question", body))
+        else:
+            pieces.append((ENVELOPE_KINDS[tag], body))
+        cursor = end
+    if value[cursor:].strip():
+        pieces.append(("clinician", value[cursor:].strip()))
+    return pieces
 
-    Keep the AAR's whole-row classification unchanged: its envelope entries are
-    still part of the correction population. Approval reads only the human text.
-    """
 
-    if row.get("isSidechain") or row.get("isMeta") or row.get("isCompactSummary"):
-        return ""
+def _agents_instructions(value: str) -> bool:
+    return value.strip().startswith("# AGENTS.md instructions")
+
+
+def _user_pieces(row: Mapping[str, Any]) -> list[tuple[str, str]]:
     if row.get("type") == "user":
-        value = _human_text(row)
+        values = [_human_text(row)]
     elif row.get("type") == "response_item":
         payload = _codex_payload(row)
         if payload.get("type") != "message" or payload.get("role") != "user":
-            return ""
-        value = _codex_content_text(payload, "input_text")
+            return []
+        # Only injected instructions require item boundaries. Ordinary text
+        # remains one contiguous run, even when the harness stores several items.
+        values: list[str] = []
+        for block in _content_blocks(payload):
+            if block.get("type") != "input_text":
+                continue
+            value = _text(block.get("text")).strip()
+            if not value:
+                continue
+            if values and not _agents_instructions(value) and not _agents_instructions(values[-1]):
+                values[-1] += "\n" + value
+            else:
+                values.append(value)
     else:
-        return ""
-    # These wrappers contain a prompt from a machine or another context, never
-    # a clinician reply. They are excluded even if a trailer follows the wrapper.
-    nonhuman_tags = (
-        "task-notification", "codex_delegation", "scheduled-trigger",
-        "automation-trigger", "hook-context", "local-command-stdout",
-        "command-message", "local-command-caveat",
-    )
-    if any(re.search(r"<" + re.escape(tag) + r"(?:\s|>)", value) for tag in nonhuman_tags):
-        return ""
-    if value.startswith("Message Type:") or value.startswith("[Message from "):
-        return ""
-    for tag in ENVELOPE_KINDS:
-        value = re.sub(
-            r"<" + re.escape(tag) + r"\b[^>]*>.*?</" + re.escape(tag) + r"\s*>",
-            "", value, flags=re.DOTALL,
-        )
-    value = value.strip()
-    if value.startswith("Message Type:") or value.startswith("[Message from "):
-        return ""
-    return value if value and _human_kind(row, value) == "clinician" else ""
+        return []
+    pieces: list[tuple[str, str]] = []
+    for value in values:
+        if not value:
+            continue
+        if row.get("isMeta") or row.get("isCompactSummary") or row.get("isSidechain"):
+            pieces.append((_human_kind(row, value) if not row.get("isSidechain")
+                           else "harness-meta", value))
+        elif _agents_instructions(value) and row.get("type") == "response_item":
+            pieces.append(("agents-instructions", value))
+        else:
+            pieces.extend(_text_pieces(value))
+    # Adjacent machine envelopes form one entry labeled by the first envelope.
+    merged: list[tuple[str, str]] = []
+    for kind, text in pieces:
+        if merged and kind in ENVELOPE_ENTRY_KINDS and merged[-1][0] in ENVELOPE_ENTRY_KINDS:
+            previous_kind, previous_text = merged[-1]
+            merged[-1] = (previous_kind, previous_text + "\n" + text)
+        else:
+            merged.append((kind, text))
+    return merged
+
+
+def clinician_pieces(row: Mapping[str, Any]) -> tuple[str, ...]:
+    """Each whole piece of the Clinician's words, shared with approval readers."""
+    if row.get("isSidechain") or row.get("isMeta") or row.get("isCompactSummary"):
+        return ()
+    # Legacy relay prefixes still cannot supply approval evidence (ADR 0310).
+    # Their extractor label remains unchanged; a prefix is not a declared envelope.
+    return tuple(text for kind, text in _user_pieces(row) if kind == "clinician"
+                 and not text.startswith(("Message Type:", "[Message from ")))
+
+
+def _user_candidates(identifier: str, transcript_id: str, row: Mapping[str, Any]) -> list[Candidate]:
+    return [Candidate(identifier if number == 1 else f"{identifier}#{number}",
+                      transcript_id, _declared_entry_kind(kind), text, _human_aliases(kind, text))
+            for number, (kind, text) in enumerate(_user_pieces(row), 1)]
 
 
 def _human_aliases(kind: str, value: str) -> tuple[str, ...]:
@@ -728,13 +810,7 @@ def reduce_transcript(path: Path) -> list[Candidate]:
         uuid = _text(row.get("uuid")) or f"{transcript_id}#row-{ordinal}"
         row_start = len(candidates)
         if row.get("type") == "user":
-            human = _human_text(row)
-            if human:
-                candidates.append(
-                    _human_candidate(
-                        uuid, transcript_id, human, default_kind="clinician", row=row
-                    )
-                )
+            candidates.extend(_user_candidates(uuid, transcript_id, row))
             for index, block in enumerate(_content_blocks(row.get("message")), 1):
                 if block.get("type") != "tool_result":
                     continue
@@ -806,14 +882,10 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                 block_type = "input_text" if role == "user" else "output_text"
                 body = _codex_content_text(payload, block_type)
                 if body and role in {"user", "assistant"}:
-                    candidates.append(
-                        _human_candidate(
-                            identifier,
-                            transcript_id,
-                            body,
-                            default_kind="clinician" if role == "user" else "assistant",
-                        )
-                    )
+                    if role == "user":
+                        candidates.extend(_user_candidates(identifier, transcript_id, row))
+                    else:
+                        candidates.append(_human_candidate(identifier, transcript_id, body, default_kind="assistant"))
             elif payload_type in {"custom_tool_call", "function_call"}:
                 candidates.append(
                     Candidate(identifier, transcript_id, "tool-call", _codex_tool_name(payload))
@@ -1453,6 +1525,13 @@ def extract_diagnostics(
             1 for candidate in notifications if not _notification_keys(candidate.text)
         ),
         browser=browser,
+        agents_instructions=sum(
+            1 for row in rows if row.get("type") == "response_item"
+            and _codex_payload(row).get("role") == "user"
+            for block in _content_blocks(_codex_payload(row))
+            if block.get("type") == "input_text"
+            and _agents_instructions(_text(block.get("text")))
+        ),
     )
 
 
@@ -1581,6 +1660,7 @@ def write_extract(
         f"MEMORY-INDEX: {memory_index.resolve()}",
         "HARNESS-VERSIONS: " + (", ".join(diagnostics.harness_versions) or "none observed"),
         f"UNDECLARED-ENVELOPES: {diagnostics.undeclared_envelopes}",
+        f"AGENTS-INSTRUCTIONS: {diagnostics.agents_instructions}",
         f"UNREAD-REMAINDER: {diagnostics.unread_remainder + discovery.unread + unreadable_directories}",
         f"UNDECLARED-ROW-TYPES: {diagnostics.undeclared_row_types}",
         f"UNDECLARED-CODEX-PAYLOAD-TYPES: {diagnostics.undeclared_codex_payload_types}",
@@ -2687,6 +2767,7 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                 f"  transcripts unread              {extract_fields.get('TRANSCRIPTS-UNREAD', '0')}",
                 f"  unreadable directories          {extract_fields.get('UNREADABLE-DIRECTORIES', '0')}",
                 f"  links not entered               {extract_fields.get('LINKS-NOT-ENTERED', '0')}",
+                f"  agents instructions recognized  {extract_fields.get('AGENTS-INSTRUCTIONS', '0')}",
                 *(
                     (f"  rebuilt round                 {rebuild_value}",)
                     if rebuild_value
