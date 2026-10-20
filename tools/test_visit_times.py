@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import artifact_lock_test_support
 import differential_scan
 import filled_vitals_census
 import visit_times

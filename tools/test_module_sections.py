@@ -95,6 +95,7 @@ DECLARED_SECTIONS = {
     "entry_copy": "Medatrax Entry copy",
     "exam_scheme": "Examination scheme",
     "differential_scan": "Differential scan",
+    "visit_times": "Filled-vitals census",
     "discussion_post_scan": "Discussion post grading",
     "discussion_post_render": "Discussion post grading",
     "discussion_reply_scan": "Discussion reply grading",
