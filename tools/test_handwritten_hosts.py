@@ -434,4 +434,3 @@ class HandwrittenHosts(unittest.TestCase):
                 self.assertIn('independent checks reached', report)
                 self.assertEqual(1, report.count('U+0007'))
                 self.assertEqual(tool, 'unread tool-written records 1' in report)
-
