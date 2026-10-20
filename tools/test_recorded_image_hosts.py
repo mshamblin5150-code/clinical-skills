@@ -34,6 +34,7 @@ import test_discussion_post_scan as post_fixture
 import test_discussion_reply_scan as reply_fixture
 import test_peer_critique_scan as peer_fixture
 import test_recorded_image_match as image_fixture
+import test_heading_item_quotes as quote_fixture
 import tool_record_test_support as record_fixture
 
 HOSTS = ("deck_scan", "assignment_docx_scan", "discussion_post_scan",
@@ -300,6 +301,73 @@ class RecordedImageHosts(unittest.TestCase):
         self.assertNotIn("unread canonical voice models:", report)
         self.assertNotIn("unread recorded-image match records:", report)
         self.assertIn("unread remainder 1", report)
+
+    def test_current_and_retained_item_quotes_compose_with_distinct_imagery_faults(self):
+        fixture = quote_fixture.ItemQuotesThroughThePostCommand(methodName="runTest")
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        run, key = fixture.root, fixture.run.draft.name
+        fixture.prepare()
+        context = run / project_context.RECORD_NAME
+        text = context.read_text(encoding="utf-8").replace(
+            "CASE-MATERIAL: none - no synthetic case",
+            "CASE-MATERIAL: https://course.example/cases/7\nCASE-CAPTURE: typed | " + str(fixture.item),
+        )
+        context.write_text(text, encoding="utf-8")
+        digest = project_context.read_record(text).value("CONTEXT-DIGEST")
+        match = self.write_match(run, key)
+        module = importlib.import_module("discussion_post_scan")
+        command = lambda: self.invoke(module, [str(run), "--draft", str(fixture.run.draft),
+            "--submission", key, "--paper-language", "en"])
+
+        status, output, error = command()
+        self.assertEqual(0, status, output + error)
+        self.assertIn("heading-read-item-quote-absent: 0", output)
+        self.assertIn("unread remainder 0", output)
+        heading = run / "heading-read.md"
+        heading_text = heading.read_text(encoding="utf-8")
+        heading.write_text(heading_text.replace('rests on "Alpha beta gamma."',
+                                               'rests on "Unwritten synthetic support."'), encoding="utf-8")
+        status, output, error = command()
+        self.assertEqual(1, status, output + error)
+        self.assertIn("heading-read-item-quote-absent: 1", output)
+        heading.write_text(heading_text, encoding="utf-8")
+        retained = run / "private/heading-contexts" / (digest + ".md")
+        self.assertTrue(retained.is_file())
+        context.write_text(text.replace(digest, "a" * 64), encoding="utf-8")
+        for path in (match, self.model):
+            path.unlink()
+            path.mkdir()
+        status, output, error = command()
+        report = output + error
+        self.assertEqual(2, status, report)
+        self.assertIn("heading-read-item-quote-absent: 0", report)
+        self.assertIn("unread canonical voice models: 1", report)
+        self.assertIn("unread recorded-image match records: 1", report)
+        self.assertEqual(["unread remainder 2"], [line for line in report.splitlines()
+                         if line.startswith("unread remainder ")])
+        self.assertNotIn("unread item sources:", report)
+
+        fixture.run.draft.write_text(fixture.run.draft.read_text(encoding="utf-8")
+                                    + "\nIndependent synthetic revision.\n", encoding="utf-8")
+        for path in (context, retained):
+            with self.subTest(context=path.parent.name):
+                before = path.read_text(encoding="utf-8")
+                path.write_text(fixture.context_with_escaped_damage(before), encoding="utf-8")
+                try:
+                    status, output, error = command()
+                    report = output + error
+                    self.assertEqual(1, status, report)
+                    self.assertIn("U+0009", report)
+                    self.assertIn("heading-read-draft-mismatch: 1", report)
+                    self.assertIn(("heading-read context comparisons" if path == context
+                                   else "heading-read item quotes") + ": not graded", report)
+                    self.assertIn("heading-read-item-quote-absent: 0", report)
+                    self.assertNotIn("unread item sources:", report)
+                    self.assertEqual(["unread remainder 2"], [line for line in report.splitlines()
+                                     if line.startswith("unread remainder ")])
+                finally:
+                    path.write_text(before, encoding="utf-8")
 
 
 if __name__ == "__main__":
