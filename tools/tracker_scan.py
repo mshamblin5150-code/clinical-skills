@@ -216,6 +216,7 @@ class Record(NamedTuple):
     file_path: str = ""
     blob_oid: str = ""
     committed_paths: frozenset[str] = frozenset()
+    origin_reachable: bool = False
 
 
 class HarvestError(Exception):
@@ -249,7 +250,14 @@ class HarvestRulingKey(NamedTuple):
     line_sha256: str
 
 
-RulingKeyT = TypeVar("RulingKeyT", RulingKey, HarvestRulingKey)
+class BlobRulingKey(NamedTuple):
+    blob: str
+    line: int
+    rule: str
+    line_sha256: str
+
+
+RulingKeyT = TypeVar("RulingKeyT", RulingKey, HarvestRulingKey, BlobRulingKey)
 
 
 @dataclass(frozen=True)
@@ -257,6 +265,7 @@ class ScannedFinding(Finding):
     """A finding plus the non-enumerable identity of its containing line."""
 
     line_sha256: str
+    blob_oid: str = ""
 
 
 def _ruling_fields(
@@ -281,7 +290,7 @@ def _ruling_fields(
         raise RulingError(f"{path}: {label} has an invalid rule")
     if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise RulingError(f"{path}: {label} has an invalid line_sha256")
-    if verdict not in RULING_VERDICTS:
+    if not isinstance(verdict, str) or verdict not in RULING_VERDICTS:
         raise RulingError(f"{path}: {label} has an invalid verdict")
     if not isinstance(reason, str) or not reason.strip():
         raise RulingError(f"{path}: {label} has an invalid reason")
@@ -304,12 +313,14 @@ def _add_ruling(
 
 
 def _run_git(
-    repo: Path, *args: str, allowed_statuses: tuple[int, ...] = (0,)
+    repo: Path, *args: str, allowed_statuses: tuple[int, ...] = (0,),
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     try:
         done = subprocess.run(
             ["git", *args], capture_output=True, text=True, encoding="utf-8",
             errors="replace", cwd=repo,
+            input=input_text,
         )
     except OSError as error:
         # A working directory that is not one, or no git on PATH. Both are the
@@ -321,8 +332,8 @@ def _run_git(
     return done
 
 
-def _git(repo: Path, *args: str) -> str:
-    done = _run_git(repo, *args)
+def _git(repo: Path, *args: str, input_text: str | None = None) -> str:
+    done = _run_git(repo, *args, input_text=input_text)
     return done.stdout
 
 
@@ -553,14 +564,14 @@ def commit_records(repo: Path) -> list[Record]:
 
 def load_rulings(
     repo: Path,
-) -> tuple[Counter[RulingKey], Counter[HarvestRulingKey]]:
-    """Read exact verdicts for immutable commits and published records."""
+) -> tuple[Counter[RulingKey], Counter[HarvestRulingKey], Counter[BlobRulingKey]]:
+    """Read exact verdicts for immutable commits, blobs and tracker records."""
     path = repo / RULINGS_PATH
     if not path.is_file():
-        return Counter(), Counter()
+        return Counter(), Counter(), Counter()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         raise RulingError(f"{path}: {error}") from error
     if not isinstance(data, dict) or data.get("version") != 2:
         raise RulingError(f"{path}: version must be 2")
@@ -570,6 +581,11 @@ def load_rulings(
     harvest_rows = data.get("harvest_findings")
     if not isinstance(harvest_rows, list):
         raise RulingError(f"{path}: harvest_findings must be a list")
+    # Existing version-2 ledgers predate this row kind. Explicit malformed values
+    # never get the missing-field compatibility view.
+    blob_rows = data.get("blob_findings", [])
+    if not isinstance(blob_rows, list):
+        raise RulingError(f"{path}: blob_findings must be a list")
 
     rulings: Counter[RulingKey] = Counter()
     decisions: dict[RulingKey, tuple[str, str]] = {}
@@ -601,20 +617,42 @@ def load_rulings(
             path, key, decision, harvest_decisions, harvest_rulings,
             f"harvest row {number} conflicts with an earlier line ruling",
         )
-    return rulings, harvest_rulings
+    blob_rulings: Counter[BlobRulingKey] = Counter()
+    blob_decisions: dict[BlobRulingKey, tuple[str, str]] = {}
+    for number, row in enumerate(blob_rows, 1):
+        row, line, rule, digest, decision = _ruling_fields(path, row, number, "blob")
+        assert line is not None
+        oid = row.get("blob")
+        if not isinstance(oid, str) or not re.fullmatch(r"[0-9a-f]{40}", oid):
+            raise RulingError(f"{path}: blob row {number} has an invalid blob")
+        _add_ruling(path, BlobRulingKey(oid, line, rule, digest), decision,
+                    blob_decisions, blob_rulings,
+                    f"blob row {number} conflicts with an earlier line ruling")
+    return rulings, harvest_rulings, blob_rulings
 
 
 def partition_ruled_findings(
     findings: Sequence[ScannedFinding],
     rulings: Counter[RulingKey],
     harvest_rulings: Counter[HarvestRulingKey] | None = None,
-) -> tuple[list[ScannedFinding], list[ScannedFinding], int, int]:
-    """Separate only findings whose commit or record identity matches exactly."""
+    blob_rulings: Counter[BlobRulingKey] | None = None,
+) -> tuple[list[ScannedFinding], list[ScannedFinding], int, int, int]:
+    """Separate only findings whose immutable or tracker identity matches exactly."""
     unruled: list[ScannedFinding] = []
     ruled: list[ScannedFinding] = []
     available = rulings.copy()
     available_harvest = (harvest_rulings or Counter()).copy()
+    available_blobs = (blob_rulings or Counter()).copy()
     for finding in findings:
+        if finding.blob_oid:
+            blob_key = BlobRulingKey(finding.blob_oid, finding.line, finding.rule,
+                                     finding.line_sha256)
+            if available_blobs[blob_key] > 0:
+                ruled.append(finding)
+                available_blobs[blob_key] -= 1
+            else:
+                unruled.append(finding)
+            continue
         match = COMMIT_FINDING.fullmatch(finding.path)
         key = RulingKey(
             match.group(1), finding.line, finding.rule,
@@ -634,10 +672,10 @@ def partition_ruled_findings(
                 unruled.append(finding)
         else:
             unruled.append(finding)
-    return unruled, ruled, available.total(), available_harvest.total()
+    return unruled, ruled, available.total(), available_harvest.total(), available_blobs.total()
 
 
-def reachable_objects(repo: Path) -> dict[str, str]:
+def reachable_objects(repo: Path, *, revisions: tuple[str, ...] = ("--all",)) -> dict[str, str]:
     """Object id to the one path label ``rev-list`` attaches, for reachable objects.
 
     One path per object and not one per appearance, because an object is content
@@ -647,7 +685,7 @@ def reachable_objects(repo: Path) -> dict[str, str]:
     """
     labeled = {}
     try:
-        records = git_paths.read_rev_list_objects(repo, "--all")
+        records = git_paths.read_rev_list_objects(repo, *revisions)
     except git_paths.GitPathError as exc:
         raise GitError(str(exc)) from exc
     for object_id, path in records:
@@ -679,7 +717,7 @@ def blob_counts(repo: Path) -> tuple[int, int]:
     return inside, len(blobs) - inside
 
 
-def committed_blob_paths(repo: Path) -> dict[str, frozenset[str]]:
+def committed_blob_paths(repo: Path, *, revisions: tuple[str, ...] = ("--all",)) -> dict[str, frozenset[str]]:
     """One NUL-delimited history read, with full ids and every merge parent.
 
     rev-list's single label is for display only. ADR 0415 ruling 7 grades a
@@ -690,7 +728,7 @@ def committed_blob_paths(repo: Path) -> dict[str, frozenset[str]]:
     """
     try:
         tokens = iter(git_paths.read_path_records(
-            repo, "log", "--all", "--raw", "--root", "--no-renames",
+            repo, "log", *revisions, "--raw", "--root", "--no-renames",
             "--no-abbrev", "-z", "--format=", "-m",
         ))
         paths: dict[str, set[str]] = {}
@@ -714,7 +752,8 @@ def committed_blob_paths(repo: Path) -> dict[str, frozenset[str]]:
     return {oid: frozenset(values) for oid, values in paths.items()}
 
 
-def blob_records(repo: Path, *, paths: dict[str, frozenset[str]] | None = None) -> list[Record]:
+def blob_records(repo: Path, *, paths: dict[str, frozenset[str]] | None = None,
+                 revisions: tuple[str, ...] = ("--all",)) -> list[Record]:
     """Every blob reachable from a ref, which is what a merged diff is made of.
 
     Read one at a time through a single ``cat-file --batch`` rather than by
@@ -723,12 +762,24 @@ def blob_records(repo: Path, *, paths: dict[str, frozenset[str]] | None = None) 
     NUL test `phi_scan` uses on the tree, so the committed code set is skipped
     here for the reason it is skipped there.
     """
-    labels = reachable_objects(repo)
-    paths = committed_blob_paths(repo) if paths is None else paths
-    every = _git(repo, "cat-file", "--batch-all-objects",
-                 "--batch-check=%(objectname) %(objecttype)").splitlines()
-    oids = [line.split()[0] for line in every
-            if line.split()[1:2] == ["blob"] and line.split()[0] in labels]
+    # Select identities and paths before opening content. The origin-only route
+    # can therefore be used without first reading local-only blob contents.
+    labels = reachable_objects(repo, revisions=revisions)
+    paths = committed_blob_paths(repo, revisions=revisions) if paths is None else paths
+    published = reachable_objects(repo, revisions=("--remotes=origin",))
+    if not labels:
+        return []
+    every = _git(repo, "cat-file", "--batch-check=%(objectname) %(objecttype)",
+                 input_text="".join(oid + "\n" for oid in labels)).splitlines()
+    if len(every) != len(labels):
+        raise GitError("git cat-file: incomplete selected object population")
+    oids = []
+    for expected, line in zip(labels, every):
+        fields = line.split()
+        if len(fields) != 2 or fields[0] != expected or fields[1] not in {"blob", "tree", "commit", "tag"}:
+            raise GitError("git cat-file: unread selected object")
+        if fields[1] == "blob":
+            oids.append(fields[0])
     if not oids:
         return []
 
@@ -758,7 +809,8 @@ def blob_records(repo: Path, *, paths: dict[str, frozenset[str]] | None = None) 
             records.append(
                 Record("blob", f"blob {oid[:10]} {label}",
                        data.decode("utf-8", errors="replace"), is_file=True,
-                       file_path=label, blob_oid=oid, committed_paths=paths[oid])
+                       file_path=label, blob_oid=oid, committed_paths=paths[oid],
+                       origin_reachable=oid in published)
             )
     finally:
         reader.stdin.close()
@@ -798,6 +850,7 @@ def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[ScannedF
                 hashlib.sha256(
                     lines[finding.line - 1].encode("utf-8")
                 ).hexdigest(),
+                record.blob_oid,
             )
             for finding in record_findings
         )
@@ -821,6 +874,12 @@ def format_report(
     for label, count in context:
         lines.append(f"  {label:<{width}}{count}")
     lines.append("")
+
+    if show:
+        for record in records:
+            if record.blob_oid:
+                lines.append(record.ref + " [origin-reachable: "
+                             + ("yes" if record.origin_reachable else "no") + "]")
 
     by_rule = Counter(f.rule for f in findings)
     if by_rule:
@@ -881,6 +940,7 @@ def write_verdict_draft(
     """Write pasteable candidate verdict rows without any matched value."""
     commit_rows = []
     harvest_rows = []
+    blob_rows = []
     for finding in findings:
         commit_match = COMMIT_FINDING.fullmatch(finding.path)
         common = {
@@ -889,7 +949,9 @@ def write_verdict_draft(
             "verdict": "",
             "reason": "",
         }
-        if commit_match:
+        if finding.blob_oid:
+            blob_rows.append({"blob": finding.blob_oid, "line": finding.line, **common})
+        elif commit_match:
             commit_rows.append({
                 "commit": commit_match.group(1),
                 "line": finding.line,
@@ -901,6 +963,7 @@ def write_verdict_draft(
         "version": 2,
         "commit_findings": commit_rows,
         "harvest_findings": harvest_rows,
+        "blob_findings": blob_rows,
     }
     temporary = path.with_name(path.name + ".tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -964,6 +1027,7 @@ def main(argv: list[str]) -> int:
     records: list[Record] = []
     rulings: Counter[RulingKey] = Counter()
     harvest_rulings: Counter[HarvestRulingKey] = Counter()
+    blob_rulings: Counter[BlobRulingKey] = Counter()
     unscanned = False
     population: dict[str, int] | None = None
     observed_harvest: dict[str, int] = {}
@@ -1067,12 +1131,12 @@ def main(argv: list[str]) -> int:
         )
         unscanned = True
 
-    if args.commits or args.harvest:
+    if args.commits or args.harvest or args.history:
         try:
-            rulings, harvest_rulings = load_rulings(repo)
+            rulings, harvest_rulings, blob_rulings = load_rulings(repo)
         except RulingError as error:
             banners.append(
-                f"DID NOT APPLY commit rulings or harvest rulings -- {error}"
+                f"DID NOT APPLY commit rulings or harvest rulings or blob rulings -- {error}"
             )
             unscanned = True
 
@@ -1110,13 +1174,14 @@ def main(argv: list[str]) -> int:
         ))
         if args.show:
             banners.extend(f.render(True) for f in counted)
-    findings, ruled, unmatched_commit, unmatched_harvest = partition_ruled_findings(
-        findings, rulings, harvest_rulings
+    findings, ruled, unmatched_commit, unmatched_harvest, unmatched_blob = partition_ruled_findings(
+        findings, rulings, harvest_rulings, blob_rulings
     )
-    if args.commits or args.harvest:
+    if args.commits or args.harvest or args.history:
         unmatched = (
             (unmatched_commit if args.commits else 0)
             + (unmatched_harvest if args.harvest else 0)
+            + (unmatched_blob if args.history else 0)
         )
         context.append(("unmatched verdict rows", unmatched))
     if ruled:
@@ -1138,6 +1203,11 @@ def main(argv: list[str]) -> int:
     # Assemble this after the write so the producing harvest reports the marker
     # it just established instead of the state that existed at command start.
     banners.extend(phi_scan.shortfall_notice(coverage, missing))
+    if any(finding.rule == "corpus-name" for finding in findings):
+        hint = phi_scan.review_hint(findings, phi_scan.unreviewed_names(
+            phi_scan.harvest_entries(), phi_scan.reviewed_names()))
+        if hint:
+            banners.append(hint)
     print(format_report(findings, records, context, banners, args.show))
 
     if findings:

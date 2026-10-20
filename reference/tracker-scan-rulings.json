@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "blob_findings": [],
   "commit_findings": [
     {
       "commit": "3b82e06da996e77e0735491eacc392982ce13d68",
