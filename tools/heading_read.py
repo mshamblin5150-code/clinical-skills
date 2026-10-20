@@ -441,8 +441,8 @@ def format_coverage(result: Scan, *, include_remainder: bool = True) -> str:
             f"heading-read records: {result.records_read}",
             _format_other_files(result.other_files) if result.other_files is not None else "",
             run_grader.format_unread_remainder(result.unread) if include_remainder else "",
-            f"unread heading-read headings: {result.unbound_unread}" if result.unbound_unread else "",
-            f"unread heading-read record lines: {result.unread - result.unbound_unread}" if result.unread > result.unbound_unread else "",
+            f"unread heading-read headings: {result.unbound_unread}" if not include_remainder and result.unbound_unread else "",
+            f"unread heading-read record lines: {result.unread - result.unbound_unread}" if not include_remainder and result.unread > result.unbound_unread else "",
             *(f"unread reader record: HEADING-READ: {name}" for name in result.unread_records),
             reader_remarks.report(result.remarks),
         ) if line
