@@ -8,6 +8,7 @@ import importlib
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 from datetime import date
 from datetime import datetime, timezone
@@ -17,7 +18,8 @@ import completion_checks
 import file_digest
 from console_codec import use_utf8, require_python_floor
 from run_record_reader import (read_tool_record, object_record, RecordShapeError,
-                               UnreadableRecord, collecting_errors, fault_report, mark_not_graded)
+                               UnreadableRecord, collecting_errors, fault_report, mark_not_graded,
+                               update_tool_record, RecordUpdate)
 
 
 RECORD = "bar-signatures.json"
@@ -27,7 +29,7 @@ SKILLS = ("course-assignment", "discussion-post", "discussion-reply", "peer-crit
 DECLARED_LIMITS = (
     "Whole-message verification proves the clinician wrote the reply, not that it concerned the shown bar.",
     "Changed-line display and completeness of a transcribed case-study bar remain reader-owned.",
-    "Writes retain atomic replacement without a shared artifact lock; the locked-writer migration belongs to #1905.",
+    "Signing holds the canonical history lock across revision allocation, retained-copy creation and atomic history replacement; sibling bar/copy rollback is best effort, not a cross-file atomic transaction.",
     "Unreadable retained signature bookkeeping grants no historical waiver; dependent checks are not graded while independent artifact checks continue.",
 )
 
@@ -84,12 +86,18 @@ def _decode_signatures(text: str) -> dict:
 
 
 def _replace(path: Path, content: bytes) -> None:
-    partial = path.with_name(path.name + f".{os.getpid()}.building")
+    partial = path.with_name(path.name + "." + uuid.uuid4().hex + ".building")
+    created = False
     try:
-        partial.write_bytes(content)
+        with partial.open("xb") as stream:
+            created = True
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(partial, path)
     finally:
-        partial.unlink(missing_ok=True)
+        if created:
+            partial.unlink(missing_ok=True)
 
 
 def sign(run: Path, clinician_reply: str, *, skill: str) -> dict:
@@ -98,9 +106,14 @@ def sign(run: Path, clinician_reply: str, *, skill: str) -> dict:
     Reply verification inherits approval_record's limit: matching words does
     not establish that the message was about this bar.
     """
+    run = Path(run).resolve()
+    return update_tool_record(run / RECORD, _decode_signatures,
+                              lambda previous: _sign(run, clinician_reply, previous, skill=skill))
+
+
+def _sign(run: Path, clinician_reply: str, previous_record: dict | None, *, skill: str) -> RecordUpdate:
     from approval_record import verify_clinician_reply
 
-    run = Path(run).resolve()
     bar = run / "bar.md"
     original = bar.read_bytes()
     text = original.decode("utf-8")
@@ -110,7 +123,7 @@ def sign(run: Path, clinician_reply: str, *, skill: str) -> dict:
     text = re.sub(r"(?m)^SIGNED\s*:[^\r\n]*(?:\r?\n|$)", "", text)
     content = (signed + text).encode("utf-8")
     validate(content.decode("utf-8"), skill)
-    history = _signatures(run)
+    history = previous_record["signatures"] if previous_record is not None else []
     previous = history[-1] if history else {}
     after = previous.get("reply_matched_at") or previous.get("recorded_at")
     boundary = completion_checks.instant(after)
@@ -126,29 +139,41 @@ def sign(run: Path, clinician_reply: str, *, skill: str) -> dict:
     if bar.read_bytes() != original:
         raise run_grader.SourceError(f"bar changed during signing; {REMEDY}")
     copies = run / "signed-bars"
-    copies.mkdir(exist_ok=True)
     copy = copies / f"bar-{len(history) + 1}.md"
-    with copy.open("xb") as output:
-        output.write(content)
-    entry = {
-        "skill": skill,
-        "copy": copy.relative_to(run).as_posix(),
-        "sha256": file_digest.sha256(copy),
-        "clinician_reply": clinician_reply,
-        "reply_verification": "verified" if verification.state == "verified" else "not verified",
-        "reply_reason": verification.reason,
-        "reply_matched_at": verification.matched_at,
-        "recorded_at": datetime.now(timezone.utc).isoformat(),
-    }
-    try:
-        _replace(bar, content)
-        _replace(run / RECORD, (json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"))
-    except BaseException:
+    created_copy = False
+    def rollback():
         copy.unlink(missing_ok=True)
         if bar.read_bytes() == content:
             _replace(bar, original)
+    try:
+        copies.mkdir(exist_ok=True)
+        with copy.open("xb") as output:
+            created_copy = True
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        entry = {
+            "skill": skill,
+            "copy": copy.relative_to(run).as_posix(),
+            "sha256": file_digest.sha256(copy),
+            "clinician_reply": clinician_reply,
+            "reply_verification": "verified" if verification.state == "verified" else "not verified",
+            "reply_reason": verification.reason,
+            "reply_matched_at": verification.matched_at,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _replace(bar, content)
+    except BaseException as failure:
+        if created_copy:
+            try:
+                rollback()
+            except BaseException:
+                pass
+        if isinstance(failure, OSError):
+            raise UnreadableRecord(run / RECORD, "could not be opened") from failure
         raise
-    return entry
+    return RecordUpdate((json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"),
+                        entry, rollback=rollback)
 
 
 def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
