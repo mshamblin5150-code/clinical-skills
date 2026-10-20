@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text(copy, encoding="utf-8", newline="")
         except (OSError, UnicodeError, ValueError) as error:
-            if not args.check or isinstance(error, RefusalGrammarError):
+            if not args.check:
                 destination.unlink(missing_ok=True)
             location = f"{source}: " if args.check or len(args.note) > 1 else ""
             print(f"Entry copy refused: {location}{error}", file=sys.stderr)
