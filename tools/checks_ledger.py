@@ -86,6 +86,8 @@ rather than inherited -- see the row below.
   ``research_ledger.py``'s ``BARE_STATUS`` argument, one skill over. Anybody can
   write ``clean``; nobody writes *"walked all five MDM entries, each names a
   discriminator from this case"* without having walked them.
+  #1584 adds the draft-label reader's reference-list walk, required only for
+  approvals at or after its recorded completion-check start.
 
 **The expected set is the one place this is stronger than its sibling.**
 ``research_ledger.py`` has no expected count and says so, so three records where
@@ -399,6 +401,7 @@ SUBSTANTIATED_CLEAN = (
     "the leftovers of every change after the first draft",
     "the numbering in context",
     "the rendered document",
+    "the draft label on threshold-sheet citations",
 )
 
 CLEAN = "clean"
@@ -693,7 +696,11 @@ def _must_say_what_it_walked(record: Record) -> bool:
     records that complied; a label reading ``saying what it walked`` reported a
     bare ``clean`` as having done the one thing it had not.
     """
-    return record.verdict == CLEAN and normalize(record.check) in _SUBSTANTIATED_KEYS
+    if record.verdict != CLEAN or normalize(record.check) not in _SUBSTANTIATED_KEYS:
+        return False
+    if normalize(record.check) == normalize("the draft label on threshold-sheet citations"):
+        return completion_checks.active("checks_ledger:the draft label on threshold-sheet citations")
+    return True
 
 
 def record_findings(record: Record) -> list[Finding]:
@@ -859,7 +866,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # exactly the terms the missing-check list is.
     lines.append("")
     lines.append("  a clean must say what it walked on (named from this module's own tuple):")
-    lines += [f"    {name}" for name in SUBSTANTIATED_CLEAN]
+    for name in SUBSTANTIATED_CLEAN:
+        earlier = (
+            name == "the draft label on threshold-sheet citations"
+            and not completion_checks.active("checks_ledger:" + name)
+        )
+        suffix = f": {NOT_GRADED} - approval predates substantiation" if earlier else ""
+        lines.append(f"    {name}{suffix}")
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
         for finding in scan.findings:

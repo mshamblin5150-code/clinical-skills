@@ -985,7 +985,8 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertRegex(report, rf"(?m){checks.heading_read.DRAFT_MISMATCH}\s+1$")
 
     def test_a_finding_outranks_an_unread_heading_read_record(self):
-        text = whole_file() + "\n## HEADING-READ draft-without-a-colon.md\n"
+        text = whole_file().replace("VERDICT: clean\n", "\n", 1)
+        text += "\n## HEADING-READ draft-without-a-colon.md\n"
         directory, path = in_a_file(text)
         with directory:
             status, report, _ = run([str(path)])
@@ -1286,15 +1287,29 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("wait for his yes", step_nine)
         self.assertIn("before carrying it into any section", step_nine)
 
-    def test_the_draft_source_class_reader_is_a_named_unsubstantiated_check(self):
+    def test_the_draft_source_class_reader_substantiates_its_reference_walk(self):
         name = "the draft label on threshold-sheet citations"
         rows = {row[0]: row for row in self.table_rows()}
 
         self.assertIn(name, checks.EXPECTED_CHECKS)
         self.assertIn(name, rows)
-        self.assertIn("`tools/differential_scan.py`", rows[name][2])
+        self.assertNotIn("tools/", rows[name][2])
         self.assertIn("a reader", rows[name][2])
-        self.assertFalse(self.table_substantiated()[name])
+        self.assertIn("every source", rows[name][2])
+        self.assertIn("each reference-list entry", rows[name][2])
+        self.assertIn("every body sentence", rows[name][2])
+        self.assertTrue(self.table_substantiated()[name])
+
+    def test_a_draft_label_clean_needs_findings_naming_its_walk(self):
+        name = "the draft label on threshold-sheet citations"
+        bare = f"## CHECK: {name}\nVERDICT: clean\n"
+        self.assertEqual([checks.CLEAN_WITHOUT_FINDINGS], kinds(instead_of(name, bare)))
+        walked = bare + (
+            "FINDINGS: Checked the Smith and KDIGO reference entries against the listed "
+            "KDIGO 2026 public review draft; KDIGO matched. Read every citing sentence: "
+            "each number is labeled public review draft and none reads as guidance in force.\n"
+        )
+        self.assertEqual([], kinds(instead_of(name, walked)))
 
     def test_the_threshold_sheet_reading_is_bound_from_declaration_to_grader(self):
         """#584's three-surface chain and substantiated-clean ruling.
