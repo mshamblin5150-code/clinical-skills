@@ -528,6 +528,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     """Bind each behavior row to its blind-spot test and positive control."""
 
     HANDLERS = {
+        "legal-reference-forms-unread": ("SourcedRecordsReachTheDraftReferenceListOrAreDropped.test_a_court_case_is_outside_the_legal_join", "SourcedRecordsReachTheDraftReferenceListOrAreDropped.test_a_named_legal_reference_joins_without_a_post_year_title"),
         "review-footer-other-wording-unseen": ("ReviewFooterDates.test_legitimate_years_and_no_year_review_explanation_pass", "ReviewFooterDates.test_a_review_footer_cannot_supply_an_agreeing_reference_year"),
         "record-population-unbounded": ("AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_short_ledger_is_only_visible_because_the_headings_were_written_first", "AHeadingWhoseAnswerNeverArrivedIsAFinding.test_a_bare_heading_fails"),
         "restatement-semantic-equivalence-unchecked": ("TheRestatementIsNotTheClaimAgain.test_a_real_paraphrase_passes", "TheRestatementIsNotTheClaimAgain.test_pasting_the_claim_back_is_a_finding"),
@@ -2431,6 +2432,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
             "a sourced record without `DROPPED` whose reference is absent from the draft reference list"
         ),
         ledger.BARE_DROPPED: "`DROPPED` with no reason after it",
+        ledger.LEGAL_REFERENCE_LACKS_NAME: "a sourced record whose legal `REFERENCE` carries only its section and no name",
         ledger.DROPPED_ON_SOURCELESS_RECORD: (
             "`DROPPED` on a record whose `STATUS` is not `sourced`"
         ),
@@ -2611,10 +2613,10 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     def _rows_for(self, ticket: str) -> set[str]:
         return {kind for kind, owner in ledger.ROWS.items() if owner == ticket}
 
-    def test_the_citation_helper_holds_every_231_1480_and_1566_row_and_nothing_else(self):
+    def test_the_citation_helper_holds_every_231_1480_1566_and_1583_row_and_nothing_else(self):
         self.assertEqual(
             self._kinds_constructed_in("_citation_findings"),
-            self._rows_for("#231") | self._rows_for("#1480") | self._rows_for("#1566"),
+            self._rows_for("#231") | self._rows_for("#1480") | self._rows_for("#1566") | self._rows_for("#1583"),
         )
 
     def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):
@@ -5075,6 +5077,56 @@ class SourcedRecordsReachTheDraftReferenceListOrAreDropped(unittest.TestCase):
         self.assertEqual(status, 1)
         row = next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line)
         self.assertRegex(row, rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$")
+
+    def test_a_named_legal_reference_joins_without_a_post_year_title(self):
+        reference = "Nursing services, 42 C.F.R. § 482.23 (2024)."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+        status, report = self.run_main(record, references=(reference,))
+        self.assertEqual(status, 0, report)
+        # Removing only the legal branch must kill this positive control.
+        with mock.patch.object(ledger, "LEGAL_CITATION", re.compile(r"(?!)")):
+            status, report = self.run_main(record, references=(reference,))
+        self.assert_not_listed(status, report)
+
+    def test_all_parts_of_a_legal_reference_identity_must_agree(self):
+        reference = "Nursing services, 42 C.F.R. § 482.23 (2024)."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+        for changed in (
+            reference.replace("Nursing services", "Other services"),
+            reference.replace("42 C.F.R.", "43 C.F.R."),
+            reference.replace("482.23", "482.24"),
+            reference.replace("2024", "2025"),
+        ):
+            with self.subTest(entry=changed):
+                self.assert_not_listed(*self.run_main(record, references=(changed,)))
+
+    def test_an_ordinary_reference_still_joins(self):
+        record = a_drug_claim(CEFTRIAXONE_CLAIM)
+        reference = ledger.read_records(record)[0].value("REFERENCE")
+        status, report = self.run_main(record, references=(reference,))
+        self.assertEqual(status, 0, report)
+
+    def test_a_nameless_legal_record_is_reported_beside_either_entry(self):
+        reference = "42 C.F.R. § 482.23 (2024)."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+        for entry in (reference, "Nursing services, " + reference):
+            with self.subTest(entry=entry):
+                status, report = self.run_main(record, references=(entry,))
+                self.assertEqual(status, 1, report)
+                self.assertRegex(report, r"legal-reference-lacks-name\s+1\b")
+                self.assertRegex(
+                    report,
+                    rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+{int(entry != reference)}\b",
+                )
+
+    def test_a_court_case_is_outside_the_legal_join(self):
+        reference = "Example v. Sample, 123 F.3d 456 (2024)."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+        self.assert_not_listed(*self.run_main(record, references=(reference,)))
+        limit = next(row for row in ledger.DECLARED_LIMITS if row.key == "legal-reference-forms-unread")
+        for form in ("court cases", "Federal Register", "executive orders", "treaties",
+                     "constitutional provisions", "unlisted codes", "leftmost-span"):
+            self.assertIn(form, limit.limit)
 
     def test_dropped_with_no_reason_is_a_finding(self):
         record = a_drug_claim(CEFTRIAXONE_CLAIM) + "DROPPED:\n"

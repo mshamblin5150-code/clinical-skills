@@ -789,6 +789,7 @@ can be several of them at once:
 | a named qualifier absent from `RESTATEMENT` | the restatement keeps the same named limitations |
 | a claim carrying a number whose restatement carries none | *"the source discusses leukocytosis in pregnancy"* against a claim about 15,000 cells |
 | a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
+| a sourced record whose legal `REFERENCE` carries only its section and no name | `legal-reference-lacks-name` (#1583) requires the regulation or statute name in the claim record, even when an identical nameless draft entry joins |
 | a reference more than five years before `DATE` with no excuse | the amended rule above |
 | an excuse with no reason after it | *the run must have looked, and must say so* |
 | a `RESOLVED` that is not a URL or a DOI | the field exists to put a specific in front of a reader, and *on the society website* is not one |
@@ -833,6 +834,11 @@ An ordinary APA edit does not break that join: italics, a retrieval date, a DOI,
 year suffix do not change its author-year-and-title identity. Two works by the same authors in the
 same year remain distinct because their titles must also agree. A correctly reasoned `DROPPED`
 record passes even if another claim still keeps the same source in the list.
+
+For a legal entry recognized by the shared legal grammar with no title after its year,
+the join compares the whole normalized element before the year and the bare year. Its name,
+code, section and year must all agree (ADR 0370). The legal forms this join does not read
+belong to `research_ledger.DECLARED_LIMITS`.
 
 **Without `--draft` those rows do not run, and the report prints `not graded` against them
 rather than `0`.** A zero beside a row that never ran is the silent pass this whole arrangement
