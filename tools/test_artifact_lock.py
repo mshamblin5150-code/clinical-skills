@@ -223,6 +223,73 @@ class LockExclusion(unittest.TestCase):
                 with artifact_lock.hold(artifact, "overlapping write"):
                     self.fail("the writer overlapped an active reader")
 
+
+class NativeInitializationOwnership(unittest.TestCase):
+    def test_overlapping_readers_keep_their_records_when_a_writer_is_refused(self):
+        with tempfile.TemporaryDirectory() as raw:
+            artifact = Path(raw) / "synthetic-artifact"
+            with artifact_lock.hold(artifact, "first reader", mode="read"):
+                with artifact_lock.hold(artifact, "second reader", mode="read"):
+                    scoped = artifact_lock.lock_path(artifact)
+                    def metadata(path):
+                        with path.open("rb") as stream:
+                            stream.seek(1)
+                            return stream.read()
+                    before = {path: metadata(path) for path in scoped.parent.glob("reader.*")}
+                    self.assertEqual(len(before), 2)
+                    with self.assertRaises(artifact_lock.ArtifactBusy):
+                        with artifact_lock.hold(artifact, "refused writer"):
+                            self.fail("writer overlapped two readers")
+                    self.assertEqual({path: metadata(path) for path in before}, before)
+
+    def test_public_holds_own_every_empty_record_before_preparation(self):
+        original_prepare = artifact_lock._prepare
+        for mode in ("write", "read", "stale-reader"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as raw:
+                artifact = Path(raw) / "synthetic-artifact"
+                scoped = artifact_lock.lock_path(artifact)
+                if mode == "stale-reader":
+                    scoped.parent.mkdir(parents=True)
+                    (scoped.parent / "reader.synthetic").touch()
+                observed = set()
+
+                def owned_preparation(stream):
+                    if os.fstat(stream.fileno()).st_size == 0:
+                        name = Path(stream.name).name
+                        observed.add("reader" if name.startswith("reader.") else name)
+                        with open(stream.name, "a+b") as contender:
+                            try:
+                                artifact_lock._try_lock(contender)
+                            except (BlockingIOError, PermissionError):
+                                pass
+                            else:
+                                artifact_lock._unlock(contender)
+                                self.fail(f"empty {name} prepared without kernel ownership")
+                    original_prepare(stream)
+
+                with mock.patch.object(artifact_lock, "_prepare", owned_preparation):
+                    with artifact_lock.hold(
+                        artifact, "native initialization", mode="read" if mode == "read" else "write"
+                    ):
+                        pass
+                self.assertEqual(observed, {"lock", "handoff"} | ({"reader"} if mode != "write" else set()))
+
+    def test_public_contenders_never_initialize_another_owners_empty_record(self):
+        for mode in ("write", "read"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as raw:
+                artifact = Path(raw) / "synthetic-artifact"
+                scoped = artifact_lock.lock_path(artifact)
+                scoped.parent.mkdir(parents=True)
+                with scoped.open("a+b") as owner:
+                    artifact_lock._try_lock(owner)
+                    try:
+                        with self.assertRaises(artifact_lock.ArtifactBusy):
+                            with artifact_lock.hold(artifact, "native contender", mode=mode):
+                                self.fail("contender overlapped owner")
+                        self.assertEqual(os.fstat(owner.fileno()).st_size, 0)
+                    finally:
+                        artifact_lock._unlock(owner)
+
 class AcquisitionCost(unittest.TestCase):
     def _enumerated_entries(self, junk_entries: int) -> int:
         with tempfile.TemporaryDirectory() as raw:

@@ -74,6 +74,12 @@ def check_synthetic_snapshot(run: Path, submission: str) -> None:
 
 class SyntheticSnapshotCase(unittest.TestCase):
     def setUp(self) -> None:
+        # These controls retain the pre-ADR0381 population; its new contract has
+        # separate public-command controls in test_aar_reversal_candidates.
+        from datetime import datetime, timezone
+        cutoff = mock.patch.object(aar_scan, "REVERSAL_CANDIDATES_CUTOFF", datetime(2200, 1, 1, tzinfo=timezone.utc))
+        cutoff.start()
+        self.addCleanup(cutoff.stop)
         patcher = mock.patch.object(aar_scan, "_check_snapshot_posted_reading", check_synthetic_snapshot)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -130,6 +136,9 @@ def unread_remainder_input(root: Path) -> grader_conformance.UnreadRemainderInpu
         case = SubmissionRecord()
         case.run, case.transcript, case.memory = run, transcript, memory
         case.submission = "synthetic-submission"
+        candidates = aar_scan.reversal_candidates_path(run, case.submission, 1)
+        candidates.parent.mkdir(exist_ok=True)
+        candidates.write_text("none\n", encoding="utf-8")
         with mock.patch.object(aar_scan, "_check_snapshot_posted_reading", check_synthetic_snapshot):
             case.write_clean()
         paths.append((str(run), "--submission", case.submission))
@@ -427,6 +436,8 @@ class CommandModes(SyntheticSnapshotCase):
             "unread remainder: not measured (extract unavailable or invalid)\n\n"
             "  declared limits:\n"
             "    aar_scan-record-coverage\n"
+            "    reversal candidate completeness\n"
+            "    landing search adequacy\n"
             "    withdrawn reply text\n"
             "    system subtype meaning\n"
             "    memory index outside the sitting\n"
@@ -951,7 +962,7 @@ class EntryKindsAreBound(unittest.TestCase):
     def test_the_extractor_written_kind_backstop_is_one_exact_set(self) -> None:
         self.assertEqual(
             aar_scan.EXTRACTOR_WRITTEN_ENTRY_KINDS,
-            {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list"},
+            {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list", "reversal-candidates"},
         )
 
     def test_every_candidate_kind_is_literal_or_passes_the_declared_kind_guard(self) -> None:

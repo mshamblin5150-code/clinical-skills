@@ -19,6 +19,13 @@ from test_aar_scan import synthetic_approval
 
 
 class PostedReadingSnapshot(unittest.TestCase):
+    def setUp(self):
+        from datetime import datetime, timezone
+        from unittest import mock
+        cutoff = mock.patch.object(aar_scan, "REVERSAL_CANDIDATES_CUTOFF", datetime(2200, 1, 1, tzinfo=timezone.utc))
+        cutoff.start()
+        self.addCleanup(cutoff.stop)
+
     def fixtures(self, root: Path, skill: str, submission: str) -> tuple[Path, Path, Path]:
         run = root / "run"
         run.mkdir()

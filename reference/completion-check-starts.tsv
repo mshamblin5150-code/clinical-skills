@@ -19,6 +19,9 @@ imagery_proposals:image-stop	2026-10-20T06:18:32Z	approval
 bar_signatures:completion_gate	2026-10-20T05:29:48Z	approval
 bar_signatures:the bar signature	2026-10-20T05:29:48Z	approval
 checks_ledger:bar-walk-signature	2026-10-20T05:29:48Z	approval
+aar_scan:reversal-candidates	2026-10-20T04:30:38Z	extraction
+aar_scan:sustain-on-reversal-candidates	2026-10-20T04:30:38Z	extraction
+aar_scan:missing-landing-search	2026-10-20T04:30:38Z	extraction
 case_video:completion_gate	2026-10-19T15:26:26Z	approval
 case_video:the case video capture	2026-10-19T15:26:26Z	approval
 aar_scan:bare-sustain	2026-09-02T15:26:38-04:00	approval

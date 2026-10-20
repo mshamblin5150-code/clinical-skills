@@ -15,6 +15,14 @@ round and preserves every earlier one.
 
 Choose the submission key from the artifact submitted in this sitting: its dated output stem, response filename, or the run key plus the submission date where no output file exists. Locate the canonical project memory `MEMORY.md`, then run:
 
+Before the extract, write this round's `<run-directory>/aar/<submission-key>.reversal-candidates.md`;
+later rounds use `<submission-key>.round-N.reversal-candidates.md`. List one observed reversal per
+nonblank line, in your own words describing conduct and quoting no run material, whoever corrected
+it: the clinician, an agent or tool, or yourself. Write exactly `none` when there are none.
+The required file reaches the reader as one extractor-written entry; its absence refuses both
+extract and baseline. A rebuild reads that same round's file and refuses a missing or changed
+input; it never borrows a later round's candidates. Earlier extracts retain their historical grade.
+
 ```bash
 python tools/aar_scan.py <run-directory> --submission <submission-key> --memory-index <MEMORY.md> --extract
 ```
@@ -51,6 +59,14 @@ index, and returns:
 - who was in error, separately, using the same vocabulary;
 - one disposition: `skill-file`, `tracker-ticket`, `memory-write`, or `check`;
 - every **sustain**: something the sitting got right that a later sitting could otherwise undo.
+- one answer per reversal candidate, numbered by its nonblank line in that round's file: the
+  exact entry identifier of the correction it became, or `not a correction - <substantive reason>`.
+
+For each candidate, find the transcript entry it refers to and re-derive the verdict. Neither a
+correction nor a sustain may rest on the candidates entry itself. The departure-list sustain
+permission remains unchanged. The reader returns no ticket numbers; ignore any it volunteers.
+An orchestrator disagreement with a rejected candidate retains both verdicts and its reason under
+the same overrule rule as every other classification.
 
 Name every correction and sustain by one entry, using the identifier exactly as it follows `## ENTRY:`, including any `#` suffix. A correction names the entry holding the contradiction; a sustain names the entry where the right thing was settled. An extract line number or a shortened prefix is never an identifier.
 
@@ -71,6 +87,13 @@ Manual section and the observed correction. File the evidence under the landing 
 below; a well-shaped retained handling record alone does not establish the dictionary fact.
 
 `Nothing durable` is not a disposition.
+
+Before filing or citing a `tracker-ticket` or `skill-file` landing, search the tracker's open and
+closed issues for the defect. Use `gh issue list --state all --search "<defect>"` or
+`gh search issues "<defect>"`. A match receives the landing as an issue comment; otherwise file a
+new ticket. The grader requires a successful issue-search command in this round's raw transcripts
+before the command result printing the landing address. An absent, failed,
+or later search refuses the landing. The adequacy of the search terms remains a reader judgment.
 
 - `memory-write`: update the project memory for a fact about the clinician. File it under
   [memory.md](../../docs/agents/memory.md)'s rule: a `subjects` header naming the subject whose work
@@ -118,6 +141,9 @@ DISAGREEMENTS: none recorded
 CORRECTIONS: none
 SUSTAINS: none
 
+## CANDIDATE: 1
+ANSWER: <correction entry identifier, or not a correction - substantive reason>
+
 ## CORRECTION: <extract entry identifier>
 CORRECTOR: clinician
 IN-ERROR: orchestrator
@@ -142,6 +168,11 @@ address, earlier output, failed command, or pull-request address supplies no lan
 Rounds before `aar_scan.LANDING_OUTPUT_CUTOFF` keep their historical evidence rule.
 
 The grader refuses a correction resting on an entry whose text the extractor wrote rather than copied, and it counts every record's corrector against the kind of entry it names without grading that count.
+It also refuses an unanswered, duplicate, unknown, or malformed candidate answer and any sustain
+resting on the candidates entry. A correction answer must name a correction recorded in this same
+round. With `none`, write no candidate-answer blocks. Every report counts the round's candidates,
+answers, and `not a correction` rejections; before `aar_scan.REVERSAL_CANDIDATES_CUTOFF` the row is
+reported `not graded`.
 
 When a correction is something an existing memory already said, the memory was missed rather than
 missing. Promote it one step under ADR 0391 ruling 6: a memory filed under a subject becomes
