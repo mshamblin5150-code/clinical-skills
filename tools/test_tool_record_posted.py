@@ -56,6 +56,31 @@ class PostedRecordCommands(unittest.TestCase):
             run = replies.Run(Path(directory))
             self.check_faults(run.root, lambda: replies.EveryPostedReplyHasALocatedReading().grade(run))
 
+    def test_claim_heading_and_machine_faults_form_one_total_with_finding_precedence(self):
+        for finding in (False, True):
+            with self.subTest(finding=finding), tempfile.TemporaryDirectory() as directory:
+                run = replies.Run(Path(directory))
+                if finding:
+                    response = run.root / 'response-maren.md'
+                    response.write_text(replies.BODY.replace('12%', '17%', 1), encoding='utf-8')
+                    run.write_heading_read()
+                claims = run.root / 'claims.md'
+                claims.write_text(claims.read_text(encoding='utf-8').replace(
+                    '\nSTATUS: sourced', '\nUnknown claim-reader line.\nSTATUS: sourced', 1), encoding='utf-8')
+                heading = run.root / 'heading-read.md'
+                heading.write_text(heading.read_text(encoding='utf-8') + '\nUnknown heading-reader line.\n', encoding='utf-8')
+                reading = run.root / 'reread.md'
+                reading.write_bytes(b'[]')
+                status, report, error = replies.EveryPostedReplyHasALocatedReading().grade(run)
+                self.assertEqual(1 if finding else 2, status, report + error)
+                self.assertEqual(['unread remainder 3'], [
+                    line for line in report.splitlines() if line.startswith('unread remainder ')])
+                self.assertIn('unread reader record: CLAIM:', report)
+                self.assertIn('reread.md: unreadable', report)
+                if finding:
+                    self.assertIn('untraced-number', report)
+                self.assertEqual(b'[]', reading.read_bytes())
+
     def test_peer_critique_command(self):
         with tempfile.TemporaryDirectory() as directory:
             run = critiques.build_run(root=Path(directory) / 'run')
