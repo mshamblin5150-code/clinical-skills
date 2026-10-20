@@ -15,7 +15,7 @@ CHECK = "rapid_screens:pending"
 EXPECTED_ROW = "pending"
 DECLARATION = "Rapid screens: negative unless stated"
 DECLARED_LIMITS = (
-    "The caller supplies --profile; omission is reported not graded without opening account files. The opt-in is one complete line Rapid screens: negative unless stated, ignoring case and Markdown emphasis; other declarations are not inferred.",
+    "The caller supplies --profile; omission is reported not graded without opening account files. The opt-in is one complete line Rapid screens: negative unless stated, ignoring case and double-asterisk bold markers; other declarations are not inferred.",
     "Candidates name strep/streptococcus/streptococcal, influenza/flu, COVID-19/COVID or RSV with rapid, screen, antigen or POCT in one physical clause. Other test names and wordings remain outside this vocabulary check.",
     "Clauses end at commas, semicolons or sentence-ending punctuation, or at and/but before another named test assertion. Influenza A and B remains one name. The shared note_grammar reader locates the four SOAP sections and their closer; missing or ambiguous sections leave one note unread. Markup is preserved. Actual test performance and results remain readings.",
     "Pending, awaiting a result/results, unresulted and no result are recognized. Clauses declaring not performed, not done, not run, declined or refused, or naming culture, PCR or send-out, are outside the refusal.",
