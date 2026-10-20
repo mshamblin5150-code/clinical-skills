@@ -486,7 +486,7 @@ POSTED_READING_MESSAGES = {
     "legacy-display": "LEGACY-DISPLAY must open with expected, differs, or unreadable followed by a reason",
     "attachment-count": "ATTACHMENT-COUNT differs from the approved carrier population",
     "submitted-files": "SUBMITTED-FILE entries differ from the approved carrier filenames",
-    "post-metadata": "POST-URL or POSTED is missing from the saved posting record",
+    "post-metadata": "POST-URL is missing from the saved posting record",
     "post-link": "POST-URL differs from the saved posting record",
 }
 
@@ -521,7 +521,6 @@ def check_posted_reading(
     expected_submitted_files: tuple[str, ...] | None = None,
     expected_posted_files: tuple[tuple[str, str], ...] | None = None,
     saved_post_url: str | None = None,
-    saved_posted: str | None = None,
 ) -> tuple[PostedReadingOutcome, ...]:
     """Check a parsed record against caller-owned bytes, independent of a grade.
 
@@ -613,10 +612,10 @@ def check_posted_reading(
             codes.append('attachment-count')
         if reading.submitted_files != expected_submitted_files:
             codes.append('submitted-files')
-    if saved_post_url is not None or saved_posted is not None:
-        if not saved_post_url or not saved_posted:
+    if saved_post_url is not None:
+        if not saved_post_url:
             codes.append('post-metadata')
-        if reading.entry_id is not None and reading.post_url != saved_post_url:
+        elif reading.entry_id is not None and reading.post_url != saved_post_url:
             codes.append('post-link')
     return tuple(PostedReadingOutcome(code) for code in codes)
 

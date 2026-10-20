@@ -121,6 +121,7 @@ class PostedReadingSnapshot(unittest.TestCase):
             html.write_text("<p>Synthetic initial post.</p>\n", encoding="utf-8")
             (run / "posting-approvals.json").write_text(json.dumps({"items": [{
                 "skill": "discussion-post", "submission": "draft",
+                "posting_route": "agent",
                 "grader_args": [str(run), "--draft", str(draft), "--html", str(html)],
             }]}), encoding="utf-8")
             record = (
@@ -133,7 +134,7 @@ class PostedReadingSnapshot(unittest.TestCase):
             )
             (run / "reread.md").write_text(record, encoding="utf-8")
             post = run / "post.md"
-            metadata = "POST-URL: https://example.org/t?entry_id=1\nPOSTED: 2026-10-08\n"
+            metadata = "## POSTING: post.md\nPOST-URL: https://example.org/t?entry_id=1\n"
             post.write_text(metadata.replace("entry_id=1", "entry_id=2"), encoding="utf-8")
             self.assert_refusal(run, transcript, memory, "draft", "POST-URL differs")
             post.write_text(metadata, encoding="utf-8")
