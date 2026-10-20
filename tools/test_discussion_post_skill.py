@@ -340,7 +340,7 @@ class EachDiscussionSkillStatesTheInvokedSourceForm(ProseBind, unittest.TestCase
         self.assertProseIn("Image stop", reply)
         self.assertProseIn("before its first grade, carrier build", reply)
         self.assertProseIn("Only an approved image changed during repair adds a separate image question", reply)
-        self.assertNotIn("one approval with three named questions", reply)
+        self.assertProseNotIn("one approval with three named questions", reply)
 
     def test_neither_skill_teaches_magnitude_or_a_domain_taxonomy(self):
         for path in (POST, REPLY):
