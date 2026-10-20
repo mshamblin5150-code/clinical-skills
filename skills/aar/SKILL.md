@@ -58,9 +58,20 @@ index, and returns:
 - the corrector: `clinician`, `agent-or-tool`, or `orchestrator`;
 - who was in error, separately, using the same vocabulary;
 - one disposition: `skill-file`, `tracker-ticket`, `memory-write`, or `check`;
+- a cause pointer for every correction: `shown - <entry>` or `unverified - <entry>`;
 - every **sustain**: something the sitting got right that a later sitting could otherwise undo.
 - one answer per reversal candidate, numbered by its nonblank line in that round's file: the
-  exact entry identifier of the correction it became, or `not a correction - <substantive reason>`.
+  exact entry identifier of the correction it became, `not a correction - <substantive reason>`,
+  or `not shown - <substantive reason>` when no extract entry carries the reversal.
+
+Mark a cause `unverified` when it rests on the main agent's or a subagent's explanation of tool
+output absent from the extract and no entry from anyone else backs it. Backing may be the
+clinician's words, a different subagent's result, or a grader finding relayed through a notification.
+The same agent repeating or quoting itself is not independent backing. The clinician's first-hand
+account and an agent's account of its own reasoning do not raise this flag. Mark the cause; do not
+verify it or widen the extract. A `shown` cause about conduct visible in the extract may land in
+any disposition. [ADR 0396](../../docs/adr/0396-a-cause-the-review-s-reader-cannot-see-is-marked-unverified-and-lands-only-on-a-grilling-ticket.md)
+owns these distinctions.
 
 For each candidate, find the transcript entry it refers to and re-derive the verdict. Neither a
 correction nor a sustain may rest on the candidates entry itself. The departure-list sustain
@@ -77,6 +88,12 @@ A preference stated for the first time is not a correction. A correction whose c
 An entry labeled `prior-review` is a previous classifier's return, not fresh evidence. Re-derive every verdict it contains from the other entries in this extract; do not adopt or exclude it. Retain the task id the classifier's return will carry for `CLASSIFIER-ENTRY` in the record.
 
 The orchestrator verifies the return. It may overrule a classification, but writes both verdicts, who overruled whom, and a substantive reason. It never removes an entry from the fixed population.
+
+Retain the classifier's original cause as `CLASSIFIER-CAUSE` and the final cause as `CAUSE`, separate
+from the disposition verdict in `CLASSIFIER`. Both pointers name real entries in this round,
+never extractor-written entries such as the candidates list. The only cause overrule is `shown`
+to `unverified`, with a substantive `CAUSE-OVERRULE` reason. Never turn `unverified` into `shown`,
+including after an orchestrator reads the raw transcript.
 
 ## 3. Land every correction
 
@@ -106,6 +123,19 @@ Land a correction by completing the record for the round that observed it. A lat
 reclassifies the earlier correction and never supplies its landing evidence.
 
 Write every AAR-sourced ticket body first under `<run-directory>/aar/publications/`, then publish it with `gh --body-file`. Require each body to open with `**Filed from:** the after-action review of a <skill> run (<course> <module>), <YYYY-MM-DD>.` The publish hook compares it with the run's own text. Describe conduct; do not reproduce the patient, classmate, preceptor, site, faculty, or board material. A refusal means rewrite the description without the copied span, never move the body file outside the AAR publication directory. A normalized stretch already published on the local `origin/main` reference is exempt, so an exact skill-file diff quoting a published line passes; run-specific stretches remain subject to refusal ([ADR 0305](../../docs/adr/0305-an-aar-quotation-stretch-already-on-main-is-not-run-material.md)).
+
+An unverified cause lands only as `tracker-ticket` or `skill-file`, never `memory-write` or `check`.
+Put this exact sentence as the first nonblank line directly under `Filed from:`:
+
+```text
+**Cause unverified:** the review's reader could not see the tool output this cause rests on; reread the run's transcript before building on it.
+```
+
+Create a new issue with `grilling` and without `ready-for-agent`. A comment on an existing issue
+carries the sentence without a label requirement. Retain the body file: the grader reads the file
+named by the successful command that printed the exact landing address. An inline body or an
+unrecognized command shape refuses. Relative body paths need the recorded command's absolute
+working directory or a literal `cd` in that command. The grader never replays a command.
 
 File a `tracker-ticket` or `skill-file` ticket as soon as its body passes the publish hook; no per-ticket go-ahead is needed, because a ticket records and ADR 0109 ruling 3 applies it unattended. The skill-file diff on that ticket still waits for the clinician's ruling. Never report a review clean while one of its tickets is unfiled.
 
@@ -142,12 +172,14 @@ CORRECTIONS: none
 SUSTAINS: none
 
 ## CANDIDATE: 1
-ANSWER: <correction entry identifier, or not a correction - substantive reason>
+ANSWER: <correction entry identifier, not a correction - substantive reason, or not shown - substantive reason>
 
 ## CORRECTION: <extract entry identifier>
 CORRECTOR: clinician
 IN-ERROR: orchestrator
 SUMMARY: <conduct, never working material>
+CLASSIFIER-CAUSE: shown - <real extract entry identifier>
+CAUSE: shown - <real extract entry identifier>
 CLASSIFIER: tracker-ticket - <substantive reason>
 ORCHESTRATOR: agree - <substantive reason>
 DISPOSITION: tracker-ticket
@@ -171,8 +203,14 @@ The grader refuses a correction resting on an entry whose text the extractor wro
 It also refuses an unanswered, duplicate, unknown, or malformed candidate answer and any sustain
 resting on the candidates entry. A correction answer must name a correction recorded in this same
 round. With `none`, write no candidate-answer blocks. Every report counts the round's candidates,
-answers, and `not a correction` rejections; before `aar_scan.REVERSAL_CANDIDATES_CUTOFF` the row is
+answers, `not a correction` rejections, and `not shown` answers separately. A `not shown` answer
+lands nothing; the candidate's narration cannot become the only evidence for a correction.
+Before `aar_scan.REVERSAL_CANDIDATES_CUTOFF` the row is
 reported `not graded`.
+
+Every report also prints the unverified cause count once per round, including a rebuilt grade;
+the extract summary adds no second count. Rounds extracted before `aar_scan.UNVERIFIED_CAUSE_CUTOFF`
+retain their historical cause grade. Unknown extraction moments receive the current cause checks.
 
 When a correction is something an existing memory already said, the memory was missed rather than
 missing. Promote it one step under ADR 0391 ruling 6: a memory filed under a subject becomes

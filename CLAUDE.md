@@ -1252,6 +1252,11 @@ An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker
 
 The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the extract-entry vocabulary belongs to `aar_scan.ENTRY_KINDS`; this section copies neither object's rows.
 
+The AAR reader's cause pointers and the one-way cause overrule follow ADR 0396 and `aar` steps 2–4.
+Unverified causes land through the warning-bearing tracker body-file route, and reports count them
+per round separately from candidates answered `not shown`. The command grades the recorded
+pointers and publication evidence; the reader still owns recognizing the unverified cause.
+
 ### Draft revision change list
 
 `tools/change_list.py` compares two retained Markdown showings and prints the sentence changes.
