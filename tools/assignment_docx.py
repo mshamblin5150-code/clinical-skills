@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import docx_write
+from run_record_reader import require_outbound_text, read_outbound_source
 from console_codec import require_python_floor, use_utf8
 from repo_root import ensure_main_checkout, main_repo_root, output_root
 
@@ -254,6 +255,14 @@ def _body(spec: AssignmentSpec, image: tuple[str, int, int] | None = None) -> st
 
 
 def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
+    for text in (
+        *spec.title_page.__dict__.values(),
+        *(section.heading for section in spec.sections),
+        *(paragraph for section in spec.sections for paragraph in section.paragraphs),
+        *(text for row in spec.command_rows for text in row.__dict__.values()),
+        *spec.references, spec.figure_alt_text, spec.figure_title, spec.figure_note,
+    ):
+        require_outbound_text(text)
     image_bytes = Path(spec.figure_image).read_bytes() if spec.has_figure else None
     image = image_dimensions(image_bytes) if image_bytes is not None else None
     body = _body(spec, image)
@@ -384,6 +393,9 @@ def from_mapping(value: object) -> AssignmentSpec:
         *((figure_image, figure_title, figure_alt_text) if "figure_image" in value else ()),
         *((figure_note,) if "figure_note" in value else ()),
     )
+    for item in (*string_values, title.credentials):
+        if isinstance(item, str):
+            require_outbound_text(item)
     if not all(isinstance(item, str) and item.strip() for item in string_values):
         raise ValueError("every assignment specification text value must be nonempty")
     if not isinstance(title.credentials, str):
@@ -422,7 +434,7 @@ def main(argv: list[str]) -> int:
         print("output must end in .docx", file=sys.stderr)
         return 2
     try:
-        value = json.loads(source.read_text(encoding="utf-8"))
+        value = json.loads(read_outbound_source(source))
         spec = from_mapping(value)
         if spec.has_figure and not Path(spec.figure_image).is_absolute():
             from dataclasses import replace

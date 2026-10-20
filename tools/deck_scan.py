@@ -23,6 +23,7 @@ from discussion_artifact import posted_reading_unavailable
 from discussion_artifact import check_posted_reading
 
 import completion_checks
+from run_record_reader import outbound_text_damage
 import re
 import sys
 import zipfile
@@ -107,6 +108,7 @@ ADVERSARIAL_RECORD = "adversarial-record"
 PRESENTATION_INTENT_RECORD = "presentation-intent-record"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 REFERENCE_HANGING_INDENT = "reference-hanging-indent"
+OUTBOUND_TEXT = "outbound-text"
 REFERENCE_ROWS = {kind: kind for kind in reference_scan.KINDS if kind not in {
     reference_scan.HEADING_NOT_APA, reference_scan.ENTRY_NOT_A_PARAGRAPH,
 }}
@@ -120,6 +122,7 @@ ROWS = (
     ADVERSARIAL_RECORD,
     PRESENTATION_INTENT_RECORD,
     SUBMISSION_FINGERPRINT,
+    OUTBOUND_TEXT,
 ) + heading_read.KINDS + (REFERENCE_HANGING_INDENT,) + tuple(REFERENCE_ROWS)
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
@@ -173,6 +176,7 @@ SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
 )
 
 DECLARED_LIMITS = (
+    DeclaredLimit("outbound-stored-text-only", "Outbound damage is checked in stored slide, speaker-note, and related chart or diagram text nodes. XML-illegal controls make the package unreadable before a character row can be produced; layout-generated and rendered-only text remain outside this read."),
     DeclaredLimit("reference-explicit-italics", "Reference italics are read only from each run's own properties; inherited italics are unread and an inherited-only italic UpToDate is refused as roman."),
     DeclaredLimit("reference-explicit-indent", "Reference hanging indents are read only from each paragraph's own positive left margin and negative first-line indent; inherited indents are unread and refused."),
     DeclaredLimit("reference-bullets-ungraded", "Reference-entry bullets are not graded, including bullets inherited from a layout."),
@@ -329,6 +333,7 @@ class Source:
     readings: tuple[PostedReading, ...]
     paper_language: str | None = None
     signed: date | None = None
+    outbound_text: tuple[tuple[int, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -558,6 +563,28 @@ def _read_notes(payload: bytes, number: int) -> str:
     except ElementTree.ParseError as failure:
         raise run_grader.SourceError(f"could not read notes slide {number} XML") from failure
     return "\n".join(filter(None, (_text(item) for item in root.iter(A + "p"))))
+
+
+def _raw_outbound_fields(payload: bytes) -> tuple[str, ...]:
+    """Preserve text-node edges before paragraph/reference transformations."""
+    root = ElementTree.fromstring(payload)
+    return tuple(item.text or "" for item in root.iter() if item.tag in {A + "t", C + "v"})
+
+
+def _raw_related_text(archive: zipfile.ZipFile, part: str, seen=None) -> tuple[str, ...]:
+    seen = set() if seen is None else seen
+    if part in seen:
+        return ()
+    seen.add(part)
+    texts = list(_raw_outbound_fields(archive.read(part)))
+    for relationship in _relationships(archive, part).values():
+        if relationship.kind.rsplit("/", 1)[-1] in {"chart", "diagramData", "diagramDrawing"}:
+            try:
+                texts.extend(_raw_related_text(archive, relationship.target, seen))
+            except (KeyError, ElementTree.ParseError):
+                # The existing object reader owns missing/unreadable members.
+                continue
+    return tuple(texts)
 
 
 def _parts(archive: zipfile.ZipFile, pattern: re.Pattern[str]) -> tuple[tuple[int, str], ...]:
@@ -876,6 +903,10 @@ def load(
                 _read_notes(archive.read(name), number)
                 for number, name in _parts(archive, NOTES_PART)
             )
+            outbound_text = tuple((number, text) for number, name in slide_parts
+                                  for text in _raw_related_text(archive, name))
+            outbound_text += tuple((number, text) for number, name in _parts(archive, NOTES_PART)
+                                   for text in _raw_outbound_fields(archive.read(name)))
     except (
         OSError,
         UnicodeError,
@@ -910,6 +941,7 @@ def load(
             Path(parsed.value("--profile")) if parsed.value("--profile") else None,
         ),
         date.fromisoformat((envelope or assignment_bar.parse(bar_text)).fields["SIGNED"]) if bar_available else None,
+        outbound_text,
     )
 
 
@@ -1336,6 +1368,9 @@ def survey(source: Source) -> Scan:
         if finding.kind == kind
     ]
     findings.extend(indent_findings)
+    findings.extend(Finding(OUTBOUND_TEXT, slide, f"line {line}: U+{ord(char):04X}")
+                    for slide, text in source.outbound_text
+                    for line, char in outbound_text_damage(text))
     findings.extend(
         Finding(REFERENCE_ROWS[finding.kind], None, f"{finding.where}: {finding.detail}")
         for finding in reference_grade.findings if finding.kind in REFERENCE_ROWS
@@ -1506,6 +1541,10 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         elif row in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             count = run_grader.NOT_GRADED
         lines.append(f"{row}: {count}")
+    lines.extend(f"outbound text: slide {finding.slide}: {finding.detail}"
+                 for finding in scan.findings if finding.kind == OUTBOUND_TEXT
+                 and isinstance(finding.slide, int)
+                 and re.fullmatch(r"line [1-9]\d*: U\+[0-9A-F]{4,6}", finding.detail))
     if show:
         lines += ["", "findings:"]
         for finding in scan.findings:

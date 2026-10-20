@@ -1169,6 +1169,8 @@ def render_body(markdown: str, bold_headings: bool = False):
 
 
 def document_xml(markdown: str, body: str = None) -> str:
+    from run_record_reader import require_outbound_text
+    require_outbound_text(markdown)
     # ``body`` is accepted so ``write_docx`` can parse once and spend the result
     # on both parts. ``render_body``'s docstring is explicit that a second pass
     # over the same Markdown is a second parser to keep in step; this function
@@ -1208,6 +1210,8 @@ def parts(markdown: str, bold_headings: bool = False) -> dict:
     finding, and this function is where the two branches met: the guard needs the part
     *names* and the writer needs the part *contents*, and they must come from one walk.
     """
+    from run_record_reader import require_outbound_text
+    require_outbound_text(markdown)
     body, decimal_lists = render_body(markdown, bold_headings=bold_headings)
     return {
         "[Content_Types].xml": CONTENT_TYPES,
@@ -1405,7 +1409,8 @@ def main(argv: list) -> int:
     if not source.is_file():
         print("not a file: {p}".format(p=source))
         return 2
-    markdown = source.read_text(encoding="utf-8")
+    from run_record_reader import OutboundTextError, read_outbound_source
+    markdown = read_outbound_source(source)
     try:
         written = write_docx(
             markdown,
@@ -1413,6 +1418,9 @@ def main(argv: list) -> int:
             force=force,
             bold_headings=bold_headings,
         )
+    except OutboundTextError as reason:
+        print(f"document was not written: {reason}", file=sys.stderr)
+        return 2
     except ForeignCheckout as reason:
         print("refused: {r}".format(r=reason), file=sys.stderr)
         return 2

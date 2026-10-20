@@ -33,6 +33,7 @@ from discussion_artifact import check_posted_reading, PostedReadingOutcome
 from discussion_artifact import PostedReading
 
 import completion_checks
+from run_record_reader import outbound_completion
 import re
 import sys
 from dataclasses import dataclass, replace
@@ -729,7 +730,8 @@ def plain_text_gate(run: Path) -> tuple[bool, str]:
             return True, "plain-text-build: finding - critique.txt is missing"
         return False, "plain-text-build: NOT GRADED - critique.txt has not been built"
     try:
-        expected = post_text.render((run / "critique.md").read_text(encoding="utf-8"))
+        from run_record_reader import read_outbound_source
+        expected = post_text.render(read_outbound_source(run / "critique.md"))
         matches = target.read_bytes() == expected.encode("utf-8")
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"plain-text build could not be read: {failure}") from failure
@@ -738,6 +740,7 @@ def plain_text_gate(run: Path) -> tuple[bool, str]:
     return (False, "plain-text-build: clean") if matches else (True, "plain-text-build: finding - critique.txt differs from the rebuilt source")
 
 
+@outbound_completion(lambda: completion_checks.active("peer_critique_scan:outbound-text"))
 def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
     text_failed, text_report = plain_text_gate(source.path)

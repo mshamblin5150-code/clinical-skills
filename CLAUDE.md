@@ -243,6 +243,14 @@ cross-file transaction. A persistence failure keeps its safe refusal even if bes
 rollback also fails. Each writer owns its lock posture in `DECLARED_LIMITS`; the writer-route test
 states its recognized direct-write floor and the ownership of excluded producers.
 
+`run_record_reader.outbound_text_damage` also owns the outbound character policy shared by
+the builders and reference-sheet reader. The five text builders check their raw written text
+before parsing or normalization; refusals name only a line and Unicode code point.
+`deck_scan` checks stored slide and speaker-note text before its text transformations.
+Completion rebuilds use the approval cutoffs in `reference/completion-check-starts.tsv`;
+ordinary builder calls always check. The boundary belongs to
+`run_record_reader.OUTBOUND_DECLARED_LIMITS` and `deck_scan.DECLARED_LIMITS`.
+
 This section documents command implementations for maintainers. Consumer requirements belong
 to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.
 

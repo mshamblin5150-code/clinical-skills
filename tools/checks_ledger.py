@@ -177,6 +177,7 @@ import tree_walk
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import completion_checks
+from run_record_reader import outbound_completion, outbound_text_damage
 import re
 import sys
 from dataclasses import dataclass, field, replace
@@ -466,6 +467,7 @@ ROUTING_WALK = "routing-walk"
 # ``KINDS`` is ordered and this is keyed, so ``format_report`` raises rather than
 # mislabelling.
 ROWS = {
+    "outbound-text": "#1859",
     MISSING_CHECK: "#240",
     DUPLICATE_CHECK: "#240",
     MISSING_VERDICT: "#240",
@@ -1190,6 +1192,7 @@ POSTED_READING_KINDS = {
 }
 
 
+@outbound_completion(lambda: completion_checks.active("checks_ledger:outbound-text"))
 def _grade(
     source: BoundChecksSource, _parsed: run_grader.Parsed
 ) -> run_grader.Grade[Scan]:
@@ -1240,6 +1243,10 @@ def _grade(
             list(heading_extra) + pre_review_walks(source.path.parent, source.text, artifact=source.document.name)
             + routing_walk(source.path.parent, source.text, artifact=source.document.name)
         )
+        outbound_damage = (outbound_text_damage(source.document_bytes.decode("utf-8"))
+                           if completion_checks.active("checks_ledger:outbound-text") else ())
+        extra.extend(Finding("outbound-text", "the rendered document", f"line {line}: U+{ord(char):04X}")
+                     for line, char in outbound_damage)
         rendered = next(
             (
                 record
@@ -1302,9 +1309,9 @@ def _grade(
                 if reading.composer_outcome == "inline":
                     if (
                         not html.is_file()
-                        or html.read_bytes() != post_html.render(
+                        or (not outbound_damage and html.read_bytes() != post_html.render(
                             source.document_bytes.decode("utf-8")
-                        ).encode("utf-8")
+                        ).encode("utf-8"))
                     ):
                         extra.append(Finding(
                             INLINE_HTML, "the posted reading",
@@ -1312,7 +1319,7 @@ def _grade(
                         ))
                 else:
                     local_docx = source.document.with_suffix(".docx")
-                    if local_docx.is_file():
+                    if local_docx.is_file() and not outbound_damage:
                         try:
                             _markdown, checked_digest = case_study_render.matching_markdown(
                                 local_docx

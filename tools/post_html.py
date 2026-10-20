@@ -97,6 +97,8 @@ def _table(block: docx_write.Block) -> str:
 def render(markdown: str) -> str:
     """Return the HTML fragment loaded into Canvas's raw editor."""
 
+    from run_record_reader import require_outbound_text
+    require_outbound_text(markdown)
     out: list[str] = []
     open_list: str | None = None
 
@@ -148,7 +150,8 @@ def main(argv: list[str]) -> int:
         print(f"not a file: {source}")
         return 2
     try:
-        rendered = render(source.read_text(encoding="utf-8"))
+        from run_record_reader import read_outbound_source
+        rendered = render(read_outbound_source(source))
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(rendered, encoding="utf-8", newline="")
     except (OSError, UnicodeError, ValueError) as failure:

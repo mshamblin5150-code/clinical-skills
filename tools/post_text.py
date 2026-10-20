@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import docx_write
+from run_record_reader import require_outbound_text, read_outbound_source
 from console_codec import require_python_floor, use_utf8
 
 USAGE = "usage: post_text.py <in.md> <out.txt>"
@@ -20,6 +21,7 @@ def protect_url(url: str, escaped: list[str]) -> str:
 
 def render(markdown: str) -> str:
     """Keep text and paragraph spacing; refuse shapes outside the plain-box grammar."""
+    require_outbound_text(markdown)
     escaped: list[str] = []
 
     def protect(match: re.Match[str]) -> str:
@@ -63,7 +65,7 @@ def main(argv: list[str]) -> int:
         return 2
     source, destination = map(Path, argv)
     try:
-        text = render(source.read_text(encoding="utf-8"))
+        text = render(read_outbound_source(source))
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text, encoding="utf-8", newline="")
     except (OSError, UnicodeError, ValueError) as failure:
