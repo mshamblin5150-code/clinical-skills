@@ -290,6 +290,11 @@ The shared APA rows retain `reference_scan`'s definitions: `entry-has-no-year`,
 
 The rows are:
 
+- `outbound-text`: one finding per distinct damaged line/code-point pair in each stored text node
+  in a slide, speaker note, or related chart or diagram, before trimming or normalization. Tabs, other C0 controls
+  except LF and CRLF line endings, DEL and C1 controls refuse. Diagnostics name the owning
+  slide when known, line and code point without repeating its text; unassociated notes remain
+  checked without an invented slide number.
 - `slide-count`: one finding when the population named by `SLIDE-LIMIT-SCOPE` exceeds `SLIDE-MAX`.
 - `bullets-per-slide`: one finding for each slide exceeding `BULLETS-PER-SLIDE`.
 - `words-per-bullet`: one finding for each non-title paragraph exceeding

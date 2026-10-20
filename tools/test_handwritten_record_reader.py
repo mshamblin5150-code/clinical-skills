@@ -3,9 +3,11 @@
 import artifact_lock_test_support
 from datetime import datetime, timedelta, timezone
 import json
+import sys
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import run_record_reader as records
 import completion_checks
@@ -63,7 +65,7 @@ class HandwrittenRecords(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.path = Path(temporary.name) / 'project-context.md'
+        self.path = Path(temporary.name).resolve() / 'project-context.md'
 
     def test_every_damaged_line_is_named_before_text_can_be_consumed(self):
         self.path.write_bytes(b'FIELD: tab\tbell\x07\nHEADING\x00\x0c\x0b\nvalue\rrest\n')
@@ -148,6 +150,41 @@ class HandwrittenRecords(unittest.TestCase):
                         caught.exception, check='record rewrite', force=True)
                     self.assertTrue(finding)
                     self.assertIn('U+0007', report)
+
+    def test_boundary_fixture_uses_canonical_identity_for_native_equivalent_temp_paths(self):
+        canonical = self.path.parent / 'synthetic-long-directory-for-fixture'
+        canonical.mkdir()
+        alias = self.path.parent / 'alias'
+        alias.mkdir()
+        supplied = alias / '..' / canonical.name
+        route = 'existing-directory/alias/..'
+        if sys.platform == 'win32':
+            import ctypes
+            function = ctypes.windll.kernel32.GetShortPathNameW
+            function.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+            function.restype = ctypes.c_uint32
+            size = function(str(canonical), None, 0)
+            if size:
+                buffer = ctypes.create_unicode_buffer(size)
+                if function(str(canonical), buffer, size):
+                    short = Path(buffer.value)
+                    if short != canonical and short.resolve() == canonical.resolve():
+                        supplied, route = short, 'GetShortPathNameW'
+        with self.subTest(route=route):
+            self.assertNotEqual(supplied, supplied.resolve())
+            self.assertTrue(supplied.samefile(canonical))
+            class Factory:
+                name = str(supplied)
+                def cleanup(self):
+                    pass  # The outer fixture owns every synthetic path.
+            method = 'test_one_approval_boundary_withholds_damage_without_waiving_a_rewriter'
+            case = type(self)(method)
+            result = unittest.TestResult()
+            with mock.patch.object(tempfile, 'TemporaryDirectory', return_value=Factory()):
+                case.run(result)
+            self.assertEqual(1, result.testsRun)
+            self.assertEqual([], result.failures)
+            self.assertEqual([], result.errors)
 
     def test_historical_access_preserves_an_existing_claim_finding(self):
         import research_ledger as ledger
