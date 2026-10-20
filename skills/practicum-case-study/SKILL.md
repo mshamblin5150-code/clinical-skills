@@ -466,9 +466,12 @@ After the clinician reads the section and gives the submission go-ahead, write
 No separate stop or mid-draft question is added.
 
 **A causal link drawn between two of the clinician's listed diagnoses is a new claim.** Writing that
-one diagnosis causes or explains another, or adding a code for the combined condition, needs its own
-step 3 claim record and its own `### DEPARTURE:` entry. Without both, the draft keeps the clinician's
-diagnoses as separate entries.
+one diagnosis causes or explains another needs its own step 3 claim record and its own
+`### DEPARTURE:` entry. A combination code the applicable index presumes through `with` between
+those documented diagnoses needs neither; its source is the recorded index path, following
+[the linked-condition rule](../icd10-cpt/SKILL.md#linked-conditions-take-the-with-combination-code).
+A combination code with no index path still needs both the claim record and the departure.
+Without the required records, the draft keeps the clinician's diagnoses as separate entries.
 
 ## Credentials — two strings in one document, and that is correct
 

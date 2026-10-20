@@ -208,6 +208,14 @@ worksheet's specificity reason. `--index` traces an exact final term, not a syno
 or an arbitrary phrase: a miss means try the index's wording and referrals, never
 that no combination code exists.
 
+A code joining two conditions records its link source in that specificity reason: the complete
+index `with` path, or `clinician:` followed by the shorthand's or recorded answer's own words
+stating the link. A code with neither source is not proposed; keep the conditions' codes separate.
+The note's prose follows [clinical-note's relationship rule](../clinical-note/SKILL.md#a-relationship-is-stated-only-when-the-clinician-stated-it).
+The existing specificity and anchor commands do not grade these link-source forms. Whether the
+quoted words state a link and whether the index path applies remain readings; no grader verifies
+an invented relationship sentence or a `clinician:` quote's fidelity.
+
 - Documented type 2 diabetes and polyneuropathy take `E11.42` through
   `Diabetes, diabetic (mellitus) (sugar) > type 2 > with > polyneuropathy`, rather
   than `E11.9` plus `G62.9`, unless the note explicitly states they are unrelated.
@@ -444,6 +452,18 @@ grade a family walk. Their specificity reasons keep the ordinary human
 verification posture; a clean ICD-10 second read says nothing about them.
 
 #### Descriptor agreement is a separate blind read
+
+When the reader finds a code in conflict with a causal link the note asserts, first ask whether
+the clinician stated that link in the shorthand or a recorded answer. If not, remove the sentence
+before recoding, then use a combination only where the applicable index `with` path exists and
+record that path as the anchor, under [Linked conditions](#linked-conditions-take-the-with-combination-code).
+A complication code is never justified by prose the pass wrote. For a placed note, this is a
+bounded repair under [standing rule 6](../../AGENTS.md#standing-rules), including any protected
+code-population change.
+
+Before the blind brief, the orchestrator compares every `clinician:` link-source quote with the
+encounter's shorthand or recorded answer. The blind reader does not receive those sources, so
+its note/code agreement never substitutes for that comparison.
 
 A quotation agrees when its words state the official descriptor or reach the code through the
 shared four-source index catalog. Topical relation is not agreement. Run the separate agreement reader after the
