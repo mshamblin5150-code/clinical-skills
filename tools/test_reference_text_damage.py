@@ -12,6 +12,7 @@ from unittest import mock
 
 import threshold_grammar
 import threshold_sheet as gate
+import git_paths
 from run_record_reader import outbound_text_damage
 import test_threshold_sheet as support
 
@@ -36,9 +37,9 @@ def reference_damage(root: Path) -> list[str]:
     Binary files (those not decodable as UTF-8) are outside this text check.
     Tabs are allowed only in TSV, where they separate columns.
     """
-    paths = subprocess.check_output(
-        ["git", "ls-files", "-z", "--", "reference/", "skills/", "AGENTS.md"], cwd=root
-    ).decode("utf-8").split("\0")
+    paths = git_paths.read_path_records(
+        root, "ls-files", "-z", "--", "reference/", "skills/", "AGENTS.md"
+    )
     findings = []
     for name in filter(None, paths):
         path = root / name
@@ -120,8 +121,9 @@ class ThresholdDamage(unittest.TestCase):
 
     def test_the_pre_repair_sepsis_sheet_is_a_damage_control(self):
         historical = subprocess.check_output(
-            ["git", "show", "981f63f73146f5e072f485a716a8f8c32804c7d1:reference/thresholds/sepsis-and-septic-shock.md"], cwd=ROOT
-        ).decode("utf-8")
+            ["git", "show", "981f63f73146f5e072f485a716a8f8c32804c7d1:reference/thresholds/sepsis-and-septic-shock.md"],
+            cwd=ROOT, encoding="utf-8", errors="replace",
+        )
         self.assertIn("\x07", historical)
         parsed = threshold_grammar.parse(historical, Path("sepsis.md"))
         self.assertFalse(parsed.ok)
