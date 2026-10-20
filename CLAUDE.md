@@ -583,6 +583,12 @@ Placement fixes the initial digest. Before dispatching a repair, the orchestrato
 
 ### Differential scan
 
+The informational Objective/proposed-item join reports a never-graded count and private
+`--show` pairs. Its name extraction and recognition ceiling belong to
+`differential_scan.OBJECTIVE_PAIR_LIMITS`, `PROPOSED_ACTION_LEAD`, and `PROPOSED_NAME_END`.
+The count changes no exit status; batch-shift invokes it per note as a separate handoff,
+and the clinician rules the listed pairs at the go-ahead under ADR 0433.
+
 **File attribution:** findings, reader candidates, and unread remainders carry
 checked file labels beside their row counts. `run_grader.artifact_label` owns the
 pasteable naming rule; `--show` finding lines carry real filenames. Zero and

@@ -36,6 +36,11 @@ Day files name preceptors by first name; Medatrax wants `Last,First` exactly.
 
 **The mapping is per-clinician and lives in `scratch/medatrax-profile.md`**, written by [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Read it there rather than from this file — a preceptor list belongs to one account and does not travel.
 
+Course and Site come from `scratch/medatrax-profile.md`; when the shift is already in
+Medatrax, its record wins for Site. Interaction Level comes from the profile's saved account
+default; `reference/medatrax-fields.md` names only the scale. Ask once for a value the profile
+lacks and save the answer there. A prior run is never the source of these constants.
+
 **A day file names who the clinician worked alongside. The `Preceptor` field names who supervises them for the program.** Those are two different questions, and a filename answers only the first. The person in the filename may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping.
 
 **So a name that maps to nobody is a question, not a defect.** Look it up before treating it as one:
@@ -376,9 +381,22 @@ clinician's corrections before approval.
 After every note and worksheet is final and before building the Review sheet, the orchestrating
 context runs `python tools/entry_copy.py --check <every note-N.md>` and requires exit 0. This
 check writes nothing and requires the derived copy to split into all four note sections. A
-writing pass never runs it on its own output. Record any refusal as a finding, correct it through
+note pass may run the same check on its own note before hand-back and correct any refusal;
+that author run never substitutes for this non-authoring run. Record any refusal as a finding, correct it through
 [standing rule 6](../../AGENTS.md)'s staging and repair-chain route, and have a non-authoring
 context run this **Grader handoff** on the correction again before building the Review sheet.
+
+Before building the Review sheet, run `python tools/differential_scan.py <run> --note <note-N.md> --show`
+once per final numbered note as a non-authoring **Grader handoff**. Select each note explicitly;
+`--note` takes one path, and `--submission` resolves only a standalone note. Do not pass
+`shift-summary.md`, `delegated-answers.md`, or `reread.md` as notes. This handoff reports the
+Objective candidates, never graded, separately from the shift's terminal grader.
+At the go-ahead list each matched proposed-item/Objective pair beside its note, outside the
+Review sheet, or `none` when there are no pairs. A proposed test written as an actual Plan
+order is allowed; a recommendation promoted to given or ordered without the clinician's words
+is a defect. Incorporate the clinician's corrections before approval; approval confirms each
+listed pair it does not correct. The batch pair listing is a skill instruction: the paired-grader
+coverage verification still reads `filled_vitals_census.py` and does not verify this list.
 
 The **Review sheet** is the shift's approval artifact: one `.docx` containing every finished note
 and its finalized `Coding worksheet`, numbered in source order. A single encounter is never handed

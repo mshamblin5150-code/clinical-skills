@@ -217,6 +217,10 @@ Extractor limits worth knowing before quoting a number:
 
 File attribution uses ``run_grader.artifact_label`` for pasteable output; private
 ``--show`` finding lines carry real filenames. See ADR 0314.
+
+The never-graded Objective candidate count is a literal name join whose exact
+recognition ceiling belongs to ``OBJECTIVE_PAIR_LIMITS``. It establishes no order
+provenance and does not change an exit status.
 """
 
 from __future__ import annotations
@@ -489,6 +493,31 @@ class ProposedItem:
 
 
 @dataclass(frozen=True)
+class ObjectivePair:
+    """An informational own-name match, not a finding about an order."""
+
+    line: int
+    name: str
+    objective_line: int
+    objective: str
+
+
+OBJECTIVE_PAIR_LIMITS = (
+    "Only one explicit O/Objective section, closed by A/Assessment/P/Plan or a tier label, is read; missing or ambiguous boundaries produce no pairs.",
+    "The name is the opener before a bracketed tail, with Markdown emphasis removed, named action lead-ins removed, and a dose/sig or reason suffix cut off. Wrapped continuation text and source titles never supply a name.",
+    "Matching is case-insensitive literal text with flexible whitespace and word boundaries; synonyms, abbreviations, reordered words, semantic names, and whether the matching text promotes an order are not inferred.",
+    "An item contributes at most one pair, using its first matching Objective line. The count never affects exit status; the clinician rules each displayed pair.",
+)
+PROPOSED_ACTION_LEAD = re.compile(
+    r"^(?:(?:recommend(?:ed)?|consider|obtain|order|check|start(?:ing)?|continue|"
+    r"prescribe|give|administer|request|refer\s+to|referral\s+to)\s+)+", re.I)
+PROPOSED_NAME_END = re.compile(
+    r"\s+(?:\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?)\b|"
+    r"(?:po|im|iv|sc|sq|daily|bid|tid|qid|prn|recommended|ordered|given|"
+    r"requested|discussed|ongoing|for|because)\b)|[;:]", re.I)
+
+
+@dataclass(frozen=True)
 class GuidelineFinding:
     """One mechanically certain drift-row-24 violation."""
 
@@ -554,6 +583,7 @@ class Note:
     numbered_items: tuple[NumberedItem, ...] = ()
     ranking_findings: tuple[RankingFinding, ...] = ()
     proposed_items: tuple[ProposedItem, ...] = ()
+    objective_pairs: tuple[ObjectivePair, ...] = ()
     guideline_tails_checked: int = 0
     guideline_grade_only: int = 0
     guideline_not_graded: int = 0
@@ -606,6 +636,7 @@ class Scan:
     missing_code_items: tuple[NumberedItem, ...] = ()
     ranking_findings: tuple[RankingFinding, ...] = ()
     proposed_items: int = 0
+    objective_pairs: tuple[ObjectivePair, ...] = ()
     guideline_tails_checked: int = 0
     guideline_grade_only: int = 0
     guideline_not_graded: int = 0
@@ -957,6 +988,34 @@ def _read_proposed_items(lines: list[str]) -> list[ProposedItem]:
         )
         index = following
     return items
+
+
+def _objective_pairs(lines: list[str], items: list[ProposedItem]) -> tuple[ObjectivePair, ...]:
+    """Join literal item names to Objective, without deciding their provenance."""
+    def heading(line):
+        return line.strip().lstrip("#").strip().replace("**", "").rstrip(":").strip().casefold()
+
+    starts = [i for i, line in enumerate(lines) if heading(line) in {"o", "objective"}]
+    if len(starts) != 1:
+        return ()
+    start = starts[0] + 1
+    end = next((i for i in range(start, len(lines))
+                if heading(lines[i]) in {"a", "assessment", "p", "plan"}
+                or TIER_LABEL.match(lines[i])), None)
+    if end is None:
+        return ()
+    pairs = []
+    for item in items:
+        subject = item.text.split("[", 1)[0].replace("**", "").replace("__", "").strip()
+        name = PROPOSED_NAME_END.split(PROPOSED_ACTION_LEAD.sub("", subject), 1)[0].strip(" .,*_")
+        if not name:
+            continue
+        pattern = re.compile(r"(?<!\w)" + r"\s+".join(re.escape(word) for word in name.split()) + r"(?!\w)", re.I)
+        for index in range(start, end):
+            if pattern.search(lines[index]):
+                pairs.append(ObjectivePair(item.line, name, index + 1, lines[index].strip()))
+                break
+    return tuple(pairs)
 
 
 def _guideline_floor(
@@ -1358,6 +1417,7 @@ def read_note(text: str) -> Note:
         numbered_items=tuple(numbered_items),
         ranking_findings=tuple(ranking_findings),
         proposed_items=tuple(proposed_items),
+        objective_pairs=_objective_pairs(lines, proposed_items),
         guideline_tails_checked=guideline.checked,
         guideline_grade_only=guideline.grade_only,
         guideline_not_graded=guideline.not_graded,
@@ -1450,6 +1510,7 @@ def survey(notes: list[Note]) -> Scan:
         missing_code_items=tuple(item for item in numbered_items if not item.coded),
         ranking_findings=tuple(ranking_findings),
         proposed_items=sum(len(note.proposed_items) for note in notes),
+        objective_pairs=tuple(pair for note in notes for pair in note.objective_pairs),
         guideline_tails_checked=sum(note.guideline_tails_checked for note in notes),
         guideline_grade_only=sum(note.guideline_grade_only for note in notes),
         guideline_not_graded=sum(note.guideline_not_graded for note in notes),
@@ -1489,10 +1550,11 @@ def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAt
         "ranking_findings": lambda scan: len(scan.ranking_findings),
         "guideline_findings": lambda scan: len(scan.guideline_findings),
         "guideline_candidates": lambda scan: len(scan.guideline_candidates),
+        "objective_pairs": lambda scan: len(scan.objective_pairs),
         "draft_backed_citations": lambda scan: len(scan.draft_backed_citations),
         "unwelded_marks": lambda scan: scan.unwelded_marks,
         "malformed_pins": lambda scan: scan.malformed_pins,
-    }, ('findings', 'missing_code_items', 'ranking_findings', 'guideline_findings', 'guideline_candidates'))
+    }, ('findings', 'missing_code_items', 'ranking_findings', 'guideline_findings', 'guideline_candidates', 'objective_pairs'))
 
 
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
@@ -1550,6 +1612,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  declared floor: clinical likelihood order still needs a reader.",
         "",
         f"  FILLED proposed items read                 {scan.proposed_items}",
+        f"  Objective candidates, never graded: {len(scan.objective_pairs)}",
         "  guideline tails checked against source evidence  "
         f"{scan.guideline_tails_checked}",
         f"  Rh(D) citations: year not compared - the sheet states none  {scan.guideline_grade_only}",
@@ -1590,6 +1653,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
+        for index, pair in enumerate(scan.objective_pairs):
+            lines.append(f"{scan.attribution.filename('objective_pairs', index)}    proposed line {pair.line}: {pair.name} -> Objective line {pair.objective_line}: {pair.objective}")
         for index, finding in enumerate(scan.findings):
             lines.append(f"{scan.attribution.filename('findings', index)}    line {finding.line:<5} {finding.code:<9} {finding.label}")
         for index, item in enumerate(scan.missing_code_items):
