@@ -1033,6 +1033,20 @@ Reuse a recorded image whole where it fits. Where none fits, follow
 domain may be proposed, and one that works never licenses a second instance.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
+**Image stop.** Once the draft is complete, stop before its first grade, carrier build,
+render or reader. Show every proposal in its surrounding paragraph with the recorded domain
+and real behavior, separately from the later substance question:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Apply the answer and retain the whole reply and shown-draft timestamp under
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
+This proposal-only stop is not a full draft showing under Revisions; the first full go-ahead
+carries no change list, and later full showings compare against it.
+
+
 Two things every MDM entry carries: **the discriminator** — what in this case supports the favored
 diagnosis or makes another ruled out or argued down, not a textbook summary of the disease — and
 **a citation**. Ruled-out entries end on the
@@ -1914,15 +1928,11 @@ The `the rendered document` reader is what turns those pixels into a visually ch
 its substantiated verdict is required before submission.
 
 After every check above is clean, show the clinician the finished artifact and selected submission
-route. If the run proposed imagery, also show this table from `imagery-proposals.json`:
-
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
-
-Ask the proposed-image question separately from whether the artifact's substance is right. Apply
-each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
-checks grader.
+route. Only an approved image changed during repair needs a separate image question here.
+Show its old and new wording under the shared reconfirmation route. A yes updates only the
+record. A no edits the Markdown, rebuilds the carrier, repeats the render and its reader,
+heading and voice reads, reruns every step-9 row and handoff including the blind recount,
+and takes a new ask.
 
 At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 

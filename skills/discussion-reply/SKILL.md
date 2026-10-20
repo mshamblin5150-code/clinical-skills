@@ -252,6 +252,20 @@ preserve that option. Reuse a recorded image whole where it fits. Where none fit
 domain may be proposed, and one that works never licenses a second instance.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
+**Image stop.** Once the draft is complete, stop before its first grade, carrier build,
+render or reader. Show every proposal in its surrounding paragraph with the recorded domain
+and real behavior, separately from the later substance question:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Apply the answer and retain the whole reply and shown-draft timestamp under
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
+This proposal-only stop is not a full draft showing under Revisions; the first full go-ahead
+carries no change list, and later full showings compare against it.
+
+
 Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
 repaired. Exit 2 refuses drafting unless the banner explicitly says `voice model: NOT RUN -- no
 model at ...; voice unmodeled`. Only that absent-model limb opens the door below: preserve its
@@ -369,17 +383,12 @@ Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unr
 Every approval ask, including one repeated after a revision, shows the complete final text
 with its full reference list before the approval question. Show the clean reply and an invoked-source
 table to the clinician. For every retained invoked
-source, the table shows the invoked source, its domain, and the property it spends. If the run
-proposed imagery, also show this table from `imagery-proposals.json`:
-
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
-
-Ask separately whether the substance is right, whether each invoked source sounds like the
-clinician, and whether each proposed image is approved; the image ruling is not inferred from the
-substance answer. This remains one approval with three named questions, not three gates. Apply the approved-or-removed record and draft changes in
-[imagery-proposals.md](../_shared/reference/imagery-proposals.md), then rerun the grader. Before
+source, the table shows the invoked source, its domain, and the property it spends.
+Ask separately whether the substance is right and whether each invoked source sounds like the
+clinician. Only an approved image changed during repair adds a separate image question at this
+go-ahead: show old and new wording under the shared reconfirmation route. A yes updates only
+the record. A no edits the reply, rebuilds any existing carrier, repeats the heading and voice
+reads, and takes a new ask; any required render and its reader are repeated too. Before
 showing that gate, inspect the threaded Canvas Composer and read
 [canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
 before loading, and tell the clinician which route will be used and what that route costs as part of

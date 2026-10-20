@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import completion_checks
 import json
+import math
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -50,6 +51,7 @@ DECLARED_LIMITS = (
         "image matching is exact prose",
         "Whitespace-normalized equality binds approved and removed image text to the graded artifact; a semantically equivalent rewrite is a different image.",
     ),
+    ("image answer scope", "A whole-message match proves who wrote the recorded reply after the declared shown-draft time, not that it answered the displayed image question. One unread transcript observation is counted once across all proposals."),
 )
 
 _STATUSES = frozenset(
@@ -58,6 +60,7 @@ _STATUSES = frozenset(
 _RECORD_KEYS = frozenset(
     {"key", "artifact", "image", "domain", "behavior", "status"}
 )
+_OPTIONAL_KEYS = frozenset({"ruling", "changed_image"})
 _DOMAINS = re.compile(
     r"^## Imagery\s*$.*?^### The domains\s*$\n(?P<body>.*?)(?=^### |^## |\Z)",
     re.MULTILINE | re.DOTALL,
@@ -80,6 +83,8 @@ class Proposal:
     domain: str
     behavior: str
     status: str
+    ruling: dict | None = None
+    changed_image: str | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,7 @@ class CompletionGate:
     finding: bool
     coverage: bool
     report: str
+    unread: int = 0
 
 
 def _normalized(value: str) -> str:
@@ -166,12 +172,22 @@ def _read_records(run: Path) -> tuple[Proposal, ...]:
     proposals: list[Proposal] = []
     keys: set[str] = set()
     for index, row in enumerate(rows, start=1):
-        if not isinstance(row, dict) or frozenset(row) != _RECORD_KEYS:
+        if not isinstance(row, dict) or not _RECORD_KEYS <= row.keys() or row.keys() - _RECORD_KEYS - _OPTIONAL_KEYS:
             raise RecordError(f"proposal {index} has an invalid shape")
         if not all(isinstance(row[name], str) and row[name].strip() for name in _RECORD_KEYS):
             raise RecordError(f"proposal {index} has an empty field")
         if row["status"] not in _STATUSES:
             raise RecordError(f"proposal {index} has an unknown status")
+        if "changed_image" in row and (not isinstance(row["changed_image"], str) or row["status"] != "proposed-and-approved"):
+            raise RecordError(f"proposal {index} has an invalid image change")
+        if "ruling" in row:
+            ruling = row["ruling"]
+            if (not isinstance(ruling, dict) or set(ruling) != {"clinician_reply", "reply_at", "shown_draft_at"}
+                    or not isinstance(ruling["clinician_reply"], str) or not ruling["clinician_reply"].strip()
+                    or any(completion_checks.instant(ruling[name]) is None for name in ("reply_at", "shown_draft_at"))):
+                raise RecordError(f"proposal {index} has invalid answer evidence")
+            if completion_checks.instant(ruling["reply_at"]) <= completion_checks.instant(ruling["shown_draft_at"]):
+                raise RecordError(f"proposal {index} answer predates the shown draft")
         if row["key"] in keys:
             raise RecordError(f"proposal key {row['key']} is duplicated")
         keys.add(row["key"])
@@ -193,9 +209,10 @@ def completion_gate(
     *,
     partial: bool = False,
     known_artifacts: set[str] | frozenset[str] | None = None,
+    terminal: bool = True,
 ) -> CompletionGate:
     """Grade proposal records against terminal artifact text and the canonical model."""
-    frozen = completion_checks.exemption(run, ",".join(artifacts) if artifacts is not None else None, "imagery_proposals", EXPECTED_ROW)
+    frozen = completion_checks.exemption(run, ",".join(artifacts) if artifacts is not None else None, "imagery_proposals", EXPECTED_ROW) if terminal else None
     if frozen is not None:
         return CompletionGate(False, False, frozen)
     if artifacts is None:
@@ -204,6 +221,10 @@ def completion_gate(
             False,
             f"{EXPECTED_ROW}: not graded - --submission was not supplied",
         )
+    active_artifacts = {artifact for artifact in artifacts
+                        if completion_checks.active_for_item("imagery_proposals:image-stop", artifact)}
+    if not terminal and not active_artifacts:
+        return CompletionGate(False, False, f"{EXPECTED_ROW}: not graded - image stop predates check")
     try:
         all_proposals = _read_records(run)
     except RecordError as failure:
@@ -217,6 +238,8 @@ def completion_gate(
         proposal for proposal in all_proposals if proposal.artifact in artifacts
     )
     findings: list[str] = []
+    transcript_unread = False
+    transcripts = None
     known = set(artifacts) if known_artifacts is None else set(known_artifacts)
     for proposal in all_proposals:
         if proposal.artifact not in known:
@@ -225,6 +248,12 @@ def completion_gate(
         for proposal in all_proposals:
             if proposal.artifact not in artifacts:
                 findings.append(f"{proposal.key} is not bound to the submission")
+    for proposal in proposals:
+        if proposal.status == "proposed":
+            findings.append(f"{proposal.key} is unresolved")
+    for artifact, text in artifacts.items():
+        for marker in WORKING_MARKER.finditer(text):
+            findings.append(f"{marker.group('key').strip()} working marker remains in {artifact}")
 
     model_text: str | None = None
     if proposals:
@@ -246,30 +275,47 @@ def completion_gate(
         image_present = _normalized(proposal.image) in _normalized(artifact)
         if model_text is None or not _domain_supported(proposal, model_text):
             findings.append(f"{proposal.key} domain is not supported by the canonical model")
-        if proposal.status == "proposed":
-            findings.append(f"{proposal.key} is unresolved")
-        elif proposal.status == "proposed-and-approved" and not image_present:
+        if proposal.status == "proposed-and-approved" and proposal.changed_image is None and not image_present:
             findings.append(f"{proposal.key} approved image is absent")
         elif proposal.status == "proposed-and-removed" and image_present:
             findings.append(f"{proposal.key} removed image remains")
-    for artifact, text in artifacts.items():
-        for marker in WORKING_MARKER.finditer(text):
-            findings.append(
-                f"{marker.group('key').strip()} working marker remains in {artifact}"
-            )
+        if proposal.changed_image is not None:
+            replacement_present = bool(proposal.changed_image.strip()) and _normalized(proposal.changed_image) in _normalized(artifact)
+            if (proposal.changed_image.strip() and not replacement_present) or (not proposal.changed_image.strip() and image_present):
+                findings.append(f"{proposal.key} changed image does not match the draft")
+            if terminal:
+                findings.append(f"{proposal.key} changed image was not reconfirmed")
+        if proposal.artifact in active_artifacts and proposal.status != "proposed":
+            if proposal.ruling is None:
+                findings.append(f"{proposal.key} has no recorded image answer")
+            else:
+                import approval_record
+                if transcripts is None:
+                    transcripts = approval_record._main_transcripts(run)
+                shown = completion_checks.instant(proposal.ruling["shown_draft_at"])
+                reply_at = completion_checks.instant(proposal.ruling["reply_at"])
+                verification = approval_record.verify_clinician_reply(run, proposal.ruling["clinician_reply"], (),
+                    source_modified_at=shown.timestamp(),
+                    after=math.nextafter(reply_at.timestamp(), -math.inf), transcripts=transcripts)
+                if verification.state == "unreadable":
+                    transcript_unread = True
+                elif verification.state != "verified" or abs(verification.matched_at - reply_at.timestamp()) > 0.000001:
+                    findings.append(f"{proposal.key} clinician image answer was not found at its recorded time")
 
     approved = sum(
         proposal.status == "proposed-and-approved" for proposal in proposals
     )
     unresolved = sum(proposal.status == "proposed" for proposal in proposals)
+    changed = sum(proposal.changed_image is not None for proposal in proposals)
     counts = (
-        f"proposed {len(proposals)}; approved {approved}; unresolved {unresolved}"
+        f"proposed {len(proposals)}; approved {approved}; unresolved {unresolved}; changed since approval {changed}"
     )
     detail = f"; finding - {'; '.join(findings)}" if findings else ""
     return CompletionGate(
         finding=bool(findings),
-        coverage=False,
-        report=f"{EXPECTED_ROW}: {counts}{detail}",
+        coverage=transcript_unread,
+        report=f"{EXPECTED_ROW}: {counts}{detail}" + ("\nthe image answer: not verified - transcript unreadable\nunread image-answer transcript observations: 1" if transcript_unread else ""),
+        unread=int(transcript_unread),
     )
 
 
@@ -280,6 +326,8 @@ def apply_completion_gate(
     *,
     partial: bool = False,
     known_artifacts: set[str] | frozenset[str] | None = None,
+    terminal: bool = True,
+    coverage_limb: str | None = None,
 ) -> run_grader.Grade[TScan]:
     """Add the shared proposal row to an existing completion grade."""
     result = completion_gate(
@@ -287,11 +335,14 @@ def apply_completion_gate(
         artifacts,
         partial=partial,
         known_artifacts=known_artifacts,
+        terminal=terminal,
     )
     return replace(
         grade,
+        scan=replace(grade.scan, image_answer_unread=result.unread) if hasattr(grade.scan, "image_answer_unread") else grade.scan,
         findings_failed=grade.findings_failed or result.finding,
         coverage_failed=grade.coverage_failed or result.coverage,
+        coverage_limbs=grade.coverage_limbs + ((coverage_limb,) if result.coverage and coverage_limb is not None else ()),
         reports=grade.reports + (result.report,),
     )
 

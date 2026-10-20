@@ -170,6 +170,20 @@ stay. Reuse a recorded image whole where it fits. Where none fits, follow
 domain may be proposed, and one that works never licenses a second instance.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
+**Image stop.** Once the draft is complete, stop before its first grade, carrier build,
+render or reader. Show every proposal in its surrounding paragraph with the recorded domain
+and real behavior, separately from the later substance question:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Apply the answer and retain the whole reply and shown-draft timestamp under
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
+This proposal-only stop is not a full draft showing under Revisions; the first full go-ahead
+carries no change list, and later full showings compare against it.
+
+
 If the identity command reports the existing absent-model banner, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<course>-<module>-discussion/voice-status.md`. Keep `voice-status.md` in the private
@@ -454,16 +468,11 @@ allows a pointer body.
 
 Before each draft showing at Gate 1, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 Every Gate 1 approval ask, including one repeated after a revision, shows the complete final text
-with its full reference list before the approval question. Show the clean source-check summary too. If the run proposed imagery,
-also show this table from `imagery-proposals.json`:
-
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
-
-Ask the proposed-image question separately from whether the post's substance is right. Apply each
-yes or no under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
-carrier producers `post_html.py` and `docx_write.py` after every ruling. Before loading, regenerate
+with its full reference list before the approval question. Show the clean source-check summary too.
+Only an approved image changed during repair needs a separate image question at Gate 1:
+show old and new wording under the shared reconfirmation route. A yes updates only the record.
+A no edits the Markdown, rebuilds both carriers, repeats any required render and its reader,
+heading and voice reads, and takes a new ask. Before loading, regenerate
 both `.html` and `.docx` from the checked Markdown and rerun the grader with both carriers.
 Exit 1 stops the load; exit 2 is disclosed as incomplete coverage and does not block the load.
 **Gate 1** is the clinician's explicit approval of the post and authorizes

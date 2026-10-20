@@ -259,6 +259,20 @@ Reuse a recorded image whole where it fits. Where none fits, follow
 domain may be proposed, and one that works never licenses a second instance.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
+**Image stop.** Once the draft is complete, stop before its first grade, carrier build,
+render or reader. Show every proposal in its surrounding paragraph with the recorded domain
+and real behavior, separately from the later substance question:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Apply the answer and retain the whole reply and shown-draft timestamp under
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
+This proposal-only stop is not a full draft showing under Revisions; the first full go-ahead
+carries no change list, and later full showings compare against it.
+
+
 Exit 0 is required to draft against the model. Exit 2 refuses drafting unless the banner explicitly
 says the model is absent; only that limb opens
 [voice.md](../_shared/reference/voice.md) §8's no-model rule, whose declaration is written to
@@ -373,16 +387,12 @@ record before the go-ahead.
 
 Show the clean critique to the clinician with the word count, the grader exits, and a short list of
 what the critique credits the classmate for. Every approval ask, including one repeated after a revision,
-shows the complete final text with its full reference list before the approval question. If the run proposed imagery, also show this table from
-`imagery-proposals.json`:
-
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
-
-Ask whether the substance is right, whether the register is his, and, separately, whether each
-proposed image is approved. Apply the record and draft changes in
-[imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
+shows the complete final text with its full reference list before the approval question.
+Ask whether the substance is right and whether the register is his. Only an approved image
+changed during repair needs a separate image question here: show old and new wording under
+the shared reconfirmation route. A yes updates only the record. A no edits the critique,
+rebuilds any existing carrier, repeats the heading and voice reads, and takes a new ask;
+any required render and its reader are repeated too. Only an
 explicit content go-ahead authorizes loading.
 Before each draft showing at the go-ahead, follow [Revisions](../_shared/reference/revisions.md) to retain the shown copy and include the computed change list after the first showing.
 At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).

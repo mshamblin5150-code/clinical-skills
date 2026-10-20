@@ -14,6 +14,19 @@ from prose_bind import bind, NAMING
 
 
 class CompletionRegistry(unittest.TestCase):
+    def test_item_cutoff_never_inherits_an_old_sibling_moment(self):
+        key = "imagery_proposals:image-stop"
+        old = datetime(2001, 1, 1, tzinfo=timezone.utc)
+        global_token = checks.MOMENTS.set({"approval": old})
+        item_token = checks.ITEM_MOMENTS.set({"old.md": old, "unknown.md": None})
+        try:
+            self.assertFalse(checks.active_for_item(key, "old.md"))
+            self.assertTrue(checks.active_for_item(key, "unknown.md"))
+            self.assertTrue(checks.active_for_item(key, "absent.md"))
+        finally:
+            checks.ITEM_MOMENTS.reset(item_token)
+            checks.MOMENTS.reset(global_token)
+
     def test_offset_start_is_compared_as_an_instant(self):
         key = "project_context:completion_gate"
         self.assertEqual(datetime(2026, 9, 23, 21, 7, 49, tzinfo=timezone.utc), checks.registry()[key][0])

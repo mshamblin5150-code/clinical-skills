@@ -341,6 +341,7 @@ class Scan:
     citation_coverage: CitationCoverage = CitationCoverage()
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
     reader_records_unread: int = 0
+    image_answer_unread: int = 0
 
 
 def _split_reply(path: Path) -> Reply:
@@ -983,6 +984,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             + scan.posts_total
             - scan.posts_read
             + scan.reader_records_unread
+            + scan.image_answer_unread
         ),
         *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
         *([f"unread reference entries: {scan.reference_unread}"] if scan.reference_unread else []),
@@ -1090,11 +1092,10 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.path,
-        {reply.path.name: reply.text for reply in selected_replies}
-        if submissions
-        else None,
+        {reply.path.name: reply.text for reply in selected_replies},
         partial=True,
         known_artifacts={reply.path.name for reply in source.replies},
+        terminal=bool(submissions),
     )
     grade = project_context.apply_completion_gate(
         grade, source.path, submission if submissions else None

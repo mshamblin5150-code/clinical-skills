@@ -1407,12 +1407,19 @@ Covered by `tools/test_voice_read.py`.
 ### Coursework imagery proposals
 
 When none of the clinician's recorded images fits, the five coursework skills may propose one new
-image from a domain evidenced in the canonical model. The working draft marks it, the go-ahead
-shows its exact text, domain, and real behavior separately from the substance question, and the
+image from a domain evidenced in the canonical model. The working draft marks it; a separate
+image stop after drafting and before the first grade, carrier, render or reader shows its paragraph,
+domain and real behavior. A deck's completed PowerPoint is its draft. The
 private `imagery-proposals.json` records `proposed`, `proposed-and-approved`, or
 `proposed-and-removed`.
 
-The same completion graders report proposed, approved, and unresolved counts with `--submission`.
+The six graders enforce that stop without `--submission` as well as at approval preparation.
+The record carries the clinician's verified whole reply and time against the shown-draft time;
+an unreadable transcript reports not verified. An approved image changed during repair is counted
+before submission and reconfirmed at the final go-ahead (Gate 1 for an assignment). A yes updates
+only its record; a no edits the draft and repeats its affected build, render, reads and ask. The
+proposal-only stop is not the first full showing under Revisions. The graders report proposed,
+approved, unresolved and changed counts, preserving one combined unread total per host.
 They refuse an unresolved proposal, a domain without exact model evidence, an approved image absent
 from the artifact, and a removed image still present. Approved text is returned by
 `imagery_proposals.harvest_exclusions` and cannot become later voice-model attestation. The complete

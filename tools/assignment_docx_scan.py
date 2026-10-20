@@ -186,10 +186,11 @@ class Scan:
     bare_number_candidates: int = 0
     citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
     reader_records_unread: int = 0
+    image_answer_unread: int = 0
 
     @property
     def unread(self) -> int:
-        return self.heading_read_unread + self.citation_coverage.unread + self.reader_records_unread
+        return self.heading_read_unread + self.citation_coverage.unread + self.reader_records_unread + self.image_answer_unread
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -654,9 +655,8 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.root,
-        {submission: "\n".join(paragraph.text for paragraph in source.paragraphs)}
-        if submission is not None
-        else None,
+        {submission or source.docx.stem: "\n".join(paragraph.text for paragraph in source.paragraphs)},
+        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(grade, source.root, submission)
     grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered), heading_unread=scan.heading_read_unread)
