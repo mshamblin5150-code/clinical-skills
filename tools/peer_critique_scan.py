@@ -775,6 +775,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         source.path,
         {submission or "critique": source.critique},
         terminal=submission is not None,
+        coverage_limb=UNREAD_REMAINDER,
     )
     grade = project_context.apply_completion_gate(
         grade,

@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import importlib
+import io
+import hashlib
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from contextlib import redirect_stdout, redirect_stderr
+from dataclasses import replace
 
 import imagery_proposals as proposals
 import peer_critique_scan
 import repo_root
 import approval_record
+import completion_checks
+from datetime import timedelta
+import mechanics_test_support
+
+setUpModule, tearDownModule = mechanics_test_support.module_hooks()
 from prose_bind import NAMING, bind
 from test_peer_critique_scan import build_run
 
@@ -71,6 +80,74 @@ class CompletionGate(unittest.TestCase):
                 self.run,
                 {"submission": text},
             )
+
+    def real_grade(self, text, *, terminal=True, rows=None, unread=False):
+        messages = rows if rows is not None else [{"type": "user", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": "Yes, keep it."}}]
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=self.resolved), mock.patch.object(approval_record, "_main_transcripts", return_value=([messages], unread)):
+            return proposals.completion_gate(self.run, {"submission": text}, terminal=terminal)
+
+    def change_record(self, **changes):
+        path = self.run / proposals.RECORD_NAME
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["proposals"][0].update(changes)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_whole_reply_and_time_bind_the_shown_draft_not_the_later_edit(self):
+        self.write(status="proposed-and-approved")
+        text = "The care plan needs an orbit, not a straight line."
+        self.assertFalse(self.real_grade(text, terminal=False).finding)
+        for row in (
+            {"type": "assistant", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": "Yes, keep it."}},
+            {"type": "user", "timestamp": "1970-01-01T00:01:00Z", "message": {"content": "Yes, keep it."}},
+            {"type": "user", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": "Yes, keep it. With conditions."}},
+            {"type": "user", "timestamp": "1970-01-01T00:03:21Z", "message": {"content": "Yes, keep it."}},
+        ):
+            with self.subTest(row=row):
+                self.assertTrue(self.real_grade(text, terminal=False, rows=[row]).finding)
+        self.change_record(ruling={"clinician_reply": "Yes, keep it.", "reply_at": 200, "shown_draft_at": 250})
+        self.assertTrue(self.real_grade(text, terminal=False).finding)
+
+    def test_unread_transcript_is_counted_once_and_an_independent_marker_still_fails(self):
+        self.write(status="proposed-and-approved")
+        text = "The care plan needs an orbit, not a straight line."
+        result = self.real_grade(text, terminal=False, rows=[], unread=True)
+        self.assertFalse(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertEqual(1, result.unread)
+        self.assertIn("not verified", result.report)
+        result = self.real_grade("[[PROPOSED IMAGE image-1]] " + text, terminal=False, rows=[], unread=True)
+        self.assertTrue(result.finding)
+        self.assertTrue(result.coverage)
+
+    def test_later_changes_are_counted_before_submission_and_require_reconfirmation(self):
+        self.write(status="proposed-and-approved")
+        self.change_record(changed_image="The revised orbit holds the forces together.")
+        text = "The revised orbit holds the forces together."
+        result = self.real_grade(text, terminal=False)
+        self.assertFalse(result.finding, result.report)
+        self.assertIn("changed since approval 1", result.report)
+        self.assertTrue(self.real_grade(text).finding)
+        path = self.run / proposals.RECORD_NAME
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["proposals"][0]["image"] = payload["proposals"][0].pop("changed_image")
+        payload["proposals"][0]["ruling"] = {"clinician_reply": "Yes, keep the revision.", "reply_at": 400, "shown_draft_at": 300}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        revised_reply = [{"type": "user", "timestamp": "1970-01-01T00:06:40Z", "message": {"content": "Yes, keep the revision."}}]
+        self.assertFalse(self.real_grade(text, rows=revised_reply).finding)
+        self.change_record(changed_image="")
+        self.assertFalse(self.real_grade("Ordinary prose after removal.", terminal=False, rows=revised_reply).finding)
+        self.assertTrue(self.real_grade("Ordinary prose after removal.", rows=revised_reply).finding)
+
+    def test_pregrade_start_has_exact_historical_controls(self):
+        cutoff = completion_checks.registry()["imagery_proposals:image-stop"][0]
+        self.write(status="proposed")
+        for moment, finding in ((cutoff - timedelta(microseconds=1), False), (cutoff, True)):
+            token = completion_checks.MOMENTS.set({"approval": moment})
+            try:
+                result = self.real_grade("[[PROPOSED IMAGE image-1]] pending", terminal=False)
+                self.assertEqual(finding, result.finding)
+            finally:
+                completion_checks.MOMENTS.reset(token)
 
     def test_a_run_without_proposals_reports_zero_counts(self) -> None:
         result = self.grade("Ordinary draft text.")
@@ -281,6 +358,95 @@ class ScopedCompletionGraders(unittest.TestCase):
 
 
 class CompletionGraderIntegration(unittest.TestCase):
+    def test_public_pregrade_counts_an_unread_answer_once_and_keeps_finding_precedence(self):
+        fixture = CompletionGate()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        image = "The care plan needs an orbit, not a straight line."
+        fixture.write(status="proposed-and-approved")
+        payload = json.loads((fixture.run / proposals.RECORD_NAME).read_text(encoding="utf-8"))
+        for marked, expected in ((False, 2), (True, 1)):
+            run = build_run(root=fixture.root / ("marked" if marked else "clean"), extra="\n" + ("[[PROPOSED IMAGE image-1]]\n" if marked else "") + image)
+            payload["proposals"][0]["artifact"] = "critique"
+            second = dict(payload["proposals"][0], key="image-2")
+            (run / proposals.RECORD_NAME).write_text(json.dumps({"proposals": [payload["proposals"][0], second]}), encoding="utf-8")
+            output = io.StringIO()
+            with mock.patch.object(repo_root, "canonical_voice_model", return_value=fixture.resolved), mock.patch.object(approval_record, "_main_transcripts", return_value=([], True)), redirect_stdout(output), redirect_stderr(output):
+                status = peer_critique_scan.main([str(run)])
+            self.assertEqual(expected, status, output.getvalue())
+            self.assertEqual(["unread remainder 1"], [line for line in output.getvalue().splitlines() if line.startswith("unread remainder ")])
+            self.assertIn("the image answer: not verified", output.getvalue())
+
+    def test_all_six_public_pregrades_refuse_a_surviving_marker(self):
+        from test_discussion_post_scan import Run as PostRun
+        from test_discussion_reply_scan import Run as ReplyRun
+        import discussion_reply_scan
+        from test_deck_scan import Run as DeckRun, slide_xml
+        import assignment_docx
+        import assignment_docx_scan
+        from test_assignment_docx_scan import empty_population_input
+        import test_checks_ledger as checks_tests
+
+        marker = "[[PROPOSED IMAGE ghost]]"
+        def captured(command, arguments):
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(output):
+                status = command(arguments)
+            return status, output.getvalue(), ""
+
+        for host in ("post", "reply", "critique", "deck", "docx", "checks"):
+            with self.subTest(host=host), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "clean"
+                root.mkdir()
+                def run(marked):
+                    extra = marker if marked else ""
+                    if host == "post":
+                        fixture = PostRun(root)
+                        fixture.draft.write_text(fixture.draft.read_text(encoding="utf-8") + "\n" + extra, encoding="utf-8")
+                        return fixture.grade()
+                    if host == "reply":
+                        fixture = ReplyRun(root)
+                        draft = root / "response-maren.md"
+                        if marked:
+                            draft.write_text(draft.read_text(encoding="utf-8") + "\n" + extra, encoding="utf-8")
+                        fixture.write_heading_read()
+                        return captured(discussion_reply_scan.main, [str(root)])
+                    if host == "critique":
+                        path = build_run(root=root / ("marked" if marked else "clean"), extra="\n" + extra)
+                        return captured(peer_critique_scan.main, [str(path)])
+                    if host == "deck":
+                        fixture = DeckRun(root)
+                        fixture.write_deck((slide_xml("Synthetic", "Safe words. " + extra),))
+                        return fixture.grade()
+                    if host == "docx":
+                        case = empty_population_input(root)
+                        artifact = Path(case.argv[2])
+                        entry = assignment_docx.fixture_spec().references[0]
+                        spec = replace(assignment_docx.fixture_spec(), sections=(assignment_docx.Section("Purpose", ("Safe words (Example Agency, 2025). " + extra,)),), references=(entry,))
+                        assignment_docx.build(spec, artifact, force=True)
+                        run_root = Path(case.argv[0])
+                        (run_root / "claims.md").write_text("DATE: 2026-09-13\n\n## CLAIM: Safe words.\nSTATUS: sourced\nREFERENCE: " + entry + "\nREFUTATION: stands - this synthetic source supports the statement\nTESTED-HEADING: " + hashlib.sha256(b"Safe words.").hexdigest() + "\nSECOND-ROUTE: journal page -> independent reader\n", encoding="utf-8")
+                        import file_digest
+                        file_digest.write_recorded_sha256(run_root / "render" / "pass-1" / assignment_docx_scan.FINGERPRINT_FILE, file_digest.sha256(artifact))
+                        heading = run_root / "heading-read.md"
+                        import re
+                        heading.write_text(re.sub(r"(?m)^DRAFT:.*$", "DRAFT: " + hashlib.sha256(artifact.read_bytes()).hexdigest(), heading.read_text(encoding="utf-8")), encoding="utf-8")
+                        return captured(assignment_docx_scan.main, [*case.argv, "--paper-language", "English"])
+                    document = root / "draft.md"
+                    document.write_bytes((checks_tests.DRAFT_TEXT + ("\n" + extra if marked else "")).encode("utf-8"))
+                    checks = root / "checks.md"
+                    checks.write_text(checks_tests.whole_file().replace(checks_tests.DRAFT_SHA, hashlib.sha256(document.read_bytes()).hexdigest()), encoding="utf-8")
+                    with mock.patch.object(checks_tests, "DRAFT_SHA", hashlib.sha256(document.read_bytes()).hexdigest()):
+                        return checks_tests.run([str(checks), "--document", str(document)])
+                clean = run(False)
+                root = Path(directory) / "marked"
+                root.mkdir()
+                planted = run(True)
+                self.assertEqual(0, clean[0], clean[1] + clean[2])
+                self.assertNotIn("working marker remains", clean[1] + clean[2])
+                self.assertEqual(1, planted[0], planted[1] + planted[2])
+                self.assertIn("ghost working marker remains", planted[1] + planted[2])
+
     def test_a_synthetic_unresolved_proposal_fails_a_terminal_grader(self) -> None:
         run = build_run(
             extra=(

@@ -234,6 +234,22 @@ domain may be proposed, and one that works never licenses a second instance. Thi
 authored comparison or metaphor, not the visual asset rule below.
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
+**Image stop.** Once the draft is complete, stop before its first grade, carrier build,
+render or reader. Show every proposal in its surrounding paragraph with the recorded domain
+and real behavior, separately from the later substance question:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Apply the answer and retain the whole reply and shown-draft timestamp under
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
+This proposal-only stop is not a full draft showing under Revisions; the first full go-ahead
+carries no change list, and later full showings compare against it.
+For a deck, the completed `.pptx` is the draft: take this stop after generation and before
+`deck_scan.py`. For a DOCX, the completed JSON spec is the draft before the carrier build.
+
+
 A generated image may depict a concept, and a visible caption must call that space conceptual. A
 generated image must never stand in for the actual site. Use a real site photograph where the
 slide claims the actual site. This is a reader-owned convention, not something the file can prove.
@@ -481,15 +497,10 @@ ATTACHMENT-COUNT: <total number of files that will be uploaded>
 FILENAME: <one exact basename, repeated once for every file>
 ```
 
-If the run proposed imagery, also show this table from `imagery-proposals.json`:
-
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
-
-Ask the proposed-image question separately from whether the artifact's substance is right. Apply
-each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
-artifact grader before the go-ahead.
+At Gate 1, only an approved image changed during repair needs a separate image question.
+Show its old and new wording under the shared reconfirmation route. A yes updates only the
+record. A no edits the deck or spec, rebuilds the carrier, repeats the render and its reader,
+heading and voice reads, and takes a new Gate 1 ask.
 
 The finished `.pptx` is the only approved carrier by default. A review companion is excluded by
 default and remains outside the upload set unless the clinician explicitly names it before

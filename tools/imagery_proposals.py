@@ -185,6 +185,8 @@ def _read_records(run: Path) -> tuple[Proposal, ...]:
                     or not isinstance(ruling["clinician_reply"], str) or not ruling["clinician_reply"].strip()
                     or any(completion_checks.instant(ruling[name]) is None for name in ("reply_at", "shown_draft_at"))):
                 raise RecordError(f"proposal {index} has invalid answer evidence")
+            if completion_checks.instant(ruling["reply_at"]) <= completion_checks.instant(ruling["shown_draft_at"]):
+                raise RecordError(f"proposal {index} answer predates the shown draft")
         if row["key"] in keys:
             raise RecordError(f"proposal key {row['key']} is duplicated")
         keys.add(row["key"])
@@ -322,6 +324,7 @@ def apply_completion_gate(
     partial: bool = False,
     known_artifacts: set[str] | frozenset[str] | None = None,
     terminal: bool = True,
+    coverage_limb: str | None = None,
 ) -> run_grader.Grade[TScan]:
     """Add the shared proposal row to an existing completion grade."""
     result = completion_gate(
@@ -336,6 +339,7 @@ def apply_completion_gate(
         scan=replace(grade.scan, image_answer_unread=result.unread) if hasattr(grade.scan, "image_answer_unread") else grade.scan,
         findings_failed=grade.findings_failed or result.finding,
         coverage_failed=grade.coverage_failed or result.coverage,
+        coverage_limbs=grade.coverage_limbs + ((coverage_limb,) if result.coverage and coverage_limb is not None else ()),
         reports=grade.reports + (result.report,),
     )
 

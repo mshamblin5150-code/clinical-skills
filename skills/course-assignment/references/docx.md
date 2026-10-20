@@ -4,6 +4,10 @@ Follow this branch only after the live assignment and syllabus establish that th
 is a Word document. The canonical artifact is the raw `.docx`; Markdown, HTML, and a PDF export are
 not substitute submissions. The common course-assignment rules for live reading, source classes,
 research/refutation, claim records, voice, private paths, and standing rule 6 remain in force.
+After the JSON spec draft is complete and before its first grade, DOCX build, render or reader,
+take the common skill's **Image stop** under [imagery-proposals.md](../../_shared/reference/imagery-proposals.md).
+Only an approved image changed later is reconfirmed separately at Gate 1; a yes updates only
+the record, while a no repeats the affected build, render and readers before a new ask.
 
 ## Sign the DOCX bar
 
