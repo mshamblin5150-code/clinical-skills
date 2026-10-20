@@ -1,4 +1,5 @@
 """ADR 0356 controls. All draft text is synthetic (phi-scan: synthetic)."""
+import artifact_lock_test_support
 import io
 import tempfile
 import unittest

@@ -1,5 +1,6 @@
 """Attachment identity at the public completion command. Issue #1491."""
 
+import artifact_lock_test_support
 import hashlib
 import importlib
 import json

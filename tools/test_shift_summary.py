@@ -2,6 +2,7 @@
 
 # phi-scan: synthetic
 
+import artifact_lock_test_support
 import tempfile
 import unittest
 from pathlib import Path

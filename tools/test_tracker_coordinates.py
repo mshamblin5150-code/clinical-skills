@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 from contextlib import redirect_stderr, redirect_stdout
 import io
 import json

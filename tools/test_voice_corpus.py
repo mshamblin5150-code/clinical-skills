@@ -41,6 +41,7 @@ matcher cannot recognize is the one it also cannot count as unread.
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import ast
 import io
 import json

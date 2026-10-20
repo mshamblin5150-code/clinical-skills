@@ -7,6 +7,7 @@ phi-scan: synthetic
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import base64
 import contextlib
 import io

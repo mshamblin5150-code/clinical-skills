@@ -5,6 +5,7 @@ Every descriptor here is synthetic; no licensed CPT text is committed.
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import csv
 import hashlib
 import io

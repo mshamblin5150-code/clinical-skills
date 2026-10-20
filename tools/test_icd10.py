@@ -18,6 +18,7 @@ finds nothing and the rule built on it silently never fires.
 
 from __future__ import annotations
 
+import artifact_lock_test_support
 import io
 import sqlite3
 import tempfile

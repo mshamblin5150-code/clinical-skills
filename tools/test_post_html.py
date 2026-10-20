@@ -1,5 +1,6 @@
 """The Canvas submission renderer consumes the shared Markdown seams."""
 
+import artifact_lock_test_support
 import contextlib
 import io
 import tempfile
