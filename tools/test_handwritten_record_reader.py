@@ -12,6 +12,19 @@ import completion_checks
 
 
 class HandwrittenRecords(unittest.TestCase):
+    def test_existing_replacement_decoding_keeps_c0_validation(self):
+        kind = records.HandwrittenKind('legacy-replacement', decode_errors='replace')
+        self.path.write_bytes(b'FIELD: \xff\n')
+        self.assertEqual('FIELD: \ufffd\n', records.read_handwritten_record(self.path, kind).text)
+        with self.assertRaises(UnicodeDecodeError):
+            records.read_handwritten_record(self.path)
+        self.path.write_bytes(b'FIELD: \xff\x07\n')
+        with self.assertRaises(records.DamagedRecord) as caught:
+            records.read_handwritten_record(self.path, kind).require_text(force=True)
+        self.assertIn('U+0007', str(caught.exception))
+        with self.assertRaises(ValueError):
+            records.HandwrittenKind('invalid', decode_errors='ignore')
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

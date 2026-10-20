@@ -156,6 +156,11 @@ class HandwrittenKind:
     json_bodies: Callable[[str], tuple[tuple[str, str], ...]] = lambda text: ()
     field_names: frozenset[str] = frozenset()
     legacy_newlines: bool = True
+    decode_errors: str = "strict"
+
+    def __post_init__(self):
+        if self.decode_errors not in {"strict", "replace"}:
+            raise ValueError("handwritten decoding must be strict or replace")
 
 
 @dataclass(frozen=True)
@@ -323,7 +328,9 @@ def check_handwritten_text(text: str, path: Path, kind: str | HandwrittenKind = 
 
 def read_handwritten_record(path: Path, kind: str | HandwrittenKind = "text") -> HandwrittenRead:
     """Open and check together; callers retain their missing/unreadable meanings."""
-    with path.open("r", encoding="utf-8", newline="") as stream:
+    if isinstance(kind, str):
+        kind = _HANDWRITTEN_KINDS[kind]
+    with path.open("r", encoding="utf-8", errors=kind.decode_errors, newline="") as stream:
         text = stream.read()
     return check_handwritten_text(text, path, kind)
 
