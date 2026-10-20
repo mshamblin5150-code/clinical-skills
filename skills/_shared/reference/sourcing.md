@@ -420,6 +420,8 @@ A sentence stating what the classmate wrote, found, or planned is an **Item desc
 **Draft order**. Its `ITEM:` may name its own key's classmate files or other opened items;
 naming a classmate file declared only under another submission key is a finding, on the
 heading read's existing Item-description cutoff.
+When quoting a classmate, write a space for a tab in the quoted passage. Outbound builders
+refuse tabs rather than changing quoted text during rendering.
 When `PROJECT-CONTEXT` is `none`, the classmate, course-history, memory-file, and prior-work declarations still owe their opened files: add
 their read locations through `PROJECT-SEARCH`. No registered project places are owed in
 that branch; file hashing and the go-ahead recheck apply to the declared retrieval.

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from note_grammar import parse
+from run_record_reader import require_outbound_text, read_outbound_source
 
 
 REFUSAL = re.compile(r"NOT CODED:\s*[A-Z][0-9][0-9A-Z]*(?:\.[0-9A-Z]+)?\b")
@@ -165,6 +166,7 @@ def _portal_characters(copy: str) -> str:
 
 
 def derive(note: str) -> str:
+    require_outbound_text(note)
     _found, invalid = _plan_labels(note)
     if invalid:
         raise ValueError("Plan labels invalid: " + ", ".join(invalid))
@@ -204,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if source.parent.name == "entry-copies":
                 raise ValueError("input must be the finished note, not an Entry copy")
-            note = source.read_text(encoding="utf-8")
+            note = read_outbound_source(source)
             if args.check:
                 check(note)
             else:

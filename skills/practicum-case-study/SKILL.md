@@ -1712,6 +1712,7 @@ be several of them at once:
 | the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown | the retained pixels were not produced from the draft being graded; re-render into a new pass |
 | any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown | that row was not read against the current draft and must be rerun |
 | the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown | the reading is not bound to the current submitted source |
+| an outbound-text finding | the draft contains a refused control character; repair the named line and rebuild the carrier |
 | the `canvas-composer` inline HTML is missing or differs from the Markdown rebuild, or `HTML-BYTES` does not match | the Composer carrier cannot be tied to the checked source |
 | the `canvas-composer` posted attachment is missing or differs in filename or SHA-256 from the local `.docx`, or the local Word parts differ from the Markdown | the posted entry has not been shown to carry the visually checked document |
 | a missing-heading-read record | the required `## HEADING-READ:` record is absent, so no final draft-to-heading reading can block the go-ahead |

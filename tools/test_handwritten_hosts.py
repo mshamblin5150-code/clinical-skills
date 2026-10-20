@@ -460,7 +460,7 @@ class HandwrittenHosts(unittest.TestCase):
         fixture.registry.write_bytes(fixture.registry.read_bytes() + b'DETAIL: damaged\x07text\n')
         output = io.StringIO()
         with mock.patch.object(repo_root, 'project_registry', return_value=fixture.registry), redirect_stdout(output):
-            status = discussion_reply_scan.main([str(fixture.run), '--submission', response.name, '--show'])
+            status = discussion_reply_scan.main([str(fixture.run), '--submission', response.name, '--show', '--paper-language', 'en'])
         self.assertEqual(1, status, output.getvalue())
         self.assertIn('untraced-number: 1', output.getvalue())
         self.assertIn('U+0007', output.getvalue())

@@ -31,6 +31,7 @@ from discussion_artifact import posted_reading_unavailable
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import completion_checks
+from run_record_reader import outbound_completion, outbound_text_damage, read_outbound_source
 import re
 import sys
 import zipfile
@@ -133,6 +134,7 @@ BORROWED_LOCATOR = "borrowed-locator"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 POSTED_ATTACHMENT = "posted-attachment"
 ROWS = {
+    "outbound-text": "the outbound source carries no control character",
     LEGAL_CITATION_SECTION_FORM: "legal citations use the source name and entry year",
     EDITOR_READBACK: "the loaded-box readback is formatted and matches the built post HTML",
     WORD_FLOOR: "the post reaches the signed word floor",
@@ -416,6 +418,7 @@ class RunSource:
     saved_post_url: str | None
     outside_posting_fields: int
     readings: tuple[PostedReading, ...]
+    outbound_damage: tuple[tuple[int, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -909,6 +912,7 @@ def _render_passes(root: Path) -> tuple[tuple[tuple[int, RenderPass], ...], int]
     return passes, render_pass.missing_pass_numbers(numbered)
 
 
+@outbound_completion(lambda: completion_checks.active("discussion_post_scan:outbound-text"))
 def load(parsed: run_grader.Parsed) -> RunSource:
     root = Path(parsed.source)
     if not root.is_dir():
@@ -951,7 +955,10 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         bar = Bar(0, None, 0) if record_unavailable(bar_path, draft.name) else _read_bar(bar_text)
         claims = read_record_text(claims_path, research_ledger.CLAIM_RECORD_KIND, artifact=draft.name)
         draft_bytes = draft.read_bytes()
-        draft_text = draft.read_text(encoding="utf-8")
+        draft_text = read_outbound_source(draft)
+        outbound_damage = (outbound_text_damage(draft_text)
+                           if completion_checks.active("discussion_post_scan:outbound-text") else ())
+        draft_text = draft_text.replace("\r\n", "\n")
         heading_read_path = root / "heading-read.md"
         heading_read_text = (
             read_record_text(heading_read_path, artifact=draft.name)
@@ -1017,15 +1024,16 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         submitted_blocks=submitted_blocks,
         docx=docx,
         rendered_paragraph_texts=rendered_paragraph_texts,
-        expected_paragraph_texts=_expected_paragraph_texts(draft_text) if docx is not None else (),
+        expected_paragraph_texts=_expected_paragraph_texts(draft_text) if docx is not None and not outbound_damage else (),
         html_matches_rebuild=(
             html.read_bytes() == post_html.render(draft_text).encode("utf-8")
-            if html is not None
+            if html is not None and not outbound_damage
             else None
         ),
         docx_matches_rebuild=(
-            _docx_matches_rebuild(docx, draft_text) if docx is not None else None
+            _docx_matches_rebuild(docx, draft_text) if docx is not None and not outbound_damage else None
         ),
+        outbound_damage=outbound_damage,
         rendered_readings=_rendered_readings(post_text) if html is not None else (),
         render_passes=render_passes,
         editor_readback=editor_readback,
@@ -1142,6 +1150,8 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
 def _carrier_rebuild_findings(source: RunSource) -> tuple[Finding, ...]:
     findings: list[Finding] = []
     submission = source.draft.stem
+    findings.extend(Finding("outbound-text", submission, f"line {line}: U+{ord(char):04X}")
+                    for line, char in source.outbound_damage)
     if source.html is not None and not source.html_matches_rebuild:
         findings.append(
             Finding(
@@ -1421,6 +1431,7 @@ def _editor_readback_result(source: RunSource) -> tuple[tuple[Finding, ...], int
     return findings, read, total
 
 
+@outbound_completion(lambda: completion_checks.active("discussion_post_scan:outbound-text"))
 @completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
     withheld = set()
@@ -1435,7 +1446,8 @@ def survey(source: RunSource) -> Scan:
             withheld.update(rows)
     if source.render_passes and record_unavailable(source.path / "render" / f"pass-{source.render_passes[-1][0]}" / "editor-readback.json", source.draft.name):
         withheld.add(EDITOR_READBACK)
-    editor_findings, editor_units_read, editor_units_total = _editor_readback_result(source)
+    editor_findings, editor_units_read, editor_units_total = (
+        ((), 0, 0) if source.outbound_damage else _editor_readback_result(source))
     initial_reading = next(
         (item for item in source.readings if item.artifact == source.draft.stem), None
     )
@@ -1757,6 +1769,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         elif kind in POSTED_READING_ROWS and not scan.posted_reading_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind not in {
+            "outbound-text",
             EDITOR_READBACK,
             BOLD_HEADINGS,
             RENDERED_COMMENTS,

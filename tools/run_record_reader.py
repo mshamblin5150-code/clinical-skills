@@ -7,9 +7,10 @@ Neither boundary certifies content truth or infers ownership from a filename.
 from __future__ import annotations
 
 from pathlib import Path
+from contextvars import ContextVar
+from functools import wraps
 from typing import Callable, TypeVar
 from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass, field
 import json
 import os
@@ -25,6 +26,7 @@ DECLARED_LIMITS = (
 )
 
 T = TypeVar("T")
+_OUTBOUND_ENABLED = ContextVar("outbound_character_check", default=True)
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,11 @@ class RecordUpdate:
 # CR is conditional: only CR immediately before LF is a line ending.
 OUTBOUND_CONTROL_CHARACTERS = frozenset(
     chr(code) for code in (*range(32), *range(127, 160)) if code != 10
+)
+OUTBOUND_DECLARED_LIMITS = (
+    "The outbound check reads source characters, not rendered pixels or text changed after upload.",
+    "Assignment JSON is checked in decoded written fields; structural JSON whitespace is not outbound text.",
+    "Older completion rebuilds retain their prior character handling at the recorded approval boundary.",
 )
 
 
@@ -361,6 +368,35 @@ def _record_key(path: Path) -> Path:
         return Path(path).resolve()
     except (OSError, RuntimeError):
         return Path(path).absolute()
+
+
+class OutboundTextError(ValueError):
+    """Raw outbound source carries damage; diagnostics never repeat its text."""
+
+
+def require_outbound_text(text: str) -> None:
+    if _OUTBOUND_ENABLED.get() and (damage := outbound_text_damage(text)):
+        raise OutboundTextError("; ".join(f"line {line}: U+{ord(char):04X}" for line, char in damage))
+
+
+def read_outbound_source(path: Path) -> str:
+    """Preserve bare CR until the builder applies the shared refusal."""
+    with path.open(encoding="utf-8", newline="") as stream:
+        return stream.read()
+
+
+def outbound_completion(active: Callable[[], bool]):
+    """Date only a completion rebuild; ordinary builder calls always check."""
+    def decorate(function):
+        @wraps(function)
+        def guarded(*args, **kwargs):
+            token = _OUTBOUND_ENABLED.set(active())
+            try:
+                return function(*args, **kwargs)
+            finally:
+                _OUTBOUND_ENABLED.reset(token)
+        return guarded
+    return decorate
 
 
 class UnreadableRecord(ValueError):

@@ -1495,6 +1495,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # scanner knows. ``AGENTS.md`` classes this as a Required command because the
     # skill requires its clean exit before submission.
     ROW_PHRASES = {
+        "outbound-text": "an outbound-text finding",
         checks.ROUTING_WALK: "a missing or malformed routing record",
         checks.PRE_REVIEW_WALKS: "a missing or malformed pre-review walk",
         checks.heading_read.QUALIFIER_COUNT: "a heading-read-qualifier-count finding",

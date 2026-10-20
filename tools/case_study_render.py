@@ -68,7 +68,7 @@ def matching_markdown(docx: Path) -> tuple[Path, str]:
                         f"{docx.name} differs from its Markdown at {name}; "
                         "recover the edit into the Markdown and re-write the Word file"
                     )
-    except (OSError, UnicodeError, zipfile.BadZipFile, KeyError) as failure:
+    except (OSError, UnicodeError, zipfile.BadZipFile, KeyError, ValueError) as failure:
         raise RenderError(
             f"could not compare {docx.name} with its Markdown: {failure}"
         ) from failure

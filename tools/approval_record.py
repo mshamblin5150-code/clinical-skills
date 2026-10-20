@@ -437,7 +437,8 @@ def approve(
     if skill in {"batch-shift", "clinical-note"}:
         for source in resolved_sources:
             try:
-                entry_copy.check(source.read_text(encoding="utf-8"))
+                from run_record_reader import read_outbound_source
+                entry_copy.check(read_outbound_source(source))
             except (OSError, UnicodeError, ValueError) as failure:
                 raise ApprovalRecordError(_without_reply(
                     f"Entry copy refused: {source}: {failure}", clinician_reply,

@@ -13,7 +13,6 @@ import unittest
 # Classifications are explanations of exceptions, never the reader population.
 EXCEPTIONS = {
     "adr_supersession_population.main": "maintainer classifications input",
-    "assignment_docx.main": "agent-authored document recipe",
     "browser_tab_hook._load_tool_schemas": "installed tool schemas, outside run directories",
     "claude_output_access.main": "user settings",
     "guidelines_build._recs_coverage": "maintainer corpus inventory",
