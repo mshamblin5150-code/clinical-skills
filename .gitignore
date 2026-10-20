@@ -25,10 +25,12 @@ patients/
 # Local Claude state is default-denied. The retrieval log is written by
 # machinery outside this repository's control, so this is a publication
 # boundary rather than a claim about what that file contains. Project hook
-# settings are the one committed exception. Until that file exists, the
-# tracked-file walk is vacuous and the direct ignore-source test holds it.
+# settings and the isolated fixture writer are the committed exceptions.
 .claude/*
 !.claude/settings.json
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/fixture-writer.md
 .codex/
 
 # OS / editor

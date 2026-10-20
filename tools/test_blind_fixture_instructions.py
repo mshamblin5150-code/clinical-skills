@@ -33,12 +33,14 @@ THRESHOLDS = REFERENCE / "thresholds"
 # Guard every skill and reference Markdown file so a newly linked sheet cannot
 # open a gap. Root documents are named because each was ruled on individually:
 # README.md and CONTEXT.md join because authors edit them constantly, not because
-# a generating pass reads them; CLAUDE.md remains outside pending issue #1800.
+# a generating pass reads them; CLAUDE.md remains outside because fixture writers
+# start without it (ADR 0403). The per-run recall proof tests that host behavior.
 REQUIRED_INSTRUCTIONS = sorted(
     {
         ROOT / "AGENTS.md",
         ROOT / "README.md",
         ROOT / "CONTEXT.md",
+        ROOT / ".claude/agents/fixture-writer.md",
         *SKILLS.rglob("*.md"),
         *REFERENCE.rglob("*.md"),
     }
@@ -121,6 +123,7 @@ class RequiredInstructionsStayBlind(unittest.TestCase):
         self.assertIn(ROOT / "README.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(ROOT / "CONTEXT.md", REQUIRED_INSTRUCTIONS)
         self.assertNotIn(ROOT / "CLAUDE.md", REQUIRED_INSTRUCTIONS)
+        self.assertIn(ROOT / ".claude/agents/fixture-writer.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(REFERENCE / "medatrax-fields.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(REFERENCE / "uptodate" / "README.md", REQUIRED_INSTRUCTIONS)
         self.assertIn(SKILLS / "clinical-note" / "GLOSSARY.md", REQUIRED_INSTRUCTIONS)

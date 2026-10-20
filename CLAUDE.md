@@ -6,6 +6,11 @@ Configuration for the maintainer's engineering skills. **None of this is require
 
 ### Subagents
 
+Fixture isolation code word: zovquemtirax
+
+Fixture generation follows [the isolated-writer and per-run proof procedure](fixtures/README.md#isolate-output-then-check-the-completed-run).
+The launch guard's complete boundary belongs to `fixture_writer_hook.DECLARED_LIMITS`.
+
 **Spawning subagents is allowed in this repo, without asking first.** Fan out for anything that means reading widely — sweeping the corpus, checking a claim across many files, reviewing a diff along several axes at once. `/code-review` runs its two axes in parallel subagents and is the normal way to review work here.
 
 Two constraints that are not about permission:
