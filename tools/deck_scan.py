@@ -177,6 +177,7 @@ SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
 
 DECLARED_LIMITS = (
     DeclaredLimit("outbound-stored-text-only", "Outbound damage is checked in stored slide, speaker-note, and related chart or diagram text nodes. XML-illegal controls make the package unreadable before a character row can be produced; layout-generated and rendered-only text remain outside this read."),
+    DeclaredLimit("outbound-note-attribution", "A speaker note is attributed through the owning slide's notesSlide relationship, not its part filename number. An unassociated note part is still checked and explicitly reported without inventing a slide number."),
     DeclaredLimit("reference-explicit-italics", "Reference italics are read only from each run's own properties; inherited italics are unread and an inherited-only italic UpToDate is refused as roman."),
     DeclaredLimit("reference-explicit-indent", "Reference hanging indents are read only from each paragraph's own positive left margin and negative first-line indent; inherited indents are unread and refused."),
     DeclaredLimit("reference-bullets-ungraded", "Reference-entry bullets are not graded, including bullets inherited from a layout."),
@@ -333,7 +334,7 @@ class Source:
     readings: tuple[PostedReading, ...]
     paper_language: str | None = None
     signed: date | None = None
-    outbound_text: tuple[tuple[int, str], ...] = ()
+    outbound_text: tuple[tuple[int | None, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -585,6 +586,21 @@ def _raw_related_text(archive: zipfile.ZipFile, part: str, seen=None) -> tuple[s
                 # The existing object reader owns missing/unreadable members.
                 continue
     return tuple(texts)
+
+
+def _raw_deck_text(archive: zipfile.ZipFile, slide_parts) -> tuple[tuple[int | None, str], ...]:
+    fields = []
+    associated_notes = set()
+    for number, part in slide_parts:
+        fields.extend((number, text) for text in _raw_related_text(archive, part))
+        for relationship in _relationships(archive, part).values():
+            if relationship.kind.rsplit("/", 1)[-1] == "notesSlide":
+                associated_notes.add(relationship.target)
+                fields.extend((number, text) for text in _raw_outbound_fields(archive.read(relationship.target)))
+    for _number, part in _parts(archive, NOTES_PART):
+        if part not in associated_notes:
+            fields.extend((None, text) for text in _raw_outbound_fields(archive.read(part)))
+    return tuple(fields)
 
 
 def _parts(archive: zipfile.ZipFile, pattern: re.Pattern[str]) -> tuple[tuple[int, str], ...]:
@@ -903,10 +919,7 @@ def load(
                 _read_notes(archive.read(name), number)
                 for number, name in _parts(archive, NOTES_PART)
             )
-            outbound_text = tuple((number, text) for number, name in slide_parts
-                                  for text in _raw_related_text(archive, name))
-            outbound_text += tuple((number, text) for number, name in _parts(archive, NOTES_PART)
-                                   for text in _raw_outbound_fields(archive.read(name)))
+            outbound_text = _raw_deck_text(archive, slide_parts)
     except (
         OSError,
         UnicodeError,
@@ -1541,9 +1554,10 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         elif row in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             count = run_grader.NOT_GRADED
         lines.append(f"{row}: {count}")
-    lines.extend(f"outbound text: slide {finding.slide}: {finding.detail}"
+    lines.extend("outbound text: " + (f"slide {finding.slide}" if finding.slide is not None
+                                     else "unassociated speaker note") + f": {finding.detail}"
                  for finding in scan.findings if finding.kind == OUTBOUND_TEXT
-                 and isinstance(finding.slide, int)
+                 and (finding.slide is None or isinstance(finding.slide, int))
                  and re.fullmatch(r"line [1-9]\d*: U\+[0-9A-F]{4,6}", finding.detail))
     if show:
         lines += ["", "findings:"]

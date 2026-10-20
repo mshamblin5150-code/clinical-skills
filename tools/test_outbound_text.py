@@ -23,7 +23,7 @@ import entry_copy
 import post_html
 import post_text
 import run_record_reader as shared
-from test_deck_scan import Run as DeckRun, slide_xml, notes_xml
+from test_deck_scan import Run as DeckRun, slide_xml, notes_xml, relationships_xml
 from test_discussion_post_scan import Run as PostRun
 
 ROOT = Path(__file__).resolve().parent
@@ -112,11 +112,29 @@ class GraderBoundaries(unittest.TestCase):
                     _status, report, error = run.grade()
                     self.assertIn('outbound-text: 0', report, error)
                     run.write_deck((slide_xml('Synthetic', 'Safe words' if notes else char + 'words'),),
-                                   notes=(notes_xml(char + 'words'),) if notes else ())
+                                   notes=(notes_xml(char + 'words'),) if notes else (),
+                                   parts={'ppt/slides/_rels/slide1.xml.rels': relationships_xml(
+                                       ('rIdNotes', 'notesSlide', '../notesSlides/notesSlide1.xml'))} if notes else {})
                     status, report, error = run.grade()
                     self.assertEqual(1, status, report + error)
                     self.assertIn('outbound-text: 1', report)
                     self.assertIn('outbound text: slide 1: line ', report)
+
+    def test_note_part_number_does_not_invent_its_owning_slide(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = DeckRun(Path(directory))
+            run.write_deck((slide_xml('First', 'Safe'), slide_xml('Second', 'Safe')),
+                           parts={'ppt/notesSlides/notesSlide7.xml': notes_xml('\twords'),
+                                  'ppt/slides/_rels/slide2.xml.rels': relationships_xml(
+                                      ('rIdNotes', 'notesSlide', '../notesSlides/notesSlide7.xml'))})
+            status, report, error = run.grade()
+            self.assertEqual(1, status, report + error)
+            self.assertIn('outbound text: slide 2: line 1: U+0009', report)
+            self.assertNotIn('outbound text: slide 7:', report)
+            run.write_deck((slide_xml('First', 'Safe'),), notes=(notes_xml('\twords'),))
+            status, report, error = run.grade()
+            self.assertEqual(1, status, report + error)
+            self.assertIn('outbound text: unassociated speaker note: line 1: U+0009', report)
 
     def test_initial_post_reports_damage_as_a_finding_even_without_a_carrier(self):
         with tempfile.TemporaryDirectory() as directory:
