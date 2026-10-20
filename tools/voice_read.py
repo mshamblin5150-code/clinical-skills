@@ -28,6 +28,7 @@ import run_grader
 import voice_model_identity
 from console_codec import require_python_floor, use_utf8
 from coursework_run import RECORDS_DIRECTORY
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 
 PLANTED_COPY_NAME = "voice-read-planted.txt"
@@ -93,6 +94,7 @@ DECLARED_LIMITS = (
         "the voice read does not establish that a deck follows the assignment's signed audience purpose or talk style",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
+    DeclaredLimit("handwritten voice damage", "Supplied capture, planter and reader JSON use the shared C0 reader per artifact; damaged evidence withholds its comparisons while other records and independent profanity checks continue. Planted and draft artifact bytes remain outside this record check.", run_grader.EvidenceDisposition.DECLARED_READING),
 )
 
 _PAIR_SECTION = re.compile(
@@ -326,18 +328,18 @@ def profanity_matches(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(found)
 
 
-def _read_json(path: Path) -> object | None:
+def _read_json(path: Path, artifact: str | None = None) -> object | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return read_handwritten_record(path, "json").require_json(artifact=artifact)
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
 
 
-def _read_supplied_voice(path: Path) -> tuple[tuple[SuppliedVoiceItem, ...], str] | None:
+def _read_supplied_voice(path: Path, artifact: str | None = None) -> tuple[tuple[SuppliedVoiceItem, ...], str] | None:
     """Read one explicit pre-draft capture and bind it to its exact bytes."""
     try:
         raw = path.read_bytes()
-        payload = json.loads(raw.decode("utf-8"))
+        payload = read_handwritten_record(path, "json").require_json(artifact=artifact)
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     digest = hashlib.sha256(raw).hexdigest()
@@ -377,13 +379,22 @@ def _read_supplied_voice(path: Path) -> tuple[tuple[SuppliedVoiceItem, ...], str
 def _supplied_voice_result(
     records: Path,
     draft_text: str,
+    artifact: str | None = None,
 ) -> ReadResult:
     """Grade supplied input independently of the model's pair population."""
-    supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME)
+    try:
+        supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME, artifact)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=artifact)
+        return ReadResult(finding, False, report)
     if supplied_read is None:
         return ReadResult(True, False, "finding - supplied voice capture is missing or invalid")
     supplied_items, supplied_digest = supplied_read
-    reader = _read_json(records / READER_RECORD_NAME)
+    try:
+        reader = _read_json(records / READER_RECORD_NAME, artifact)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=artifact)
+        return ReadResult(finding, False, report)
     if _not_run(reader):
         return ReadResult(
             False,
@@ -524,9 +535,14 @@ def _voice_result(
     surface: DraftSurface,
     pairs: tuple[Pair, ...],
     model_digest: str,
+    artifact: str | None = None,
 ) -> ReadResult:
-    planter = _read_json(records / PLANTER_RECORD_NAME)
-    reader = _read_json(records / READER_RECORD_NAME)
+    try:
+        planter = _read_json(records / PLANTER_RECORD_NAME, artifact)
+        reader = _read_json(records / READER_RECORD_NAME, artifact)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=artifact)
+        return ReadResult(finding, False, report)
     if _not_run(planter) and _not_run(reader):
         return ReadResult(False, True, "not scanned - recorded as not run")
     if planter is None or reader is None:
@@ -672,9 +688,12 @@ def _completion_gate(
             key = records.name
             draft = surfaces.get(key)
             if draft is None:
-                missing = _read_supplied_voice(
-                    records / SUPPLIED_VOICE_RECORD_NAME
-                ) is None
+                try:
+                    missing = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME, raw_key) is None
+                except DamagedRecord as failure:
+                    finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=raw_key)
+                    supplied_results.append(VoiceResult(key, finding, True, report))
+                    continue
                 supplied_results.append(
                     VoiceResult(
                         key,
@@ -688,7 +707,7 @@ def _completion_gate(
                     )
                 )
                 continue
-            finding, coverage, report = _supplied_voice_result(records, draft.text)
+            finding, coverage, report = _supplied_voice_result(records, draft.text, raw_key)
             supplied_results.append(VoiceResult(key, finding, coverage, report))
         finding = any(result.finding for result in supplied_results)
         details = "; ".join(
@@ -714,9 +733,12 @@ def _completion_gate(
         key = records.name
         draft = surfaces.get(key)
         if draft is None:
-            missing_capture = _read_supplied_voice(
-                records / SUPPLIED_VOICE_RECORD_NAME
-            ) is None
+            try:
+                missing_capture = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME, raw_key) is None
+            except DamagedRecord as failure:
+                finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=raw_key)
+                voice_results.append(VoiceResult(key, finding, True, report))
+                continue
             voice_results.append(
                 VoiceResult(
                     key,
@@ -732,7 +754,7 @@ def _completion_gate(
                 )
             )
             continue
-        supplied_result = _supplied_voice_result(records, draft.text)
+        supplied_result = _supplied_voice_result(records, draft.text, raw_key)
         if not pair_read.items:
             pair_result = ReadResult(
                 False,
@@ -740,7 +762,7 @@ def _completion_gate(
                 "not scanned - no discriminating-pair population was read",
             )
         else:
-            pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256)
+            pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key)
         finding = pair_result.finding or supplied_result.finding
         coverage = pair_result.coverage or supplied_result.coverage
         report = f"{pair_result.report}; {supplied_result.report}"
@@ -865,9 +887,12 @@ def main(argv: list[str]) -> int:
         print("quote check: planter records are not accepted")
         return 2
     try:
-        reader = json.loads(args.check_quotes.read_text(encoding="utf-8"))
+        reader = read_handwritten_record(args.check_quotes, "json").require_json(force=True)
         planted = args.planted.read_text(encoding="utf-8")
         draft = args.draft.read_text(encoding="utf-8")
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check="quote check", force=True)[1])
+        return 1
     except (OSError, UnicodeError, ValueError):
         print("quote check: input is unreadable or invalid JSON")
         return 2

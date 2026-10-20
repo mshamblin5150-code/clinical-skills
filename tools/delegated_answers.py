@@ -38,6 +38,7 @@ import re
 from pathlib import Path
 
 import run_grader
+from run_record_reader import read_handwritten_record, HandwrittenKind, DamagedRecord, damaged_record_result
 
 
 # The checkout running the grade: its skills are the rules this run was bound by.
@@ -46,6 +47,7 @@ CHECKOUT = Path(__file__).resolve().parent.parent
 
 EXPECTED_ROW = "the delegated answers"
 RECORD = "delegated-answers.md"
+RECORD_KIND = HandwrittenKind("delegated-answers", decode_errors="replace")
 NONE_FOUND = "none found"
 # Where a governing rule may be written. A rule anywhere else is not one a run
 # was bound by.
@@ -315,7 +317,11 @@ def completion_gate(
     path = run / RECORD
     if not path.is_file():
         return False, f"{EXPECTED_ROW}: none recorded - {RECORD} is absent", 0
-    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = read_handwritten_record(path, RECORD_KIND).require_text(artifact=submission, force=pre_approval)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=submission, force=pre_approval)
+        return finding, report, 0
     total, settled, none, findings = grade_text(
         text,
         root or CHECKOUT,

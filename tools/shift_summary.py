@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from run_grader import EvidenceDisposition, artifact_label
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 ITEM = re.compile(r"^FILLED·(asserted|proposed)\s*(.*)$")
 CLOSER = re.compile(r"^(?:(?:DERIVED|FLAG|GAPS|UNKNOWN|PROPOSED)\b|```|---|#{1,6}\s)")
@@ -58,8 +59,11 @@ def check(run: Path, paths: tuple[Path, ...], terminal: bool, show: bool = False
         lines.append("the shift summary: incomplete coverage - absent" if terminal else "the shift summary: NOT GRADED - absent")
         return False, terminal, "\n".join(lines)
     try:
-        actual = [line for line in summary.read_text(encoding="utf-8").splitlines() if line.startswith("GENERATION:")]
+        actual = [line for line in read_handwritten_record(summary).text.splitlines() if line.startswith("GENERATION:")]
         failed = sorted(actual) != sorted(expected)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check="the shift summary")
+        return finding, False, "\n".join((*lines, report))
     except (OSError, UnicodeError):
         failed = True
     lines.append(f"the shift summary: {'finding' if failed else 'clean'}")

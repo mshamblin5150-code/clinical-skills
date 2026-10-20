@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from run_record_reader import (read_tool_record, object_record, RecordShapeError,
                                UnreadableRecord, update_tool_record, RecordUpdate)
+from run_record_reader import check_handwritten_text, DamagedRecord, damaged_record_result
 
 from dataclasses import dataclass
 from hashlib import sha256
@@ -106,7 +107,7 @@ def coding_record(text: str, *, kind: str) -> dict:
 
 def replace_coding_record(path: Path, replacement: dict, *, kind: str) -> None:
     """Write a retry while retaining the replaced reader's remarks verbatim."""
-    decode = lambda text: coding_record(text, kind=kind)
+    decode = lambda text: coding_record(check_handwritten_text(text, path, "json").require_text(force=True), kind=kind)
     def change(current):
         updated = decode(json.dumps(replacement))
         if current is not None:
@@ -129,8 +130,10 @@ def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
     result: list[Remark] = []
     agreement = run / "agreement-reader" / "read.json"
     specificity = run / "specificity-reader" / "read.json"
+    damage = []
     try:
-        payload = read_tool_record(agreement, lambda text: coding_record(text, kind="agreement"))
+        payload = read_tool_record(agreement, lambda text: coding_record(
+            check_handwritten_text(text, agreement, "json").require_text(force=True), kind="agreement"))
         if payload is not None:
             notes = tuple(path for path in sources if path.suffix == ".md" and path.parent.name != "worksheets")
             rendered_path = run / "agreement" / "cpt-rendered-pages.json"
@@ -144,13 +147,29 @@ def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
                 raise RemarkError("agreement reader records do not match the approved notes")
             grade = anchor_scan._grade_agreement(pairs, 0, [agreement], {pair.stem for pair in pairs})
             result.extend((*grade.remarks, *grade.column_remarks))
-        payload = read_tool_record(specificity, lambda text: coding_record(text, kind="specificity"))
-        if payload is not None:
-            result.extend(Remark("SPECIFICITY", text) for text in payload.get("remarks", []))
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="agreement reader remarks", force=True)
+        damage.append(failure)
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
         raise RemarkError("the run's coding reader record is unreadable") from failure
+    try:
+        payload = read_tool_record(specificity, lambda text: coding_record(
+            check_handwritten_text(text, specificity, "json").require_text(force=True), kind="specificity"))
+        if payload is not None:
+            result.extend(Remark("SPECIFICITY", text) for text in payload.get("remarks", []))
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="specificity reader remarks", force=True)
+        damage.append(failure)
+    except UnreadableRecord:
+        raise
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
+        raise RemarkError("the run's coding reader record is unreadable") from failure
+    if damage:
+        # This collection feeds approval writers. Finish independent collection,
+        # then refuse publication rather than recording a fabricated remark.
+        raise damage[0]
     return tuple(dict.fromkeys(result))
 
 
@@ -186,7 +205,11 @@ def voice_remarks(run: Path, artifacts: tuple[str, ...]) -> tuple[Remark, ...]:
     for artifact in artifacts:
         records = coursework_run.voice_records_directory(run, artifact)
         key = records.name
-        payload = voice_read._read_json(records / voice_read.READER_RECORD_NAME)
+        try:
+            payload = voice_read._read_json(records / voice_read.READER_RECORD_NAME, artifact=artifact)
+        except DamagedRecord as failure:
+            damaged_record_result(failure, check="voice reader remarks", artifact=artifact)
+            continue
         if isinstance(payload, dict) and isinstance(payload.get("remarks"), list):
             results.extend(Remark(f"VOICE-READ: {key}", text) for text in payload["remarks"] if isinstance(text, str) and text.strip())
     return tuple(results)

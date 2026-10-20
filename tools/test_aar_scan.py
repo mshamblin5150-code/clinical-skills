@@ -545,14 +545,14 @@ class CommandModes(SyntheticSnapshotCase):
             (run / "aar").mkdir(parents=True)
             review = aar_scan.review_path(run, "post-1")
             review.write_text("# AFTER-ACTION REVIEW\n", encoding="utf-8")
-            original = Path.read_text
+            original = Path.open
 
-            def refusing(path: Path, *args: object, **kwargs: object) -> str:
+            def refusing(path: Path, *args: object, **kwargs: object):
                 if path.resolve() == review.resolve():
                     raise PermissionError(13, "denied", str(review))
                 return original(path, *args, **kwargs)
 
-            with mock.patch.object(Path, "read_text", refusing):
+            with mock.patch.object(Path, "open", refusing):
                 status, stdout, stderr = invoke_main(
                     [str(run), "--submission", "post-1", "--show"]
                 )

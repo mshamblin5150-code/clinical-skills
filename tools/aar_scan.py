@@ -55,6 +55,7 @@ import tree_walk
 from run_record_reader import (
     RecordShapeError, UnreadableRecord, fault_report, object_record, read_tool_record,
     locked_record, update_tool_record, RecordUpdate, mark_not_graded,
+    read_handwritten_record, check_handwritten_text, HandwrittenKind, DamagedRecord, damaged_record_result,
 )
 
 
@@ -1124,10 +1125,11 @@ def _next_review_round(run: Path, submission: str) -> int:
     return existing[-1] + 1 if existing else 1
 
 
-def _posted_reading_block(run: Path, submission: str) -> str:
+def _posted_reading_block(run: Path, submission: str, *, force: bool = False) -> str:
     from discussion_artifact import decode_posted_readings
     path = run / "reread.md"
     def decode(text):
+        text = check_handwritten_text(text, path, "raw-text").require_text(force=force, artifact=submission)
         decode_posted_readings(text)
         return text.replace("\r\n", "\n")
     text = read_tool_record(path, decode)
@@ -1145,8 +1147,8 @@ def _posted_reading_block(run: Path, submission: str) -> str:
     return matches[0].group(0).strip()
 
 
-def _posted_reading_fingerprint(run: Path, submission: str) -> str:
-    return sha256(_posted_reading_block(run, submission).encode("utf-8")).hexdigest()
+def _posted_reading_fingerprint(run: Path, submission: str, *, force: bool = False) -> str:
+    return sha256(_posted_reading_block(run, submission, force=force).encode("utf-8")).hexdigest()
 
 
 def legacy_orphan_paths(run: Path) -> tuple[Path, ...]:
@@ -1219,7 +1221,7 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
         if path.name.endswith((".extract.md", ".reversal-candidates.md")):
             continue
         try:
-            review = read_review(path)
+            review = read_review(path, force=True)
         except ValueError:
             continue
         extract = path.with_name(f"{path.stem}.extract.md")
@@ -1687,7 +1689,7 @@ def _write_extract(run: Path, transcript: Path | None, submission: str,
                    memory_index: Path) -> tuple[Path, int]:
     _retire_orphan_pointers(run)
     _check_snapshot_posted_reading(run, submission)
-    posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
+    posted_reading_fingerprint = _posted_reading_fingerprint(run, submission, force=True)
     round_number = _next_review_round(run, submission)
     reversals = (_reversal_population(run, submission, round_number)
                  if datetime.now(timezone.utc) >= REVERSAL_CANDIDATES_CUTOFF else [])
@@ -1778,7 +1780,7 @@ def _review_cursors_before_round(
         extract_file = extract_path(run, submission, earlier)
         if not review_file.is_file():
             raise ValueError(f"earlier review round {earlier} is incomplete")
-        review = read_review(review_file)
+        review = read_review(review_file, force=True)
         fields, _identifiers = _extract_metadata(extract_file)
         _append_review_cursors(cursors, review, fields)
     return cursors
@@ -1953,9 +1955,9 @@ def _parse_fields(lines: list[str]) -> dict[str, str]:
     return fields
 
 
-def read_review(path: Path) -> Review:
+def read_review(path: Path, *, force: bool = False, artifact: str | None = None) -> Review:
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = read_handwritten_record(path, HandwrittenKind("aar-review", decode_errors="replace")).require_text(force=force, artifact=artifact).splitlines()
     except OSError as exc:
         raise ValueError(f"cannot read review {path.name}") from exc
     header: list[str] = []
@@ -2367,7 +2369,12 @@ def _survey_round(
     if not records:
         return Scan(submission, 0, 0, 0, 0, 0, (Finding("missing-review", str(record_path)),))
     try:
-        review = read_review(record_path)
+        review = read_review(record_path, artifact=submission)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check="the after-action review", artifact=submission)
+        return Scan(submission, 1, 0, 0, 0, 0,
+                    (Finding("unscannable-review", report),) if finding else (),
+                    memory_reports=(report,))
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
     record_reports: list[str] = []
@@ -2455,6 +2462,12 @@ def _survey_round(
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
             current_fingerprint = _posted_reading_fingerprint(run, submission)
+        except DamagedRecord as exc:
+            finding, report = damaged_record_result(exc, check="the posted-reading fingerprint", artifact=submission)
+            current_fingerprint = None
+            record_reports.append(report)
+            if finding:
+                findings.append(Finding("unscannable-review", report))
         except UnreadableRecord as exc:
             current_fingerprint = None
             record_reports.append(fault_report(exc, check="the posted-reading fingerprint"))
@@ -2718,7 +2731,8 @@ def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
             continue
         scan = survey(run, submission)
         if scan.findings or scan.unread or scan.unread_remainder:
-            return f"{EXPECTED_ROW} is incomplete for {submission}"
+            damage_reports = tuple(report for report in scan.memory_reports if "not graded — damaged text" in report)
+            return "\n".join((f"{EXPECTED_ROW} is incomplete for {submission}", *damage_reports))
     return None
 
 
@@ -3004,6 +3018,8 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                 assert matched_round is not None
                 record_round = int(matched_round[1] or "1")
             extract_fields, _identifiers = _extract_metadata(destination)
+        except DamagedRecord as exc:
+            return run_grader.EarlyExit(1, stdout=(damaged_record_result(exc, check="extract", force=True)[1],))
         except UnreadableRecord as exc:
             return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="extract"),))
         except (OSError, ValueError, subprocess.SubprocessError, git_paths.GitPathError) as exc:

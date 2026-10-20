@@ -56,6 +56,7 @@ import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
 import completion_checks
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import reader_remarks
 from worksheet_grammar import (
     ENTRY,
@@ -236,6 +237,7 @@ class SecondRead:
     remarks: tuple[reader_remarks.Remark, ...] = ()
     unread: int = 0
     unexpected_keys: int = 0
+    damaged: bool = False
 
 
 @dataclass(frozen=True)
@@ -458,7 +460,10 @@ def load_second_read(path: Path) -> SecondRead:
     if not path.is_file():
         return SecondRead(path=path, ok=False, why_not=f"no such file: {path.name}")
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = read_handwritten_record(path, "json").json
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check="specificity reader")
+        return SecondRead(path=path, ok=False, why_not=report, damaged=finding)
     except OSError as error:
         return SecondRead(
             path=path,
@@ -854,6 +859,7 @@ def _grade(
     second_gate: SecondReadGate | None = None
     second_read = parsed.value("--second-read")
     coverage_failed = False
+    reader_damaged = False
     for_entry_flags = sum(
         1
         for flags in per_worksheet
@@ -870,9 +876,10 @@ def _grade(
     if second_read is not None:
         second_read_path = Path(second_read)
         read = load_second_read(second_read_path)
+        reader_damaged = read.damaged
         if not read.ok:
             diagnostics.append(f"\nseparated read {NOT_GRADED}: {read.why_not}")
-            coverage_failed = True
+            coverage_failed = coverage_failed or not read.damaged
         else:
             try:
                 connection = open_database()
@@ -893,7 +900,7 @@ def _grade(
                     connection.close()
                 reports.append("\n" + format_second_read_report(second_gate, show=parsed.show))
 
-    findings_failed = bool(scan.failing_flags)
+    findings_failed = bool(scan.failing_flags) or reader_damaged
     if scan.failing_flags:
         findings_count = len(scan.findings)
         detail = "" if findings_count == scan.failing_flags else f" ({findings_count} findings)"

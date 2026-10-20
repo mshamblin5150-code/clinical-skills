@@ -417,7 +417,7 @@ def posted_reading_check(
     filenames = tuple(item.get("filename", "") for item in approved)
     posted_files = tuple((item.get("filename", ""), item.get("sha256", "")) for item in approved)
     reread = run / "reread.md"
-    readings = read_posted_reading_file(reread)
+    readings = read_posted_reading_file(reread, artifact=submission)
     reading = next((item for item in readings if item.artifact == submission), None)
     return check_posted_reading(
         reading, file_digest.sha256(artifact), matches_only=True,

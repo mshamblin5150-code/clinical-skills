@@ -21,8 +21,9 @@ import file_digest
 import research_ledger
 import run_grader
 from discussion_artifact import NUMBER
+from discussion_artifact import record_unavailable
 from run_grader import EvidenceDisposition
-from run_record_reader import UnreadableRecord, mark_not_graded
+from run_record_reader import UnreadableRecord, mark_not_graded, DamagedRecord, damaged_record_result
 
 
 class DeclaredLimit(NamedTuple):
@@ -165,22 +166,33 @@ class Binding:
     other_classmate_items: tuple[str, ...] = ()
     context_run: Path | None = None
     context_available: bool = True
+    claims_available: bool = True
+    record_path: Path | None = None
 
 
 def binding_from_context(artifact: str, draft: bytes, claims: tuple[research_ledger.Record, ...],
                          run: Path, *, as_of: date | None = None,
-                         exclude_other_classmates: bool = False) -> Binding:
+                         exclude_other_classmates: bool = False,
+                         record_path: Path | None = None) -> Binding:
     """Keep independent heading checks available when context cannot be read."""
     import project_context
+    available = not record_unavailable(run / "claims.md", artifact)
+    heading_path = record_path or run / "heading-read.md"
     try:
-        digest = project_context.recorded_digest(run)
-        opened = project_context.recorded_opened_items(run)
+        digest = project_context.recorded_digest(run, artifact=artifact)
+        opened = project_context.recorded_opened_items(run, artifact=artifact)
         other = project_context.other_classmate_items(run, artifact) if exclude_other_classmates else ()
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="heading-read context comparisons", artifact=artifact)
+        return Binding(artifact, draft, claims, "", as_of=as_of, context_run=run, context_available=False,
+                       claims_available=available, record_path=heading_path)
     except UnreadableRecord as failure:
         mark_not_graded(failure, check="heading-read context comparisons")
-        return Binding(artifact, draft, claims, "", as_of=as_of, context_run=run, context_available=False)
+        return Binding(artifact, draft, claims, "", as_of=as_of, context_run=run, context_available=False,
+                       claims_available=available, record_path=heading_path)
     return Binding(artifact, draft, claims, digest, as_of=as_of, opened_items=opened,
-                   other_classmate_items=other, context_run=run)
+                   other_classmate_items=other, context_run=run,
+                   claims_available=available, record_path=heading_path)
 
 
 def _context_matches(record: Record, binding: Binding) -> bool | None:
@@ -192,6 +204,9 @@ def _context_matches(record: Record, binding: Binding) -> bool | None:
     try:
         return project_context.heading_context_matches(
             binding.context_run, record.value("CONTEXT-DIGEST").casefold(), record.artifact)
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="heading-read context comparisons", artifact=record.artifact)
+        return None
     except UnreadableRecord as failure:
         mark_not_graded(failure, check="heading-read context comparisons")
         return None
@@ -326,7 +341,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
     for claim in binding.claims:
         prefix = research_ledger.heading_digest(claim.claim)[:8]
         headings[prefix] = headings.get(prefix, ()) + (claim,)
-    for pair in record.pairs:
+    for pair in record.pairs if binding.claims_available else ():
         parsed = PAIR.fullmatch(pair)
         prefix = parsed.group("prefix").casefold() if parsed else ""
         matches = headings.get(prefix, ())
@@ -434,6 +449,8 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     found: list[Finding] = []
     expected = {binding.artifact: binding for binding in bindings}
     for artifact, binding in expected.items():
+        if binding.record_path is not None and record_unavailable(binding.record_path, artifact):
+            continue
         matches = tuple(record for record in records if record.artifact == artifact)
         if not matches:
             found.append(Finding(MISSING_RECORD, artifact, "no HEADING-READ record"))

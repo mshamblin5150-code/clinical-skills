@@ -79,6 +79,7 @@ import coursework_style
 import coursework_mechanics
 import heading_read
 import research_ledger
+from discussion_artifact import read_record_text, record_unavailable
 
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
@@ -342,6 +343,8 @@ class Scan:
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
     reader_records_unread: int = 0
     image_answer_unread: int = 0
+    withheld_rows: tuple[str, ...] = ()
+    withheld_items: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 def _split_reply(path: Path) -> Reply:
@@ -366,6 +369,9 @@ def _editor_readback_result(
     units_read = 0
     units_total = 0
     for pair in source.editor_pairs:
+        if record_unavailable(source.path / Path(pair.response).with_name(
+                f"{Path(pair.response).stem}-readback.json"), pair.response):
+            continue
         detail, read, total = canvas_readback.compare(pair.built, pair.readback, surface="reply")
         units_read += read
         units_total += total
@@ -636,14 +642,15 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     initial_post_path = root / "post.md"
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
-        claims = claims_path.read_text(encoding="utf-8")
+        keys = tuple(path.name for path in response_paths)
+        claims = read_record_text(claims_path, research_ledger.CLAIM_RECORD_KIND, artifacts=keys)
         heading_read_path = root / "heading-read.md"
         heading_read_text = (
-            heading_read_path.read_text(encoding="utf-8")
+            read_record_text(heading_read_path, artifacts=keys)
             if heading_read_path.is_file()
             else ""
         )
-        post_texts = tuple(path.read_text(encoding="utf-8") for path in post_paths)
+        post_texts = tuple(read_record_text(path, "copied-post", artifacts=keys) for path in post_paths)
         roster = tuple(
             match.group("name").strip()
             for text in post_texts
@@ -656,9 +663,9 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             for match in [POST_URL.search(text)]
             if match
         )
-        readings = read_posted_reading_file(reread_path)
+        readings = read_posted_reading_file(reread_path, artifacts=keys)
         initial_post_match = (
-            POST_URL.search(initial_post_path.read_text(encoding="utf-8"))
+            POST_URL.search(read_record_text(initial_post_path, artifacts=keys))
             if initial_post_path.is_file()
             else None
         )
@@ -671,9 +678,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
                     else None
                 ),
                 readback=(
-                    path.with_name(f"{path.stem}-readback.json").read_text(
-                        encoding="utf-8"
-                    )
+                    read_record_text(path.with_name(f"{path.stem}-readback.json"), canvas_readback.RECORD_KIND, artifact=path.name)
                     if path.with_name(f"{path.stem}-readback.json").exists()
                     else None
                 ),
@@ -726,13 +731,13 @@ def posted_reading_check(
         if Path(submission).name != submission or not submission.startswith('response-') or not submission.endswith('.md'):
             raise run_grader.SourceError('posted reading names another reply')
         reread = run / 'reread.md'
-        readings = read_posted_reading_file(reread)
+        readings = read_posted_reading_file(reread, artifact=submission)
         id_counts = Counter(item.entry_id for item in readings if item.entry_id is not None)
         post_paths = tuple(sorted((run / 'posts').glob('*.md')))
         initial = run / 'post.md'
-        texts = [path.read_text(encoding='utf-8') for path in post_paths]
+        texts = [read_record_text(path, "copied-post", artifact=submission) for path in post_paths]
         if initial.is_file():
-            texts.append(initial.read_text(encoding='utf-8'))
+            texts.append(read_record_text(initial, artifact=submission))
         roster_ids = {
             value for text in texts
             if (match := POST_URL.search(text)) is not None
@@ -741,7 +746,7 @@ def posted_reading_check(
         return check_posted_reading(
             next((item for item in readings if item.artifact == submission), None),
             file_digest.sha256(run / submission), posted_fields=True,
-            verdict=True, entry_link=True, roster_ids=roster_ids,
+            verdict=True, entry_link=True, roster_ids=roster_ids, run=run,
             duplicate_ids={value for value, count in id_counts.items() if count > 1},
         )
     except (OSError, UnicodeError, ValueError) as failure:
@@ -756,7 +761,8 @@ def _posted_reading_states(source: RunSource) -> tuple[approval_record.PostedRea
                 posted=approval_record.graded_posting_route(
                     source.path, skill="discussion-reply", submission=reply.path.name
                 ) in {"agent", "clinician"},
-                has_reading=any(reading.artifact == reply.path.name for reading in source.readings),
+                has_reading=any(reading.artifact == reply.path.name for reading in source.readings)
+                or record_unavailable(source.path / "reread.md", reply.path.name),
             )
             for reply in source.replies
         )
@@ -777,6 +783,21 @@ def _posted_reading_findings(
 
 @completion_checks.dated_scan
 def survey(source: RunSource) -> Scan:
+    withheld_items = []
+    for reply in source.replies:
+        withheld = set()
+        for path, rows in (
+            (source.path / "claims.md", (UNTRACED_NUMBER, REFERENCE_MINIMUM)),
+            (source.path / "heading-read.md", (*HEADING_READ_ROWS, UNTRACED_NUMBER)),
+            (source.path / "reread.md", tuple(POSTED_READING_KINDS.values())),
+            (source.path / f"{reply.path.stem}-readback.json", (EDITOR_READBACK,)),
+        ):
+            if record_unavailable(path, reply.path.name):
+                withheld.update(rows)
+        if any(record_unavailable(path, reply.path.name) for path in (source.path / "posts").glob("*.md")):
+            withheld.add(ADDRESSED_NAME)
+        withheld_items.append((reply.path.name, tuple(sorted(withheld))))
+    withheld_rows = tuple(sorted({row for _, rows in withheld_items for row in rows}))
     posted_reading_states = _posted_reading_states(source)
     claim_records = tuple(research_ledger.read_records(source.claims))
     bindings = tuple(
@@ -817,7 +838,7 @@ def survey(source: RunSource) -> Scan:
                     reply,
                     source.roster,
                     roster_complete=len(source.roster) == source.posts_total,
-                ),
+                ) if not any(record_unavailable(path, reply.path.name) for path in (source.path / "posts").glob("*.md")) else None,
             )
             if finding is not None
         )
@@ -840,6 +861,8 @@ def survey(source: RunSource) -> Scan:
                 len(reply.references) - len(_valid_references(reply))
                 for reply in source.replies
             ),
+            withheld_rows=withheld_rows,
+            withheld_items=tuple(withheld_items),
             findings=(
                 address_findings
                 + editor_findings
@@ -878,9 +901,12 @@ def survey(source: RunSource) -> Scan:
                 reply,
                 source.roster,
                 roster_complete=len(source.roster) == source.posts_total,
-            ),
+            ) if not any(record_unavailable(path, reply.path.name) for path in (source.path / "posts").glob("*.md")) else None,
             _word_finding(reply),
-            _reference_finding(reply, source.claims),
+            _reference_finding(reply, source.claims) if not record_unavailable(
+                source.path / "claims.md", reply.path.name) else (
+                    Finding(REFERENCE_MINIMUM, reply.path.name, "no reference")
+                    if not _valid_references(reply) else None),
         )
         if finding is not None
     )
@@ -897,6 +923,8 @@ def survey(source: RunSource) -> Scan:
     ) + tuple(
         finding
         for reply, reply_citations in zip(source.replies, citations)
+        if not record_unavailable(source.path / "claims.md", reply.path.name)
+        and not record_unavailable(source.path / "heading-read.md", reply.path.name)
         for finding in _number_findings(reply, reply_citations, source.claims, source.heading_read_text)
     ) + _reuse_findings(source.replies) + tuple(
         finding
@@ -943,6 +971,8 @@ def survey(source: RunSource) -> Scan:
             for reply in source.replies
         ),
         findings=findings,
+        withheld_rows=withheld_rows,
+        withheld_items=tuple(withheld_items),
         citation_coverage=coverage,
         posted_reading_states=posted_reading_states,
     )
@@ -991,7 +1021,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+        if kind in scan.withheld_rows and not any(finding.kind == kind for finding in scan.findings):
+            lines.append(f"{kind}: {NOT_GRADED} — damaged text")
+        elif kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
             state.posted for state in scan.posted_reading_states
@@ -1014,7 +1046,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     for state in scan.posted_reading_states:
         for kind in dict.fromkeys(POSTED_READING_KINDS.values()):
             count = sum(finding.kind == kind and finding.response == state.submission for finding in scan.findings)
-            measured = state.posted and not posted_reading_unavailable()
+            measured = state.posted and not posted_reading_unavailable() and kind not in dict(scan.withheld_items).get(state.submission, ())
             lines.append(f"{kind}: {state.submission}: {count if measured else NOT_GRADED}")
         if state.unrecorded_reading:
             lines.append(f"posted reading: {state.submission}: incomplete coverage - posting is not recorded")

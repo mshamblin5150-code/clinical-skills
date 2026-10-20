@@ -6,6 +6,11 @@ import json
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from run_record_reader import HandwrittenKind
+
+
+RECORD_KIND = HandwrittenKind("editor-readback", lambda text: (("", text),),
+                              frozenset({"editor_id", "view", "html"}))
 
 
 @dataclass(frozen=True)

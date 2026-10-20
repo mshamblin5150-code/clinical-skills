@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from console_codec import require_python_floor, use_utf8
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
@@ -396,6 +397,19 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
+    manifest_read = None
+    manifest_error = None
+    try:
+        manifest_read = read_handwritten_record(args.manifest, "json")
+        # This command publishes a receipt. Content damage refuses before any
+        # receipt invalidation; malformed/undecodable input keeps its old path.
+        manifest_read.require_text(force=True)
+    except DamagedRecord as error:
+        print(damaged_record_result(error, check="coding-freshness manifest", force=True)[1])
+        return 1
+    except (OSError, UnicodeError) as error:
+        manifest_error = error
+
     try:
         args.receipt.unlink(missing_ok=True)
     except OSError as error:
@@ -403,7 +417,10 @@ def main(argv: list[str]) -> int:
         return 2
 
     try:
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        if manifest_error is not None:
+            raise manifest_error
+        assert manifest_read is not None
+        manifest = manifest_read.require_json(force=True)
         if not isinstance(manifest, dict):
             raise ValueError("manifest must be a JSON object")
         service_date = date.fromisoformat(str(manifest["service_date"])).isoformat()

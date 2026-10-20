@@ -71,7 +71,15 @@ def posted_reading_check(
 
 
 def main(argv: list[str]) -> int:
-    return run_grader.collect_record_errors(lambda: _dispatch(argv))
+    def invoke():
+        if not argv or argv[0].startswith("--"):
+            return _dispatch(argv)
+        submission = None
+        if "--submission" in argv and argv.index("--submission") + 1 < len(argv):
+            submission = argv[argv.index("--submission") + 1]
+        with completion_checks.grading(Path(argv[0]), submission):
+            return _dispatch(argv)
+    return run_grader.collect_record_errors(invoke)
 
 
 def _dispatch(argv: list[str]) -> int:
@@ -86,7 +94,8 @@ def _dispatch(argv: list[str]) -> int:
             if frozen is not None:
                 print(frozen)
                 return 0
-        envelope = assignment_bar.parse((run / "bar.md").read_text(encoding="utf-8"))
+        from run_record_reader import read_handwritten_record
+        envelope = assignment_bar.parse(read_handwritten_record(run / "bar.md").text)
         failed, report = assignment_bar.completion_gate(run)
         print(report)
         if failed:

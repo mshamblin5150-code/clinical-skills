@@ -7,6 +7,7 @@ The project-context row's ceiling belongs to
 """
 
 from __future__ import annotations
+from discussion_artifact import read_record_text, record_unavailable
 
 import completion_checks
 import re
@@ -187,6 +188,7 @@ class Scan:
     citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
     reader_records_unread: int = 0
     image_answer_unread: int = 0
+    withheld_rows: tuple[str, ...] = ()
 
     @property
     def unread(self) -> int:
@@ -363,19 +365,21 @@ def load(
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     try:
-        bar_text = bar_path.read_text(encoding="utf-8")
+        from run_record_reader import read_handwritten_record
+        bar_text = read_handwritten_record(bar_path).require_text(artifact=docx.name)
         bar = _read_bar(bar_text, envelope)
-        claims = claims_path.read_text(encoding="utf-8")
+        claims = read_record_text(claims_path, kind=research_ledger.CLAIM_RECORD_KIND,
+                                  artifact=docx.name, check="claim record comparisons")
         docx_bytes = docx.read_bytes()
         with zipfile.ZipFile(docx) as archive:
             document = ElementTree.fromstring(archive.read("word/document.xml"))
             paragraphs = _paragraphs(document)
             package_findings = _package(archive, paragraphs)
         rendered_path = root / "rendered.md"
-        rendered = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else ""
+        rendered = read_record_text(rendered_path, artifact=docx.name, check="rendered record") if rendered_path.is_file() else ""
         heading_read_path = root / "heading-read.md"
         heading_read_text = (
-            heading_read_path.read_text(encoding="utf-8")
+            read_record_text(heading_read_path, artifact=docx.name, check="heading read")
             if heading_read_path.is_file()
             else ""
         )
@@ -445,6 +449,8 @@ def _rendered_records(text: str):
 
 
 def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
+    if record_unavailable(source.root / "rendered.md", source.docx.name):
+        return (), 0, 0
     fields: dict[str, str] = {}
     counts: dict[str, int] = {}
     header = ""
@@ -502,6 +508,15 @@ def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
 
 @completion_checks.dated_scan
 def survey(source: Source) -> Scan:
+    withheld = set()
+    for name, rows in (
+        ("claims.md", (CLAIM_LEDGER, UNTRACED_NUMBER, UNTRACED_CITATION,
+            heading_read.UNKNOWN_HEADING, heading_read.DROPPED_HEADING, heading_read.QUALIFIER_COUNT)),
+        ("heading-read.md", (*HEADING_READ_ROWS, UNTRACED_NUMBER)),
+        ("rendered.md", (RENDERED_RECORD,)),
+    ):
+        if record_unavailable(source.root / name, source.docx.name):
+            withheld.update(rows)
     markdown, references = _document_parts(source.paragraphs)
     document = reference_scan.read_document(markdown)
     reference_grade = reference_scan.survey(document, source.bar.signed, source.paper_language)
@@ -542,13 +557,15 @@ def survey(source: Source) -> Scan:
         )
     findings.extend(Finding(REFERENCE_DEFECT, finding.detail) for finding in reference_grade.findings)
     claim_keys, claim_numbers, claim_records = _claim_keys(source.claims)
-    if not claim_records:
+    claims_available = not record_unavailable(source.root / "claims.md", source.docx.name)
+    heading_available = not record_unavailable(source.root / "heading-read.md", source.docx.name)
+    if not claim_records and claims_available:
         findings.append(Finding(CLAIM_LEDGER, "claims.md has no CLAIM record"))
     artifact_numbers = set(traceable_numeric_values(body))
     own_figures = heading_read.own_figures(source.heading_read_text, source.docx.name)
     for number in sorted(own_figures - artifact_numbers):
         findings.append(Finding(heading_read.OWN_FIGURE_ABSENT, f"{number} is absent from the artifact's traced numbers"))
-    for number in sorted(artifact_numbers - claim_numbers - own_figures):
+    for number in sorted(artifact_numbers - claim_numbers - own_figures) if claims_available and heading_available else ():
         findings.append(Finding(UNTRACED_NUMBER, f"{number} has no claim record"))
     reference_key_set = ReferenceKeySet.from_references(references)
     cited = read_citations(body, reference_key_set)
@@ -556,7 +573,7 @@ def survey(source: Source) -> Scan:
     for citation, candidates in zip(
         cited, citation_occurrence_keys(cited, body, reference_key_set), strict=True
     ):
-        if not any(claim_key_set.resolves(candidate) for candidate in candidates):
+        if claims_available and not any(claim_key_set.resolves(candidate) for candidate in candidates):
             findings.append(
                 Finding(
                     UNTRACED_CITATION,
@@ -585,6 +602,7 @@ def survey(source: Source) -> Scan:
         reference_grade.paper_language,
         len(reference_grade.bare_number_candidates),
         reference_grade.citation_coverage,
+        withheld_rows=tuple(sorted(withheld)),
     )
 
 
@@ -608,10 +626,10 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         run_grader.format_unread_remainder(scan.unread),
         "",
     ]
-    lines.extend(
-        f"{row}: {sum(finding.kind == row for finding in scan.findings)}"
-        for row in ROWS
-    )
+    for row in ROWS:
+        count = sum(finding.kind == row for finding in scan.findings)
+        value = "not graded — damaged text" if not count and row in scan.withheld_rows else count
+        lines.append(f"{row}: {value}")
     if show:
         lines.extend(("", "findings:"))
         lines.extend(f"  {finding.kind}: {finding.detail}" for finding in scan.findings)

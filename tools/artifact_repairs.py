@@ -23,6 +23,7 @@ import worksheet_grammar as worksheet
 from run_grader import EvidenceDisposition
 from console_codec import use_utf8, require_python_floor
 from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report, collecting_errors
+from run_record_reader import DamagedRecord, damaged_record_result
 
 POPULATIONS = ("worksheet-codes", "entry-status", "differential-items",
                "differential-text", "note-codes")
@@ -44,6 +45,7 @@ DECLARED_LIMITS = (
     ("whether clinician acceptance was informed",
      "A verified whole reply does not establish the reading behind the acceptance.",
      EvidenceDisposition.DECLARED_READING),
+    ("handwritten scope damage", "Source scope and re-scope JSON use the shared C0 reader and refuse before retaining snapshots or rewriting the machine repair chain.", EvidenceDisposition.DECLARED_READING),
 )
 
 
@@ -52,7 +54,8 @@ def digest(path: Path) -> str:
 
 
 def read_json(path: Path) -> dict:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    from run_record_reader import read_handwritten_record
+    payload = read_handwritten_record(path, "json").require_json(force=True)
     if not isinstance(payload, dict):
         raise ValueError("record must be an object")
     return payload
@@ -432,6 +435,9 @@ def main(argv: list[str]) -> int:
             if args.show:
                 print(json.dumps(result, indent=2))
             return int(result["verdict"] != "pass")
+    except DamagedRecord as failure:
+        print(damaged_record_result(failure, check="the repair scope", force=True)[1])
+        return 1
     except UnreadableRecord as failure:
         print(fault_report(failure, check="the repair hash chain"))
         return 2

@@ -56,7 +56,6 @@ DECLARED_LIMITS = (
     ("unreadable-tool-record", "Existing decode faults and broken tool-rendered fields propagate through the shared reader; dependent checks are not graded, with incomplete coverage. Control-character damage remains a content finding and writers refuse before replacing evidence."),
     ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
     ("printable-write-damage-unseen", "The write preflight cannot detect damage that leaves only printable characters, such as a lost backslash."),
-    ("other-record-damage-unchecked", "The write preflight checks only project-context.md and the account registry, not other hand-written run records."),
     ("heredoc-route-ungraded", "The write preflight checks file contents, not whether a heredoc was used to write them."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
     ("course-history-completeness-unverified", "The gate cannot tell whether the declared course history is complete, because course codes in names are unreliable."),
@@ -1099,8 +1098,10 @@ def _write_record(run: Path, previous: str | None, *, service_payloads=None, sub
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
     try:
         return _completion_gate(run, submission)
-    except ContextDamage as failure:
-        return CompletionGate(True, False, str(failure))
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=submission,
+                                                force=failure.raw_damage and isinstance(failure, ContextDamage))
+        return CompletionGate(finding, False, report)
     except UnreadableRecord as failure:
         return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW) + "; draft order: not graded - context record unreadable")
 
@@ -1119,7 +1120,13 @@ def _completion_gate(run: Path, submission: str | None) -> CompletionGate:
             if not state.posted:
                 rows.append(_context_completion_gate(run, key))
                 continue
-            records = _go_ahead_records(run)
+            try:
+                records = _go_ahead_records(run)
+            except DamagedRecord as failure:
+                finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=key,
+                    force=failure.raw_damage and isinstance(failure, ContextDamage))
+                rows.append(CompletionGate(finding, False, report))
+                continue
             row = records.get(key)
             if row is None:
                 if state.check_required:
@@ -1144,6 +1151,10 @@ def _completion_gate(run: Path, submission: str | None) -> CompletionGate:
         return result
     try:
         observations = order_observations(run)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check="draft order", artifact=submission,
+            force=failure.raw_damage and isinstance(failure, ContextDamage))
+        return replace(result, finding=result.finding or finding, report=result.report + "; " + report)
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError):
@@ -1241,8 +1252,10 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
 def _context_completion_gate(run: Path, submission: str | None, *, recheck_files: bool = True, compare_memory_lines: bool = False) -> CompletionGate:
     try:
         return _grade_context(run, submission, recheck_files=recheck_files, compare_memory_lines=compare_memory_lines)
-    except ContextDamage as failure:
-        return CompletionGate(True, False, str(failure))
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=submission,
+            force=failure.raw_damage and isinstance(failure, ContextDamage))
+        return CompletionGate(finding, False, report)
     except UnreadableRecord as failure:
         return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW))
 
@@ -1302,7 +1315,7 @@ def _grade_context(run: Path, submission: str | None, *, recheck_files: bool = T
             f"{EXPECTED_ROW}: not scanned - project registry is unavailable",
         )
     try:
-        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(read_handwritten_record(registry_path).text)
+        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(read_handwritten_record(registry_path).require_text(artifact=submission))
         owed = _owed_places(registry, declaration, searches)
     except RegistryCoverage:
         return CompletionGate(

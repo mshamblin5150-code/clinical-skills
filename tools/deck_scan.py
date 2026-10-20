@@ -17,6 +17,7 @@ The shared APA reader's boundaries belong to ``reference_scan.DECLARED_LIMITS``.
 from __future__ import annotations
 
 from discussion_artifact import read_posted_reading_file
+from discussion_artifact import read_record_text, record_unavailable
 from discussion_artifact import posted_reading_unavailable
 
 from discussion_artifact import check_posted_reading
@@ -359,6 +360,7 @@ class Scan:
     reference_order_graded: bool = True
     reader_records_unread: int = 0
     image_answer_unread: int = 0
+    withheld_rows: tuple[str, ...] = ()
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -848,13 +850,15 @@ def load(
     if not deck.is_file():
         raise run_grader.SourceError(f"no PowerPoint file at {deck}")
     try:
-        bar_text = bar_path.read_text(encoding="utf-8")
+        from run_record_reader import read_handwritten_record
+        bar_text = read_handwritten_record(bar_path).require_text(artifact=deck.name)
         bar = _read_bar(bar_text, envelope)
-        claims = claims_path.read_text(encoding="utf-8")
+        claims = read_record_text(claims_path, kind=research_ledger.CLAIM_RECORD_KIND,
+                                  artifact=deck.name, check="claim record comparisons")
         deck_bytes = deck.read_bytes()
         heading_read_path = root / "heading-read.md"
         heading_read_text = (
-            heading_read_path.read_text(encoding="utf-8")
+            read_record_text(heading_read_path, artifact=deck.name, check="heading read")
             if heading_read_path.is_file()
             else ""
         )
@@ -881,10 +885,10 @@ def load(
     ) as failure:
         raise run_grader.SourceError(f"could not read the deck run: {failure}") from failure
     try:
-        rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
-        adversarial_text = adversarial_path.read_text(encoding="utf-8") if adversarial_path.is_file() else None
-        intent_text = intent_path.read_text(encoding="utf-8") if intent_path.is_file() else None
-        readings = read_posted_reading_file(reread_path)
+        rendered_text = read_record_text(rendered_path, artifact=deck.name, check="rendered record") if rendered_path.is_file() else None
+        adversarial_text = read_record_text(adversarial_path, artifact=deck.name, check="adversarial record") if adversarial_path.is_file() else None
+        intent_text = read_record_text(intent_path, artifact=deck.name, check="presentation intent") if intent_path.is_file() else None
+        readings = read_posted_reading_file(reread_path, artifact=deck.name)
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the terminal deck records: {failure}") from failure
     return Source(
@@ -918,10 +922,12 @@ POSTED_READING_KINDS = {
 def _submission_fingerprint_findings(source: Source, submission: str | None) -> tuple[Finding, ...]:
     if submission is None:
         return ()
+    if record_unavailable(source.root / "reread.md", submission):
+        return ()
     reading = next((item for item in source.readings if item.artifact == submission), None)
     return tuple(
         Finding(POSTED_READING_KINDS[item.code], None, item.message)
-        for item in check_posted_reading(reading, file_digest.sha256(source.deck))
+        for item in check_posted_reading(reading, file_digest.sha256(source.deck), run=source.root)
     )
 
 
@@ -976,6 +982,8 @@ def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
 def _rendered_grade(
     source: Source, submission: str | None
 ) -> RenderedAssessment:
+    if record_unavailable(source.root / "rendered.md", source.deck.name):
+        return RenderedAssessment((), 0, 0, 0, "rendered record: not graded — damaged text")
     records = _rendered_records(source.rendered_text or "")
     passes = render_pass.read_passes(source.root / "render")
     found: list[Finding] = []
@@ -1072,6 +1080,8 @@ def _rendered_grade(
 
 
 def _adversarial_findings(source: Source) -> tuple[Finding, ...]:
+    if record_unavailable(source.root / "adversarial.md", source.deck.name):
+        return ()
     records = _read_records(source.adversarial_text or "", ADVERSARIAL_HEADER, ADVERSARIAL_FIELD)
     passes = render_pass.read_passes(source.root / "render")
     found: list[Finding] = []
@@ -1125,7 +1135,7 @@ def _adversarial_findings(source: Source) -> tuple[Finding, ...]:
             found.append(Finding(ADVERSARIAL_RECORD, None, "highest-pass UNSEEN is not none"))
         if not re.fullmatch(r"(?is)clean[ \t]+-[ \t]+.+", record.value("VERDICT")):
             found.append(Finding(ADVERSARIAL_RECORD, None, "latest VERDICT is not clean with a reason"))
-        if record.value("CLAIMS") != file_digest.sha256(source.root / "claims.md"):
+        if not record_unavailable(source.root / "claims.md", source.deck.name) and record.value("CLAIMS") != file_digest.sha256(source.root / "claims.md"):
             found.append(Finding(ADVERSARIAL_RECORD, None, "CLAIMS does not match current claims.md"))
         if file_digest.recorded_sha256(passes[-1][1] / "deck.sha256") != file_digest.sha256(source.deck):
             found.append(Finding(ADVERSARIAL_RECORD, None, "highest retained pass does not match the deck bytes"))
@@ -1146,6 +1156,8 @@ def _slide_population(record: RenderedRecord, name: str) -> tuple[int, ...] | No
 
 
 def _presentation_intent_findings(source: Source) -> tuple[Finding, ...]:
+    if record_unavailable(source.root / "intent.md", source.deck.name):
+        return ()
     records = _presentation_intent_records(source)
     if len(records) != 1:
         return (
@@ -1220,6 +1232,11 @@ def _figures(text: str) -> set[str]:
 
 
 def _reference_document(source: Source) -> tuple[reference_scan.Document, int, tuple[Finding, ...]]:
+    if record_unavailable(source.root / "intent.md", source.deck.name):
+        from run_record_reader import handwritten_record_damage, damaged_record_result
+        damaged_record_result(handwritten_record_damage(source.root / "intent.md"),
+                              check="reference-slide population comparisons", artifact=source.deck.name)
+        return reference_scan.read_document(""), 0, ()
     records = _presentation_intent_records(source)
     population = (
         _slide_population(records[0], "REFERENCE-SLIDES")
@@ -1283,6 +1300,19 @@ def _claim_figures(text: str) -> tuple[set[str], set[str]]:
 
 @completion_checks.dated_scan
 def survey(source: Source) -> Scan:
+    withheld = set()
+    for name, rows in (
+        ("claims.md", (UNTRACED_FIGURE, heading_read.UNKNOWN_HEADING, heading_read.DROPPED_HEADING, heading_read.QUALIFIER_COUNT)),
+        ("heading-read.md", (*HEADING_READ_ROWS, UNTRACED_FIGURE)),
+        ("rendered.md", (RENDERED_RECORD,)),
+        ("adversarial.md", (ADVERSARIAL_RECORD,)),
+        ("intent.md", (PRESENTATION_INTENT_RECORD, *REFERENCE_ROWS.values())),
+        ("reread.md", tuple(POSTED_READING_KINDS.values())),
+    ):
+        if record_unavailable(source.root / name, source.deck.name):
+            withheld.update(rows)
+    if source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
+        withheld.add(SLIDE_COUNT)
     document, reference_unread, indent_findings = _reference_document(source)
     reference_grade = reference_scan.survey(document, source.signed, source.paper_language)
     heading = heading_read.scan(
@@ -1312,7 +1342,10 @@ def survey(source: Source) -> Scan:
     counted_slides: int | None = slide_limit_denominator
     slide_limit_matcher = "PowerPoint slide parts"
     slide_limit_unread = 0
-    if source.bar.slide_limit_scope == "content":
+    if source.bar.slide_limit_scope == "content" and record_unavailable(source.root / "intent.md", source.deck.name):
+        counted_slides = None
+        slide_limit_matcher = "not graded — damaged presentation intent"
+    if source.bar.slide_limit_scope == "content" and not record_unavailable(source.root / "intent.md", source.deck.name):
         slide_limit_matcher = "intent.md CONTENT-SLIDES"
         intent_records = _presentation_intent_records(source)
         content_population = (
@@ -1385,7 +1418,9 @@ def survey(source: Source) -> Scan:
     own_figures = heading_read.own_figures(source.heading_read_text, source.deck.name)
     for figure in sorted(own_figures - artifact_figures):
         findings.append(Finding(heading_read.OWN_FIGURE_ABSENT, None, f"{figure} is absent from the artifact's traced numbers"))
-    for figure in sorted(artifact_figures - recorded_figures - own_figures):
+    for figure in sorted(artifact_figures - recorded_figures - own_figures) if not (
+        record_unavailable(source.root / "claims.md", source.deck.name)
+        or record_unavailable(source.root / "heading-read.md", source.deck.name)) else ():
         detail = (
             f"{figure} appears only in a disbelieved claim record"
             if figure in mentioned_figures
@@ -1418,6 +1453,7 @@ def survey(source: Source) -> Scan:
         reference_grade.citation_coverage,
         reference_grade.paper_language,
         reference_grade.paper_language in reference_alphabets.TABLE["languages"],
+        withheld_rows=tuple(sorted(withheld)),
     )
 
 
@@ -1462,7 +1498,11 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         "",
     ]
     for row in ROWS:
-        count = run_grader.NOT_GRADED if row in POSTED_READING_KINDS.values() and posted_reading_unavailable() else sum(finding.kind == row for finding in scan.findings)
+        count = sum(finding.kind == row for finding in scan.findings)
+        if not count and row in scan.withheld_rows:
+            count = "not graded — damaged text"
+        elif row in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+            count = run_grader.NOT_GRADED
         lines.append(f"{row}: {count}")
     if show:
         lines += ["", "findings:"]

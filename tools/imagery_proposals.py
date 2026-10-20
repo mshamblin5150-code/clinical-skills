@@ -20,6 +20,7 @@ from typing import Mapping, TypeVar
 
 import repo_root
 import run_grader
+from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 
 RECORD_NAME = "imagery-proposals.json"
@@ -52,6 +53,7 @@ DECLARED_LIMITS = (
         "Whitespace-normalized equality binds approved and removed image text to the graded artifact; a semantically equivalent rewrite is a different image.",
     ),
     ("image answer scope", "A whole-message match proves who wrote the recorded reply after the declared shown-draft time, not that it answered the displayed image question. One unread transcript observation is counted once across all proposals."),
+    ("handwritten proposal damage", "The shared reader checks all proposal JSON strings and keys, including nested ruling and changed-image text; a damaged record withholds proposal-dependent checks while artifact working-marker checks continue."),
 )
 
 _STATUSES = frozenset(
@@ -156,12 +158,12 @@ def _domain_entries(body: str) -> set[str]:
     return entries
 
 
-def _read_records(run: Path) -> tuple[Proposal, ...]:
+def _read_records(run: Path, artifact: str | None = None) -> tuple[Proposal, ...]:
     path = run / RECORD_NAME
     if not path.is_file():
         return ()
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = read_handwritten_record(path, "json").require_json(artifact=artifact)
     except (OSError, UnicodeError, json.JSONDecodeError) as failure:
         raise RecordError("record is unreadable") from failure
     if not isinstance(payload, dict) or frozenset(payload) != {"proposals"}:
@@ -225,8 +227,16 @@ def completion_gate(
                         if completion_checks.active_for_item("imagery_proposals:image-stop", artifact)}
     if not terminal and not active_artifacts:
         return CompletionGate(False, False, f"{EXPECTED_ROW}: not graded - image stop predates check")
+    damage_reports = []
     try:
-        all_proposals = _read_records(run)
+        # A current or unknown member keeps this shared record's check active.
+        import run_record_reader
+        scope = next((name for name in artifacts if run_record_reader.handwritten_check_applies(name)), next(iter(artifacts), None))
+        all_proposals = _read_records(run, scope)
+    except DamagedRecord as failure:
+        _failed, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=scope)
+        damage_reports.append(report)
+        all_proposals = ()
     except RecordError as failure:
         return CompletionGate(
             True,
@@ -237,7 +247,7 @@ def completion_gate(
     proposals = tuple(
         proposal for proposal in all_proposals if proposal.artifact in artifacts
     )
-    findings: list[str] = []
+    findings: list[str] = list(damage_reports)
     transcript_unread = False
     transcripts = None
     known = set(artifacts) if known_artifacts is None else set(known_artifacts)
@@ -310,6 +320,8 @@ def completion_gate(
     counts = (
         f"proposed {len(proposals)}; approved {approved}; unresolved {unresolved}; changed since approval {changed}"
     )
+    if damage_reports:
+        counts = "proposal checks not graded — damaged text"
     detail = f"; finding - {'; '.join(findings)}" if findings else ""
     return CompletionGate(
         finding=bool(findings),
