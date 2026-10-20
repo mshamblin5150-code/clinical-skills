@@ -2182,7 +2182,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             shown = NOT_GRADED
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
-    lines.extend((run_grader.format_unread_remainder(scan.reader_unread), reader_remarks.report(scan.reader_remarks)))
+    lines.extend((run_grader.format_unread_remainder(scan.reader_unread + scan.local_documents_unread), reader_remarks.report(scan.reader_remarks)))
+    if scan.local_documents_unread:
+        lines.append(f"unread local documents: {scan.local_documents_unread}")
+    if scan.reader_unread:
+        lines.append(f"unread claim-reader lines: {scan.reader_unread}")
     lines.extend(f"unread reader record: CLAIM: {name}" for name in scan.unread_records)
     lines.append(f"  records at fault                 {scan.failing_records}")
     if scan.prescriptions is not None:
@@ -2382,8 +2386,6 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         kept_returns=tuple(kept_returns),
     )
     diagnostics: list[str] = []
-    if scan.local_documents_unread:
-        diagnostics.append(run_grader.format_unread_remainder(scan.local_documents_unread))
     if not source.records:
         diagnostics.append(f"no claim records found in {source.path.name}")
     if source.evidence_not_filed:

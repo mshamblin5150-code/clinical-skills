@@ -989,9 +989,10 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         text += "\n## HEADING-READ draft-without-a-colon.md\n"
         directory, path = in_a_file(text)
         with directory:
-            status, report, _ = run([str(path)])
+            status, report, error = run([str(path)])
         self.assertEqual(1, status)
-        self.assertIn("unread remainder 1", report.splitlines())
+        self.assertEqual(["unread remainder 1"],
+                         [line for line in (report + error).splitlines() if line.startswith("unread remainder ")])
         self.assertNotIn("unread-heading-read", report)
 
     def test_a_failing_record_exits_one(self):

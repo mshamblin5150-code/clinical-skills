@@ -1312,7 +1312,7 @@ def _grade(
         diagnostics=tuple(diagnostics),
         reports=(
             heading_read.protocol_coverage(source.claims_text, source.text, (source.document.name,), report_other_files=False),
-            heading_read.format_coverage(heading),
+            heading_read.format_coverage(heading, include_remainder=False),
             rendered_report,
             "the pre-review walks: shape only" if completion_checks.active(
                 "checks_ledger:" + PRE_REVIEW_WALKS, _first_draft_moment(source.text)
@@ -1321,12 +1321,14 @@ def _grade(
                 "checks_ledger:" + ROUTING_WALK, _first_draft_moment(source.text)
             ) else f"the routing walk: {NOT_GRADED} - first draft predates the check",
             reader_remarks.report(scan.reader_remarks),
-            run_grader.format_unread_remainder(scan.reader_unread),
+            *([f"unread check-reader lines: {scan.reader_unread}"] if scan.reader_unread else []),
             *(f"unread reader record: CHECK: {name}" for name in scan.unread_records),
             aar_report,
         ),
     )
-    grade = reader_remarks.apply_readers(grade, source.claims, (), (source.document.name,))
+    grade, reader_unread = reader_remarks.apply_readers(grade, source.claims, (), (source.document.name,))
+    grade = replace(grade, reports=grade.reports + (
+        run_grader.format_unread_remainder(heading.unread + scan.reader_unread + reader_unread),))
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path.parent, submission
     )

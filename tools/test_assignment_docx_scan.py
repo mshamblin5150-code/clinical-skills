@@ -468,8 +468,12 @@ class CitationReaderCoverage(unittest.TestCase):
                     with redirect_stdout(output), redirect_stderr(io.StringIO()):
                         status = scan.main([*case.argv, "--paper-language", "en", "--show"])
                     self.assertEqual(expected_status, status, output.getvalue())
-                    self.assertIn(f"unread remainder {remainder}", output.getvalue().splitlines())
-                    self.assertIn(f"  citation unread   {remainder}", output.getvalue().splitlines())
+                    self.assertEqual([f"unread remainder {remainder}"],
+                                     [line for line in output.getvalue().splitlines() if line.startswith("unread remainder ")])
+                    if remainder:
+                        self.assertIn(f"  citation unread   {remainder}", output.getvalue().splitlines())
+                    else:
+                        self.assertNotIn("  citation unread   0", output.getvalue().splitlines())
                     if not remainder:
                         self.assertIn("reference-defect: freud 2010", output.getvalue())
 

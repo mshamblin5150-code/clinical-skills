@@ -338,25 +338,27 @@ def unread_remainder_conformance(module: Any) -> type[unittest.TestCase]:
                     self.assertIsInstance(graded, run_grader.Grade)
                     remainder = case.unread_remainder(graded.scan)
                     self.assertGreater(remainder, 0)
-                    status, stdout, _stderr = self.run_command(case.argv)
+                    status, stdout, stderr = self.run_command(case.argv)
 
                     twin_parsed = run_grader.parse(module.GRADER, list(case.twin_argv))
                     twin_loaded = module.GRADER.load(twin_parsed)
                     twin = module.GRADER.grade(twin_loaded, twin_parsed)
                     self.assertIsInstance(twin, run_grader.Grade)
                     self.assertEqual(0, case.unread_remainder(twin.scan))
-                    twin_status, twin_stdout, _twin_stderr = self.run_command(
+                    twin_status, twin_stdout, twin_stderr = self.run_command(
                         case.twin_argv
                     )
 
             self.assertEqual(2, status)
-            self.assertTrue(any(
-                line == run_grader.format_unread_remainder(remainder)
-                or line.startswith(run_grader.format_unread_remainder(remainder) + " (")
-                for line in stdout.splitlines()
-            ))
+            remainder_lines = [line for line in (stdout + "\n" + stderr).splitlines()
+                               if line.startswith("unread remainder ")]
+            self.assertEqual(1, len(remainder_lines), remainder_lines)
+            self.assertTrue(remainder_lines[0] == run_grader.format_unread_remainder(remainder)
+                            or remainder_lines[0].startswith(run_grader.format_unread_remainder(remainder) + " ("))
             self.assertEqual(0, twin_status)
-            self.assertIn(run_grader.format_unread_remainder(0), twin_stdout.splitlines())
+            self.assertEqual([run_grader.format_unread_remainder(0)],
+                             [line for line in (twin_stdout + "\n" + twin_stderr).splitlines()
+                              if line.startswith("unread remainder ")])
 
         def test_a_finding_outranks_the_same_partial_read(self):
             provider = caller_globals.get("unread_remainder_input")

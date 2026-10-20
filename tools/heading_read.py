@@ -180,6 +180,7 @@ class Scan:
     remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
     other_files: int | None = None
+    unbound_unread: int = 0
 
 
 def read_records(text: str) -> tuple[Record, ...]:
@@ -418,7 +419,7 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     bound_records = tuple(r for r in records if r.artifact in expected)
     unread = max(0, population - read) + sum(r.unread for r in bound_records)
     remarks = tuple(reader_remarks.Remark(f"HEADING-READ: {r.artifact}", text) for r in bound_records for text in r.remarks)
-    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread), other_files)
+    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread), other_files, max(0, population - read))
 
 
 def _other_files(text: str, artifacts: set[str]) -> int:
@@ -434,12 +435,14 @@ def _format_other_files(count: int) -> str:
     return f"heading-read records for other files: {count}"
 
 
-def format_coverage(result: Scan) -> str:
+def format_coverage(result: Scan, *, include_remainder: bool = True) -> str:
     return "\n".join(line for line in
         (
             f"heading-read records: {result.records_read}",
             _format_other_files(result.other_files) if result.other_files is not None else "",
-            run_grader.format_unread_remainder(result.unread),
+            run_grader.format_unread_remainder(result.unread) if include_remainder else "",
+            f"unread heading-read headings: {result.unbound_unread}" if result.unbound_unread else "",
+            f"unread heading-read record lines: {result.unread - result.unbound_unread}" if result.unread > result.unbound_unread else "",
             *(f"unread reader record: HEADING-READ: {name}" for name in result.unread_records),
             reader_remarks.report(result.remarks),
         ) if line

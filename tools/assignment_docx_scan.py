@@ -185,10 +185,11 @@ class Scan:
     paper_language: str = "unspecified"
     bare_number_candidates: int = 0
     citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
+    reader_records_unread: int = 0
 
     @property
     def unread(self) -> int:
-        return self.heading_read_unread + self.citation_coverage.unread
+        return self.heading_read_unread + self.citation_coverage.unread + self.reader_records_unread
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -603,9 +604,8 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  rendered records  {scan.rendered_records}",
         f"  heading reads     {scan.heading_reads}",
-        f"  heading unread    {scan.heading_read_unread}",
         f"  citation candidates   {scan.citation_coverage.candidates}",
-        f"  citation unread   {scan.citation_coverage.unread}",
+        *([f"  citation unread   {scan.citation_coverage.unread}"] if scan.citation_coverage.unread else []),
         run_grader.format_unread_remainder(scan.unread),
         "",
     ]
@@ -640,7 +640,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         coverage_failed=(not source.paragraphs or bool(scan.unread)
                          or scan.paper_language not in reference_alphabets.TABLE["languages"]),
         diagnostics=("DOCX findings require review",) if scan.findings else (),
-        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.docx.name,)), heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.docx.name,)), gate_report, aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission
@@ -661,7 +661,8 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         else None,
     )
     grade = project_context.apply_completion_gate(grade, source.root, submission)
-    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered))
+    grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered), heading_unread=scan.heading_read_unread)
+    grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
     grade = lms_attachments.apply_completion_gate(grade, source.root, submission)
     return coursework_mechanics.apply_grade(
         grade, source.root,
