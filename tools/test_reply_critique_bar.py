@@ -30,7 +30,13 @@ class SignedReplyAndCritiqueBars(unittest.TestCase):
                 self.assertIn("SOURCE-CLASSES:", block)
                 self.assertIn("RECENCY-WINDOW-YEARS:", block)
                 self.assertIn("Show these lines beside", text[start:])
-                self.assertIn("only then", text[start:])
+                self.assertIn("tools/bar_signatures.py", text[start:])
+                self.assertIn(f"--skill {skill}", text[start:])
+                if skill == "discussion-reply":
+                    self.assertIn("Require exit 0 before research", text[start:])
+                    self.assertIn("the ranking signs nothing", text[start:])
+                else:
+                    self.assertIn("only then", text[start:])
                 listing = re.search(r"```text\nscratch/runs/.*?```", text, re.S).group()
                 self.assertIn("    bar.md\n", listing)
 

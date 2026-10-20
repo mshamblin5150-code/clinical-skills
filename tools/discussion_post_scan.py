@@ -1829,6 +1829,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     grade = lms_attachments.apply_completion_gate(grade, source.path, _parsed.value("--submission"))
     grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.draft.name,), source.rendered_readings, heading_unread=scanned.heading_read_unread)
     grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
+    import bar_signatures
+    grade = bar_signatures.apply_completion_gate(grade, source.path, "discussion-post", _parsed.value("--submission"))
     grade = approval_record.apply_completion_gate(
         grade, source.path, "discussion-post", _parsed.value("--submission")
     )

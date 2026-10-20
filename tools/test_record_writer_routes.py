@@ -59,8 +59,8 @@ EXCLUDED_MODULES = {
 # These raw writes are siblings under an owning operation, or separately governed
 # legacy transactions. Their actual mutable record writes use the shared seam.
 GUARDED_SIBLINGS = {
-    ('assignment_bar', '_replace'): 'Signed bar and rollback under canonical history transaction.',
-    ('assignment_bar', '_sign'): 'Exclusive new retained copy under canonical history transaction.',
+    ('bar_signatures', '_replace'): 'Signed bar and rollback under canonical history transaction.',
+    ('bar_signatures', '_sign'): 'Exclusive new retained copy under canonical history transaction.',
     ('case_video', 'transcribe'): 'Transcript artifact under parent-owned capture-directory lock.',
     ('case_video', 'main'): 'Private worker log under parent-owned capture-directory lock.',
     ('encounter_openers', 'atomic_write'): 'Encounter artifacts or account identity-map replacement under existing owner lock.',

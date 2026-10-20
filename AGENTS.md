@@ -174,6 +174,11 @@ the current dump to that accumulated manifest population and applies the signed 
 window, waived only by the account answer in the profile.
 
 **`course-assignment` depends on committed artifact adapters and graders.**
+`tools/bar_signatures.py` is the Required command for signing all five coursework skills' bars.
+It retains signed bytes and the whole clinician reply with its verification state; each completion grader and the
+research ledger refuse a current bar that differs from its latest signature. The assignment
+command remains its compatibility caller. The shared boundary belongs to
+`bar_signatures.DECLARED_LIMITS`.
 `tools/assignment_bar.py` is a Required command for signing its deck and DOCX bars. It binds
 the signed bytes to the whole clinician reply and retains each signed version; the bar-only grade,
 completion grade, and both submission gates refuse a changed or unrecorded current bar.

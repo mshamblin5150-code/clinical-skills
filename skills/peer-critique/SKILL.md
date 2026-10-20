@@ -44,7 +44,10 @@ RECENCY-WINDOW-YEARS: 5
 ```
 
 Show these lines beside the spec reading. The clinician's answer signs the bar; only then
-replace the blank `SIGNED:` value with the ISO date and begin research.
+run `python tools/bar_signatures.py <run-directory> --skill peer-critique --reply "<whole spec-reading answer>"`
+and require exit 0 before research. The command writes the date and retains the signed bytes.
+A later change shows the old and new wording of each changed line with its reason and waits
+for his new confirming reply before the same signing command runs again.
 
 When the clinician asks to cite his own unpublished work, apply
 [sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)

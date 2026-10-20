@@ -214,7 +214,7 @@ source-shape floor; aliases, intermediate variables and indirect I/O remain outs
 
 The shared boundary belongs to `run_record_reader.DECLARED_LIMITS`; the posted-record syntax belongs
 to `discussion_artifact.DECLARED_LIMITS`, approval joins to `approval_record.DECLARED_LIMITS`, and
-retained bar signatures to `assignment_bar.DECLARED_LIMITS`.
+retained bar signatures to `bar_signatures.DECLARED_LIMITS`.
 
 `run_record_reader.update_tool_record` owns mutable run-record transactions: the exclusive bounded
 lock covers the strict existing read, the caller's history-dependent change, and atomic replacement
@@ -1620,6 +1620,15 @@ prescribing credentials describe the role assigned by a case study's prescriptio
 Tests in `tools/test_clinical_credentials.py` exercise silence, persistence, and refusal.
 
 ### Course assignment artifact grading
+
+`bar_signatures.py` signs all five coursework bars with `--skill <skill-name>` and `--reply`
+carrying the whole clinician answer. Each grammar is checked before the shared mechanism writes
+`SIGNED:`, retains the signed version and records its digest and verified reply. The four additional
+skills' completion graders and the research ledger compare the bar with the latest signature;
+a reused post bar is checked, never re-signed by a reply ranking. `checks_ledger` also binds a
+case-study bar walk's `bar_sha256` to that latest signature. A pre-command hand-dated bar reports
+not graded through the completion-check registry. Changed lines are shown before re-signing;
+the reader-owned reach and current lock posture belong to `bar_signatures.DECLARED_LIMITS`.
 
 `assignment_bar.py` signs a deck or DOCX bar after clinician confirmation:
 `python tools/assignment_bar.py <run-directory> --reply "<whole confirming reply>"`.

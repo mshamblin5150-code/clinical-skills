@@ -107,8 +107,12 @@ RECENCY-WINDOW-YEARS: 5
 ```
 
 Show these lines beside the ranking, including when reusing the signed bar. The clinician's
-answer choosing the targets signs the new bar; only then replace the blank `SIGNED:` value
-with the ISO date and begin research.
+answer choosing the targets signs a fresh bar through
+`python tools/bar_signatures.py <run-directory> --skill discussion-reply --reply "<whole ranking answer>"`.
+Require exit 0 before research. For a reused post bar, the ranking signs nothing: call
+`bar_signatures.completion_gate(run, skill="discussion-reply")` and stop if it refuses.
+Changing either bar shows the old and new wording of every changed line with its reason and
+waits for his new confirming reply before the signing command runs again.
 
 Where a classmate's claim contradicts a reputable source, flag the contradiction every time. Do
 not draft an admonition or switch to an adversarial register unless the clinician asks for it; that

@@ -247,12 +247,13 @@ class BarSignatures(unittest.TestCase):
     def test_failed_signature_write_can_be_retried_without_losing_the_draft(self):
         self.draft(DOCX_BAR)
         original = self.bar.read_bytes()
-        replace = assignment_bar.os.replace
+        import bar_signatures
+        replace = bar_signatures.os.replace
         def fail_record(source, destination):
             if Path(destination).name == assignment_bar.RECORD:
                 raise OSError("record write failed")
             return replace(source, destination)
-        with mock.patch.object(assignment_bar.os, "replace", side_effect=fail_record):
+        with mock.patch.object(bar_signatures.os, "replace", side_effect=fail_record):
             with self.assertRaisesRegex(assignment_bar.UnreadableRecord, "could not be opened"):
                 self.sign()
         self.assertEqual(original, self.bar.read_bytes())

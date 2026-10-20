@@ -2232,6 +2232,8 @@ class Source:
     uptodate_details: tuple[uptodate_store.StoredTopic, ...] | None
     uptodate_recency_window_years: int
     uptodate_has_account: bool
+    bar_signature_report: str = ""
+    bar_signature_failed: bool = False
 
 
 UPTODATE_ACCOUNT = re.compile(
@@ -2256,6 +2258,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
     if not bar_path.is_file():
         raise run_grader.SourceError("the ledger run needs bar.md")
     bar = read_bar(bar_path.read_text(encoding="utf-8", errors="replace"))
+    import bar_signatures
+    signature_failed, signature_report = bar_signatures.completion_gate(path.parent)
     text = path.read_text(encoding="utf-8", errors="replace")
     records = tuple(read_records(text))
 
@@ -2345,6 +2349,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
         uptodate_details,
         uptodate_window,
         uptodate_has_account,
+        signature_report,
+        signature_failed,
     )
 
 
@@ -2448,7 +2454,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
                 " stored topic masthead. Re-run with --show to see which, and do not paste that output."
             )
     findings_failed = bool(
-        scan.failing_records
+        source.bar_signature_failed
+        or scan.failing_records
         or scan.prescriptions_at_fault
         or scan.draft_references_at_fault
         or scan.evidence_at_fault
@@ -2468,6 +2475,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=findings_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
+        reports=(source.bar_signature_report,) if source.bar_signature_report else (),
     )
 
 

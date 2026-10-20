@@ -1082,6 +1082,12 @@ def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
         try:
             record = json.loads((run / filename).read_text(encoding="utf-8"))
             entries = record["entries"]
+            if filename == "bar-walk.json":
+                import bar_signatures
+                digest = bar_signatures.latest_digest(run)
+                if digest is not None and completion_checks.active("checks_ledger:bar-walk-signature"):
+                    if record.get("bar_sha256") != digest:
+                        raise ValueError("bar walk does not match the latest signature")
             if filename == "emergency-walk.json":
                 sources = record["sources"]
                 if not isinstance(sources, list) or not sources or not all(_walk_text(s) for s in sources):
@@ -1110,7 +1116,7 @@ def pre_review_walks(run: Path, checks_text: str) -> list[Finding]:
                     "negative history", "result qualifier",
                 }:
                     raise ValueError("trace needs its stated kind")
-        except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError, run_grader.SourceError):
             found.append(Finding(PRE_REVIEW_WALKS, filename, "missing or malformed pre-review walk"))
     return found
 
@@ -1355,6 +1361,8 @@ def _grade(
         grade, source.path.parent, submission,
         {submission: source.document_bytes} if submission is not None else {},
     )
+    import bar_signatures
+    grade = bar_signatures.apply_completion_gate(grade, source.path.parent, "practicum-case-study", submission)
     return approval_record.apply_completion_gate(
         grade, source.path.parent, "practicum-case-study", submission
     )

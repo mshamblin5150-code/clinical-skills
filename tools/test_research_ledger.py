@@ -83,6 +83,7 @@ def ledger_text(*records: str, stamp: str = "2026-08-19") -> str:
 
 
 CLINICAL_BAR = """\
+SIGNED: 2000-01-01
 SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
 RECENCY-WINDOW-YEARS: 5
 UPTODATE-RECENCY-WINDOW-YEARS: 2
@@ -2343,7 +2344,7 @@ class TheSignedBarOwnsSourceClassesAndRecency(unittest.TestCase):
             root = Path(temp)
             claims = root / "claims.md"
             claims.write_text(ledger_text(record), encoding="utf-8")
-            (root / "bar.md").write_text(bar, encoding="utf-8")
+            (root / "bar.md").write_text("SIGNED: 2000-01-01\n" + bar, encoding="utf-8")
             stdout, stderr = io.StringIO(), io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 status = ledger.main([str(claims)])
