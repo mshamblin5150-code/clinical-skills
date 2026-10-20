@@ -206,6 +206,7 @@ def trusted_claim(*figures: str) -> str:
 BAR = """\
 ASSIGNMENT: https://example.test/assignment
 SIGNED: 2026-09-02
+PAPER-LANGUAGE: en
 ARTIFACT: deck
 SLIDE-MAX: 2
 SLIDE-LIMIT-SCOPE: all

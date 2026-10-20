@@ -48,7 +48,7 @@ def reference_slide(*entries, heading='References | Sources', boxes=None, **kwar
 def prepare(root, entries=(ENTRY,), *, body='A finding (Example Group, 2026).', notes=(), references=None, **kwargs):
     run = Run(root)
     bar = BAR.replace('SLIDE-MAX: 2', 'SLIDE-MAX: 20').replace('BULLETS-PER-SLIDE: 2', 'BULLETS-PER-SLIDE: 100').replace('WORDS-PER-BULLET: 6', 'WORDS-PER-BULLET: 200')
-    (root / 'bar.md').write_text(bar + 'PAPER-LANGUAGE: en\n', encoding='utf-8')
+    (root / 'bar.md').write_text(bar, encoding='utf-8')
     refs = references if references is not None else (reference_slide(*entries, **kwargs),)
     run.write_deck((slide_xml('Purpose', body), *refs), tuple(notes_xml(note) for note in notes))
     numbers = traceable_numeric_values(' '.join((*entries, body, *notes)))
@@ -270,6 +270,8 @@ class DeckReferenceCommand(unittest.TestCase):
             root = Path(temp)
             run = Run(root)
             run.write_deck((slide_xml('Purpose', 'A finding.'),))
+            bar = root / 'bar.md'
+            bar.write_text(bar.read_text(encoding='utf-8').replace('PAPER-LANGUAGE: en\n', ''), encoding='utf-8')
             profile = root / 'profile.md'
             profile.write_text('', encoding='utf-8')
             for options, language, status in (
