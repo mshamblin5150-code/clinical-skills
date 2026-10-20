@@ -1,0 +1,44 @@
+name: Clinical Skills serial audit diagnostic
+
+on:
+  push:
+    branches: [diagnostic/2013-ci-audit-20261020]
+    paths:
+      - .github/workflows/ci-audit-diagnostic.yml
+      - diagnostics/ci_audit_observer.py
+
+permissions:
+  contents: read
+
+jobs:
+  serial-audit:
+    if: github.run_attempt == 1
+    name: Unchanged serial audit, Python 3.14.4
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Read diagnostic observer
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: observer
+          persist-credentials: false
+          sparse-checkout: diagnostics/ci_audit_observer.py
+          sparse-checkout-cone-mode: false
+      - name: Read immutable measured source
+        uses: actions/checkout@v7
+        with:
+          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          path: measured
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+      - name: Qualify environment and measure one serial audit
+        shell: pwsh
+        run: |
+          python -u "$env:GITHUB_WORKSPACE/observer/diagnostics/ci_audit_observer.py" `
+            --repo "$env:GITHUB_WORKSPACE/measured" `
+            --output "$env:GITHUB_WORKSPACE/observer/scratch/sessions/ci-audit-$env:GITHUB_RUN_ID/serial"
+          exit $LASTEXITCODE
