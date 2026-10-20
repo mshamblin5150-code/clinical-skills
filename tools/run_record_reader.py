@@ -283,8 +283,11 @@ def _context_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
     counts = {}
     bodies = []
     for line in text.split("\n"):
-        name, separator, raw = line.partition(":")
-        if separator and name in {"ORDER-OBSERVATION", "GO-AHEAD", "MEMORY-LINES"}:
+        matched = re.fullmatch(r"([A-Z][A-Z-]*):[ \t]*(.*)", line.strip(), re.IGNORECASE)
+        if matched is None:
+            continue
+        name, raw = matched[1].upper(), matched[2]
+        if name in {"ORDER-OBSERVATION", "GO-AHEAD", "MEMORY-LINES"}:
             counts[name] = counts.get(name, 0) + 1
             bodies.append((f"{name}[{counts[name]}]", raw.rstrip("\r")))
     return tuple(bodies)

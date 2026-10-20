@@ -12,6 +12,18 @@ import completion_checks
 
 
 class HandwrittenRecords(unittest.TestCase):
+    def test_context_json_spans_follow_the_owners_case_and_space_grammar(self):
+        for name, body in (('go-ahead', '{"submission":"bad\\u0000key"}'),
+                           ('Order-Observation', '{"draft":"bad\\u0007text"}'),
+                           ('memory-lines', '["bad\\u000ctext"]')):
+            for padding in (' ', '  '):
+                with self.subTest(name=name, padding=len(padding)):
+                    source = f'{padding}{name}: {body}  \r\n'
+                    result = records.check_handwritten_text(source, self.path, 'project-context')
+                    with self.assertRaises(records.DamagedRecord):
+                        result.require_text(force=True)
+                    self.assertEqual(1, len(result.diagnostics))
+
     def test_existing_replacement_decoding_keeps_c0_validation(self):
         kind = records.HandwrittenKind('legacy-replacement', decode_errors='replace')
         self.path.write_bytes(b'FIELD: \xff\n')
