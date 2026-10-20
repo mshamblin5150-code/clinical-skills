@@ -2341,7 +2341,7 @@ def _grade_reversal_candidates(run: Path, submission: str, round_number: int,
         lines = tuple(line.strip() for line in supplied.text.splitlines() if line.strip())
         population = 0 if lines == ("none",) else len(lines)
     except ValueError as failure:
-        return (Finding("reversal-candidates", str(failure)),), "reversal candidates: not graded - missing or changed input"
+        return (Finding("reversal-candidates", str(failure)),), f"reversal candidates: {NOT_GRADED} - missing or changed input"
     expected = {str(number) for number in range(1, population + 1)}
     keys = [key for key, _ in review.candidate_answers]
     if set(keys) != expected or len(keys) != len(expected):
@@ -2403,7 +2403,7 @@ def _survey_round(
         reversal_findings, reversal_report = _grade_reversal_candidates(run, submission, round_number, review, entries)
         findings.extend(reversal_findings)
     else:
-        reversal_report = "reversal candidates and landing search: not graded - extract predates check"
+        reversal_report = f"reversal candidates and landing search: {NOT_GRADED} - extract predates check"
     memory_reports, memory_findings = _memory_index_grade(run, submission, round_number, extract_fields)
     findings.extend(memory_findings)
     later_sittings = (
