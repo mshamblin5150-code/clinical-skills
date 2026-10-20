@@ -458,10 +458,14 @@ which is also what catches a populated table whose rows lost a column.
   text a sheet is transcribed from carries the operator the document prints. **The gate
   stays**, because a sheet may be transcribed from a PDF opened by any reader on any
   machine, and it now takes its list from `guidelines_extract.SYMBOL_FONT_OPERATORS`
-  rather than holding a copy. Destructive C0 slots would be erased by Python before the value
-  gate could see them, so `threshold_sheet.parse` refuses those from the raw sheet,
-  preserves the sheet line, and directs an agent to verify the intended operator from
-  the rendered PDF page before writing its ASCII form. It never guesses the operator.
+  rather than holding a copy. The raw-sheet parser refuses every C0 character except
+  LF or CR immediately before LF, plus DEL and U+0080 to U+009F; tab is damage.
+  It reports every damaged line and exits 1. That sheet's other checks are
+  `not graded — damaged text`; other sheets are graded normally. U+001E and U+001F
+  retain the operator remedy: verify the rendered PDF page and write ASCII `<=` or
+  `>=`. For other controls, read the rendered page and write what it shows, usually
+  deleting the invisible byte; write an ASCII operator if the page shows one.
+  The recommendation reader keeps its source bytes so this refusal forces a visual read.
 - `snippet` is a short **verbatim** run from the source containing the value's number.
   It is not decoration; it is what makes the citation checkable on a machine that does
   not have the PDFs.

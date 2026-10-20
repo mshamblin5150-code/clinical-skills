@@ -13,6 +13,7 @@ from pathlib import Path
 
 import artifact_provenance
 import guidelines_manifest
+from run_record_reader import OUTBOUND_CONTROL_CHARACTERS, outbound_text_damage
 
 
 SCHEMA_MARKER = "<!-- schema: threshold-sheet/2 -->"
@@ -73,12 +74,13 @@ SECTION_HEADINGS = (
 # The eight columns of a threshold row, in order.
 ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "rec", "class")
 
-# Refuse the two C0 slots Python would erase as whitespace or a line break before
-# the parser can preserve their row and source location.
-FORBIDDEN_IN_RAW_TEXT = {
+# These operator slots retain their measured remedy; the wider raw-text refusal
+# shares ADR 0421's outbound set so Python cannot erase damage before parsing.
+OPERATOR_CONTROL_CHARACTERS = {
     "\u001e": "line splitting would erase it with its row",
     "\u001f": "cell trimming would erase it",
 }
+FORBIDDEN_IN_RAW_TEXT = OUTBOUND_CONTROL_CHARACTERS
 
 _ROW_PIPE = re.compile(r"^\s*\|(?P<body>.+)\|\s*$")
 
@@ -255,6 +257,7 @@ class Sheet:
     accepted_distrust_problems: tuple[str, ...] = ()
     ok: bool = True
     why_not: str | None = None
+    text_damage: tuple[str, ...] = ()
 
 def _cells(line: str) -> list[str] | None:
     """A Markdown table row as its cells, or None if the line is not one."""
@@ -278,21 +281,29 @@ def parse(text: str, path: Path) -> Sheet:
     a row fires on what opens a section, never on a mention inside one.
     """
     sheet = Sheet(path=path)
-    raw_findings = [
-        (offset, character, why)
-        for character, why in FORBIDDEN_IN_RAW_TEXT.items()
-        if (offset := text.find(character)) != -1
-    ]
+    raw_findings = outbound_text_damage(text)
     if raw_findings:
-        offset, character, why = min(raw_findings)
-        line = text.count("\n", 0, offset) + 1
+        findings = []
+        for line, character in raw_findings:
+            location = f"{path.name}:{line}: line {line}: U+{ord(character):04X}"
+            if character in OPERATOR_CONTROL_CHARACTERS:
+                remedy = (
+                    "a mis-encoded comparison operator that "
+                    f"{OPERATOR_CONTROL_CHARACTERS[character]}; render the cited PDF "
+                    "page (for example with PyMuPDF), visually verify the operator, "
+                    "and replace it with ASCII <= or >="
+                )
+            else:
+                remedy = (
+                    "a control character from the PDF text layer or a typing mistake; "
+                    "render the cited PDF page and write what it shows, usually "
+                    "deleting the character; if a comparison operator belongs there, "
+                    "write ASCII <= or >="
+                )
+            findings.append(f"{location}, {remedy}")
         sheet.ok = False
-        sheet.why_not = (
-            f"{path.name}:{line} contains U+{ord(character):04X}, a mis-encoded "
-            f"comparison operator that {why}; render the cited PDF page (for example "
-            "with PyMuPDF), visually verify the operator, and replace it with ASCII "
-            "<= or >="
-        )
+        sheet.text_damage = tuple(findings)
+        sheet.why_not = "\n".join(findings)
         return sheet
     if SCHEMA_MARKER not in text:
         sheet.ok = False

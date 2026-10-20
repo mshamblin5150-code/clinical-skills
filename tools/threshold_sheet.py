@@ -3053,7 +3053,17 @@ def survey(
             reportable=False,
         )
 
-    sheet = parse(sheet_path.read_text(encoding="utf-8"), sheet_path)
+    with sheet_path.open(encoding="utf-8", newline="") as source:
+        sheet = parse(source.read(), sheet_path)
+    if sheet.text_damage:
+        return Scan(
+            sheet,
+            status=1,
+            diagnostics=(
+                *_finding_lines(sheet.text_damage),
+                *_coverage_qualifier_lines(("  Other checks: not graded — damaged text",)),
+            ),
+        )
     if not sheet.ok:
         return Scan(
             sheet,
@@ -3459,10 +3469,11 @@ def _main(argv: list[str]) -> int:
         if not args.sheet.is_file():
             print(f"not a file: {args.sheet}", file=sys.stderr)
             return 2
-        sheet = parse(args.sheet.read_text(encoding="utf-8"), args.sheet)
+        with args.sheet.open(encoding="utf-8", newline="") as source:
+            sheet = parse(source.read(), args.sheet)
         if not sheet.ok:
             print(f"  NOT GRADED  {sheet.why_not}", file=sys.stderr)
-            return 2
+            return 1 if sheet.text_damage else 2
         if not args.span:
             parser.error("--brief needs --span <name>")
         try:

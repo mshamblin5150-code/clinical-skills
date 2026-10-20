@@ -716,8 +716,9 @@ class RawInputOperatorGate(unittest.TestCase):
     meaning automatically.
     """
 
-    def test_the_raw_gate_is_narrowly_the_destructive_slots(self):
-        self.assertEqual(set(gate.FORBIDDEN_IN_RAW_TEXT), {"\u001e", "\u001f"})
+    def test_the_raw_gate_uses_the_outbound_damage_set(self):
+        from run_record_reader import OUTBOUND_CONTROL_CHARACTERS
+        self.assertIs(gate.FORBIDDEN_IN_RAW_TEXT, OUTBOUND_CONTROL_CHARACTERS)
 
     def test_the_operator_is_refused_before_cell_trimming_can_eat_it(self):
         """The raw-input refusal preserves the sheet line that needs a visual read."""
@@ -4871,6 +4872,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets.mkdir(parents=True)
             for name in (
                 "threshold_grammar.py",
+                "run_record_reader.py",
                 "threshold_sheet.py",
                 "artifact_lock.py",
                 "artifact_provenance.py",
