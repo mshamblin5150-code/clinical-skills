@@ -1144,8 +1144,8 @@ def personal_authors(author_text: str) -> tuple[tuple[str, str], ...]:
         return ()
     pattern = (
         r"(?:^|,\s*(?:&\s*)?|\s+(?:&|and)\s+)\s*"
-        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-]|\s)*?),\s*"
-        r"(?P<initials>(?:[" + UPPER + r"](?:\.\s*|(?=$)))+)"
+        r"(?P<surname>" + LETTER + r"(?:" + LETTER + r"|['’.\-]|\s)*?),\s*"
+        r"(?P<initials>(?:" + LETTER + r"(?:\.\s*|(?=$)))+)"
     )
     return tuple(
         (match.group("surname").strip(), match.group("initials").strip())

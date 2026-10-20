@@ -49,6 +49,70 @@ from grader_conformance import (
 GraderConformance = for_module(scan)
 
 
+class LowercaseAuthors(unittest.TestCase):
+    ENTRY = "zentrova Labs. (2025). A label. https://example.org/label"
+
+    def findings_for(self, body, entry=ENTRY):
+        document = scan.read_document(draft(entry, body=body))
+        return scan.survey(document, date(2026, 10, 19), "en").findings
+
+    def test_a_listed_lowercase_group_resolves_in_parentheses_and_mid_sentence(self):
+        for body in ("A label applies (zentrova Labs, 2025).",
+                     "The label from zentrova Labs (2025) applies."):
+            with self.subTest(body=body):
+                self.assertEqual(self.findings_for(body), ())
+
+    def test_a_case_only_change_resolves_but_is_a_spelling_finding(self):
+        for body in ("A label applies (Zentrova Labs, 2025).",
+                     "The label from Zentrova Labs (2025) applies."):
+            with self.subTest(body=body):
+                self.assertEqual([f.kind for f in self.findings_for(body)],
+                                 [scan.CITATION_AUTHOR_SPELLING])
+
+    def test_a_lowercase_group_at_a_clear_sentence_start_is_flagged(self):
+        for body in ("zentrova Labs (2025) reports a label.",
+                     "A complete sentence. zentrova Labs (2025) reports a label.",
+                     "A complete sentence! zentrova Labs (2025) reports a label.",
+                     "A paragraph.\n\nzentrova Labs (2025) reports a label.",
+                     "- zentrova Labs (2025) reports a label.",
+                     "## zentrova Labs (2025)",
+                     "The label from zentrova Labs (2025) applies. "
+                     "zentrova Labs (2025) also reports a label."):
+            with self.subTest(body=body):
+                self.assertEqual([f.kind for f in self.findings_for(body)],
+                                 ["lowercase-group-sentence-opening"])
+
+    def test_abbreviation_and_soft_line_break_positions_stay_silent(self):
+        for body in ("See e.g. zentrova Labs (2025) for a label.",
+                     "See ibid. zentrova Labs (2025) for context.",
+                     "See Dr. zentrova Labs (2025) for a label.",
+                     "See the label from\nzentrova Labs (2025)."):
+            with self.subTest(body=body):
+                self.assertEqual(self.findings_for(body), ())
+
+    def test_a_listed_group_with_periods_resolves_in_both_forms(self):
+        entry = "e.l.f. Beauty. (2025). A label. https://example.org/label"
+        for body in ("The label from e.l.f. Beauty (2025) applies.",
+                     "A label applies (e.l.f. Beauty, 2025)."):
+            with self.subTest(body=body):
+                self.assertEqual(self.findings_for(body, entry), ())
+
+    def test_lowercase_people_keep_the_person_exception(self):
+        for author, citation in (("hooks, b.", "hooks"),
+                                 ("van der Waal, P. N.", "van der Waal")):
+            entry = f"{author} (2025). A book. Publisher."
+            for body in (f"{citation} (2025) reports a finding.",
+                         f"A finding ({citation}, 2025)."):
+                with self.subTest(author=author, body=body):
+                    self.assertEqual(self.findings_for(body, entry), ())
+
+    def test_a_clinical_lowercase_word_needs_a_listed_author(self):
+        body = "Range (systolic, 2000 to 3000) mL."
+        self.assertEqual([f.kind for f in self.findings_for(body)], [scan.UNCITED_ENTRY])
+        entry = "systolic. (2000). A label. https://example.org/label"
+        self.assertEqual(self.findings_for(body, entry), ())
+
+
 class BoldReferenceLabelCommand(unittest.TestCase):
     def test_a_label_is_a_line_boundary_without_surrounding_blank_lines(self):
         text = "A finding (Ross, 2025).\n**References**\nRoss, J. (2025). A topic. https://example.org/topic\n"
@@ -1366,7 +1430,6 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         cases = (
             ("sentence", "Alpha Group. Unit", "(Alpha Group. Unit, 2024)"),
             ("line", "Alpha Group", "(Alpha\nGroup, 2024)"),
-            ("lowercase", "Alpha Group", "(alpha group, 2024)"),
             ("inline code", "Alpha Group", "\x60(Alpha Group, 2024)\x60"),
             ("short key", "AI", "(AI, 2024)"),
         )
@@ -1927,6 +1990,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.ITALIC_IDENTIFIER: "An italic title ending in a recognizable identifier",
         scan.SITE_REPEATS_AUTHOR: "A site name repeating its group author",
         scan.CITATION_AUTHOR_SPELLING: "A citation spelling an author differently from the reference list",
+        scan.LOWERCASE_GROUP_SENTENCE_OPENING: "A lowercase group name opening a clear sentence",
         scan.HEADING_NOT_APA: "The reference list headed anything but",
         scan.ENTRY_NOT_A_PARAGRAPH: "An entry written as a bullet or a numbered item",
         scan.ENTRY_HAS_NO_YEAR: "An entry carrying no year element",
@@ -2097,6 +2161,8 @@ The ambiguous author is cited (Taylor, 2015). qxmarkerxq
 
 A work is cited (Kubler, 2025). qxmarkerxq
 
+zentrova Labs (2025) reports a label. qxmarkerxq
+
 The topic was read on *UpToDate* the same morning. qxmarkerxq
 
 Course material arrived with Links to an external site. attached. qxmarkerxq
@@ -2105,6 +2171,7 @@ Course material arrived with Links to an external site. attached. qxmarkerxq
 # One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
 # comment above each names the row it is there for.
 LEAKY_ENTRIES = (
+    "zentrova Labs. (2025). A label. https://example.org/label",
     "Patient rights, 42 C.F.R. § 482.13 (2024).",
     "Example Group. (2026). *Example report (Report No. 12345)* [PDF]. Example Group. https://example.org/report",
     "Example, A. (2026). Example article. *Journal, 17*(3), e12345. https://doi.org/10.1000/e12345",
@@ -2496,6 +2563,8 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "unlisted lowercase author": self.unlisted_lowercase_author,
+            "ambiguous lowercase-group sentence opening": self.ambiguous_lowercase_group_opening,
             "all-digit journal number absent from its DOI": self.bare_number,
             "file-format word outside the closed list": self.unlisted_format,
             "short bare identifier code": self.short_identifier,
@@ -2527,6 +2596,17 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def unlisted_lowercase_author(self):
+        result = kinds(draft("Ross, J. (2025). A book. Publisher.",
+                             body="A finding (unlistedgroup, 2025)."))
+        self.assertNotIn(scan.UNLISTED_CITATION, result)
+        self.assertIn(scan.UNCITED_ENTRY, result)
+
+    def ambiguous_lowercase_group_opening(self):
+        result = kinds(draft(LowercaseAuthors.ENTRY,
+                             body="See e.g. zentrova Labs (2025) for a label."))
+        self.assertEqual(result, [])
 
     def bare_number(self):
         entry = "Example, A. (2026). Study. *Journal, 17*(3), 245. https://doi.org/10.1000/example"
