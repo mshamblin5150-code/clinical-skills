@@ -156,7 +156,7 @@ program reported a 12% improvement when evening hours and transit support were
 offered together (Quill, 2024, p. 6). The result does not prove that one design
 fits every community, but it does show why a building count is an incomplete
 measure. In policy terms, the regulation provides a useful legal context
-(Patient Rights, 2024) without settling whether a particular delivery model works. The practical test
+(Patient rights, 2024) without settling whether a particular delivery model works. The practical test
 is completed care, not nominal availability, because the outcome belongs at the
 point where a patient can use what the system says it offers.
 
@@ -916,7 +916,7 @@ class ACompletePostPasses(unittest.TestCase):
             (run.root / "claims.md").write_text(claims, encoding="utf-8")
             run.draft.write_text(
                 BODY.replace("(Quill, 2024, p. 6)", "(Taylor, 2015; Taylor, 2016)")
-                .replace("(Patient Rights, 2024)", "")
+                .replace("(Patient rights, 2024)", "")
                 .replace(original, first + "\n\n" + second),
                 encoding="utf-8",
             )
@@ -939,7 +939,7 @@ class ACompletePostPasses(unittest.TestCase):
                     claims = claims.replace("Patient rights, 42 C.F.R. § 482.13 (2024).", second)
                 (run.root / "claims.md").write_text(claims, encoding="utf-8")
                 body = BODY.replace("(Quill, 2024, p. 6)", "(Taylor, 2015)")
-                body = body.replace("(Patient Rights, 2024)", "")
+                body = body.replace("(Patient rights, 2024)", "")
                 body = body.replace(original, first + ("\n\n" + second if second_in_list else ""))
                 run.draft.write_text(body, encoding="utf-8")
                 _status, output, _stderr = run.grade()
@@ -968,7 +968,7 @@ class ACompletePostPasses(unittest.TestCase):
                 claims = claims.replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2015")
                 (run.root / "claims.md").write_text(claims, encoding="utf-8")
                 body = BODY.replace("(Quill, 2024, p. 6)", cited)
-                body = body.replace("(Patient Rights, 2024)", "")
+                body = body.replace("(Patient rights, 2024)", "")
                 body = body.replace(
                     "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
                     first + "\n\n" + second,
