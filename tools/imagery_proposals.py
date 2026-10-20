@@ -20,6 +20,7 @@ from typing import Mapping, TypeVar
 
 import repo_root
 import run_grader
+from voice_model_observation import ModelObservation
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 
 
@@ -62,7 +63,7 @@ _STATUSES = frozenset(
 _RECORD_KEYS = frozenset(
     {"key", "artifact", "image", "domain", "behavior", "status"}
 )
-_OPTIONAL_KEYS = frozenset({"ruling", "changed_image"})
+_OPTIONAL_KEYS = frozenset({"ruling", "changed_image", "central_point"})
 _DOMAINS = re.compile(
     r"^## Imagery\s*$.*?^### The domains\s*$\n(?P<body>.*?)(?=^### |^## |\Z)",
     re.MULTILINE | re.DOTALL,
@@ -87,6 +88,7 @@ class Proposal:
     status: str
     ruling: dict | None = None
     changed_image: str | None = None
+    central_point: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,8 @@ class CompletionGate:
     coverage: bool
     report: str
     unread: int = 0
+    approved_points: frozenset[tuple[str, str]] = frozenset()
+    model_unread: int = 0
 
 
 def _normalized(value: str) -> str:
@@ -180,6 +184,8 @@ def _read_records(run: Path, artifact: str | None = None) -> tuple[Proposal, ...
             raise RecordError(f"proposal {index} has an empty field")
         if row["status"] not in _STATUSES:
             raise RecordError(f"proposal {index} has an unknown status")
+        if "central_point" in row and (not isinstance(row["central_point"], str) or not row["central_point"].strip()):
+            raise RecordError(f"proposal {index} has an invalid central point")
         if "changed_image" in row and (not isinstance(row["changed_image"], str) or row["status"] != "proposed-and-approved"):
             raise RecordError(f"proposal {index} has an invalid image change")
         if "ruling" in row:
@@ -212,6 +218,7 @@ def completion_gate(
     partial: bool = False,
     known_artifacts: set[str] | frozenset[str] | None = None,
     terminal: bool = True,
+    model: ModelObservation | None = None,
 ) -> CompletionGate:
     """Grade proposal records against terminal artifact text and the canonical model."""
     frozen = completion_checks.exemption(run, ",".join(artifacts) if artifacts is not None else None, "imagery_proposals", EXPECTED_ROW) if terminal else None
@@ -250,6 +257,8 @@ def completion_gate(
     findings: list[str] = list(damage_reports)
     transcript_unread = False
     transcripts = None
+    approved_points: set[tuple[str, str]] = set()
+    model_unread = 0
     known = set(artifacts) if known_artifacts is None else set(known_artifacts)
     for proposal in all_proposals:
         if proposal.artifact not in known:
@@ -268,16 +277,21 @@ def completion_gate(
     model_text: str | None = None
     if proposals:
         try:
-            resolved = repo_root.canonical_voice_model()
-            if not resolved.exists:
+            resolved = repo_root.canonical_voice_model() if model is None else model
+            if model is not None and model.text is None and not model.absent:
+                return CompletionGate(bool(findings), True,
+                    f"{EXPECTED_ROW}: not scanned - canonical model imagery is unreadable", model_unread=1)
+            if (model is None and not resolved.exists) or (model is not None and model.absent):
                 findings.append("the canonical model is absent")
+                model_unread = 1
             else:
-                model_text = resolved.path.read_text(encoding="utf-8")
+                model_text = resolved.path.read_text(encoding="utf-8") if model is None else model.text
         except (OSError, UnicodeError):
             return CompletionGate(
                 bool(findings),
                 True,
                 f"{EXPECTED_ROW}: not scanned - canonical model imagery is unreadable",
+                model_unread=1,
             )
 
     for proposal in proposals:
@@ -311,6 +325,9 @@ def completion_gate(
                     transcript_unread = True
                 elif verification.state != "verified" or abs(verification.matched_at - reply_at.timestamp()) > 0.000001:
                     findings.append(f"{proposal.key} clinician image answer was not found at its recorded time")
+                elif (proposal.status == "proposed-and-approved" and proposal.changed_image is None
+                      and image_present and proposal.central_point is not None):
+                    approved_points.add((proposal.artifact, proposal.central_point))
 
     approved = sum(
         proposal.status == "proposed-and-approved" for proposal in proposals
@@ -328,6 +345,8 @@ def completion_gate(
         coverage=transcript_unread,
         report=f"{EXPECTED_ROW}: {counts}{detail}" + ("\nthe image answer: not verified - transcript unreadable\nunread image-answer transcript observations: 1" if transcript_unread else ""),
         unread=int(transcript_unread),
+        approved_points=frozenset(approved_points),
+        model_unread=model_unread,
     )
 
 
@@ -340,14 +359,17 @@ def apply_completion_gate(
     known_artifacts: set[str] | frozenset[str] | None = None,
     terminal: bool = True,
     coverage_limb: str | None = None,
+    model: ModelObservation | None = None,
+    result: CompletionGate | None = None,
 ) -> run_grader.Grade[TScan]:
     """Add the shared proposal row to an existing completion grade."""
-    result = completion_gate(
+    result = result if result is not None else completion_gate(
         run,
         artifacts,
         partial=partial,
         known_artifacts=known_artifacts,
         terminal=terminal,
+        model=model,
     )
     return replace(
         grade,

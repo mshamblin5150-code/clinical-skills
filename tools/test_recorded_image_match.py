@@ -2,12 +2,23 @@
 # phi-scan: synthetic
 import artifact_lock_test_support
 import hashlib
+import contextlib
+from datetime import datetime, timedelta, timezone
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+from dataclasses import dataclass
 
 import repo_root
 import voice_model_observation as models
+import recorded_image_match as match
+import completion_checks
+import run_grader
+import voice_read
+import test_voice_read as voice_fixture
 
 
 MODEL = '''## Imagery
@@ -23,6 +34,26 @@ MODEL = '''## Imagery
 
 
 class RecordedImagery(unittest.TestCase):
+    def test_independent_quote_starts_expose_zero_and_partial_extraction(self):
+        source = MODEL + '\n"An unfinished synthetic image\n'
+        result = models.read_images(source)
+        self.assertEqual((result.candidates, result.unread), (3, 1))
+        with mock.patch.object(models, "_QUOTED") as extractor:
+            extractor.finditer.return_value = ()
+            result = models.read_images(MODEL)
+        self.assertEqual((result.candidates, result.unread), (2, 2))
+        original = models._QUOTED
+        with mock.patch.object(models, "_QUOTED") as extractor:
+            extractor.finditer.side_effect = lambda body: tuple(original.finditer(body))[:0] if "bridge" in body else original.finditer(body)
+            result = models.read_images(MODEL)
+        self.assertEqual((result.candidates, result.unread), (2, 1))
+
+    def test_empty_and_separate_blockquotes_are_observed(self):
+        result = models.read_images(MODEL + '\n>\n\n> A separate complete synthetic image.\n')
+        self.assertEqual((result.candidates, result.unread), (4, 1))
+        self.assertEqual(models.read_images(MODEL.replace('\n', '\r\n')).images, models.read_images(MODEL).images)
+        quoted = MODEL.replace("> The synthetic wheel carries the load.", '> "The synthetic wheel carries the load."')
+        self.assertEqual(models.read_images(quoted).images, models.read_images(MODEL).images)
     def test_population_is_derived_without_a_match_record(self):
         result = models.read_images(MODEL)
         self.assertEqual(result.candidates, 2)
@@ -53,3 +84,161 @@ class RecordedImagery(unittest.TestCase):
             self.assertEqual(unread.unread, 1)
             self.assertIsNone(unread.text)
             self.assertEqual(models.observe(repo_root.VoiceModelResolution(path, None, False)).unread, 1)
+
+
+class MatchRecord(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.run = Path(self.directory.name)
+        self.model = self.run / "synthetic-model.md"
+        self.model.write_text(MODEL, encoding="utf-8")
+        self.resolution = repo_root.VoiceModelResolution(self.model, hashlib.sha256(self.model.read_bytes()).hexdigest(), True)
+        self.patch = mock.patch.object(repo_root, "canonical_voice_model", return_value=self.resolution)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.freeze = mock.patch("frozen_grade.all_reports", return_value=None)
+        self.freeze.start()
+        self.addCleanup(self.freeze.stop)
+
+    def write(self, image=None, reason="No recorded image fits the synthetic point."):
+        (self.run / match.RECORD_NAME).write_text(json.dumps({"matches": {"draft.md": {"central_point": "A bounded synthetic point.", "image": image, "reason": reason}}}), encoding="utf-8")
+
+    def command(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = match.main([str(self.run), "--artifact", "draft.md"])
+        return status, output.getvalue()
+
+    def test_native_before_drafting_missing_clean_and_named_image_twins(self):
+        self.assertEqual(self.command()[0], 1)
+        self.write()
+        self.assertEqual(self.command()[0], 0)
+        self.write("The synthetic wheel carries the load.")
+        self.assertEqual(self.command()[0], 0)
+        self.write("An image not in the model.")
+        self.assertEqual(self.command()[0], 1)
+
+    def test_terminal_model_and_artifact_membership_are_separate(self):
+        image = "The synthetic wheel carries the load."
+        self.write(image)
+        self.assertFalse(match.completion_gate(self.run, {"draft.md": image}).finding)
+        absent = match.completion_gate(self.run, {"draft.md": "No image here."})
+        self.assertTrue(absent.finding)
+        self.assertIn("finished artifact", absent.report)
+        # A clinician removal is carried into the handwritten match, not grandfathered.
+        self.write(None, "The clinician removed the matched image.")
+        self.assertFalse(match.completion_gate(self.run, {"draft.md": "No image here."}).finding)
+
+    def test_force_and_per_item_boundary_preserve_the_old_record(self):
+        self.write()
+        path = self.run / match.RECORD_NAME
+        raw = path.read_bytes() + b"\x07"
+        path.write_bytes(raw)
+        boundary = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        for moment, expected in ((boundary - timedelta(microseconds=1), False), (boundary, True), (None, True)):
+            token = completion_checks.ITEM_MOMENTS.set({"draft.md": moment})
+            try:
+                result = match.completion_gate(self.run, {"draft.md": "Synthetic draft."})
+                self.assertEqual(result.finding, expected)
+                self.assertEqual(self.command()[0], 1)
+            finally:
+                completion_checks.ITEM_MOMENTS.reset(token)
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_model_failure_is_one_member_and_independent_missing_record_stays_finding(self):
+        self.model.write_bytes(b"\xff")
+        result = match.completion_gate(self.run, {"draft.md": "Synthetic draft."})
+        self.assertTrue(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertEqual(result.model_unread, 1)
+        self.write()
+        self.assertEqual(self.command()[0], 2)
+
+    def test_unknown_member_cannot_inherit_an_old_global_or_sibling(self):
+        boundary = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        old = boundary - timedelta(microseconds=1)
+        for items in ({}, {"other.md": old}):
+            global_token = completion_checks.MOMENTS.set({"approval": old})
+            item_token = completion_checks.ITEM_MOMENTS.set(items)
+            try:
+                self.assertTrue(match.completion_gate(self.run, {"draft.md": "Synthetic draft."}).finding)
+            finally:
+                completion_checks.ITEM_MOMENTS.reset(item_token)
+                completion_checks.MOMENTS.reset(global_token)
+
+
+@dataclass(frozen=True)
+class GateScan:
+    image_answer_unread: int = 0
+    model_unread: int = 0
+
+
+class ComposedVoice(unittest.TestCase):
+    def setUp(self):
+        self.fixture = voice_fixture.CompletionGate(methodName="runTest")
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.run = self.fixture.run
+        source = voice_fixture.MODEL + "\n" + MODEL
+        self.fixture.model.write_text(source, encoding="utf-8")
+        digest = hashlib.sha256(self.fixture.model.read_bytes()).hexdigest()
+        self.resolved = repo_root.VoiceModelResolution(self.fixture.model, digest, True)
+        identity = self.run / "voice-model-identity.json"
+        value = json.loads(identity.read_text(encoding="utf-8"))
+        value["sha256"] = digest
+        identity.write_text(json.dumps(value), encoding="utf-8")
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        reader["model_sha256"] = digest
+        reader["unused_recorded_image"] = {"central_point": "Synthetic point.", "image": None, "reason": "No unused recorded image fits."}
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        (self.run / match.RECORD_NAME).write_text(json.dumps({"matches": {"submission": {"central_point": "Synthetic point.", "image": None, "reason": "No recorded image fits."}}}), encoding="utf-8")
+        self.resolver = mock.patch.object(repo_root, "canonical_voice_model", return_value=self.resolved)
+        self.resolver.start()
+        self.addCleanup(self.resolver.stop)
+        self.frozen = mock.patch("frozen_grade.all_reports", return_value=None)
+        self.frozen.start()
+        self.addCleanup(self.frozen.stop)
+
+    def grade(self, finding=False):
+        surface = voice_read.DraftSurface(voice_fixture.digest(self.fixture.draft), self.fixture.draft, self.fixture.draft)
+        return match.apply_coursework_gates(run_grader.Grade(GateScan(), "synthetic", findings_failed=finding), self.run,
+            "submission", surface, {"submission": self.fixture.draft})
+
+    def test_native_voice_question_and_original_populations_remain_independent(self):
+        self.assertFalse(self.grade().findings_failed)
+        self.assertFalse(self.grade().coverage_failed)
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        reader["unused_recorded_image"]["image"] = "The synthetic wheel carries the load."
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        self.assertTrue(self.grade().findings_failed)
+        # Missing the plant still fails even if the new question says no image fits.
+        reader["unused_recorded_image"]["image"] = None
+        reader["suspected_plant_quote"] = "A wrong synthetic sentence."
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        self.assertTrue(self.grade().findings_failed)
+
+    def test_unreadable_model_is_one_member_and_does_not_hide_prior_findings(self):
+        self.fixture.model.write_bytes(b"\xff")
+        grade = self.grade(finding=True)
+        self.assertTrue(grade.findings_failed)
+        self.assertTrue(grade.coverage_failed)
+        self.assertEqual(grade.scan.model_unread, 1)
+        self.assertEqual(grade.scan.image_answer_unread, 0)
+
+    def test_same_point_approval_skips_only_the_new_question(self):
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        del reader["unused_recorded_image"]
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        surface = voice_read.DraftSurface(voice_fixture.digest(self.fixture.draft), self.fixture.draft, self.fixture.draft)
+        same = voice_read.completion_gate(self.run, "submission", surface,
+            approved_points=frozenset({("submission", "Synthetic point.")}))
+        self.assertFalse(same.finding)
+        self.assertFalse(same.coverage)
+        other = voice_read.completion_gate(self.run, "submission", surface,
+            approved_points=frozenset({("submission", "An unrelated point.")}))
+        self.assertTrue(other.coverage)
+        reader["suspected_plant_quote"] = "A wrong synthetic sentence."
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        self.assertTrue(voice_read.completion_gate(self.run, "submission", surface,
+            approved_points=frozenset({("submission", "Synthetic point.")})).finding)

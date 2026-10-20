@@ -18,6 +18,29 @@ _SECTION = re.compile(r"^## Imagery[ \t]*\r?$\n(?P<body>.*?)(?=^## |\Z)", re.MUL
 _QUOTED = re.compile(r'(?P<block>(?:^[ \t]*>[ \t]?.*(?:\n|$))+)|["“](?P<inline>[^"”\n]+)["”]', re.MULTILINE)
 
 
+def _candidate_count(body: str) -> int:
+    """Count quote starts independently of the extractor's accepted matches."""
+    count = 0
+    in_block = False
+    for line in body.splitlines():
+        block = line.lstrip(" \t").startswith(">")
+        if block:
+            if not in_block:
+                count += 1
+            in_block = True
+            continue
+        in_block = False
+        closing = None
+        for character in line:
+            if closing is not None:
+                if character == closing:
+                    closing = None
+            elif character in ('"', '“'):
+                count += 1
+                closing = '”' if character == '“' else '"'
+    return count
+
+
 @dataclass(frozen=True)
 class ImagePopulation:
     images: tuple[str, ...]
@@ -28,7 +51,7 @@ class ImagePopulation:
 
 @dataclass(frozen=True)
 class ModelObservation:
-    path: Path
+    path: Path | None
     sha256: str | None
     text: str | None
     imagery: ImagePopulation
@@ -55,13 +78,19 @@ def read_images(text: str) -> ImagePopulation:
             missing = True
             unread += len(parts)
             continue
-        entries = tuple(_QUOTED.finditer(parts[0].group("body")))
-        candidates += len(entries)
+        part_body = parts[0].group("body")
+        entries = tuple(_QUOTED.finditer(part_body))
+        owed = _candidate_count(part_body)
+        candidates += owed
+        unread += max(0, owed - len(entries))
         if not entries:
             missing = True
         for entry in entries:
             block = entry.group("block")
             value = "\n".join(re.sub(r"^[ \t]*>[ \t]?", "", line).rstrip("\r") for line in block.splitlines()) if block is not None else entry.group("inline")
+            value = value.strip()
+            if len(value) >= 2 and (value[0], value[-1]) in {('"', '"'), ('“', '”')}:
+                value = value[1:-1].strip()
             if value.strip():
                 images.append(value.strip())
             else:
@@ -71,7 +100,10 @@ def read_images(text: str) -> ImagePopulation:
 
 def observe(resolution: repo_root.VoiceModelResolution | None = None) -> ModelObservation:
     """Read only the resolved canonical model, never infer a second model path."""
-    resolved = resolution if resolution is not None else repo_root.canonical_voice_model()
+    try:
+        resolved = resolution if resolution is not None else repo_root.canonical_voice_model()
+    except (OSError, UnicodeError):
+        return ModelObservation(None, None, None, ImagePopulation((), 0, 0, True))
     if not resolved.exists:
         return ModelObservation(resolved.path, None, None, ImagePopulation((), 0, 0, True), True)
     try:
