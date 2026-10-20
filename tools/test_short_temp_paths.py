@@ -21,6 +21,22 @@ class ShortTempPathRefusals(unittest.TestCase):
             "test_guidelines_walks.CorpusWalkTests.test_manifest_never_reads_a_document_through_a_linked_society",
             "test_guidelines_walks.CorpusWalkTests.test_public_refusers_exit_two_for_an_unlisted_society",
             "test_guidelines_walks.CorpusWalkTests.test_public_refusers_exit_two_for_native_directory_denial",
+            "test_tool_record_aar.ToolWrittenAarRecords.test_unopenable_existing_records_have_the_same_public_failure",
+            "test_tool_record_context.ToolRecords.test_context_writer_reports_shared_open_failure_before_parsing",
+            "test_record_writer_commands.NativeWriterTransactions.test_opener_directory_failure_is_safe_and_preserves_prior_record",
+            "test_record_writer_commands.NativeWriterTransactions.test_opener_record_and_answer_commands_share_the_transaction",
+            "test_record_writer_commands.NativeWriterTransactions.test_signer_command_retains_history_bar_and_copies_after_both_refusals",
+            "test_record_writer_commands.NativeWriterTransactions.test_signer_native_copy_failure_and_collision_are_safe_and_preserve_prior_evidence",
+            "test_tool_record_writers_aar.WriterTransactions.test_each_native_aar_writer_refuses_held_and_interrupted_record_publication",
+            "test_tool_record_writers_aar.WriterTransactions.test_extract_directory_failure_is_safe_and_preserves_prior_round",
+            "test_tool_record_writers_aar.WriterTransactions.test_native_rebuild_sanitizes_archive_publication_failure",
+            "test_tool_record_writers_approval.ApprovalFamilyWriters.test_pre_replace_failure_keeps_every_native_record_and_removes_partial",
+            "test_tool_record_writers_approval.ApprovalFamilyWriters.test_prepare_directory_failure_is_classified_and_preserves_receipt",
+            "test_tool_record_writers_context.ContextWriters.test_machine_directory_failures_are_safe_and_preserve_evidence",
+            "test_bar_signatures.SharedBarSigning.test_native_success_keeps_another_creators_reused_temporary_name",
+            "test_bar_signatures.SharedBarSigning.test_shared_signer_native_refusals_preserve_each_new_skill_history",
+            "test_approval_record.ApprovalRecordContract.test_note_approval_checks_every_source_before_recording",
+            "test_visit_times.PublicCommands",
         )
         with tempfile.TemporaryDirectory(prefix="clinical skills temp alias ") as temporary:
             long_root = Path(temporary).resolve()

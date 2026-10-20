@@ -172,7 +172,7 @@ class BarSignatures(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.run = Path(self.temp.name)
+        self.run = Path(self.temp.name).resolve()
         self.bar = self.run / "bar.md"
         self.messages = []
         self.transcripts = mock.patch.object(approval_record, "_main_transcripts",
