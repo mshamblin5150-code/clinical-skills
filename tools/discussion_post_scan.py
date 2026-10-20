@@ -60,6 +60,9 @@ from discussion_artifact import (
     claim_record_can_certify_values,
     invoked_source_has_substance,
     legal_reference_lacks_name,
+    LEGAL_CITATION_SECTION_FORM,
+    legal_section_citation,
+    legal_section_detail,
     read_citations,
     read_invoked_sources,
     read_posted_readings,
@@ -127,6 +130,7 @@ BORROWED_LOCATOR = "borrowed-locator"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 POSTED_ATTACHMENT = "posted-attachment"
 ROWS = {
+    LEGAL_CITATION_SECTION_FORM: "legal citations use the source name and entry year",
     EDITOR_READBACK: "the loaded-box readback is formatted and matches the built post HTML",
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
@@ -189,6 +193,7 @@ GATED_ROW_SETS = {
             MISSING_FIRST_AUTHOR_INITIALS,
             RESPENT_RECORD,
             LEGAL_REFERENCE_NAME,
+            LEGAL_CITATION_SECTION_FORM,
         ),
         (
             "words",
@@ -1515,6 +1520,12 @@ def survey(source: RunSource) -> Scan:
                 )
             )
     citation_requirements: list[tuple[Citation, tuple[int, ...]]] = []
+    findings.extend(
+        Finding(LEGAL_CITATION_SECTION_FORM, source.draft.name,
+                legal_section_detail(f"{citation.author}, {citation.year}"))
+        for citation in body_citations
+        if legal_section_citation(citation, listed_references)
+    )
     for occurrence, (citation, keys) in enumerate(
         zip(body_citations, citations, strict=True), start=1
     ):

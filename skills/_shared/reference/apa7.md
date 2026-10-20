@@ -451,6 +451,10 @@ it does not replace the publication year. For example, an entry beginning `Conso
 Appropriations Act, 2023` and published in 2022 is cited as `(Consolidated Appropriations Act,
 2023, 2022)`.
 
+A section citation, including one without a year, resolves to its named entry but is refused as
+`legal-citation-section-form`: write the legal source's name and the entry's year. This applies in
+the reply, peer-critique, post and draft graders (ADR 0419).
+
 A corpus instance follows APA's pattern with West Virginia's codification:
 
 ```text

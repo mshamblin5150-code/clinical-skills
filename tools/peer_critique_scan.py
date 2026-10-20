@@ -45,6 +45,9 @@ from discussion_artifact import (
     claim_record_can_certify_values,
     citation_occurrence_keys,
     read_citations,
+    LEGAL_CITATION_SECTION_FORM,
+    legal_section_citation,
+    legal_section_detail,
     read_reference_section,
     strip_discussion_markers,
 )
@@ -114,6 +117,7 @@ REQUIRED_HEADINGS = (
 )
 
 ROWS = {
+    LEGAL_CITATION_SECTION_FORM: "legal citations use the source name and entry year",
     MISSING_HEADING: "every required heading appears in the critique",
     EMPTY_HEADING: "every required heading carries prose beneath it",
     HEADING_ORDER: "the headings appear in the order the spec lists them",
@@ -135,7 +139,7 @@ HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 GATED_ROW_SETS = {
     "reference_boundary_graded": (
-        (WORD_FLOOR, NARRATIVE_BODY, REFERENCE_MINIMUM, UNRESOLVED_CITATION, UNTRACED_NUMBER),
+        (WORD_FLOOR, NARRATIVE_BODY, REFERENCE_MINIMUM, UNRESOLVED_CITATION, UNTRACED_NUMBER, LEGAL_CITATION_SECTION_FORM),
         (
             "words",
             "word_ceiling",
@@ -418,6 +422,11 @@ def _citation_findings(source: RunSource) -> tuple[Finding, ...]:
             citations, citation_occurrence_keys(citations, source.body, references)
         )
         if not any(references.resolves(key) for key in keys)
+    ) + tuple(
+        Finding(LEGAL_CITATION_SECTION_FORM, "critique.md",
+                legal_section_detail(f"{citation.author}, {citation.year}"))
+        for citation in citations
+        if legal_section_citation(citation, references)
     )
 
 
@@ -602,6 +611,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     reference_rows = {
+        LEGAL_CITATION_SECTION_FORM,
         WORD_FLOOR,
         NARRATIVE_BODY,
         REFERENCE_MINIMUM,

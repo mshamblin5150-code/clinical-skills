@@ -1054,25 +1054,28 @@ class SupportedLegalEntriesResolveByTitleAndYear(unittest.TestCase):
     def body(self, citation: str) -> str:
         return f"# Case\n\nThe regulation supplies the rule {citation}.\n"
 
-    def test_only_title_and_publication_year_resolve_a_named_entry(self):
+    def test_title_and_publication_year_resolve_without_a_form_finding(self):
         for shape in ("parenthetical name", "narrative name"):
             with self.subTest(citation=shape):
                 found = kinds(draft(NAMED_LEGAL, body=self.body(self.CITATIONS[shape])))
                 self.assertNotIn(scan.UNCITED_ENTRY, found)
                 self.assertNotIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.LEGAL_CITATION_SECTION_FORM, found)
 
-    def test_a_source_section_locator_is_not_the_in_text_key(self):
+    def test_a_source_section_locator_resolves_and_is_refused_for_its_form(self):
         for shape in ("parenthetical section", "narrative section", "yearless section"):
             with self.subTest(citation=shape):
                 found = kinds(draft(NAMED_LEGAL, body=self.body(self.CITATIONS[shape])))
-                self.assertIn(scan.UNCITED_ENTRY, found)
-                self.assertIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.UNCITED_ENTRY, found)
+                self.assertNotIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.INTEXT_YEAR_MISMATCH, found)
+                self.assertIn(scan.LEGAL_CITATION_SECTION_FORM, found)
 
     def test_only_the_nameless_legal_entry_fires_the_entry_row(self):
         self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
         self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
 
-    def test_a_named_legal_entry_is_uncited_until_its_title_form_resolves(self):
+    def test_a_named_legal_entry_is_uncited_when_no_citation_resolves(self):
         self.assertIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
         self.assertNotIn(
             scan.UNCITED_ENTRY,
@@ -1122,7 +1125,8 @@ class SupportedLegalEntriesResolveByTitleAndYear(unittest.TestCase):
         self.assertTrue(entry.is_legal)
         self.assertEqual(
             entry.resolution_keys,
-            (("consolidated", "2022"),),
+            (("consolidated", "2022"), ("pub l no 117 328 1263", "2022"),
+             ("pub l no 117 328 1263", "")),
         )
         self.assertNotIn(("21 u s c 823 m", "2022"), entry.resolution_keys)
 
@@ -1917,6 +1921,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # table still states the wide rule, because the table is the rule; what changed
     # is that it now says beside the wide row how far the command reaches.
     ROW_PHRASES = {
+        scan.LEGAL_CITATION_SECTION_FORM: "A legal citation written as a section instead of its source name",
         scan.MISSING_ARTICLE: "A certain article number missing the `Article` label",
         scan.FORMAT_BRACKET: "A bracket containing only a file format",
         scan.ITALIC_IDENTIFIER: "An italic title ending in a recognizable identifier",
@@ -2072,6 +2077,8 @@ MARKER = "qxmarkerxq"
 LEAKY_BODY = """\
 # Case Study qxmarkerxq
 
+The rule applies (42 C.F.R. § 482.13, 2024). qxmarkerxq
+
 ## Subjective qxmarkerxq
 
 The patient reports dysuria for three days qxmarkerxq
@@ -2098,6 +2105,7 @@ Course material arrived with Links to an external site. attached. qxmarkerxq
 # One line per entry, chosen so every kind in ``KINDS`` fires at least once. The
 # comment above each names the row it is there for.
 LEAKY_ENTRIES = (
+    "Patient rights, 42 C.F.R. § 482.13 (2024).",
     "Example Group. (2026). *Example report (Report No. 12345)* [PDF]. Example Group. https://example.org/report",
     "Example, A. (2026). Example article. *Journal, 17*(3), e12345. https://doi.org/10.1000/e12345",
     "Kübler, J. (2025). Topic. Publisher.",
