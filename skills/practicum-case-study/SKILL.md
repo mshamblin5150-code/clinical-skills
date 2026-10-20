@@ -1552,6 +1552,14 @@ The rows also require **Fahrenheit temperatures using the degree symbol rather t
 `degrees`**, except inside source quotations, and **HEENT and the vital-sign labels `T`, `HR`, `RR`,
 `BP`, and `SpO2` using the standard clinical abbreviations**.
 
+Under [ADR 0366](../../docs/adr/0366-four-case-study-scan-rows-key-on-a-written-form-rather-than-a-guessed-class.md),
+the rows also require **a labeled continued home medication carrying exactly `Refill: 3`**,
+except for as-needed, IV, IM and one-time orders; **an as-needed count-unit daily maximum not
+exceeding its stated minimum interval**; **no bare `item N` or `entry N` pointer**; and **a Plan
+dose with a route and frequency naming its table's drug within the five preceding words**.
+A conditional order takes its table too; a `PROPOSED` entry excuses nothing. Named pointers
+retain their section when it is italic, bold or followed by a colon.
+
 **It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
 calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them
 read — `tools/reference_scan.py` importing `REFERENCE_HEADING` is the precedent, at the width of one
@@ -1582,7 +1590,12 @@ rendered document can**, **a narrative citation preceding the source quotation**
 block quotation's parenthetical or narrative citation placement is correct**, **care-setting
 agreement across sections**, **a cross-reference inside range that lands on the wrong item**, **an
 unnamed cross-reference is never resolved**, **a misspelled optional heading disables its row under ADR 0230**, and
-**whether an MDM citation supports its claim**.
+**whether an MDM citation supports its claim**, **a milligram daily maximum is not graded**,
+**two daily limits side by side require a wording reading**, **a brand name in Plan and a generic
+name in its table do not match**, and **order arithmetic reads digit amounts and number words one
+through twelve with explicit hour intervals and count-unit ceilings**, and **candidate coverage is
+a floor over literal table, pointer and Plan dose-block forms; overlapping prescription populations
+use the larger missing count**.
 
 **The two findings in his list that mattered most clinically are in that list rather than in the
 rows** — the ceftriaxone order's missing endpoint being the *right* endpoint, and the growth and

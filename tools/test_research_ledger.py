@@ -598,7 +598,10 @@ class DeclaredLimitBehaviorControls(unittest.TestCase):
     def test_a_conflicting_sig_does_not_change_the_parsed_order(self):
         first = ledger.read_prescriptions(rx_table(CEFTRIAXONE, sig="Take for infection."))
         second = ledger.read_prescriptions(rx_table(CEFTRIAXONE, sig="Take for migraine."))
-        self.assertEqual(first, second)
+        self.assertEqual([rx.order for rx in first], [rx.order for rx in second])
+        self.assertEqual(ledger.prescription_findings(first, []),
+                         ledger.prescription_findings(second, []))
+        self.assertNotEqual(first[0].sig, second[0].sig)
 
     def test_an_indication_number_satisfies_the_dose_row(self):
         claim = "Ceftriaxone is indicated for 2 clinical syndromes."
@@ -2985,6 +2988,15 @@ class ADrugRowIsReadOffTheDispSigPair(unittest.TestCase):
         self.assertEqual(rx.drug, "ceftriaxone")
         self.assertEqual(rx.order, CEFTRIAXONE)
         self.assertTrue(rx.states_a_dose)
+
+    def test_associated_sig_and_refill_are_retained_without_changing_declaration(self):
+        text = rx_table("Continued home medication: prenatal vitamin one tablet PO daily")
+        text = text.replace("Refill: none", "Refill: 3")
+        rx = ledger.read_prescriptions(text)[0]
+        self.assertEqual(rx.declaration, "continued home medication")
+        self.assertEqual(rx.sig, "Infuse one gram daily for infection.")
+        self.assertEqual(rx.refill, "3")
+        self.assertEqual(ledger.Prescription("a", "a").sig, "")
 
     def test_a_markdown_table_that_is_not_a_prescription_is_not_read(self):
         """A case study is full of tables -- the differential, the MDM, the
