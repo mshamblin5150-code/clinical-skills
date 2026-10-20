@@ -14,6 +14,42 @@ from run_record_reader import UnreadableRecord, capture_errors
 
 
 class ToolRecords(unittest.TestCase):
+    def test_unavailable_context_skips_membership_without_hiding_draft_findings(self):
+        from datetime import date
+        import hashlib
+        import heading_read
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = root / project_context.RECORD_NAME
+            digest = 'c' * 64
+            context.write_text('PROJECT-CONTEXT: none - synthetic\nCONFIRMED: 2001-01-01\n'
+                'CONTEXT-DIGEST: ' + digest + '\n', encoding='utf-8')
+            draft = b'Synthetic draft.'
+            fingerprint = hashlib.sha256(draft).hexdigest()
+            text = ('## HEADING-READ: synthetic.md\nDRAFT: ' + fingerprint + '\n'
+                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own, 1 item\n"
+                'ITEM: paragraph 1 -> unopened-synthetic-item\nCONTEXT-DIGEST: ' + digest + '\n'
+                'CONTEXT-VERDICT: agrees\nVERDICT: clean\n')
+            binding = heading_read.binding_from_context('synthetic.md', draft, (), root, as_of=date.max)
+            self.assertIn(heading_read.UNOPENED_ITEM, [row.kind for row in heading_read.scan(text, (binding,)).findings])
+            retained = root / 'private' / 'heading-contexts' / (digest + '.md')
+            for path in (context, retained):
+                original = path.read_bytes()
+                path.write_bytes(b'GO-AHEAD: {')
+                try:
+                    with self.assertRaises(UnreadableRecord):
+                        direct = heading_read.binding_from_context('synthetic.md', draft, (), root, as_of=date.max)
+                        heading_read.scan(text, (direct,))
+                    with capture_errors() as faults:
+                        current = heading_read.binding_from_context('synthetic.md', draft, (), root, as_of=date.max)
+                        result = heading_read.scan(text.replace(fingerprint, '0' * 64), (current,))
+                    self.assertEqual([heading_read.DRAFT_MISMATCH], [row.kind for row in result.findings])
+                    self.assertEqual(1, len(faults))
+                    self.assertIn('heading-read context comparisons', next(iter(faults.values())).dependent_checks)
+                    self.assertEqual(b'GO-AHEAD: {', path.read_bytes())
+                finally:
+                    path.write_bytes(original)
+
     def test_context_writer_reports_shared_open_failure_before_parsing(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)

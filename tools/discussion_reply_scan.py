@@ -779,7 +779,7 @@ def survey(source: RunSource) -> Scan:
     posted_reading_states = _posted_reading_states(source)
     claim_records = tuple(research_ledger.read_records(source.claims))
     bindings = tuple(
-        heading_read.Binding(
+        heading_read.binding_from_context(
             reply.path.name,
             reply.payload,
             tuple(
@@ -790,11 +790,9 @@ def survey(source: RunSource) -> Scan:
                 and _slug(target.group("target"))
                 == reply.path.stem.removeprefix("response-")
             ),
-            project_context.recorded_digest(source.path),
-            context_run=source.path,
+            source.path,
             as_of=research_ledger.ledger_date(source.claims),
-            opened_items=project_context.recorded_opened_items(source.path),
-            other_classmate_items=project_context.other_classmate_items(source.path, reply.path.name),
+            exclude_other_classmates=True,
         )
         for reply in source.replies
     )

@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
+import re
 from unittest import mock
 
 import artifact_lock_test_support
@@ -16,6 +17,14 @@ import test_deck_scan as decks
 import test_discussion_post_scan as posts
 import test_discussion_reply_scan as replies
 import test_peer_critique_scan as critiques
+import test_assignment_docx_scan as word_papers
+import project_context
+import mechanics_test_support
+import course_assignment_scan
+import assignment_bar
+import assignment_submission
+import frozen_grade
+from test_assignment_bar import BarSignatures
 
 
 class PostedRecordCommands(unittest.TestCase):
@@ -143,6 +152,184 @@ class PostedRecordCommands(unittest.TestCase):
                     status = command.main([str(fixture.run), '--submission', 'shift'])
                 return status, out.getvalue(), err.getvalue()
             self.check_faults(fixture.run, invoke)
+
+
+class ContextDependentCommands(unittest.TestCase):
+    def setUp(self):
+        token = mechanics_test_support.begin()
+        self.addCleanup(mechanics_test_support.end, token)
+
+    @contextlib.contextmanager
+    def damaged(self, path, content, heading, finding):
+        original = path.read_bytes()
+        saved_heading = heading.read_text(encoding='utf-8')
+        if finding:
+            heading.write_text(re.sub(r'(?m)^DRAFT: .*$', 'DRAFT: ' + '0' * 64,
+                saved_heading), encoding='utf-8')
+        path.unlink()
+        if content is None:
+            path.mkdir()
+        else:
+            path.write_bytes(content)
+        try:
+            yield
+        finally:
+            if content is None:
+                path.rmdir()
+            else:
+                path.unlink()
+            path.write_bytes(original)
+            heading.write_text(saved_heading, encoding='utf-8')
+
+    def command(self, module, arguments):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = module.main(arguments)
+        return status, out.getvalue(), err.getvalue()
+
+    def dispatcher(self, run, arguments):
+        with (mock.patch.object(decks.scan.aar_scan, 'completion_gate', return_value=(False, 'AAR: clean')),
+              mock.patch.object(decks.scan.voice_read, 'apply_completion_gate', side_effect=lambda grade, *args, **kwargs: grade),
+              mock.patch.object(assignment_submission.repo_root, 'output_root', return_value=run.root / 'canonical-output')):
+            return self.command(course_assignment_scan, arguments)
+
+    def exercise(self, root, heading, invoke):
+        status, report, error = invoke()
+        self.assertEqual(0, status, report + error)
+        project_context.retain_heading_context(root)
+        digest = project_context.recorded_digest(root)
+        for path in (root / project_context.RECORD_NAME,
+                     root / 'private' / 'heading-contexts' / (digest + '.md')):
+            for content in (b'GO-AHEAD: {', b'ORDER-OBSERVATION: []\n', None):
+                for finding in (False, True):
+                    with self.subTest(record=path.name, directory=content is None, finding=finding), \
+                            self.damaged(path, content, heading, finding):
+                        status, report, error = invoke()
+                        self.assertEqual(1 if finding else 2, status, report + error)
+                        self.assertIn('heading-read context comparisons: not graded', report)
+                        self.assertEqual(['unread remainder 1'], [line for line in report.splitlines()
+                            if line.startswith('unread remainder ')])
+                        self.assertNotRegex(report, r'heading-read-(?:context-digest|unopened-item):?\s+[1-9]')
+                        if finding:
+                            self.assertRegex(report, r'heading-read-draft-mismatch:?\s+1')
+                        if content is None:
+                            self.assertEqual([], list(path.iterdir()))
+                        else:
+                            self.assertEqual(content, path.read_bytes())
+
+    def test_reply_context_faults_keep_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = replies.Run(Path(directory), posted=False)
+            (run.root / 'reread.md').unlink()
+            self.exercise(run.root, run.root / 'heading-read.md',
+                lambda: replies.EveryPostedReplyHasALocatedReading().grade(run))
+
+    def test_initial_post_context_faults_keep_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = posts.Run(Path(directory))
+            self.exercise(run.root, run.root / 'heading-read.md',
+                lambda: run.grade(bind_heading_read=False))
+
+    def test_peer_context_faults_keep_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = critiques.build_run(root=Path(directory) / 'run', posted=False)
+            (root / 'reread.md').unlink()
+            self.exercise(root, root / 'heading-read.md',
+                lambda: self.command(peer_critique_scan, [str(root)]))
+
+    def test_deck_context_faults_keep_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = decks.TheRenderedDeckRecordNamesTheTerminalPass().a_run(Path(directory))
+            run.grade()
+            self.exercise(run.root, run.root / 'heading-read.md', lambda: run.grade(bind=False))
+
+    def test_word_context_faults_keep_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case = word_papers.empty_population_input(Path(directory))
+            root = Path(case.argv[0])
+            claim = 'The example connects authority, coordination, and feedback.'
+            (root / 'claims.md').write_text('DATE: 2026-09-13\n\n## CLAIM: ' + claim + '\n'
+                'STATUS: sourced\nREFERENCE: Example Agency. (2025). *Systems coordination brief*. https://example.invalid/brief\n'
+                'REFUTATION: stands - the source states this claim.\n'
+                'SECOND-ROUTE: publisher HTML -> original source\n'
+                'TESTED-HEADING: ' + word_papers.research_ledger.heading_digest(claim) + '\n', encoding='utf-8')
+            self.exercise(root, root / 'heading-read.md',
+                lambda: self.command(word_papers.scan, [*case.argv, '--paper-language', 'English']))
+
+    def test_checks_context_faults_keep_independent_checks(self):
+        directory, path = checks.in_a_file(checks.whole_file())
+        with directory:
+            checks.run([str(path)])
+            arguments = [str(path), '--document', str(path.parent / 'draft.md')]
+            self.exercise(path.parent, path, lambda: checks.run(arguments, bind=False))
+
+    def test_dispatcher_machine_faults_keep_independent_artifact_checks(self):
+        fixture = BarSignatures()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        run = decks.TheRenderedDeckRecordNamesTheTerminalPass().a_run(fixture.run)
+        fixture.draft(decks.BAR)
+        fixture.sign()
+        status, report, error = run.terminal()
+        self.assertEqual(0, status, report + error)
+        frozen_grade.freeze(run.root, 'course-assignment',
+            {**assignment_submission._read(run.root), 'submission': run.deck.stem})
+        original_deck = run.deck.read_bytes()
+        for name in (assignment_bar.RECORD, frozen_grade.RECORD):
+            arguments = [str(run.root), '--artifact', str(run.deck)]
+            if name == frozen_grade.RECORD:
+                arguments += ['--submission', run.deck.stem]
+            path = run.root / name
+            original = path.read_bytes()
+            for content in (b'{', b'[]', None):
+                for finding in (False, True):
+                    with self.subTest(record=name, directory=content is None, finding=finding):
+                        if finding:
+                            run.write_deck((decks.slide_xml('Plan', 'Unrecorded $19,500'),))
+                        else:
+                            run.deck.write_bytes(original_deck)
+                            run.write_heading_read()
+                        path.unlink()
+                        if content is None:
+                            path.mkdir()
+                        else:
+                            path.write_bytes(content)
+                        try:
+                            status, report, error = self.dispatcher(run, arguments)
+                            self.assertEqual(1 if finding else 2, status, report + error)
+                            self.assertIn('not graded', report)
+                            self.assertEqual(['unread remainder 1'], [line for line in report.splitlines()
+                                if line.startswith('unread remainder ')])
+                            if finding:
+                                self.assertIn('untraced-figure: 1', report)
+                            if content is not None:
+                                self.assertEqual(content, path.read_bytes())
+                        finally:
+                            path.rmdir() if content is None else path.unlink()
+                            path.write_bytes(original)
+
+    def test_dispatcher_keeps_valid_frozen_bypass_and_refuses_unreadable_bar_only(self):
+        fixture = BarSignatures()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        run = decks.TheRenderedDeckRecordNamesTheTerminalPass().a_run(fixture.run)
+        fixture.draft(decks.BAR)
+        fixture.sign()
+        status, report, error = run.terminal()
+        self.assertEqual(0, status, report + error)
+        frozen_grade.freeze(run.root, 'course-assignment',
+            {**assignment_submission._read(run.root), 'submission': run.deck.stem})
+        with mock.patch.object(course_assignment_scan, '_import_adapter') as adapter:
+            status, report, error = self.command(course_assignment_scan,
+                [str(run.root), '--artifact', str(run.deck), '--submission', run.deck.stem])
+        self.assertEqual(0, status, report + error)
+        adapter.assert_not_called()
+        (run.root / assignment_bar.RECORD).write_bytes(b'{')
+        status, report, error = self.command(course_assignment_scan, [str(run.root), '--bar-only'])
+        self.assertEqual(2, status, report + error)
+        self.assertIn('not graded', report)
+        self.assertNotIn('assignment bar: clean', report)
+        self.assertEqual(b'{', (run.root / assignment_bar.RECORD).read_bytes())
 
 
 if __name__ == '__main__':

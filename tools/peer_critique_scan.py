@@ -498,15 +498,13 @@ def survey(source: RunSource) -> Scan:
     heading = heading_read.scan(
         source.heading_read_text,
         (
-            heading_read.Binding(
+            heading_read.binding_from_context(
                 "critique.md",
                 source.critique_bytes,
                 tuple(research_ledger.read_records(source.claims)),
-                project_context.recorded_digest(source.path),
-                context_run=source.path,
+                source.path,
                 as_of=research_ledger.ledger_date(source.claims),
-                opened_items=project_context.recorded_opened_items(source.path),
-                other_classmate_items=project_context.other_classmate_items(source.path, "critique.md"),
+                exclude_other_classmates=True,
             ),
         ),
     )

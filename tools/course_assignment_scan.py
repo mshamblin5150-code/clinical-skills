@@ -71,6 +71,10 @@ def posted_reading_check(
 
 
 def main(argv: list[str]) -> int:
+    return run_grader.collect_record_errors(lambda: _dispatch(argv))
+
+
+def _dispatch(argv: list[str]) -> int:
     try:
         if not argv or argv[0].startswith("--"):
             raise run_grader.SourceError("course_assignment_scan.py needs a run directory")
@@ -92,6 +96,9 @@ def main(argv: list[str]) -> int:
             if argv != [argv[0], "--bar-only"]:
                 raise run_grader.SourceError("--bar-only accepts no artifact or grader options")
             adapter.validate_bar(envelope)
+            from run_record_reader import has_errors
+            if has_errors():
+                return 2
             print(f"assignment bar: clean - {envelope.artifact}")
             return 0
         return adapter.main(_adapter_arguments(argv, envelope.artifact), envelope=envelope)

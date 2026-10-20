@@ -508,14 +508,12 @@ def survey(source: Source) -> Scan:
     heading = heading_read.scan(
         source.heading_read_text,
         (
-            heading_read.Binding(
+            heading_read.binding_from_context(
                 source.docx.name,
                 source.docx_bytes,
                 tuple(research_ledger.read_records(source.claims)),
-                project_context.recorded_digest(source.root),
-                context_run=source.root,
+                source.root,
                 as_of=research_ledger.ledger_date(source.claims),
-                opened_items=project_context.recorded_opened_items(source.root),
             ),
         ),
     )

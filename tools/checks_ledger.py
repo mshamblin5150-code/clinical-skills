@@ -1168,14 +1168,12 @@ def _grade(
         heading_read.scan(
             source.text,
             (
-                heading_read.Binding(
+                heading_read.binding_from_context(
                     source.document.name,
                     source.document_bytes,
                     source.claims,
-                    project_context.recorded_digest(source.path.parent),
-                    context_run=source.path.parent,
+                    source.path.parent,
                     as_of=research_ledger.ledger_date(source.claims_text),
-                    opened_items=project_context.recorded_opened_items(source.path.parent),
                 ),
             ),
         )

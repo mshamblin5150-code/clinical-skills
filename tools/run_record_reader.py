@@ -80,8 +80,11 @@ class UnreadableRecord(ValueError):
     """An existing record could not be decoded into its declared shape."""
     def __init__(self, path: Path, cause: str):
         self.path, self.cause = _record_key(path), cause
+        self.dependent_checks: set[str] = set()
         super().__init__(f"{checked_label(Path(path))}: unreadable — {cause}")
         if (faults := _FAULTS.get()) is not None:
+            if previous := faults.get(self.path):
+                self.dependent_checks = previous.dependent_checks
             faults[self.path] = self
 
 
@@ -102,6 +105,13 @@ def fault_report(error: UnreadableRecord, *, check: str) -> str:
 
 def collecting_errors() -> bool:
     return _FAULTS.get() is not None
+
+
+def mark_not_graded(error: UnreadableRecord, *, check: str) -> None:
+    """Retain a named dependent check in this command's record-fault report."""
+    if not collecting_errors():
+        raise error
+    error.dependent_checks.add(check)
 
 
 def has_errors() -> bool:
