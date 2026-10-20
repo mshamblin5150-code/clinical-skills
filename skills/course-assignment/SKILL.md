@@ -292,7 +292,7 @@ The rows are:
 
 - `outbound-text`: one finding per distinct damaged line/code-point pair in each stored text node
   in a slide, speaker note, or related chart or diagram, before trimming or normalization. Tabs, other C0 controls
-  except LF and CRLF line endings, DEL and C1 controls refuse. Diagnostics name the owning
+  except LF and CRLF line endings, U+007F through U+009F refuse. Diagnostics name the owning
   slide when known, line and code point without repeating its text; unassociated notes remain
   checked without an invented slide number.
 - `slide-count`: one finding when the population named by `SLIDE-LIMIT-SCOPE` exceeds `SLIDE-MAX`.
