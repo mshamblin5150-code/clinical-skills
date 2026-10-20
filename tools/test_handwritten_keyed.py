@@ -96,6 +96,7 @@ class KeyedRecordDamage(unittest.TestCase):
                 grade = coursework_mechanics.apply_grade(run_grader.Grade(None, str(self.run)), self.run,
                     (("subject", "Ordinary prose remains."),), run_grader.Parsed(str(self.run)), language="en")
                 self.assertEqual(expected, grade.findings_failed, grade.reports)
+                # spelling-scan: mentions 1
                 grade = coursework_mechanics.apply_grade(run_grader.Grade(None, str(self.run)), self.run,
                     (("subject", "The colour remains."),), run_grader.Parsed(str(self.run)), language="en")
                 self.assertTrue(grade.findings_failed)
@@ -212,6 +213,7 @@ class KeyedRecordDamage(unittest.TestCase):
         result = imagery_proposals.completion_gate(run, {"subject": "[[PROPOSED IMAGE independent]]"})
         yield "imagery", (int(result.finding), result.report)
         (run / coursework_mechanics.RECORD_NAME).write_text(raw, encoding="utf-8")
+        # spelling-scan: mentions 1
         grade = coursework_mechanics.apply_grade(run_grader.Grade(None, str(run)), run,
             (("subject", "The colour remains."),), run_grader.Parsed(str(run)), language="en")
         yield "mechanics", (int(grade.findings_failed), "\n".join(grade.reports))
