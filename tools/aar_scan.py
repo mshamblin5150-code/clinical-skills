@@ -738,8 +738,6 @@ def _user_pieces(row: Mapping[str, Any]) -> list[tuple[str, str]]:
                            else "harness-meta", value))
         elif _agents_instructions(value) and row.get("type") == "response_item":
             pieces.append(("agents-instructions", value))
-        elif value.startswith("Message Type:") or value.startswith("[Message from "):
-            pieces.append(("harness-meta", value))
         else:
             pieces.extend(_text_pieces(value))
     # Adjacent machine envelopes form one entry labeled by the first envelope.
@@ -757,7 +755,10 @@ def clinician_pieces(row: Mapping[str, Any]) -> tuple[str, ...]:
     """Each whole piece of the Clinician's words, shared with approval readers."""
     if row.get("isSidechain") or row.get("isMeta") or row.get("isCompactSummary"):
         return ()
-    return tuple(text for kind, text in _user_pieces(row) if kind == "clinician")
+    # Legacy relay prefixes still cannot supply approval evidence (ADR 0310).
+    # Their extractor label remains unchanged; a prefix is not a declared envelope.
+    return tuple(text for kind, text in _user_pieces(row) if kind == "clinician"
+                 and not text.startswith(("Message Type:", "[Message from ")))
 
 
 def _user_candidates(identifier: str, transcript_id: str, row: Mapping[str, Any]) -> list[Candidate]:
