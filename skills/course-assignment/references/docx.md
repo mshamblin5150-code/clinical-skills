@@ -254,10 +254,11 @@ Assignment** click. Per-context scratch paths may be removed after approval is r
 From that approval onward, read and apply the shared [run-status.md](run-status.md) contract. End
 every reply that touches the open DOCX run with its keyed `Run status:` line.
 
-**Gate 2** is a separate explicit confirmation given after the staged-file inspection. Immediately
+**Gate 2** is a separate explicit confirmation given after upload and the staged-file inspection.
+Tell the clinician the approved files are uploaded and unsubmitted, and wait for his word. Immediately
 before clicking **Submit Assignment**, confirm that the staged file's SHA-256 still matches Gate 1.
 A changed file returns to rendering and Gate 1. Persist the separate decision with
-`assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)`. Only a true
+`assignment_submission.confirm(staged, uploaded_carriers=(...), clinician_reply="<whole verbatim reply>")`. Only a true
 `assignment_submission.submit_is_authorized(staged)` result after that Gate 2 record authorizes
 the click. If the clinician reports that he uploaded the approved DOCX himself, record the route
 instead with

@@ -278,12 +278,10 @@ def confirm(
     staged: StagedUpload,
     *,
     uploaded_carriers: tuple[Path, ...],
-    final_confirmation: bool,
+    clinician_reply: str,
 ) -> None:
     """Persist Gate 2 only for the exact unchanged approved upload population."""
 
-    if not final_confirmation:
-        raise GateError("final confirmation is required for Gate 2")
     _require_signed_bar(staged.run)
     uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
     approved_names = tuple(item.name for item in staged.carriers)
@@ -302,6 +300,18 @@ def confirm(
         or payload.get("attachment_count") != len(staged.carriers)
     ):
         raise GateError("the durable Gate 1 record names another artifact or carrier set")
+    from approval_record import verify_clinician_reply
+    first_reply_at = payload.get("reply_matched_at")
+    if not isinstance(first_reply_at, (float, int)) or isinstance(first_reply_at, bool):
+        raise GateError("Gate 2 needs Gate 1's verified reply time")
+    verification = verify_clinician_reply(
+        staged.run, clinician_reply, uploaded, after=first_reply_at,
+    )
+    if verification.state != "verified":
+        raise GateError("Gate 2 needs a verified whole clinician reply: " + verification.reason)
+    payload["gate2_clinician_reply"] = clinician_reply
+    payload["gate2_reply_matched_at"] = verification.matched_at
+    payload["gate2_reply_verification"] = verification.state
     payload["uploaded_files"] = list(uploaded_names)
     payload["upload_route"] = UploadRoute.AGENT.value
     payload.pop("gate2_confirmed", None)
@@ -368,6 +378,7 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
         return bool(
             payload.get("gate1_approved") is True
             and _upload_route(payload) is UploadRoute.AGENT
+            and _verified_gate2(payload)
             and payload.get("artifact") == staged.artifact.name
             and payload.get("sha256") == staged.sha256
             and payload.get("attachment_count") == len(staged.carriers)
@@ -405,6 +416,21 @@ def posted_reading_check(
     )
 
 
+def _verified_gate2(payload: dict[str, object]) -> bool:
+    reply = payload.get("gate2_clinician_reply")
+    matched = payload.get("gate2_reply_matched_at")
+    first = payload.get("reply_matched_at")
+    return bool(
+        payload.get("gate2_reply_verification") == "verified"
+        and isinstance(reply, str) and reply.strip()
+        and type(matched) in (int, float) and type(first) in (int, float)
+        and matched > first
+    )
+
+
+ROWS = ("gate2-reply",)
+
+
 def completion_gate(
     run: Path, artifact: Path, submission: str | None = None
 ) -> tuple[bool, str]:
@@ -421,6 +447,7 @@ def completion_gate(
     path = Path(artifact).resolve()
     canonical = repo_root.output_root() / "course-assignments" / path.name
     canonical_failure: str | None = None
+    gate2_report = ""
     try:
         payload = _read(root)
         approved = payload.get("approved_carriers")
@@ -441,6 +468,11 @@ def completion_gate(
             and payload.get("uploaded_files") == list(filenames)
             and path.name in filenames
         )
+        if _upload_route(payload) is UploadRoute.AGENT:
+            if completion_checks.active("assignment_submission:gate2-reply", payload.get("reply_matched_at")):
+                clean = clean and _verified_gate2(payload)
+            else:
+                gate2_report = "\nGate 2 reply: not graded - Gate 1 predates check"
         if clean and submission is not None:
             if not canonical.is_file():
                 canonical_failure = f"canonical artifact is missing: {canonical}"
@@ -463,4 +495,4 @@ def completion_gate(
         report = f"submission gates: not clean - {canonical_failure}"
     else:
         report = "submission gates: clean" if clean else "submission gates: not clean"
-    return not clean, report
+    return not clean, report + gate2_report

@@ -409,11 +409,12 @@ class Run:
                     staged = scan.assignment_submission.stage(
                         self.root, self.deck, artifact_approved=True, clinician_reply="Approve the synthetic artifact.", approved_carriers=carriers
                     )
-            scan.assignment_submission.confirm(
-                staged,
-                uploaded_carriers=(self.deck,) if carriers is None else carriers,
-                final_confirmation=True,
-            )
+            with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic Gate 2", 4102444801)):
+                scan.assignment_submission.confirm(
+                    staged,
+                    uploaded_carriers=(self.deck,) if carriers is None else carriers,
+                    clinician_reply="Submit the synthetic assignment.",
+                )
         scan.voice_model_identity.write_record(self.root)
         attachments = self.root / "lms-attachments"
         attachments.mkdir(exist_ok=True)

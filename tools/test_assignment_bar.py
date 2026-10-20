@@ -311,7 +311,7 @@ class BarSignatures(unittest.TestCase):
                 assignment_submission.stage(self.run, artifact, artifact_approved=True,
                                              clinician_reply="I confirm this bar.")
             with self.assertRaisesRegex(assignment_submission.GateError, "show the changed lines"):
-                assignment_submission.confirm(staged, uploaded_carriers=(artifact,), final_confirmation=True)
+                assignment_submission.confirm(staged, uploaded_carriers=(artifact,), clinician_reply="Submit the synthetic assignment.")
             self.assertFalse(assignment_submission.upload_is_allowed(staged, artifact))
             self.assertFalse(assignment_submission.submit_is_authorized(staged))
 

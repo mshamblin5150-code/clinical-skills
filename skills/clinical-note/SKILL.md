@@ -572,7 +572,13 @@ Before the worksheet can say `PASS`, write one private batch manifest naming eve
 Review-sheet order. Each encounter record carries its stable id, one-based order, stated
 `setting` (`office` or `emergency-department`), final code populations, office status evidence
 (`identity-map`, `medatrax`, or `clinician-answer` for the clinician's recorded answer to the
-earlier-visit conflict question) plus that private evidence's `evidence_sha256` fingerprint (ED uses
+earlier-visit conflict question) plus that private evidence's `evidence_sha256` fingerprint. For
+`clinician-answer`, also retain `clinician_reply`, his whole verbatim reply to whichever stop asked
+the question (batch-shift step 4 or the pre-approval patient questions), and `source_path`, the day
+file or shorthand path, absolute or relative to the manifest directory. Place the manifest in the
+run directory for transcript discovery. The reply must match his whole message after that source's
+modification time; a mismatch or unreadable transcript blocks the pass receipt. A delegated run
+never records `clinician-answer` and keeps the skill's account-backed fallback (ED uses
 `{"value":"not-applicable"}`), and a SHA-256 over its normalized clinical
 note plus visible coding worksheet. Normalize as UTF-8 with LF line endings, remove trailing
 whitespace from every line, and end with exactly one newline; exclude tier blocks, Medatrax fields,

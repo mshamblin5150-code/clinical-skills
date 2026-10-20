@@ -417,6 +417,13 @@ It is batch-atomic. Before rendering, create one private manifest naming every e
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
 populations, one patient-status record whose evidence is `identity-map`, `medatrax`, or
 `clinician-answer` for the clinician's recorded answer to the earlier-visit conflict question,
+carrying `clinician_reply`, his whole verbatim reply to whichever stop asked it (step 4 or the
+pre-approval patient questions), and `source_path`, the day file or shorthand path resolved relative
+to the manifest directory when not absolute. The manifest belongs in the run directory so the
+reply check can discover that run's transcript. The reply must follow the source's modification time
+and match his own whole message; a mismatch or unreadable transcript blocks the pass receipt.
+A delegated run never records `clinician-answer`; retain the skill's account-backed fallback.
+Each evidence kind also carries
 plus an `evidence_sha256` fingerprint of that private evidence, and the
 normalized SHA-256 of that clinical note plus visible worksheet. Normalize as UTF-8 with LF line
 endings, remove trailing whitespace from every line, and end with exactly one newline; exclude tier

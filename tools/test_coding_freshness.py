@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -35,6 +36,7 @@ assert_code_set_database_digest(
 
 import coding_freshness as gate
 import cpt_mdm_sheet
+import aar_scan
 
 
 ICD_PAGE = """
@@ -84,6 +86,13 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
             encoding="utf-8",
         )
         self.output = self.directory / "freshness.json"
+        self.source = self.directory / "shorthand.md"
+        self.source.write_text("Synthetic encounter input.", encoding="utf-8")
+        os.utime(self.source, (1, 1))
+        self.transcript = self.directory / "session.jsonl"
+        self.reply = "I saw this synthetic patient within three years."
+        self.transcript.write_text(json.dumps({"type": "user", "timestamp": "2100-01-01T00:00:01Z",
+            "message": {"content": self.reply}}) + "\n", encoding="utf-8")
         (self.directory / "reference").mkdir()
         self.mdm_sheet = self.directory / "reference" / "cpt-em-mdm-2026.md"
         first = self.directory / "first.md"
@@ -113,6 +122,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                  committed_error: bool = False, procedure_database: Path | None = None) -> tuple[int, str]:
         stdout = io.StringIO()
         with (
+            patch.object(aar_scan, "discover_transcripts", return_value=aar_scan.TranscriptDiscovery((self.transcript,), 1, 0, 0, 1)),
             patch.object(gate, "read_url", side_effect=pages),
             patch.object(gate, "today", return_value=gate.date(2026, 10, 6)),
             patch.object(gate, "ROOT", self.directory),
@@ -320,6 +330,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
     def test_recorded_clinician_answer_backs_office_status_with_fingerprint(self):
         value = self.load_manifest()
         value["encounters"][0]["patient_status"]["evidence"] = "clinician-answer"
+        value["encounters"][0]["patient_status"].update(clinician_reply=self.reply, source_path=self.source.name)
         self.save_manifest(value)
         status, output = self.run_gate()
         self.assertEqual(0, status, output)
@@ -362,6 +373,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                 value = self.load_manifest()
                 value["encounters"][0]["patient_status"].update(
                     value=patient_status, evidence="clinician-answer",
+                    clinician_reply=self.reply, source_path=str(self.source),
                 )
                 value["encounters"][0]["codes"]["em"] = code
                 self.save_manifest(value)
@@ -370,6 +382,32 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                 if expected:
                     self.assertIn("E/M code disagrees with patient status", output)
                     self.assertFalse(self.output.exists())
+
+    def test_clinician_answer_refuses_missing_mismatched_old_and_unreadable_replies(self):
+        for mode in ("missing", "mismatch", "old", "unreadable", "hook-context", "scheduled-trigger"):
+            with self.subTest(mode=mode):
+                os.utime(self.source, (1, 1))
+                value = self.load_manifest()
+                status = value["encounters"][0]["patient_status"]
+                status.update(evidence="clinician-answer", clinician_reply=self.reply, source_path=self.source.name)
+                row = {"type": "user", "timestamp": "2100-01-01T00:00:01Z", "message": {"content": self.reply}}
+                if mode == "missing":
+                    status.pop("clinician_reply")
+                elif mode == "mismatch":
+                    row["message"]["content"] = "Another whole reply."
+                elif mode == "old":
+                    os.utime(self.source, (4102444802, 4102444802))
+                elif mode in ("hook-context", "scheduled-trigger"):
+                    row["message"]["content"] = self.reply + f"\n<{mode}>automated</{mode}>"
+                self.transcript.write_text(json.dumps(row) + "\n", encoding="utf-8")
+                if mode == "unreadable":
+                    self.transcript.unlink()
+                self.save_manifest(value)
+                self.output.write_text("stale pass receipt", encoding="utf-8")
+                result, output = self.run_gate()
+                self.assertEqual(1, result, output)
+                self.assertIn("clinician-answer", output)
+                self.assertFalse(self.output.exists())
 
     def test_clinical_note_never_reads_patient_status_from_shorthand(self):
         skill = (ROOT / "skills" / "clinical-note" / "SKILL.md").read_text(encoding="utf-8")

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import tempfile
+import json
+import os
 import unittest
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -30,7 +32,7 @@ class TwoGateUpload(unittest.TestCase):
             self.assertFalse(assignment_submission.upload_is_allowed(staged, copy))
             with self.assertRaises(assignment_submission.GateError):
                 assignment_submission.confirm(
-                    staged, uploaded_carriers=(copy,), final_confirmation=True
+                    staged, uploaded_carriers=(copy,), clinician_reply="Submit the synthetic assignment."
                 )
 
     def stage(self, run, artifact, **kwargs):
@@ -43,6 +45,7 @@ class TwoGateUpload(unittest.TestCase):
             return assignment_submission.stage(run, artifact, clinician_reply="Approve the synthetic artifact.", **kwargs)
 
     def setUp(self) -> None:
+        mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic Gate 2", 4102444801)).start()
         self.pre_upload_grade = mock.patch.object(
             assignment_submission,
             "_pre_upload_grade",
@@ -50,6 +53,73 @@ class TwoGateUpload(unittest.TestCase):
             create=True,
         ).start()
         self.addCleanup(mock.patch.stopall)
+
+    def test_gate2_uses_a_later_whole_human_reply(self):
+        import aar_scan
+        # Restore the actual matcher for the public confirm call.
+        mock.patch.stopall()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"synthetic")
+            with mock.patch.object(assignment_submission, "_pre_upload_grade", return_value=(True, "clean")):
+                staged = self.stage(root, deck, artifact_approved=True)
+            transcript = root / "session.jsonl"
+            discovery = aar_scan.TranscriptDiscovery((transcript,), 1, 0, 0, 1)
+            for timestamp, content, source_time, passes in (
+                ("2100-01-01T00:00:01Z", "Submit the synthetic assignment.", 1, True),
+                ("2100-01-01T00:00:01Z", "Different whole reply.", 1, False),
+                ("2099-12-31T23:59:59Z", "Submit the synthetic assignment.", 1, False),
+                ("2100-01-01T00:00:01Z", "Submit the synthetic assignment.", 4102444802, False),
+                ("2100-01-01T00:00:01Z", "Submit the synthetic assignment.\n<hook-context>automated</hook-context>", 1, False),
+                ("2100-01-01T00:00:01Z", "Submit the synthetic assignment.\n<scheduled-trigger>automated</scheduled-trigger>", 1, False),
+            ):
+                with self.subTest(timestamp=timestamp, content=content, source_time=source_time):
+                    os.utime(deck, (source_time, source_time))
+                    transcript.write_text(json.dumps({"type": "user", "timestamp": timestamp,
+                        "message": {"content": content}}) + "\n", encoding="utf-8")
+                    with mock.patch.object(aar_scan, "discover_transcripts", return_value=discovery):
+                        if passes:
+                            assignment_submission.confirm(staged, uploaded_carriers=(deck,), clinician_reply=content)
+                            self.assertTrue(assignment_submission.submit_is_authorized(staged))
+                        else:
+                            with self.assertRaises(assignment_submission.GateError):
+                                assignment_submission.confirm(staged, uploaded_carriers=(deck,), clinician_reply="Submit the synthetic assignment.")
+            transcript.unlink()
+            with mock.patch.object(aar_scan, "discover_transcripts", return_value=discovery):
+                with self.assertRaises(assignment_submission.GateError):
+                    assignment_submission.confirm(staged, uploaded_carriers=(deck,), clinician_reply="Submit the synthetic assignment.")
+
+    def test_gate2_completion_requires_verified_reply_except_historical_or_clinician_upload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"synthetic")
+            staged = self.stage(root, deck, artifact_approved=True)
+            assignment_submission.confirm(staged, uploaded_carriers=(deck,), clinician_reply="Submit the synthetic assignment.")
+            record = json.loads((root / assignment_submission.RECORD).read_text(encoding="utf-8"))
+            del record["gate2_clinician_reply"]
+            assignment_submission._write(root / assignment_submission.RECORD, record)
+            self.assertTrue(assignment_submission.completion_gate(root, deck)[0])
+            self.assertFalse(assignment_submission.submit_is_authorized(staged))
+            record["reply_matched_at"] = 1
+            assignment_submission._write(root / assignment_submission.RECORD, record)
+            failed, report = assignment_submission.completion_gate(root, deck)
+            self.assertFalse(failed, report)
+            self.assertIn("not graded", report)
+            assignment_submission.record_clinician_upload(root, deck, uploaded_carriers=(deck,))
+            self.assertFalse(assignment_submission.completion_gate(root, deck)[0])
+
+    def test_both_skill_branches_use_the_reply_signature(self):
+        import inspect
+        parameters = inspect.signature(assignment_submission.confirm).parameters
+        self.assertIn("clinician_reply", parameters)
+        self.assertNotIn("final_confirmation", parameters)
+        skill = Path(__file__).resolve().parent.parent / "skills" / "course-assignment"
+        for path in (skill / "SKILL.md", skill / "references" / "docx.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("clinician_reply=", text)
+            self.assertNotIn("final_confirmation=True", text)
 
     @contextmanager
     def _canonical_copy(
@@ -68,7 +138,7 @@ class TwoGateUpload(unittest.TestCase):
     def _completed_submission(self, root: Path, artifact: Path) -> None:
         staged = self.stage(root, artifact, artifact_approved=True)
         assignment_submission.confirm(
-            staged, uploaded_carriers=(artifact,), final_confirmation=True
+            staged, uploaded_carriers=(artifact,), clinician_reply="Submit the synthetic assignment."
         )
         (root / "reread.md").write_text(
             "## REREAD: assignment\n"
@@ -266,7 +336,7 @@ class TwoGateUpload(unittest.TestCase):
                 assignment_submission.confirm(
                     staged,
                     uploaded_carriers=(deck, companion, extra),
-                    final_confirmation=True,
+                    clinician_reply="Submit the synthetic assignment.",
                 )
 
     def test_final_confirmation_requires_the_exact_approved_population(self):
@@ -287,13 +357,13 @@ class TwoGateUpload(unittest.TestCase):
                 assignment_submission.confirm(
                     staged,
                     uploaded_carriers=(deck,),
-                    final_confirmation=True,
+                    clinician_reply="Submit the synthetic assignment.",
                 )
 
             assignment_submission.confirm(
                 staged,
                 uploaded_carriers=(deck, companion),
-                final_confirmation=True,
+                clinician_reply="Submit the synthetic assignment.",
             )
             self.assertTrue(assignment_submission.submit_is_authorized(staged))
 
@@ -306,7 +376,7 @@ class TwoGateUpload(unittest.TestCase):
             )
 
             assignment_submission.confirm(
-                staged, uploaded_carriers=(docx,), final_confirmation=True
+                staged, uploaded_carriers=(docx,), clinician_reply="Submit the synthetic assignment."
             )
             self.assertTrue(assignment_submission.submit_is_authorized(staged))
             failed, report = assignment_submission.completion_gate(
@@ -326,7 +396,7 @@ class TwoGateUpload(unittest.TestCase):
             deck.write_bytes(b"canonical PowerPoint artifact")
             staged = self.stage(root, deck, artifact_approved=True)
             assignment_submission.confirm(
-                staged, uploaded_carriers=(deck,), final_confirmation=True
+                staged, uploaded_carriers=(deck,), clinician_reply="Submit the synthetic assignment."
             )
             (root / "reread.md").write_text(
                 "## REREAD: assignment\n"
@@ -406,7 +476,7 @@ class TwoGateUpload(unittest.TestCase):
             deck.write_bytes(b"approved deck")
             companion.write_bytes(b"approved notes")
             staged = self.stage(root, deck, artifact_approved=True, approved_carriers=(deck, companion))
-            assignment_submission.confirm(staged, uploaded_carriers=(deck, companion), final_confirmation=True)
+            assignment_submission.confirm(staged, uploaded_carriers=(deck, companion), clinician_reply="Submit the synthetic assignment.")
             baseline = (
                 "## REREAD: assignment\nPOST-URL: https://example.test/submission\n"
                 "POSTED: 2026-10-12\nREAD: 2026-10-12\nATTACHMENT-COUNT: 2\n"
@@ -473,7 +543,7 @@ class TwoGateUpload(unittest.TestCase):
                     root, docx, artifact_approved=True
                 )
                 assignment_submission.confirm(
-                    staged, uploaded_carriers=(docx,), final_confirmation=True
+                    staged, uploaded_carriers=(docx,), clinician_reply="Submit the synthetic assignment."
                 )
                 digest = assignment_submission.file_digest.sha256(docx)
                 reread = (

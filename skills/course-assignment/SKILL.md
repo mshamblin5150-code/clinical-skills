@@ -515,7 +515,7 @@ item is incomplete coverage the clinician may approve over; a finding stops appr
 call repeats and records the check; show any changed notice and renew approval if it differs from
 the notice the clinician saw. Completion carries that result forward after recorded upload.
 
-This is the existing submission gate; wait for the explicit go-ahead once. Then call
+This is **Gate 1**; stop and wait for the clinician's explicit artifact go-ahead. Then call
 `assignment_submission.stage(run, deck, artifact_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes, approved_carriers=(...))` with
 exactly the approved files and show `assignment_submission.approval_surface(staged)`. Any mismatch
 with the surface the clinician approved returns to the gate. `stage` reruns the same pre-upload
@@ -538,8 +538,10 @@ non-clean comparison stops and returns to the clinician; do not switch routes or
 This skill already attaches its graded deck or document as the selected carrier and takes no
 Initial-post attachment fallback after a Composer size refusal. Read the LMS for a created entry,
 report the refusal and what was found, and stop at the clinician.
-Pass the inspected filename population to
-`assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)` and
+**Gate 2:** after upload and inspection of the Canvas assignment page, stop. Tell the clinician
+the approved files are uploaded and unsubmitted, and wait for his word before **Submit Assignment**.
+Gate 1 authorizes upload only. Pass his whole verbatim reply and the inspected filename population to
+`assignment_submission.confirm(staged, uploaded_carriers=(...), clinician_reply="<whole reply>")` and
 require `assignment_submission.submit_is_authorized(staged)` immediately before submitting.
 Then submit and apply [Posted files](../_shared/reference/lms-attachments.md#posted-files) to
 identify and read every posted carrier. If the clinician instead reports that
