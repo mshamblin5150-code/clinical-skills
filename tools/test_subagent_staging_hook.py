@@ -30,7 +30,7 @@ class SubagentStagingLaunch(unittest.TestCase):
                    "cwd": str(cwd or ROOT)}
         result = subprocess.run(
             [sys.executable, str(COMMAND)], input=json.dumps(payload),
-            capture_output=True, text=True, encoding="utf-8", check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
         )
         self.assertEqual(result.stderr, "")
         return json.loads(result.stdout) if result.stdout.strip() else {}
@@ -145,7 +145,7 @@ class SubagentStagingInstallation(unittest.TestCase):
             if cwd is not None:
                 payload["cwd"] = cwd
             result = subprocess.run([sys.executable, str(COMMAND)], input=json.dumps(payload),
-                                    capture_output=True, text=True, encoding="utf-8", check=True)
+                                    capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
             self.assertEqual("deny", json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"])
 
 
