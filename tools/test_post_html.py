@@ -5,6 +5,7 @@ import contextlib
 import io
 import tempfile
 import unittest
+import artifact_lock_test_support
 from html.parser import HTMLParser
 from pathlib import Path
 

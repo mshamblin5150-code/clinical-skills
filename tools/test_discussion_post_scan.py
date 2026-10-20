@@ -7,6 +7,7 @@ phi-scan: synthetic
 """
 
 from __future__ import annotations
+from tool_record_test_support import posting_record
 
 import mechanics_test_support
 
@@ -418,9 +419,9 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
         BODY + "\n## POSTING: post.md\nPOST-URL: https://example.org/t?entry_id=41\n",
         encoding="utf-8",
     )
-    (twin / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+    (twin / scan.approval_record.RECORD).write_text(json.dumps(posting_record(twin_run.draft, {
         "skill": "discussion-post", "submission": twin_run.draft.stem, "posting_route": "agent",
-    }]}), encoding="utf-8")
+    })), encoding="utf-8")
     (twin / "reread.md").write_text(
         reread.replace(unread_run.draft.stem, twin_run.draft.stem),
         encoding="utf-8",
@@ -527,9 +528,9 @@ class CanvasSubmissionRows(unittest.TestCase):
             post = run.root / "post.md"
             posting = "\n## POSTING: post.md\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
             post.write_text(post.read_text(encoding="utf-8") + posting, encoding="utf-8")
-            (run.root / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+            (run.root / scan.approval_record.RECORD).write_text(json.dumps(posting_record(run.draft, {
                 "skill": "discussion-post", "submission": run.draft.stem, "posting_route": "agent",
-            }]}), encoding="utf-8")
+            })), encoding="utf-8")
             (run.root / "reread.md").write_text(
                 f"## REREAD: {run.draft.stem}\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
                 f"READ: 2026-10-11\nSUBMISSION-SHA256: {hashlib.sha256(run.draft.read_bytes()).hexdigest()}\n"
@@ -1697,13 +1698,12 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             run = self.posted_run(Path(temp))
             (run.root / "reread.md").unlink()
             record = run.root / scan.approval_record.RECORD
-            record.write_text(json.dumps({"items": [{
+            record.write_text(json.dumps(posting_record(run.draft, {
                 "skill": "discussion-post", "submission": run.draft.stem,
-            }]}), encoding="utf-8")
+             "posting_route": "awaiting-posting",})), encoding="utf-8")
             status, report, error = run.grade()
             self.assertEqual(0, status, report + error)
             self.assertIn("missing-posted-reading: not graded", report)
-            (run.root / "reread.md").write_text("", encoding="utf-8")
             status, report, error = run.grade("--submission", run.draft.stem)
             self.assertNotEqual(0, status)
             self.assertIn("no recorded posting route", report + error)
@@ -1746,10 +1746,10 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             reread.write_text(re.sub(r"(?m)^REFUSAL:.*\n", "", reread.read_text(encoding="utf-8")), encoding="utf-8")
             record = run.root / scan.approval_record.RECORD
             for route, expected in (("agent", 1), ("clinician", 0)):
-                record.write_text(json.dumps({"items": [{
+                record.write_text(json.dumps(posting_record(run.draft, {
                     "skill": "discussion-post", "submission": run.draft.stem,
                     "posting_route": route,
-                }]}), encoding="utf-8")
+                })), encoding="utf-8")
                 status, report, error = run.grade("--html", str(html), "--docx", str(document))
                 self.assertEqual(expected, status, report + error)
             (run.root / "posted" / document.name).write_bytes(b"changed Word bytes")
@@ -1763,7 +1763,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             (run.root / scan.approval_record.RECORD).write_text("{", encoding="utf-8")
             status, report, error = run.grade("--html", str(html), "--docx", str(document))
             self.assertEqual(2, status, report + error)
-            self.assertIn("could not read durable approval records", error)
+            self.assertIn("posting-approvals.json: unreadable", report)
 
     POST_URL = "https://example.org/courses/1/discussion_topics/2?entry_id=41"
 
@@ -1773,9 +1773,9 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             BODY + f"\n## POSTING: post.md\nPOST-URL: {self.POST_URL}\n",
             encoding="utf-8",
         )
-        (root / scan.approval_record.RECORD).write_text(json.dumps({"items": [{
+        (root / scan.approval_record.RECORD).write_text(json.dumps(posting_record(run.draft, {
             "skill": "discussion-post", "submission": run.draft.stem, "posting_route": "agent",
-        }]}), encoding="utf-8")
+        })), encoding="utf-8")
         (root / "reread.md").write_text(
             f"## REREAD: {run.draft.stem}\n"
             f"POST-URL: {self.POST_URL}\n"
@@ -1961,9 +1961,9 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             )
             status, stdout, stderr = run.grade()
 
-        self.assertEqual(1, status)
+        self.assertEqual(2, status)
         self.assertEqual("", stderr)
-        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("reread.md: unreadable", stdout)
 
     def test_a_refused_label_keeps_a_missing_posted_reading_finding(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1995,7 +1995,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             reread.write_text(
                 re.sub(
                     r"^SUBMISSION-SHA256:.*\n",
-                    "",
+                    "SUBMISSION-SHA256: " + "a" * 64 + "\n",
                     reread.read_text(encoding="utf-8"),
                     flags=re.MULTILINE,
                 ),
@@ -2147,8 +2147,8 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
 
                 status, stdout, _ = run.grade()
 
-            self.assertEqual(1, status)
-            self.assertIn(f"{kind}: 1", stdout)
+            self.assertEqual(2 if kind == "unknown-verdict" else 1, status)
+            self.assertIn("reread.md: unreadable" if kind == "unknown-verdict" else f"{kind}: 1", stdout)
 
 
 class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):

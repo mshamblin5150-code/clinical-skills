@@ -169,6 +169,9 @@ the coverage failure inspectable under the shared report-before-tier-2 rule.
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+from discussion_artifact import posted_reading_unavailable
+
 import tree_walk
 
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
@@ -196,7 +199,7 @@ import case_video
 import approval_record
 import heading_read
 import research_ledger
-from discussion_artifact import PostedReading, read_posted_readings
+from discussion_artifact import PostedReading
 import post_html
 import case_study_render
 
@@ -222,6 +225,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("checks_ledger-record-coverage", 'checks_ledger record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     DeclaredLimit(
         "pre-review-walk-truth",
         "A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.",
@@ -851,6 +855,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
     ]
     for kind, count in scan.counts:
+        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+            count = NOT_GRADED
         lines.append(f"  {ROWS[kind]} - {kind:<{KIND_COLUMN}} {count}")
     lines.append("")
     lines.append(f"  checks at fault                  {scan.failing_checks}")
@@ -929,14 +935,14 @@ def posted_reading_check(
         bar.read_text(encoding='utf-8'),
     ) is not None
     reread = run / 'reread.md'
-    readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+    readings = read_posted_reading_file(reread)
     route = _posting_route(run, submission) if composer else None
     return _posted_reading_outcomes(run, submission, document, composer, readings, route)
 
 
 def _posting_route(run: Path, submission: str) -> str | None:
     try:
-        return approval_record.posting_route(
+        return approval_record.graded_posting_route(
             run, skill="practicum-case-study", submission=submission
         )
     except approval_record.ApprovalRecordError as failure:
@@ -987,11 +993,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     )
     reread_path = path.parent / "reread.md"
     try:
-        readings = (
-            read_posted_readings(reread_path.read_text(encoding="utf-8"))
-            if reread_path.is_file()
-            else ()
-        )
+        readings = read_posted_reading_file(reread_path)
         bar = path.with_name("bar.md")
         composer_run = bar.is_file() and re.search(
             r"(?m)^SUBMISSION-TYPE:\s*canvas-composer\s*$",

@@ -6,6 +6,10 @@ The posted-fingerprint coverage boundary belongs to
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+
+from run_record_reader import UnreadableRecord, fault_report, collecting_errors
+
 import completion_checks
 import assignment_bar
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
@@ -23,11 +27,11 @@ import reader_remarks
 import file_digest
 import repo_root
 import project_context
-from discussion_artifact import read_posted_readings
 from run_grader import EvidenceDisposition
 
 
 DECLARED_LIMITS = (
+    ("assignment_submission-record-coverage", 'assignment_submission record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     (
         "page-fingerprint-origin",
         "A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.",
@@ -83,12 +87,10 @@ def _write(record: Path, payload: dict[str, object]) -> None:
 
 
 def _read(run: Path) -> dict[str, object]:
-    try:
-        value = json.loads((run / RECORD).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as failure:
-        raise GateError(f"could not read durable submission gates: {failure}") from failure
-    if not isinstance(value, dict):
-        raise GateError("durable submission gates must be one object")
+    from run_record_reader import read_tool_record, submission_record
+    value = read_tool_record(run / RECORD, submission_record)
+    if value is None:
+        raise GateError("durable submission gates are missing")
     return value
 
 
@@ -409,7 +411,7 @@ def posted_reading_check(
     filenames = tuple(item.get("filename", "") for item in approved)
     posted_files = tuple((item.get("filename", ""), item.get("sha256", "")) for item in approved)
     reread = run / "reread.md"
-    readings = read_posted_readings(reread.read_text(encoding="utf-8")) if reread.is_file() else ()
+    readings = read_posted_reading_file(reread)
     reading = next((item for item in readings if item.artifact == submission), None)
     return check_posted_reading(
         reading, file_digest.sha256(artifact), matches_only=True,
@@ -490,6 +492,10 @@ def completion_gate(
             if outcomes:
                 canonical_failure = outcomes[0].message
             clean = not outcomes
+    except UnreadableRecord as failure:
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check="submission gates")
     except (GateError, OSError, UnicodeError, ValueError):
         clean = False
     if clean and submission is not None:

@@ -882,7 +882,7 @@ class CompletionRechecksFileItems(ProjectContextFixture):
         )
         self.plan.write_text("changed plan\n", encoding="utf-8")
         result = self.complete()
-        self.assertTrue(result.finding)
+        self.assertFalse(result.finding)
         self.assertTrue(result.coverage)
 
     def test_deleting_an_owed_entry_after_the_gate_is_a_finding(self) -> None:
@@ -944,8 +944,11 @@ class GoAheadRechecks(ProjectContextFixture):
     def record_posting(self, *, required=True):
         # A pre-check durable record uses the historical public reader contract.
         (self.run / approval_record.RECORD).write_text(json.dumps({
+            "version": 1, "approval_revision": 1,
             "items": [{"skill": "discussion-post", "submission": "submission",
                        "posting_route": "agent", "project_context_check": required,
+                       "sha256": "a" * 64, "sources": [str(self.plan)],
+                       "grader_args": [str(self.run)], "pregrade_status": "clean",
                        "approval_revision": 1}]
         }), encoding="utf-8")
 
@@ -1009,8 +1012,9 @@ class GoAheadRechecks(ProjectContextFixture):
         end = text.index("\n", start)
         record.write_text(text[:start] + 'MEMORY-LINES: ["not-a-fingerprint"]' + text[end:], encoding="utf-8")
         result = self.complete()
-        self.assertTrue(result.finding, result.report)
-        self.assertIn("record shape is invalid", result.report)
+        self.assertFalse(result.finding, result.report)
+        self.assertTrue(result.coverage)
+        self.assertIn("not graded", result.report)
 
     def test_reordering_whitespace_and_blank_lines_do_not_move_but_duplicate_loss_does(self):
         self.memory.write_text("first\nsecond\nfirst\n", encoding="utf-8")
@@ -1091,7 +1095,9 @@ class GoAheadRechecks(ProjectContextFixture):
         path = self.run / context.RECORD_NAME
         path.write_text(path.read_text(encoding="utf-8").replace('"finding": false', '"finding": "false"'), encoding="utf-8")
         self.record_posting()
-        self.assertTrue(self.complete().finding)
+        result = self.complete()
+        self.assertFalse(result.finding)
+        self.assertTrue(result.coverage)
 
     def test_a_later_notice_preserves_the_result_approved_before_posting(self):
         self.check()

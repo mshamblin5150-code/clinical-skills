@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -27,11 +28,13 @@ import completion_checks
 import artifact_lock
 from console_codec import require_python_floor, use_utf8
 import coursework_run
+from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report, collecting_errors
 
 
 EXPECTED_ROW = "the case video capture"
 MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v2", "large-v3")
 DECLARED_LIMITS = (
+    ("case_video-record-coverage", 'case_video record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.'),
     ("shared-engine", "Agreement between passes is not proof; both can mishear alike."),
     ("frame-distinctness-unproven", "Frame count is a floor, not proof every slide was distinct or detected."),
     ("file-identity", "A fingerprint binds the local file, not what YouTube serves later."),
@@ -51,7 +54,55 @@ def digest(path: Path) -> str:
 
 
 def read_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    machine = {"capture.json", "pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json"}
+    if path.name not in machine:
+        return json.loads(path.read_text(encoding="utf-8"))  # clinician/agent review, not tool-written
+    value = read_tool_record(path, lambda text: _decode_machine(path.name, text))
+    if value is None:
+        raise FileNotFoundError()
+    return value
+
+
+def _decode_machine(kind: str, text: str):
+    from run_record_reader import json_record
+    value = json_record(text)
+    if kind in {"pass-1.json", "pass-2.json", "disagreements.json"}:
+        if not isinstance(value, list) or (kind != "disagreements.json" and not value):
+            raise RecordShapeError("record items")
+        identifiers = set()
+        for row in value:
+            if (not isinstance(row, dict) or not all(type(row.get(key)) in (float, int) and math.isfinite(row[key]) for key in ("start", "end"))
+                    or not all(isinstance(row.get(key), str) for key in (("first", "second", "id") if kind == "disagreements.json" else ("text",)))):
+                raise RecordShapeError("record item fields")
+            if kind == "disagreements.json":
+                if row["id"] in identifiers:
+                    raise RecordShapeError("unique submission keys")
+                identifiers.add(row["id"])
+        return value
+    value = object_record(text)
+    if kind == "slide-terms.json":
+        if (not isinstance(value.get("frames_read"), list) or not all(isinstance(name, str) for name in value["frames_read"])
+                or not all(isinstance(value.get(key), str) and value[key].strip() for key in ("terms", "model_reason"))):
+            raise RecordShapeError("record fields")
+        return value
+    if (value.get("state") not in {"prepared", "transcribed"} or value.get("route") not in {"youtube", "local", "winx"}
+            or not isinstance(value.get("files"), dict) or not isinstance(value.get("frames"), list) or not value["frames"]
+            or not isinstance(value.get("video"), str)):
+        raise RecordShapeError("record fields")
+    for name, fingerprint in value["files"].items():
+        if not isinstance(name, str) or not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+            raise RecordShapeError("record item fields")
+    seen = set()
+    for row in value["frames"]:
+        if (not isinstance(row, dict) or not isinstance(row.get("file"), str) or row["file"] in seen
+                or type(row.get("seconds")) not in (float, int) or not math.isfinite(row["seconds"])):
+            raise RecordShapeError("record item fields")
+        seen.add(row["file"])
+    if value["state"] == "transcribed":
+        models = value.get("models")
+        if not isinstance(models, list) or len(models) != 2 or any(model not in MODELS for model in models):
+            raise RecordShapeError("record fields")
+    return value
 
 
 def write_json(path: Path, value) -> None:
@@ -313,6 +364,10 @@ def completion_gate(run: Path, submission: str | None, drafts: dict[str, bytes |
     try:
         keys = coursework_run.submission_keys(submission)
         counts = [check_review(run, key, (drafts or {}).get(key)) for key in keys]
+    except UnreadableRecord as failure:
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check=EXPECTED_ROW)
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError):
         return True, f"{EXPECTED_ROW}: finding - missing, changed or incomplete capture review; inspect the private record and capture files"
     return False, f"{EXPECTED_ROW}: clean; frames read {sum(c[0] for c in counts)}; confirmations {sum(c[1] for c in counts)}"
@@ -347,6 +402,10 @@ def main(argv: list[str]) -> int:
             drafts = {args.submission: args.draft.read_bytes()} if args.draft else {}
             failed, report = completion_gate(run, args.submission, drafts)
             print(report)
+            if "not graded - tool-written record unreadable" in report:
+                from run_grader import format_unread_remainder
+                print(format_unread_remainder(1))
+                return 2
             return int(failed)
         root = inside(run, args.capture)
         if not math.isfinite(args.threshold) or not 0 < args.threshold <= 1 or args.threads < 1:
@@ -380,6 +439,11 @@ def main(argv: list[str]) -> int:
         if args.action == "transcribe":
             print(f"disagreeing spans {len(read_json(root / 'disagreements.json'))}; clinician review required")
         return 0
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check=EXPECTED_ROW))
+        from run_grader import format_unread_remainder
+        print(format_unread_remainder(1))
+        return 2
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, ImportError) as failure:
         # Error messages from decoders and downloaders may carry private text.
         if args.worker:

@@ -47,6 +47,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("voice_read-record-coverage", 'voice_read record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', run_grader.EvidenceDisposition.DECLARED_READING),
     DeclaredLimit(
         "plant-detection-not-pair-identity",
         "the read tests detection of the planted sentence, not which model pair it imitates; the catch counts on whichever pair the reader judges closest",
@@ -444,7 +445,8 @@ def _supplied_voice_result(
 
 
 def _identity_digest(run: Path) -> str | None:
-    payload = _read_json(run / voice_model_identity.RECORD_NAME)
+    from run_record_reader import read_tool_record
+    payload = read_tool_record(run / voice_model_identity.RECORD_NAME, voice_model_identity._decode_record)
     if not isinstance(payload, dict):
         return None
     value = payload.get("sha256")
@@ -815,7 +817,16 @@ def completion_gate(
     frozen = completion_checks.exemption(run, submission, "voice_read", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, (frozen, ""))
-    gate = _completion_gate(run, submission, surface)
+    from run_record_reader import UnreadableRecord, fault_report, collecting_errors
+    try:
+        gate = _completion_gate(run, submission, surface)
+    except UnreadableRecord as failure:
+        if not collecting_errors():
+            raise
+        return CompletionGate(False, True, (
+            fault_report(failure, check=EXPECTED_ROW),
+            f"{PROFANITY_EXPECTED_ROW}: not graded - tool-written identity unreadable",
+        ))
     keys = tuple(surface) if isinstance(surface, Mapping) else tuple(submission.split(",")) if submission else ()
     return replace(gate, remarks=reader_remarks.voice_remarks(run, keys))
 

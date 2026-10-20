@@ -18,6 +18,9 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+from discussion_artifact import posted_reading_unavailable
+
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import completion_checks
@@ -55,7 +58,6 @@ from discussion_artifact import (
     legal_section_detail,
     read_citations,
     read_invoked_sources,
-    read_posted_readings,
     read_reference_section,
     reference_key,
     reference_keys,
@@ -177,6 +179,7 @@ INVOKED_PROPERTY_LIMIT = (
     "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
 DECLARED_LIMITS = (
+    ("discussion_reply_scan-record-coverage", 'discussion_reply_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's heading supports the number traced from it",
@@ -652,11 +655,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             for match in [POST_URL.search(text)]
             if match
         )
-        readings = (
-            read_posted_readings(reread_path.read_text(encoding="utf-8"))
-            if reread_path.is_file()
-            else ()
-        )
+        readings = read_posted_reading_file(reread_path)
         initial_post_match = (
             POST_URL.search(initial_post_path.read_text(encoding="utf-8"))
             if initial_post_path.is_file()
@@ -726,7 +725,7 @@ def posted_reading_check(
         if Path(submission).name != submission or not submission.startswith('response-') or not submission.endswith('.md'):
             raise run_grader.SourceError('posted reading names another reply')
         reread = run / 'reread.md'
-        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        readings = read_posted_reading_file(reread)
         id_counts = Counter(item.entry_id for item in readings if item.entry_id is not None)
         post_paths = tuple(sorted((run / 'posts').glob('*.md')))
         initial = run / 'post.md'
@@ -753,7 +752,7 @@ def _posted_reading_states(source: RunSource) -> tuple[approval_record.PostedRea
         return tuple(
             approval_record.PostedReadingState(
                 submission=reply.path.name,
-                posted=approval_record.posting_route(
+                posted=approval_record.graded_posting_route(
                     source.path, skill="discussion-reply", submission=reply.path.name
                 ) in {"agent", "clinician"},
                 has_reading=any(reading.artifact == reply.path.name for reading in source.readings),
@@ -992,7 +991,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
+        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
             state.posted for state in scan.posted_reading_states
         ):
             lines.append(f"{kind}: {NOT_GRADED}")
@@ -1013,7 +1014,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     for state in scan.posted_reading_states:
         for kind in dict.fromkeys(POSTED_READING_KINDS.values()):
             count = sum(finding.kind == kind and finding.response == state.submission for finding in scan.findings)
-            lines.append(f"{kind}: {state.submission}: {count if state.posted else NOT_GRADED}")
+            measured = state.posted and not posted_reading_unavailable()
+            lines.append(f"{kind}: {state.submission}: {count if measured else NOT_GRADED}")
         if state.unrecorded_reading:
             lines.append(f"posted reading: {state.submission}: incomplete coverage - posting is not recorded")
     if show:

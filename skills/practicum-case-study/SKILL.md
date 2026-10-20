@@ -1889,6 +1889,7 @@ Then walk this list, by eye — none of it is mechanical:
 
 **The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
 
+- checks_ledger record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.
 - A well-shaped pre-review walk cannot prove completeness, clinical truth, pre-reader timing, the first-draft timestamp, or agreement with the draft and chat.
 - A page POSTED-FILE fingerprint copied from the approved record passes; the grader cannot prove that the page computed it.
 - A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.

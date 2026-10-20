@@ -6,6 +6,8 @@ The complete boundary of this helper's clean result is declared in
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file, decode_posted_readings
+
 import completion_checks
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
@@ -21,11 +23,12 @@ from pathlib import Path
 from discussion_artifact import PostedReading, read_posted_readings
 from run_grader import EvidenceDisposition, RUN_RECORD_STEMS, is_run_record
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_tool_record
+from run_record_reader import read_tool_record, UnreadableRecord, fault_report
 
 
 NOTE_NUMBER = re.compile(r"note-(?P<number>\d+)\.md", re.IGNORECASE)
 DECLARED_LIMITS = (
+    ("medatrax_posting-record-coverage", 'medatrax_posting record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     (
         "batch note filename grammar",
         "Only top-level note-N.md files, with decimal N, enter a batch fingerprint.",
@@ -103,10 +106,7 @@ def source_sha256(paths: tuple[Path, ...]) -> str:
 
 
 def posted_reading(run: Path, submission: str) -> PostedReading | None:
-    try:
-        records = read_posted_readings((run / "reread.md").read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError):
-        return None
+    records = read_posted_reading_file(run / "reread.md", collect=False)
     matches = tuple(record for record in records if record.artifact == submission)
     return matches[0] if len(matches) == 1 else None
 
@@ -154,6 +154,11 @@ def completion_gate(
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"
     try:
         outcomes = posted_reading_check(run, submission, batch=batch)
+    except UnreadableRecord as failure:
+        from run_record_reader import collecting_errors, fault_report
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check="the Medatrax posted reading")
     except ValueError as failure:
         return True, f"the Medatrax posted reading: finding - {failure}"
     except OSError:
@@ -242,7 +247,7 @@ def main(argv: list[str]) -> int:
             raise ValueError("batch notes must have numbered filenames")
         target = args.run / "reread.md"
         # Parse every existing block before a write so damage is never overwritten.
-        existing = read_tool_record(target, lambda text: (read_posted_readings(text), text))
+        existing = read_tool_record(target, lambda text: (decode_posted_readings(text), text))
         if args.action == "check":
             if existing is None:
                 raise ValueError("posted reading is missing")
@@ -279,6 +284,11 @@ def main(argv: list[str]) -> int:
                 temporary.unlink(missing_ok=True)
         print("Medatrax posted reading: clean")
         return 0
+    except UnreadableRecord as failure:
+        from run_grader import format_unread_remainder
+        print(fault_report(failure, check="Medatrax posted reading"))
+        print(format_unread_remainder(1))
+        return 2
     except (OSError, UnicodeError, ValueError, TypeError):
         print("Medatrax posted reading: refused - private input or record unreadable or invalid", file=sys.stderr)
         return 2

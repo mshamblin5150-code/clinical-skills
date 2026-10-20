@@ -8,6 +8,7 @@ import artifact_lock_test_support
 import json
 import tempfile
 import unittest
+import artifact_lock_test_support
 from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
@@ -118,11 +119,15 @@ class StandaloneNotePopulation(unittest.TestCase):
             (run / "posting-approvals.json").write_text(
                 json.dumps(
                     {
+                        "version": 1, "approval_revision": 1,
                         "items": [
                             {
                                 "skill": "clinical-note",
                                 "submission": "encounter",
                                 "sources": [str(note)],
+                                "sha256": "a" * 64, "approval_revision": 1,
+                                "grader_args": [str(run)], "pregrade_status": "clean",
+                                "posting_route": "agent",
                             }
                         ]
                     }
@@ -225,12 +230,8 @@ class FingerprintRefusals(unittest.TestCase):
     def test_malformed_hash_is_refused(self) -> None:
         (self.run / "reread.md").write_text(reading("not-a-digest"), encoding="utf-8")
 
-        failed, report = posting.completion_gate(
-            self.run, SUBMISSION, batch=True
-        )
-
-        self.assertTrue(failed)
-        self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", report)
+        with self.assertRaisesRegex(posting.UnreadableRecord, "wrong shape: record header fields"):
+            posting.completion_gate(self.run, SUBMISSION, batch=True)
 
     def test_unreadable_note_bytes_are_refused(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()

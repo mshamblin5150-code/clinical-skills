@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import artifact_lock_test_support
 from unittest import mock
 
 import approval_record

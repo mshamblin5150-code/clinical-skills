@@ -25,6 +25,9 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+from discussion_artifact import posted_reading_unavailable
+
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import completion_checks
@@ -65,7 +68,6 @@ from discussion_artifact import (
     legal_section_detail,
     read_citations,
     read_invoked_sources,
-    read_posted_readings,
     read_reference_section,
     reference_key,
     split_references,
@@ -218,6 +220,7 @@ UNJOINED_SOURCE_FIELDS_LIMIT = (
 )
 
 DECLARED_LIMITS = (
+    ("discussion_post_scan-record-coverage", 'discussion_post_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', run_grader.EvidenceDisposition.DECLARED_READING),
     (
         "posting before approval records",
         "A run older than the approval record cannot show it was posted; no legacy fields or backfill establish a posting route.",
@@ -952,17 +955,13 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             else ""
         )
         section = read_reference_section(draft_text, REFERENCE_HEADING)
-        readings = (
-            read_posted_readings(reread_path.read_text(encoding="utf-8"))
-            if reread_path.is_file()
-            else ()
-        )
+        readings = read_posted_reading_file(reread_path)
         initial_reading = next(
             (item for item in readings if item.artifact == draft.stem), None
         )
         posted_reading_state = approval_record.PostedReadingState(
             submission=draft.stem,
-            posted=approval_record.posting_route(
+            posted=approval_record.graded_posting_route(
                 root, skill="discussion-post", submission=draft.stem
             ) in {"agent", "clinician"},
             has_reading=initial_reading is not None,
@@ -1076,10 +1075,10 @@ def posted_reading_check(
         html = Path(value) if (value := parsed.value('--html')) is not None else None
         docx = Path(value) if (value := parsed.value('--docx')) is not None else None
         reread = run / 'reread.md'
-        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        readings = read_posted_reading_file(reread)
         reading = next((item for item in readings if item.artifact == submission), None)
         post_path = run / 'post.md'
-        route = approval_record.posting_route(run, skill="discussion-post", submission=submission)
+        route = approval_record.graded_posting_route(run, skill="discussion-post", submission=submission)
         if route not in {"agent", "clinician"}:
             return ()
         saved_url, _ = _posting_link(post_path.read_text(encoding='utf-8') if post_path.is_file() else '')
@@ -1716,7 +1715,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind == EDITOR_READBACK and not scan.editor_readback_graded:
+        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind == EDITOR_READBACK and not scan.editor_readback_graded:
             lines.append(f"{kind}: {NOT_GRADED} - awaiting a Canvas-box load")
         elif kind == SUBMISSION_FINGERPRINT and not scan.submission_fingerprint_graded:
             lines.append(f"{kind}: {NOT_GRADED}")

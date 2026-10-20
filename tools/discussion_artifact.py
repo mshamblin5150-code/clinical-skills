@@ -18,8 +18,17 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import file_digest
+from run_record_reader import (
+    RecordShapeError, UnreadableRecord, collecting_errors, read_tool_record,
+    unreadable_kind,
+)
 from imagery_proposals import WORKING_MARKER
 from run_grader import EvidenceDisposition
+
+
+DECLARED_LIMITS = (
+    'discussion_artifact record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+)
 
 
 WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
@@ -460,6 +469,32 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
     return tuple(records)
 
 
+def decode_posted_readings(text: str) -> tuple[PostedReading, ...]:
+    """The common machine-record shape; dated content checks remain with graders."""
+    readings = read_posted_readings(text)
+    if not readings or any(
+        reading.missing_fields or not reading.submission_sha256_is_valid
+        or not reading.verdict_is_known for reading in readings
+    ):
+        raise RecordShapeError("record header fields")
+    return readings
+
+
+def read_posted_reading_file(path: Path, *, collect: bool = True) -> tuple[PostedReading, ...]:
+    """Keep absence empty; retain a present fault for the command's coverage report."""
+    try:
+        return read_tool_record(path, decode_posted_readings) or ()
+    except UnreadableRecord:
+        if not collect or not collecting_errors():
+            raise
+        return ()
+
+
+def posted_reading_unavailable() -> bool:
+    """A captured one-run command cannot establish this join from damaged bookkeeping."""
+    return any(unreadable_kind(name) for name in ("reread.md", "posting-approvals.json", "submission-gates.json"))
+
+
 POSTED_READING_MESSAGES = {
     "missing-record": "no REREAD record for the submission",
     "fingerprint": "SUBMISSION-SHA256 is missing, malformed, or stale",
@@ -527,6 +562,8 @@ def check_posted_reading(
     Presence and fingerprint always run; each other piece is explicitly enabled.
     Outcome codes and messages belong here; finding names belong to the caller.
     """
+    if posted_reading_unavailable():
+        return ()
     if reading is None:
         return (PostedReadingOutcome("missing-record"),)
     codes: list[str] = []

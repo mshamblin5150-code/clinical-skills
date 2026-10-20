@@ -9,6 +9,7 @@ import os
 import re
 import tempfile
 import unittest
+import artifact_lock_test_support
 import uuid
 from pathlib import Path
 from unittest import mock

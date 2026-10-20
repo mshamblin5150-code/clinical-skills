@@ -5,6 +5,8 @@ never regraded. Adoption reads retained evidence without asserting its quality.
 """
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import json
@@ -93,6 +95,17 @@ def freeze(run: Path, skill: str, item: dict, *, adoption: bool = False) -> None
 
 
 def report(run: Path, submission: str, *, adopt_history: bool = True) -> str | None:
+    """An unreadable retained grade establishes no exemption in a captured command."""
+    from run_record_reader import collecting_errors
+    try:
+        return _report(run, submission, adopt_history=adopt_history)
+    except UnreadableRecord:
+        if not collecting_errors():
+            raise
+        return None
+
+
+def _report(run: Path, submission: str, *, adopt_history: bool = True) -> str | None:
     if adopt_history:
         adopt(run)
     approval = approved(run, submission)
@@ -132,7 +145,6 @@ class Adoption:
 def adopt(run: Path) -> Adoption:
     from run_status_stop_hook import approvals, STATE_RECORD
     from aar_scan import review_path
-    from discussion_artifact import read_posted_readings
     payload = _read(run / RECORD)
     if payload.get("adoption_done"):
         return Adoption()
@@ -146,8 +158,9 @@ def adopt(run: Path) -> Adoption:
     except (TypeError, ValueError):
         covered = []
     try:
-        readings = {reading.artifact: reading for reading in read_posted_readings(
-            (run / "reread.md").read_text(encoding="utf-8"))}
+        readings = {reading.artifact: reading for reading in read_posted_reading_file(run / "reread.md", collect=False)}
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         readings = {}
     clean = adopted = 0
@@ -168,6 +181,7 @@ def adopt(run: Path) -> Adoption:
             lines.append(report(run, key, adopt_history=False) or key)
     with locked_record(run / RECORD):
         payload = _read(run / RECORD)
+        payload.setdefault("items", {})
         payload["adoption_done"] = True
         payload["adoption_counts"] = dict(graded_clean=clean, never_graded_clean=adopted)
         _write(run, payload)
@@ -225,6 +239,8 @@ def main(argv: list[str]) -> int:
                 result = adopt(run)
             except UnreadableRecord as failure:
                 print(fault_report(failure, check="frozen grade"))
+                from run_grader import format_unread_remainder
+                print(format_unread_remainder(1))
                 return 2
             clean += result.clean
             adopted += result.adopted

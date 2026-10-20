@@ -51,6 +51,9 @@ import repo_root
 import run_grader
 import browser_tab_hook
 import tree_walk
+from run_record_reader import (
+    RecordShapeError, UnreadableRecord, fault_report, object_record, read_tool_record,
+)
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -286,6 +289,7 @@ ROWS: Mapping[str, str] = MappingProxyType(
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    ("aar_scan-record-coverage", 'aar_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.'),
     (
         "withdrawn reply text",
         "A refusal-fallback notice is read, but withdrawn replies not stored by the harness cannot enter the population.",
@@ -1008,17 +1012,13 @@ def _memory_index_grade(
     extracted_at = fields.get("EXTRACTED-AT", "")
     required = bool(extracted_at) and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= MEMORY_MEASUREMENT_CUTOFF
     path = memory_measurement_path(run, submission, round_number)
-    if not path.is_file() and not required:
-        return (f"{prefix}: {NOT_GRADED} - extract predates the measurement",), ()
     try:
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = read_tool_record(path, _memory_measurement_record)
+        if record is None:
+            if not required:
+                return (f"{prefix}: {NOT_GRADED} - extract predates the measurement",), ()
+            raise ValueError("measurement is absent")
         limits = record["limits"]
-        for counts in (record, limits):
-            for name in ("lines", "characters"):
-                if type(counts[name]) is not int or counts[name] < (1 if counts is limits else 0):
-                    raise ValueError("invalid index counts or limits")
-        if not isinstance(limits["release"], str) or not re.fullmatch(r"\d+\.\d+\.\d+", limits["release"]):
-            raise ValueError("invalid measured release")
         overflow = record["lines"] > limits["lines"] or record["characters"] > limits["characters"]
         if (
             record["submission"] != submission or record["round"] != round_number
@@ -1027,19 +1027,8 @@ def _memory_index_grade(
             or record["verdict"] != ("fail" if overflow else "pass")
         ):
             raise ValueError("measurement does not match the round or its verdict")
-        if not isinstance(record["measured_at"], str):
-            raise ValueError("invalid measurement timestamp")
-        _utc_timestamp(record["measured_at"], "memory measured-at")
-        # A measurement written before ADR 0391's build carries neither key and
-        # reports the placement row as not graded; one key without the other is invalid.
-        if "unplaced" in record or "subject_lists" in record:
-            lists = record["subject_lists"]
-            if (
-                type(record["unplaced"]) is not int or record["unplaced"] < 0
-                or not isinstance(lists, dict)
-                or any(not isinstance(k, str) or type(v) is not int or v < 0 for k, v in lists.items())
-            ):
-                raise ValueError("invalid subject-list or unplaced counts")
+    except UnreadableRecord as exc:
+        return (fault_report(exc, check=prefix),), ()
     except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
         return (f"{prefix}: measurement missing or invalid",), (Finding("memory-index-measurement", str(exc)),)
     reports = [
@@ -1062,6 +1051,34 @@ def _memory_index_grade(
     if record.get("unplaced"):
         findings.append(Finding("memory-index-unplaced", f"round {round_number}: {record['unplaced']}"))
     return tuple(reports), tuple(findings)
+
+
+def _memory_measurement_record(text: str) -> dict:
+    record = object_record(text)
+    limits = record.get("limits")
+    if not isinstance(limits, dict):
+        raise RecordShapeError("record fields")
+    for counts in (record, limits):
+        if any(type(counts.get(name)) is not int or counts[name] < (1 if counts is limits else 0)
+               for name in ("lines", "characters")):
+            raise RecordShapeError("record fields")
+    if (type(record.get("round")) is not int or record["round"] < 1
+            or any(not isinstance(record.get(name), str) or not record[name]
+                   for name in ("submission", "memory_index", "extracted_at", "measured_at"))
+            or not isinstance(limits.get("release"), str)
+            or not re.fullmatch(r"\d+\.\d+\.\d+", limits["release"])
+            or record.get("verdict") not in {"pass", "fail"}):
+        raise RecordShapeError("record fields")
+    for name in ("extracted_at", "measured_at"):
+        _utc_timestamp(record[name], name)
+    # Both optional placement fields are absent on pre-ADR 0391 records.
+    if "unplaced" in record or "subject_lists" in record:
+        lists = record.get("subject_lists")
+        if (type(record.get("unplaced")) is not int or record["unplaced"] < 0
+                or not isinstance(lists, dict)
+                or any(not isinstance(k, str) or type(v) is not int or v < 0 for k, v in lists.items())):
+            raise RecordShapeError("record fields")
+    return record
 
 
 def _review_round_numbers(run: Path, submission: str) -> tuple[int, ...]:
@@ -1089,13 +1106,14 @@ def _next_review_round(run: Path, submission: str) -> int:
 
 
 def _posted_reading_block(run: Path, submission: str) -> str:
+    from discussion_artifact import decode_posted_readings
     path = run / "reread.md"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise ValueError(
-            f"reread.md has no REREAD record for {submission}"
-        ) from exc
+    def decode(text):
+        decode_posted_readings(text)
+        return text.replace("\r\n", "\n")
+    text = read_tool_record(path, decode)
+    if text is None:
+        raise ValueError(f"reread.md has no REREAD record for {submission}")
     matches = [
         match
         for match in REREAD_BLOCK.finditer(text)
@@ -1176,9 +1194,11 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
             continue
         extract = path.with_name(f"{path.stem}.extract.md")
         extract_fields: dict[str, str] = {}
-        if extract.is_file():
+        if extract.exists():
             try:
                 extract_fields, _identifiers = _extract_metadata(extract)
+            except UnreadableRecord:
+                raise
             except ValueError:
                 extract_fields = {}
         _append_review_cursors(cursors, review, extract_fields)
@@ -1790,10 +1810,12 @@ def rebuild_extract(
     run: Path, submission: str, round_number: int
 ) -> tuple[Path, int, Path]:
     destination = extract_path(run, submission, round_number)
-    try:
-        refused_text = destination.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
-        raise ValueError(f"cannot read refused round {round_number}") from exc
+    def refused_record(text: str) -> str:
+        _tool_extract_entries(text, allow_duplicate_identifiers=True)
+        return text
+    refused_text = read_tool_record(destination, refused_record)
+    if refused_text is None:
+        raise ValueError(f"cannot read refused round {round_number}")
     fields, refused_entries = _extract_entries_text(
         refused_text, allow_duplicate_identifiers=True
     )
@@ -1818,7 +1840,7 @@ def rebuild_extract(
             raise ValueError(
                 "rebuilt extract changed a non-notification entry identifier"
             )
-    header = refused_text.split("\n\n", 1)[0]
+    header = "\n".join(refused_text.splitlines()).split("\n\n", 1)[0]
     rebuilt_text = _render_rebuilt_extract(header, population)
     _extract_document_text(rebuilt_text)
     refused_root = run / "aar" / "refused"
@@ -1899,11 +1921,28 @@ def read_review(path: Path) -> Review:
 def _extract_document(
     path: Path,
 ) -> tuple[dict[str, str], set[str], dict[str, str], set[str]]:
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
-        raise ValueError(f"cannot read extract {path.name}") from exc
-    return _extract_document_text(text)
+    def decode(text: str):
+        _tool_extract_entries(text)
+        return _extract_document_text(text)
+    document = read_tool_record(path, decode)
+    if document is None:
+        raise ValueError(f"cannot read extract {path.name}")
+    return document
+
+
+def _tool_extract_entries(text: str, *, allow_duplicate_identifiers: bool = False):
+    fields, entries = _extract_entries_text(text, allow_duplicate_identifiers=allow_duplicate_identifiers)
+    # Historical extracts lack later diagnostic fields. Present counters must
+    # have their declared shape; absence retains the dated grading semantics.
+    counters = {"POPULATION", "UNREAD-REMAINDER", "UNMARKED-PRIOR-REVIEWS", "AGENTS-INSTRUCTIONS"}
+    counters.update(name for name in fields if name.startswith(("TRANSCRIPTS-", "UNDECLARED-", "TAB-CREATION-")))
+    counters.difference_update({"TRANSCRIPT-PATHS"})
+    counters.update({"UNREADABLE-DIRECTORIES", "LINKS-NOT-ENTERED", "UNOWNED-BROWSER-PAGE-ACTIONS"})
+    if any(name in fields and not re.fullmatch(r"[0-9]+", fields[name]) for name in counters):
+        raise RecordShapeError("record header fields")
+    if any(not fields.get(name) for name in ("SUBMISSION", "POPULATION", "TRANSCRIPTS", "WATERMARK")):
+        raise RecordShapeError("record header fields")
+    return fields, entries
 
 
 def _extract_document_text(
@@ -2019,18 +2058,21 @@ def _utc_timestamp(value: str, label: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _baseline_record(text: str) -> dict[str, str | None]:
+    payload = object_record(text)
+    if any(not key or (value is not None and (not isinstance(value, str)
+               or not re.fullmatch(r"[0-9a-f]{64}", value))) for key, value in payload.items()):
+        raise RecordShapeError("record item fields")
+    return payload
+
+
 def _baseline(
     run: Path, submission: str, round_number: int = 1
 ) -> dict[str, str | None]:
-    try:
-        payload = json.loads(
-            baseline_path(run, submission, round_number).read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError("baseline is absent or unreadable") from exc
-    if not isinstance(payload, dict):
-        raise ValueError("baseline is not an object")
-    return {str(key): value if isinstance(value, str) else None for key, value in payload.items()}
+    payload = read_tool_record(baseline_path(run, submission, round_number), _baseline_record)
+    if payload is None:
+        raise ValueError("baseline is absent or unreadable")
+    return payload
 
 
 def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
@@ -2114,6 +2156,41 @@ def _successful_gh_call(
     return False
 
 
+def _review_content(review: Review) -> tuple[int, int, list[Finding]]:
+    """Checks whose evidence is entirely in the handwritten review."""
+    findings: list[Finding] = []
+    try:
+        population = int(review.fields.get("POPULATION", ""))
+        unread = int(review.fields.get("UNREAD", ""))
+    except ValueError:
+        population, unread = 0, -1
+        findings.append(Finding("non-numeric-coverage", "POPULATION or UNREAD"))
+    if unread != 0:
+        findings.append(Finding("unread-candidates", str(unread)))
+    if not review.corrections and not review.corrections_none:
+        findings.append(Finding("missing-correction-verdict", "neither records nor CORRECTIONS: none"))
+    if review.corrections and review.corrections_none:
+        findings.append(Finding("contradictory-correction-verdict", "records and CORRECTIONS: none"))
+    if not review.sustains and not review.sustains_none:
+        findings.append(Finding("missing-sustain-verdict", "neither records nor SUSTAINS: none"))
+    if review.sustains and review.sustains_none:
+        findings.append(Finding("contradictory-sustain-verdict", "records and SUSTAINS: none"))
+    for correction in review.corrections:
+        for field in CORRECTION_FIELDS:
+            if not _substance(correction.fields.get(field, "")):
+                findings.append(Finding("missing-correction-field", f"{correction.event}: {field}"))
+        if correction.fields.get("CORRECTOR") not in CORRECTORS:
+            findings.append(Finding("unknown-corrector", correction.fields.get("CORRECTOR", "")))
+        if correction.fields.get("IN-ERROR") not in CORRECTORS:
+            findings.append(Finding("unknown-error-party", correction.fields.get("IN-ERROR", "")))
+        if correction.fields.get("DISPOSITION", "") not in DISPOSITIONS:
+            findings.append(Finding("unknown-disposition", correction.fields.get("DISPOSITION") or correction.event))
+    for sustain in review.sustains:
+        if not _substance(sustain.fields.get("SUMMARY", "")):
+            findings.append(Finding("bare-sustain", sustain.event))
+    return population, unread, findings
+
+
 def _survey_round(
     run: Path, submission: str, round_number: int, *, newest_round: bool = True
 ) -> Scan:
@@ -2124,25 +2201,38 @@ def _survey_round(
         return Scan(submission, 0, 0, 0, 0, 0, (Finding("missing-review", str(record_path)),))
     try:
         review = read_review(record_path)
-        baseline = _baseline(run, submission, round_number)
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
+    record_reports: list[str] = []
     try:
-        extract_fields, identifiers, entry_kinds, task_aliases = _extract_document(
-            extract_path(run, submission, round_number)
-        )
-    except UnknownExtractFormat:
-        raise
+        baseline = _baseline(run, submission, round_number)
+    except UnreadableRecord as exc:
+        baseline = None
+        record_reports.append(fault_report(exc, check="memory and check landings"))
     except ValueError as exc:
-        return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-extract", str(exc)),))
-
+        return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
     for field in HEADER_FIELDS:
         value = review.fields.get(field, "")
         present = bool(value.strip()) if field in {"POPULATION", "UNREAD"} else _substance(value)
         if not present:
             findings.append(Finding("missing-header-field", field))
+    if review.fields.get("SUBMISSION") != submission:
+        findings.append(Finding("wrong-submission", review.fields.get("SUBMISSION", "")))
+    population, unread, review_findings = _review_content(review)
+    findings.extend(review_findings)
+    try:
+        extract_fields, identifiers, entry_kinds, task_aliases = _extract_document(
+            extract_path(run, submission, round_number)
+        )
+    except UnreadableRecord as exc:
+        return Scan(submission, 1, population, len(review.corrections), len(review.sustains), unread,
+                    tuple(findings), memory_reports=(*record_reports, fault_report(exc, check="extract-dependent checks")))
+    except ValueError as exc:
+        return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-extract", str(exc)),))
+
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
     memory_reports, memory_findings = _memory_index_grade(run, submission, round_number, extract_fields)
+    memory_reports = (*record_reports, *memory_reports)
     findings.extend(memory_findings)
     later_sittings = (
         count_later_sittings(run, _utc_timestamp(extracted_at, "EXTRACTED-AT"))
@@ -2192,9 +2282,12 @@ def _survey_round(
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
             current_fingerprint = _posted_reading_fingerprint(run, submission)
+        except UnreadableRecord as exc:
+            current_fingerprint = None
+            record_reports.append(fault_report(exc, check="the posted-reading fingerprint"))
         except ValueError:
             current_fingerprint = ""
-        if (
+        if current_fingerprint is not None and (
             not re.fullmatch(r"[0-9a-f]{64}", recorded_fingerprint)
             or recorded_fingerprint != current_fingerprint
         ):
@@ -2208,19 +2301,9 @@ def _survey_round(
                 extract_fields.get("UNMARKED-PRIOR-REVIEWS", ""),
             )
         )
-    if review.fields.get("SUBMISSION") != submission:
-        findings.append(Finding("wrong-submission", review.fields.get("SUBMISSION", "")))
-    try:
-        population = int(review.fields.get("POPULATION", ""))
-        unread = int(review.fields.get("UNREAD", ""))
-    except ValueError:
-        population, unread = 0, -1
-        findings.append(Finding("non-numeric-coverage", "POPULATION or UNREAD"))
     expected_population = len(identifiers)
     if population != expected_population or review.fields.get("POPULATION") != extract_fields.get("POPULATION"):
         findings.append(Finding("population-mismatch", f"record {population}; extract {expected_population}"))
-    if unread != 0:
-        findings.append(Finding("unread-candidates", str(unread)))
     if review.fields.get("WATERMARK") != extract_fields.get("WATERMARK") or (
         review.fields.get("WATERMARK") not in identifiers
         and review.fields.get("WATERMARK") not in task_aliases
@@ -2228,14 +2311,6 @@ def _survey_round(
         findings.append(Finding("watermark-mismatch", review.fields.get("WATERMARK", "")))
     if review.fields.get("TRANSCRIPTS") != extract_fields.get("TRANSCRIPTS"):
         findings.append(Finding("transcript-mismatch", review.fields.get("TRANSCRIPTS", "")))
-    if not review.corrections and not review.corrections_none:
-        findings.append(Finding("missing-correction-verdict", "neither records nor CORRECTIONS: none"))
-    if review.corrections and review.corrections_none:
-        findings.append(Finding("contradictory-correction-verdict", "records and CORRECTIONS: none"))
-    if not review.sustains and not review.sustains_none:
-        findings.append(Finding("missing-sustain-verdict", "neither records nor SUSTAINS: none"))
-    if review.sustains and review.sustains_none:
-        findings.append(Finding("contradictory-sustain-verdict", "records and SUSTAINS: none"))
 
     transcript_paths = [
         Path(value.strip())
@@ -2250,16 +2325,8 @@ def _survey_round(
             findings.append(
                 Finding("correction-on-extractor-written-entry", correction.event)
             )
-        for field in CORRECTION_FIELDS:
-            if not _substance(correction.fields.get(field, "")):
-                findings.append(Finding("missing-correction-field", f"{correction.event}: {field}"))
-        if correction.fields.get("CORRECTOR") not in CORRECTORS:
-            findings.append(Finding("unknown-corrector", correction.fields.get("CORRECTOR", "")))
-        if correction.fields.get("IN-ERROR") not in CORRECTORS:
-            findings.append(Finding("unknown-error-party", correction.fields.get("IN-ERROR", "")))
         disposition = correction.fields.get("DISPOSITION", "")
         if disposition not in DISPOSITIONS:
-            findings.append(Finding("unknown-disposition", disposition or correction.event))
             continue
         target = correction.fields.get("TARGET", "")
         landing = correction.fields.get("LANDING", "")
@@ -2277,18 +2344,16 @@ def _survey_round(
             elif transcript_paths and not _successful_gh_call(transcript_paths):
                 findings.append(Finding("missing-gh-call", correction.event))
         elif disposition == "memory-write":
-            if not _target_changed(target, baseline):
+            if baseline is not None and not _target_changed(target, baseline):
                 findings.append(Finding("unlanded-memory", correction.event))
         elif disposition == "check":
             resolved = Path(target).expanduser().resolve()
-            if resolved not in tracked_files or not _target_changed(target, baseline):
+            if baseline is not None and (resolved not in tracked_files or not _target_changed(target, baseline)):
                 findings.append(Finding("unlanded-check", correction.event))
 
     for sustain in review.sustains:
         if sustain.event not in identifiers:
             findings.append(Finding("unknown-sustain-event", sustain.event))
-        if not _substance(sustain.fields.get("SUMMARY", "")):
-            findings.append(Finding("bare-sustain", sustain.event))
     counts: dict[tuple[str, str, str], int] = {}
     for correction in review.corrections:
         key = (
@@ -2716,6 +2781,8 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             round_value = parsed.value("--round")
             round_number = int(round_value) if round_value else max(_review_round_numbers(run, submission), default=1)
             destination = measure_memory(run, submission, round_number)
+        except UnreadableRecord as exc:
+            return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="memory measurement"),))
         except (OSError, UnicodeError, ValueError) as exc:
             return run_grader.EarlyExit(2, stderr=(f"memory index NOT MEASURED: {exc}",))
         return run_grader.EarlyExit(0, stdout=(f"private memory index measurement written: {destination.name}",))
@@ -2752,6 +2819,8 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                     run, transcript, submission, Path(memory_value).expanduser().resolve()
                 )
             extract_fields, _identifiers = _extract_metadata(destination)
+        except UnreadableRecord as exc:
+            return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="extract"),))
         except (OSError, ValueError, subprocess.SubprocessError, git_paths.GitPathError) as exc:
             return run_grader.EarlyExit(
                 2,

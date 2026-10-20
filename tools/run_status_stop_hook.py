@@ -67,6 +67,7 @@ ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
+    'run_status_stop_hook record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     'Unreadable hook payloads always allow the stop with a systemMessage warning that the turn was not graded; no raw trigger is applied.',
     "Material reachable only through a link or junction is not entered and does not make a run touched.",
     "A run is in scope when a tool-call input names its directory, a readable durable approval record names an approved item, and either a file beneath it changed after the transcript's session start (excluding run-status.json) or the walk cannot establish no change.",
@@ -216,8 +217,8 @@ def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
     return tuple(run for run in found if started is None or _changed_after(run, started))
 
 
-def _read_object(path: Path) -> dict[str, object] | None:
-    return read_tool_record(path, posting_record if path.name == "posting-approvals.json" else submission_record)
+def _read_object(path: Path, decoder=posting_record) -> dict[str, object] | None:
+    return read_tool_record(path, decoder)
 
 
 def approvals(run: Path) -> tuple[tuple[RunKind, dict[str, object]], ...]:
@@ -226,7 +227,7 @@ def approvals(run: Path) -> tuple[tuple[RunKind, dict[str, object]], ...]:
     found: list[tuple[RunKind, dict[str, object]]] = []
     assignment_spec = RUN_KIND_BY_SKILL.get("course-assignment")
     assignment = (
-        _read_object(run / assignment_spec.approval_record)
+        _read_object(run / assignment_spec.approval_record, submission_record)
         if assignment_spec is not None
         else None
     )

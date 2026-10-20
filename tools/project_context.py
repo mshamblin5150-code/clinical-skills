@@ -26,6 +26,7 @@ import repo_root
 import run_grader
 import uptodate_store
 from console_codec import require_python_floor, use_utf8
+from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record
 
 
 RECORD_NAME = "project-context.md"
@@ -50,6 +51,7 @@ CLASSMATE_SKILLS = MappingProxyType({
 CLASSMATE_FIELDS = ("CLASSMATE-POST", "CLASSMATE-BOARD", "CLASSMATE-ATTACHMENT")
 DECLARED_FILE_FIELDS = ("COURSE-HISTORY", "MEMORY-FILE", "PRIOR-WORK")
 DECLARED_LIMITS = (
+    ("unreadable-tool-record", "Existing decode faults and broken tool-rendered fields propagate through the shared reader; dependent checks are not graded, with incomplete coverage. Control-character damage remains a content finding and writers refuse before replacing evidence."),
     ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
     ("printable-write-damage-unseen", "The write preflight cannot detect damage that leaves only printable characters, such as a lost backslash."),
     ("later-control-damage-unchecked", "Go-ahead and completion re-reads do not check control characters introduced after the last --write."),
@@ -341,6 +343,42 @@ def _duplicates(record: Record) -> list[str]:
     return errors
 
 
+class ContextDamage(RecordContentError):
+    """Hand-authored control damage keeps its content-finding meaning."""
+
+
+def _decode_context_text(text: str) -> str:
+    lines = text.split("\n")
+    damage = []
+    for number, line in enumerate(lines):
+        for index, character in enumerate(line):
+            if ord(character) < 32 and not (character == "\r" and index == len(line) - 1 and number < len(lines) - 1):
+                damage.append(f"project-context.md: line {number + 1}: U+{ord(character):04X}")
+    if damage:
+        raise ContextDamage("project context: finding - damaged text\n" + "\n".join(damage))
+    record = read_record(text)
+    _record_observations(record)
+    _record_go_aheads(record)
+    for entry in record.entries:
+        if entry.value("MEMORY-LINES"):
+            _stored_memory_lines(entry)
+    digest = record.values("CONTEXT-DIGEST")
+    if digest and (len(digest) != 1 or (digest[0] != "none" and not _SHA256.fullmatch(digest[0]))):
+        raise ValueError("invalid context digest")
+    return text
+
+
+def _read_context_text(path: Path) -> str:
+    text = read_tool_record(path, _decode_context_text)
+    if text is None:
+        raise FileNotFoundError(path)
+    return text
+
+
+def _read_context(path: Path) -> Record:
+    return read_record(_read_context_text(path))
+
+
 def _confirmation_error(value: str) -> str | None:
     if completion_checks.instant(value) is None:
         return "CONFIRMED needs an ISO date or timestamp"
@@ -479,8 +517,10 @@ def _classmate_gate(record: Record, submission: str | None) -> tuple[list[str], 
 def other_classmate_items(run: Path, submission: str) -> tuple[str, ...]:
     """Opened identifiers declared only under another submission's classmate lines."""
     try:
-        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        record = _read_context(run / RECORD_NAME)
         declarations = tuple(row for name in CLASSMATE_FIELDS for row in _classmate_lines(record, name))
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         return ()
     own, other = set(), set()
@@ -512,6 +552,8 @@ def _case_research_error(record: Record, *, recheck_files: bool) -> str | None:
             manifest = uptodate_store.manifest_for_dump(dump_id, store)
             if manifest is None:
                 return "CASE-RESEARCH dump has no manifest"
+        except UnreadableRecord:
+            raise
         except (OSError, UnicodeError, ValueError):
             return "CASE-RESEARCH manifest or filed copy is unreadable or has a fingerprint mismatch"
     return _file_declaration_error(record, "CASE-RESEARCH", str(source))
@@ -623,7 +665,7 @@ def _integer(entry: Entry, name: str, errors: list[str]) -> int | None:
 def recorded_opened_items(run: Path) -> tuple[str, ...]:
     """Identifiers of opened items, using the same parser as the context gate."""
     try:
-        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        record = _read_context(run / RECORD_NAME)
     except OSError:
         return ()
     return tuple(
@@ -799,7 +841,9 @@ def _write_context_record(
     if not record_path.is_file():
         return GateResult(1, "project context: finding - record is missing")
     try:
-        record = read_record(record_path.read_text(encoding="utf-8"))
+        record = _read_context(record_path)
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         return GateResult(1, "project context: finding - record shape is invalid")
     errors = _duplicates(record)
@@ -930,10 +974,13 @@ def _write_context_record(
 
 def order_observations(run: Path) -> dict:
     """Read only the project record's machine observations."""
-    record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+    return _record_observations(_read_context(run / RECORD_NAME))
+
+
+def _record_observations(record: Record) -> dict:
     observations = {}
     for value in record.values("ORDER-OBSERVATION"):
-        row = json.loads(value)
+        row = object_record(value)
         coursework_run.validate_observations(row)
         if observations.keys() & row.keys():
             raise ValueError("duplicate draft observation")
@@ -944,7 +991,7 @@ def order_observations(run: Path) -> dict:
 def order_waived(run: Path, submission: str, draft_path: str) -> bool:
     """Answer the cross-record waiver question without exposing record parsing."""
     try:
-        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        record = _read_context(run / RECORD_NAME)
         if _duplicates(record) or len(record.values("CONFIRMED")) != 1 or _confirmation_error(record.value("CONFIRMED")):
             return False
         coursework_run.submission_keys(submission)
@@ -952,6 +999,8 @@ def order_waived(run: Path, submission: str, draft_path: str) -> bool:
             match = re.fullmatch(r"(.+?) - (.+?); proceed, per the clinician", value)
             if match and match[2].strip() and Path(match[1]).is_absolute() and Path(match[1]).resolve() == Path(draft_path).resolve():
                 return True
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         pass
     return False
@@ -980,7 +1029,7 @@ def _write_damage(run: Path) -> GateResult | None:
         return None
     findings = _damaged_lines(path)
     if not findings:
-        record = read_record(path.read_text(encoding="utf-8"))
+        record = _read_context(path)
         project, _ = _declaration(record)
         if project is not None and project != "none":
             registry = repo_root.project_registry()
@@ -994,6 +1043,26 @@ def _write_damage(run: Path) -> GateResult | None:
 
 
 def write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
+    try:
+        try:
+            damage = _write_damage(run)
+        except UnicodeError:
+            _read_context(run / RECORD_NAME)  # Shared decode diagnostic owns invalid bytes.
+            raise
+        if damage is not None:
+            return damage
+        try:
+            _read_context(run / RECORD_NAME)
+        except FileNotFoundError:
+            pass
+        return _write_record(run, service_payloads=service_payloads, submission=submission)
+    except ContextDamage as failure:
+        return GateResult(1, str(failure))
+    except UnreadableRecord as failure:
+        return GateResult(2, fault_report(failure, check=EXPECTED_ROW))
+
+
+def _write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
     """Refresh retrieval and retain each sitting's first draft observation."""
     damage = _write_damage(run)
     if damage is not None:
@@ -1008,7 +1077,7 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
         except coursework_run.DraftWalkUnreadable as failure:
             return GateResult(2, "project context NOT WRITTEN - " + str(failure))
         path = run / RECORD_NAME
-        text = path.read_text(encoding="utf-8")
+        text = _read_context_text(path)
         lines = [line for line in text.splitlines() if not line.startswith("ORDER-OBSERVATION:")]
         lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1024,6 +1093,15 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+    try:
+        return _completion_gate(run, submission)
+    except ContextDamage as failure:
+        return CompletionGate(True, False, str(failure))
+    except UnreadableRecord as failure:
+        return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW) + "; draft order: not graded - context record unreadable")
+
+
+def _completion_gate(run: Path, submission: str | None) -> CompletionGate:
     frozen = completion_checks.exemption(run, submission, "project_context", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, frozen)
@@ -1054,12 +1132,16 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
                 row["report"] + ("; clinician approved over moved places" if row["moved_places"] else "; carried forward from go-ahead"),
             ))
         result = CompletionGate(any(row.finding for row in rows), any(row.coverage for row in rows), "; ".join(row.report for row in rows))
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         result = CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead or posting record is unreadable")
     if submission is None:
         return result
     try:
         observations = order_observations(run)
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         observations = None
     order = coursework_run.grade_order(observations, submission, lambda key, path: order_waived(run, key, path), run=run)
@@ -1069,9 +1151,11 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
 def recorded_digest(run: Path) -> str:
     """Return the machine-written digest for the shared heading-read binding."""
     try:
-        return read_record((run / RECORD_NAME).read_text(encoding="utf-8")).value(
+        return _read_context(run / RECORD_NAME).value(
             "CONTEXT-DIGEST"
         )
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         return ""
 
@@ -1079,8 +1163,10 @@ def recorded_digest(run: Path) -> str:
 def retain_heading_context(run: Path) -> None:
     """Keep each context the heading reader can name, before a later refresh."""
     try:
-        text = (run / RECORD_NAME).read_text(encoding="utf-8")
+        text = _read_context_text(run / RECORD_NAME)
         digest = read_record(text).value("CONTEXT-DIGEST")
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         return
     if _SHA256.fullmatch(digest):
@@ -1088,7 +1174,7 @@ def retain_heading_context(run: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / (digest + ".md")
         if not path.exists():
-            path.write_text(text, encoding="utf-8")
+            path.write_bytes(text.encode("utf-8"))
 
 
 def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
@@ -1108,8 +1194,8 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
         # An unchanged legacy record can supply its own retained population.
         if not path.is_file() and digest == recorded_digest(run):
             retain_heading_context(run)
-        previous = read_record(path.read_text(encoding="utf-8"))
-        current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        previous = _read_context(path)
+        current = _read_context(run / RECORD_NAME)
         names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS)
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
@@ -1133,11 +1219,22 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
                 if sha256(_file_path(entry, opened).read_bytes()).hexdigest() != opened.digest:
                     return False
         return True
-    except (OSError, UnicodeError, ValueError, TypeError):
+    except UnreadableRecord:
+        raise
+    except (OSError, UnicodeError, ValueError, TypeError, ContextDamage):
         return False
 
 
 def _context_completion_gate(run: Path, submission: str | None, *, recheck_files: bool = True, compare_memory_lines: bool = False) -> CompletionGate:
+    try:
+        return _grade_context(run, submission, recheck_files=recheck_files, compare_memory_lines=compare_memory_lines)
+    except ContextDamage as failure:
+        return CompletionGate(True, False, str(failure))
+    except UnreadableRecord as failure:
+        return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW))
+
+
+def _grade_context(run: Path, submission: str | None, *, recheck_files: bool = True, compare_memory_lines: bool = False) -> CompletionGate:
     """Grade record shape, fingerprint integrity, and current file identities."""
     if submission is None:
         return CompletionGate(
@@ -1146,10 +1243,12 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
             f"{EXPECTED_ROW}: not graded - --submission was not supplied",
         )
     path = run / RECORD_NAME
-    if not path.is_file():
-        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record is missing")
     try:
-        record = read_record(path.read_text(encoding="utf-8"))
+        record = _read_context(path)
+    except FileNotFoundError:
+        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record is missing")
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record shape is invalid")
     digest = record.value("CONTEXT-DIGEST")
@@ -1275,6 +1374,8 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
                             if additions[fingerprint]:
                                 added_lines.append(line)
                                 additions[fingerprint] -= 1
+                except UnreadableRecord:
+                    raise
                 except (OSError, UnicodeError, ValueError):
                     shape_errors.append("memory line fingerprints are unreadable")
             if file_error or changed:
@@ -1321,10 +1422,13 @@ def _stored_memory_lines(entry: Entry) -> list[str]:
 
 
 def _go_ahead_records(run: Path) -> dict[str, dict]:
-    record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+    return _record_go_aheads(_read_context(run / RECORD_NAME))
+
+
+def _record_go_aheads(record: Record) -> dict[str, dict]:
     rows = {}
     for value in record.values("GO-AHEAD"):
-        row = json.loads(value)
+        row = object_record(value)
         if not isinstance(row, dict):
             raise ValueError("invalid go-ahead result")
         key = row.get("submission")
@@ -1365,7 +1469,7 @@ def go_ahead(run: Path, submission: str, *, approval_revision: int | None = None
                             report=result.report, moved_places=list(result.moved_places),
                             added_lines=list(result.added_lines), approval_revision=approval_revision)
     path = run / RECORD_NAME
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("GO-AHEAD:")]
+    lines = [line for line in _read_context_text(path).splitlines() if not line.startswith("GO-AHEAD:")]
     position = next((index for index, line in enumerate(lines) if line.startswith("## PLACE:")), len(lines))
     lines[position:position] = ["GO-AHEAD: " + json.dumps(row) for row in rows.values()]
     partial = path.with_name(path.name + ".building")
@@ -1418,6 +1522,12 @@ def main(argv: list[str]) -> int:
     if len(argv) == 3 and argv[1] == "--go-ahead":
         try:
             result = inspect_go_ahead(Path(argv[0]).expanduser().resolve(), argv[2])
+        except ContextDamage as failure:
+            print(str(failure), file=sys.stderr)
+            return 1
+        except UnreadableRecord as failure:
+            print(fault_report(failure, check=EXPECTED_ROW), file=sys.stderr)
+            return 2
         except (OSError, UnicodeError, ValueError):
             print("project context NOT WRITTEN - go-ahead result is unreadable", file=sys.stderr)
             return 2
@@ -1441,6 +1551,8 @@ def main(argv: list[str]) -> int:
         submission = arguments[1]
         payloads = _service_payloads(arguments[2:])
         result = write_record(run, service_payloads=payloads, submission=submission)
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
         print("project context NOT WRITTEN - submission or record input is unreadable", file=sys.stderr)
         return 2

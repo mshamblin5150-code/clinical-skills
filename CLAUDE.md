@@ -197,7 +197,24 @@ note uses `--notes <final-output-note>` instead of `--batch`. The input contract
 [Medatrax readback](skills/_shared/reference/medatrax-readback.md). Exit 2 refuses unreadable or invalid
 evidence without printing private values. The complete boundary belongs to `medatrax_posting.DECLARED_LIMITS`.
 `run_record_reader.read_tool_record` distinguishes missing tool-written records from unreadable
-bytes or schema; the caller supplies the decoder. The UpToDate logs and new readback command use it.
+bytes or schema; the caller supplies the decoder. All tool-written run bookkeeping, including
+the AAR extract, baseline and memory measurement and the posted reading, uses that route. A present
+decode or shape fault leaves dependent checks `not graded`, counts the record once in the shared
+unread remainder, and exits 2 unless an independent content finding requires exit 1. Missing records
+retain their old meanings. No damaged record is repaired or replaced by this read.
+
+The freeze and adoption's final update hold one exclusive lock through the read and atomic
+replacement; bounded contention names the holder and leaves the record untouched. A clean grader
+whose freeze refuses still prints its grade and the safe refusal, then exits 2. A touched run with
+unreadable approval bookkeeping requires a keyed `Run status: <run> — stopped - <reason>`; it cannot
+be called complete. The mixed project context retains control-character findings before machine
+decode and shape coverage failures. This posture establishes no new retrospective content check,
+so it adds no completion-check start row. The direct-read AST test re-derives only its declared
+source-shape floor; aliases, intermediate variables and indirect I/O remain outside that floor.
+
+The shared boundary belongs to `run_record_reader.DECLARED_LIMITS`; the posted-record syntax belongs
+to `discussion_artifact.DECLARED_LIMITS`, approval joins to `approval_record.DECLARED_LIMITS`, and
+retained bar signatures to `assignment_bar.DECLARED_LIMITS`.
 
 This section documents command implementations for maintainers. Consumer requirements belong
 to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.

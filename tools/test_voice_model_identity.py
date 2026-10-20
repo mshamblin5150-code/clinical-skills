@@ -157,8 +157,9 @@ class CompletionGate(unittest.TestCase):
     def test_no_override_state_is_accepted(self) -> None:
         self.write(override=True)
         result = self.grade()
-        self.assertTrue(result.finding)
-        self.assertIn("record shape is invalid", result.report)
+        self.assertFalse(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("not graded", result.report)
 
     def test_missing_record_is_a_finding_only_when_completion_is_enabled(self) -> None:
         result = self.grade()

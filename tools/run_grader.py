@@ -60,6 +60,7 @@ class EvidenceDisposition(Enum):
     DECLARED_READING = "declared-reading"
 
 DECLARED_LIMITS = (
+    ("run_grader-record-coverage", 'run_grader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     (
         "grader-family discovery",
         "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "
@@ -834,7 +835,8 @@ def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         return 1
     if result.coverage_failed:
         return 2
-    if submission and Path(command.grade.__code__.co_filename).stem in {
+    from run_record_reader import has_errors
+    if submission and not has_errors() and Path(command.grade.__code__.co_filename).stem in {
         "discussion_post_scan", "discussion_reply_scan", "peer_critique_scan",
         "checks_ledger", "differential_scan", "filled_vitals_census", "deck_scan", "assignment_docx_scan",
     }:

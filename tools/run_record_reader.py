@@ -13,6 +13,11 @@ import json
 import re
 import time
 
+
+DECLARED_LIMITS = (
+    'run_record_reader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+)
+
 T = TypeVar("T")
 
 # ADR 0421 outbound damage set; ADR 0423 applies it to reference sheets.
@@ -64,10 +69,17 @@ class RecordContentError(Exception):
     """Content damage retains the handwritten-record finding meaning, exit 1."""
 
 
+def _record_key(path: Path) -> Path:
+    try:
+        return Path(path).resolve()
+    except (OSError, RuntimeError):
+        return Path(path).absolute()
+
+
 class UnreadableRecord(ValueError):
     """An existing record could not be decoded into its declared shape."""
     def __init__(self, path: Path, cause: str):
-        self.path, self.cause = Path(path).resolve(), cause
+        self.path, self.cause = _record_key(path), cause
         super().__init__(f"{checked_label(Path(path))}: unreadable — {cause}")
         if (faults := _FAULTS.get()) is not None:
             faults[self.path] = self
@@ -88,26 +100,53 @@ def fault_report(error: UnreadableRecord, *, check: str) -> str:
     return f"{check}: not graded - tool-written record unreadable\n{error}"
 
 
+def collecting_errors() -> bool:
+    return _FAULTS.get() is not None
+
+
+def has_errors() -> bool:
+    return bool(_FAULTS.get())
+
+
+def unreadable_record(path: Path) -> bool:
+    faults = _FAULTS.get()
+    return faults is not None and _record_key(path) in faults
+
+
+def unreadable_kind(filename: str) -> bool:
+    """Dependent checks in a single-run command cannot use a damaged record kind."""
+    return any(path.name == filename for path in (_FAULTS.get() or ()))
+
+
 def positive_integer(value: object) -> bool:
     return type(value) is int and value > 0
 
 
+def json_record(text: str):
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise RecordShapeError("unique submission keys")
+            value[key] = item
+        return value
+    return json.loads(text, object_pairs_hook=unique_object)
+
+
 def object_record(text: str) -> dict:
-    value = json.loads(text)
+    value = json_record(text)
     if not isinstance(value, dict):
         raise RecordShapeError("record object")
     return value
 
 
-POSTING_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique",
-                           "practicum-case-study", "clinical-note", "batch-shift"})
-
-
 def valid_posting_item(item: object) -> bool:
+    from run_status_stop_hook import RUN_KIND_BY_SKILL
     if not isinstance(item, dict):
         return False
+    skill = item.get("skill")
     return bool(
-        item.get("skill") in POSTING_SKILLS
+        isinstance(skill, str) and skill in RUN_KIND_BY_SKILL and skill != "course-assignment"
         and isinstance(item.get("submission"), str) and item["submission"]
         and isinstance(item.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
         and isinstance(item.get("sources"), list) and item["sources"]
@@ -123,7 +162,7 @@ def valid_posting_item(item: object) -> bool:
 
 def posting_record(text: str) -> dict:
     value = object_record(text)
-    if value.get("version") != 1 or not positive_integer(value.get("approval_revision")):
+    if type(value.get("version")) is not int or value["version"] != 1 or not positive_integer(value.get("approval_revision")):
         raise RecordShapeError("record revision")
     items = value.get("items")
     if not isinstance(items, list) or not all(valid_posting_item(item) for item in items):
@@ -140,12 +179,33 @@ def submission_record(text: str) -> dict:
         raise RecordShapeError("record revision")
     if value.get("gate1_approved") is not True or not isinstance(value.get("artifact_path"), str) or not value["artifact_path"]:
         raise RecordShapeError("record fields")
+    if (not isinstance(value.get("artifact"), str) or not value["artifact"]
+            or not isinstance(value.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", value["sha256"])
+            or type(value.get("attachment_count")) is not int or value["attachment_count"] < 1
+            or not isinstance(value.get("uploaded_files"), list)
+            or not all(isinstance(name, str) and name for name in value["uploaded_files"])):
+        raise RecordShapeError("record fields")
+    carriers = value.get("approved_carriers")
+    if not isinstance(carriers, list) or not carriers:
+        raise RecordShapeError("record items")
+    names = []
+    for row in carriers:
+        if (not isinstance(row, dict) or not isinstance(row.get("filename"), str) or not row["filename"]
+                or not isinstance(row.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"])):
+            raise RecordShapeError("record item fields")
+        names.append(row["filename"])
+    if len(names) != len(set(names)) or len(value["uploaded_files"]) != len(set(value["uploaded_files"])):
+        raise RecordShapeError("unique submission keys")
+    # Older legitimate records use the two Gate 2 booleans instead of upload_route.
+    route = value.get("upload_route")
+    if route is not None and route not in ("awaiting-upload", "agent", "clinician"):
+        raise RecordShapeError("record fields")
     return value
 
 
 def frozen_record(text: str) -> dict:
     value = object_record(text)
-    items = value.get("items", {})
+    items = value.get("items")
     if not isinstance(items, dict):
         raise RecordShapeError("record items")
     for key, item in items.items():
@@ -169,6 +229,9 @@ def state_record(text: str) -> dict:
         if (not isinstance(row, list) or len(row) != 3 or not all(isinstance(v, str) and v for v in row[:2])
                 or not positive_integer(row[2])):
             raise RecordShapeError("record item fields")
+    keys = [tuple(row[:2]) for row in revisions]
+    if len(keys) != len(set(keys)):
+        raise RecordShapeError("unique submission keys")
     return value
 
 
@@ -177,19 +240,32 @@ def read_tool_record(path: Path, decode: Callable[[str], T]) -> T | None:
     try:
         with path.open("r", encoding="utf-8", newline="") as stream:
             text = stream.read()
-    except FileNotFoundError:
-        return None
+    except FileNotFoundError as failure:
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            pass
+        raise UnreadableRecord(path, "could not be opened") from failure
     except UnicodeDecodeError as failure:
-        raise UnreadableRecord(path, f"does not decode at byte offset {failure.start}") from failure
+        if path.suffix.casefold() == ".md":
+            cause = f"does not decode at byte offset {failure.start}"
+        else:
+            prefix = failure.object[:failure.start].decode("utf-8", errors="ignore")
+            cause = f"does not decode at line {prefix.count(chr(10)) + 1} column {len(prefix.rsplit(chr(10), 1)[-1]) + 1}"
+        raise UnreadableRecord(path, cause) from failure
     except OSError as failure:
         raise UnreadableRecord(path, "could not be opened") from failure
     try:
         return decode(text)
+    except UnreadableRecord:
+        raise
     except json.JSONDecodeError as failure:
         raise UnreadableRecord(path, f"does not decode at line {failure.lineno} column {failure.colno}") from failure
     except RecordShapeError as failure:
         raise UnreadableRecord(path, f"wrong shape: {failure.rule}") from failure
-    except (ValueError, TypeError, KeyError, AttributeError) as failure:
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError) as failure:
         raise UnreadableRecord(path, "wrong shape: declared record shape") from failure
 
 

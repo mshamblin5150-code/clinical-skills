@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+import artifact_lock_test_support
 
 import medatrax_posting
 import run_grader

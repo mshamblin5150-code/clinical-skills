@@ -178,8 +178,12 @@ def build_run(
 
 def write_posting(directory: Path) -> None:
     (directory / "posting-approvals.json").write_text(
-        json.dumps({"items": [{"skill": "peer-critique",
-            "submission": "critique.md", "posting_route": "agent"}]}),
+        json.dumps({"version": 1, "approval_revision": 1, "items": [{
+            "skill": "peer-critique", "submission": "critique.md",
+            "sha256": file_digest.sha256(directory / "critique.md"),
+            "sources": [str(directory / "critique.md")],
+            "grader_args": [str(directory)], "posting_route": "agent",
+            "pregrade_status": "clean", "approval_revision": 1}]}),
         encoding="utf-8",
     )
 
@@ -208,6 +212,14 @@ def kinds(directory: Path) -> list[str]:
     return [finding.kind for finding in graded(directory).findings]
 
 
+def assert_unreadable(test: unittest.TestCase, directory: Path) -> None:
+    output = io.StringIO()
+    with redirect_stdout(output), redirect_stderr(output):
+        status = scan.main([str(directory)])
+    test.assertEqual(2, status, output.getvalue())
+    test.assertIn("unreadable", output.getvalue())
+
+
 class TheCleanRunPasses(unittest.TestCase):
     def test_an_unposted_critique_without_a_reading_passes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -234,8 +246,8 @@ class TheCleanRunPasses(unittest.TestCase):
         clean = record.read_text(encoding="utf-8")
         for text, status, detail in (
             (clean, 0, None),
-            (re.sub(r"^POSTED:.*\n", "", clean, flags=re.MULTILINE), 1, "missing-posted-reading"),
-            (re.sub(r"^READ:.*\n", "", clean, flags=re.MULTILINE), 1, "missing-posted-reading"),
+            (re.sub(r"^POSTED:.*\n", "", clean, flags=re.MULTILINE), 2, "unreadable"),
+            (re.sub(r"^READ:.*\n", "", clean, flags=re.MULTILINE), 2, "unreadable"),
             (clean.replace("LEGACY-DISPLAY: expected - visible text recorded", "LEGACY-DISPLAY: maybe"), 1, "LEGACY-DISPLAY"),
             (clean + "UNKNOWN: field\n", 2, "unreadable"),
         ):
@@ -250,9 +262,9 @@ class TheCleanRunPasses(unittest.TestCase):
     def test_a_compliant_critique_reports_no_finding(self):
         self.assertEqual([], kinds(build_run()))
 
-    def test_a_missing_critique_fingerprint_is_a_finding(self):
+    def test_a_missing_critique_fingerprint_is_unreadable(self):
         directory = build_run(reread=REREAD.replace("SUBMISSION-SHA256: {submission_sha256}\n", ""))
-        self.assertIn(scan.SUBMISSION_FINGERPRINT, kinds(directory))
+        assert_unreadable(self, directory)
 
     def test_an_unrelated_reading_does_not_stand_in_for_the_critique(self):
         directory = build_run(reread=REREAD.replace("critique.md", "unrelated.md"))
@@ -454,9 +466,9 @@ class EveryRowFiresOnItsOwnDefect(unittest.TestCase):
     def test_an_unrecorded_posted_reading_is_a_finding(self):
         self.assertIn(scan.MISSING_POSTED_READING, kinds(build_run(reread=None)))
 
-    def test_an_unrecognized_verdict_is_a_finding(self):
+    def test_an_unrecognized_verdict_is_unreadable(self):
         reread = REREAD.replace("matches - the board text equals the artifact", "maybe - unclear")
-        self.assertIn(scan.UNKNOWN_VERDICT, kinds(build_run(reread=reread)))
+        assert_unreadable(self, build_run(reread=reread))
 
     def test_a_verdict_with_no_substance_is_a_finding(self):
         reread = REREAD.replace("matches - the board text equals the artifact", "matches")

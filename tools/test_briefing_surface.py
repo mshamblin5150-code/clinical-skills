@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import artifact_lock_test_support
 import unittest
+import artifact_lock_test_support
 from pathlib import Path
 
 import briefing_surface

@@ -10,6 +10,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+import artifact_lock_test_support
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch

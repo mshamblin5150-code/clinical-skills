@@ -26,8 +26,11 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+from discussion_artifact import posted_reading_unavailable
+
 from discussion_artifact import check_posted_reading, PostedReadingOutcome
-from discussion_artifact import PostedReading, read_posted_readings
+from discussion_artifact import PostedReading
 
 import completion_checks
 import re
@@ -193,6 +196,7 @@ UNJOINED_SOURCE_FIELDS_LIMIT = (
 )
 
 DECLARED_LIMITS = (
+    ("peer_critique_scan-record-coverage", 'peer_critique_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether an absent item was ever in the case the assignment supplied",
@@ -452,7 +456,7 @@ def posted_reading_check(
         if submission != 'critique.md':
             raise run_grader.SourceError('posted reading names another critique')
         reread = run / 'reread.md'
-        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        readings = read_posted_reading_file(reread)
         reading = next((item for item in readings if item.artifact == submission), None)
         return check_posted_reading(
             reading, file_digest.sha256(run / 'critique.md'),
@@ -464,7 +468,7 @@ def posted_reading_check(
 
 def _posted_reading_states(source: RunSource) -> tuple[approval_record.PostedReadingState, ...]:
     try:
-        posted = approval_record.posting_route(
+        posted = approval_record.graded_posting_route(
             source.path, skill="peer-critique", submission="critique.md"
         ) in {"agent", "clinician"}
     except approval_record.ApprovalRecordError as failure:
@@ -621,7 +625,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         UNTRACED_NUMBER,
     }
     for kind in ROWS:
-        if kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
+        if kind in POSTED_READING_KINDS.values() and posted_reading_unavailable():
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
             state.posted for state in scan.posted_reading_states
         ):
             lines.append(f"{kind}: {NOT_GRADED}")
@@ -662,8 +668,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         claims_path = directory / "claims.md"
         claims = claims_path.read_text(encoding="utf-8") if claims_path.is_file() else ""
         reread_path = directory / "reread.md"
-        reread = reread_path.read_text(encoding="utf-8") if reread_path.is_file() else ""
-        readings = read_posted_readings(reread)
+        readings = read_posted_reading_file(reread_path)
         heading_read_path = directory / "heading-read.md"
         heading_read_text = (
             heading_read_path.read_text(encoding="utf-8")
@@ -698,7 +703,7 @@ def plain_text_gate(run: Path) -> tuple[bool, str]:
     """A built comment, whenever present, must exactly match its Markdown source."""
     target = run / "critique.txt"
     if not target.exists():
-        posted = approval_record.posting_route(run, skill="peer-critique", submission="critique.md")
+        posted = approval_record.graded_posting_route(run, skill="peer-critique", submission="critique.md")
         if posted == "agent":
             return True, "plain-text-build: finding - critique.txt is missing"
         return False, "plain-text-build: NOT GRADED - critique.txt has not been built"

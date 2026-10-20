@@ -1650,9 +1650,9 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
             )
             status, stdout, stderr = run.terminal()
 
-        self.assertEqual(1, status)
-        self.assertIn("deck findings require review", stderr)
-        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertEqual(2, status)
+        self.assertIn("not graded", stdout)
+        self.assertIn("reread.md: unreadable", stdout)
 
     def test_submission_refuses_a_deck_edited_after_the_reading(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import artifact_lock_test_support
 import unittest
+import artifact_lock_test_support
 import json
 import os
 from contextlib import redirect_stdout, redirect_stderr
@@ -270,7 +271,8 @@ class BarSignatures(unittest.TestCase):
                 payload = json.loads(json.dumps(original))
                 payload["signatures"][-1][field] = value
                 path.write_text(json.dumps(payload))
-                self.assertTrue(assignment_bar.completion_gate(self.run)[0])
+                with self.assertRaises(assignment_bar.UnreadableRecord):
+                    assignment_bar.completion_gate(self.run)
 
     def test_absent_substring_blank_stale_and_reused_reply_refuse(self):
         self.draft(DOCX_BAR)

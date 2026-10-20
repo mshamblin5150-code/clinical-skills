@@ -11,6 +11,7 @@ import artifact_lock_test_support
 import ast
 import re
 import unittest
+import artifact_lock_test_support
 from pathlib import Path
 
 import discussion_artifact as artifact
