@@ -178,6 +178,12 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     output_patch = contextlib.nullcontext()
     voice_patch = contextlib.nullcontext()
     model_patch = contextlib.nullcontext()
+    if "--submission" in arguments:
+        model = Path(__file__).parent / "testdata" / "voice-model-synthetic.md"
+        resolution = checks.repo_root.VoiceModelResolution(
+            model, hashlib.sha256(model.read_bytes()).hexdigest(), True,
+        )
+        model_patch = mock.patch.object(checks.repo_root, "canonical_voice_model", return_value=resolution)
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
         text = checks_path.read_text(encoding="utf-8")
@@ -202,11 +208,6 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
                     "reason": "No recorded image fits this synthetic point.",
                 }}}), encoding="utf-8",
             )
-            model = Path(__file__).parent / "testdata" / "voice-model-synthetic.md"
-            resolution = checks.repo_root.VoiceModelResolution(
-                model, hashlib.sha256(model.read_bytes()).hexdigest(), True,
-            )
-            model_patch = mock.patch.object(checks.repo_root, "canonical_voice_model", return_value=resolution)
             attachments = checks_path.parent / "lms-attachments"
             attachments.mkdir(exist_ok=True)
             (attachments / f"{submission}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
