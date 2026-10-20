@@ -23,6 +23,8 @@ import approval_record
 import file_digest
 import render_pass
 import research_ledger
+import completion_checks
+from datetime import timedelta
 from grader_conformance import (
     EmptyPopulationInput,
     UnreadRemainderInput,
@@ -50,6 +52,29 @@ DGM = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 DSP = "http://schemas.microsoft.com/office/drawing/2008/diagram"
 C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+
+# These controls exercise the pre-ADR-0398 rows. The current reference reader
+# and both sides of its dated boundary run in test_deck_references.
+_reference_patch = None
+
+
+def setUpModule():
+    global _reference_patch
+    active = completion_checks.active
+    cutoff, _ = completion_checks.registry()["deck_scan:reference-hanging-indent"]
+
+    def historical(key, *args, **kwargs):
+        if key.startswith("deck_scan:") and completion_checks.registry()[key][0] == cutoff:
+            return active(key, cutoff - timedelta(seconds=1))
+        return active(key, *args, **kwargs)
+
+    _reference_patch = mock.patch.object(completion_checks, "active", side_effect=historical)
+    _reference_patch.start()
+
+
+def tearDownModule():
+    _reference_patch.stop()
 
 
 def paragraph(text: str, *, points: int = 28) -> str:
@@ -181,6 +206,7 @@ def trusted_claim(*figures: str) -> str:
 BAR = """\
 ASSIGNMENT: https://example.test/assignment
 SIGNED: 2026-09-02
+PAPER-LANGUAGE: en
 ARTIFACT: deck
 SLIDE-MAX: 2
 SLIDE-LIMIT-SCOPE: all
