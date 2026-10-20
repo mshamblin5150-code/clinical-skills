@@ -18,6 +18,9 @@ import recorded_image_match as match
 import completion_checks
 import run_grader
 import voice_read
+import imagery_proposals
+import approval_record
+import run_record_reader
 import test_voice_read as voice_fixture
 
 
@@ -141,6 +144,7 @@ class MatchRecord(unittest.TestCase):
             try:
                 result = match.completion_gate(self.run, {"draft.md": "Synthetic draft."})
                 self.assertEqual(result.finding, expected)
+                self.assertEqual((result.model_unread, result.record_unread), (0, 0))
                 self.assertEqual(self.command()[0], 1)
             finally:
                 completion_checks.ITEM_MOMENTS.reset(token)
@@ -154,6 +158,18 @@ class MatchRecord(unittest.TestCase):
         self.assertEqual(result.model_unread, 1)
         self.write()
         self.assertEqual(self.command()[0], 2)
+
+    def test_absence_has_the_existing_named_door_but_unreadability_does_not(self):
+        self.write()
+        missing = repo_root.VoiceModelResolution(self.model, None, False)
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=missing):
+            status, report = self.command()
+        self.assertEqual(status, 2)
+        self.assertIn("NOT RUN -- no model", report)
+        self.model.write_bytes(b"\xff")
+        status, report = self.command()
+        self.assertEqual(status, 2)
+        self.assertNotIn("NOT RUN -- no model", report)
 
     def test_unknown_member_cannot_inherit_an_old_global_or_sibling(self):
         boundary = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
@@ -172,6 +188,7 @@ class MatchRecord(unittest.TestCase):
 class GateScan:
     image_answer_unread: int = 0
     model_unread: int = 0
+    image_match_unread: int = 0
 
 
 class ComposedVoice(unittest.TestCase):
@@ -206,7 +223,7 @@ class ComposedVoice(unittest.TestCase):
             "submission", surface, {"submission": self.fixture.draft})
 
     def test_fully_frozen_composition_never_resolves_or_reads_a_model(self):
-        with mock.patch("frozen_grade.all_reports", return_value="frozen retained grade"), mock.patch.object(match, "observe", side_effect=AssertionError("new model read")), mock.patch.object(repo_root, "canonical_voice_model", side_effect=AssertionError("new model resolution")):
+        with mock.patch("frozen_grade.all_reports", return_value="frozen retained grade"), mock.patch.object(match, "observe", side_effect=AssertionError("new model read")), mock.patch.object(match, "read_match", side_effect=AssertionError("new record read")), mock.patch.object(repo_root, "canonical_voice_model", side_effect=AssertionError("new model resolution")):
             grade = self.grade()
         self.assertEqual(grade.scan.model_unread, 0)
         self.assertFalse(grade.coverage_failed)
@@ -241,6 +258,34 @@ class ComposedVoice(unittest.TestCase):
         self.assertEqual(grade.scan.model_unread, 1)
         self.assertEqual(grade.scan.image_answer_unread, 0)
 
+    def test_match_record_and_model_fault_populations_remain_separate(self):
+        path = self.run / match.RECORD_NAME
+        path.unlink()
+        path.mkdir()
+        grade = self.grade()
+        self.assertEqual((grade.scan.model_unread, grade.scan.image_match_unread, grade.scan.image_answer_unread), (0, 1, 0))
+        self.assertTrue(grade.coverage_failed)
+        self.fixture.model.write_bytes(b"\xff")
+        grade = self.grade(finding=True)
+        self.assertTrue(grade.findings_failed)
+        self.assertEqual((grade.scan.model_unread, grade.scan.image_match_unread, grade.scan.image_answer_unread), (1, 1, 0))
+        self.assertIn("unread canonical voice models: 1", "\n".join(grade.reports))
+        self.assertIn("unread recorded-image match records: 1", "\n".join(grade.reports))
+
+    def test_machine_identity_fault_does_not_hide_the_independent_reader_question(self):
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        reader["unused_recorded_image"]["image"] = "The synthetic wheel carries the load."
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        identity = self.run / "voice-model-identity.json"
+        identity.write_bytes(b"{")
+        with run_record_reader.capture_errors() as faults:
+            grade = self.grade()
+        self.assertTrue(grade.findings_failed)
+        self.assertTrue(grade.coverage_failed)
+        self.assertIn("reader identified a fitting recorded image", "\n".join(grade.reports))
+        self.assertEqual(len(faults), 1)
+        self.assertEqual(identity.read_bytes(), b"{")
+
     def test_same_point_approval_skips_only_the_new_question(self):
         reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
         del reader["unused_recorded_image"]
@@ -257,3 +302,27 @@ class ComposedVoice(unittest.TestCase):
         self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
         self.assertTrue(voice_read.completion_gate(self.run, "submission", surface,
             approved_points=frozenset({("submission", "Synthetic point.")})).finding)
+
+    def test_only_actual_verified_current_proposal_returns_same_point_metadata(self):
+        image = "A synthetic comparison carries the point."
+        proposal = {"key": "synthetic-image", "artifact": "submission", "image": image,
+            "domain": "Synthetic machinery", "behavior": "carries a bounded load",
+            "status": "proposed-and-approved", "central_point": "Synthetic point.",
+            "ruling": {"clinician_reply": "Yes, keep this synthetic image.", "reply_at": 200, "shown_draft_at": 100}}
+        path = self.run / imagery_proposals.RECORD_NAME
+        rows = [{"type": "user", "timestamp": "1970-01-01T00:03:20Z", "message": {"content": proposal["ruling"]["clinician_reply"]}}]
+        def grade():
+            path.write_text(json.dumps({"proposals": [proposal]}), encoding="utf-8")
+            with mock.patch.object(approval_record, "_main_transcripts", return_value=([rows], False)):
+                return imagery_proposals.completion_gate(self.run, {"submission": image})
+        self.assertEqual(grade().approved_points, frozenset({("submission", "Synthetic point.")}))
+        proposal["changed_image"] = image + " Revised."
+        self.assertEqual(grade().approved_points, frozenset())
+        del proposal["changed_image"]
+        proposal["ruling"]["clinician_reply"] = "A message that was never said."
+        self.assertEqual(grade().approved_points, frozenset())
+        proposal["ruling"]["clinician_reply"] = rows[0]["message"]["content"]
+        del proposal["central_point"]
+        legacy = grade()
+        self.assertFalse(legacy.finding)
+        self.assertEqual(legacy.approved_points, frozenset())

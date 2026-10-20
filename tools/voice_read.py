@@ -656,7 +656,8 @@ def _voice_result(
     return ReadResult(False, False, "clean")
 
 
-def _recorded_image_question(run, records, artifact, draft_text, model_text, approved_points) -> ReadResult:
+def _recorded_image_question(run: Path, records: Path, artifact: str, draft_text: str,
+                             model_text: str, approved_points: frozenset[tuple[str, str]]) -> ReadResult:
     """Judge the new answer without replacing any existing reader population."""
     import frozen_grade
     frozen = frozen_grade.all_reports(run, artifact)
@@ -815,7 +816,13 @@ def _completion_gate(
                 "not scanned - no discriminating-pair population was read",
             )
         else:
-            pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key)
+            from run_record_reader import UnreadableRecord, collecting_errors, fault_report
+            try:
+                pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key)
+            except UnreadableRecord as failure:
+                if not collecting_errors():
+                    raise
+                pair_result = ReadResult(False, True, fault_report(failure, check=EXPECTED_ROW))
         finding = pair_result.finding or supplied_result.finding
         coverage = pair_result.coverage or supplied_result.coverage
         report = f"{pair_result.report}; {supplied_result.report}"

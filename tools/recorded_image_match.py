@@ -26,6 +26,7 @@ DECLARED_LIMITS = (
     ("fit is a reader judgment", "The match row checks a recorded point and exact whitespace-normalized whole image membership, not whether the image fits the point or whether the reason none fits is persuasive."),
     ("before-prose order", "The pre-draft command reads the match before drafting when invoked at the skill's stated step; a later record cannot prove retrospectively that the check preceded the first prose."),
     ("model read population", "The canonical model is one unread member even when multiple imagery consumers cannot read it; transcript observations remain a separate population."),
+    ("absence-banner limitation", "Only the existing absent-model banner identifies the named unmodeled drafting door; an unreadable or unrecognized model inventory is not that door, and neither state establishes a mechanically verified match."),
 )
 
 
@@ -42,6 +43,8 @@ class CompletionGate:
     coverage: bool
     report: str
     model_unread: int = 0
+    model_absent: bool = False
+    record_unread: int = 0
 
 
 def normalized(text: str) -> str:
@@ -100,6 +103,7 @@ def completion_gate(
     reports: list[str] = []
     coverage = bool(observation.unread)
     read = 0
+    record_unread = 0
     for key in active:
         try:
             match = read_match(run, key, force=before_drafting)
@@ -115,6 +119,7 @@ def completion_gate(
         except OSError:
             reports.append("the match record: not graded - could not be opened")
             coverage = True
+            record_unread = 1
             continue
         if match is None:
             findings.append("match record is missing")
@@ -125,11 +130,18 @@ def completion_gate(
                 findings.append("matched image is absent from canonical recorded imagery")
             if not before_drafting and normalized(match.image) not in normalized(artifacts[key]):
                 findings.append("matched image is absent from the finished artifact")
-    if observation.unread:
+    if observation.absent:
+        import voice_model_scan
+        reports.append(voice_model_scan.absent_model_banner(observation.path))
+    elif observation.unread:
         reports.append("canonical recorded imagery: not graded - model imagery unreadable")
+    if observation.unread:
+        reports.append("unread canonical voice models: 1")
+    if record_unread:
+        reports.append("unread recorded-image match records: 1")
     detail = "; finding - " + "; ".join(dict.fromkeys(findings)) if findings else ""
     report = f"{EXPECTED_ROW}: read {read} of {len(active)} match records{detail}"
-    return CompletionGate(bool(findings), coverage, "\n".join((report, *dict.fromkeys(reports))), observation.unread)
+    return CompletionGate(bool(findings), coverage, "\n".join((report, *dict.fromkeys(reports))), observation.unread, observation.absent, record_unread)
 
 
 def apply_coursework_gates(
@@ -160,7 +172,12 @@ def apply_coursework_gates(
     matched = completion_gate(run, artifacts if submission is not None else None, model=model)
     unread = max(matched.model_unread, proposal.model_unread,
                  int(model is not None and model.text is None))
-    scan = replace(grade.scan, model_unread=unread) if hasattr(grade.scan, "model_unread") else grade.scan
+    counts = {}
+    if hasattr(grade.scan, "model_unread"):
+        counts["model_unread"] = unread
+    if hasattr(grade.scan, "image_match_unread"):
+        counts["image_match_unread"] = matched.record_unread
+    scan = replace(grade.scan, **counts) if counts else grade.scan
     limbs = grade.coverage_limbs
     if matched.coverage and imagery_coverage_limb is not None:
         limbs += (imagery_coverage_limb,)
@@ -178,8 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     result = completion_gate(args.run, {args.artifact: ""}, before_drafting=True)
     print(result.report)
-    if result.model_unread:
-        print(f"UNREAD REMAINDER: {result.model_unread}")
+    print(run_grader.format_unread_remainder(result.model_unread + result.record_unread))
     return 1 if result.finding else 2 if result.coverage else 0
 
 
