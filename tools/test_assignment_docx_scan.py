@@ -418,6 +418,62 @@ class WordRangeTest(unittest.TestCase):
         self.assertTrue(any(item.kind == scan.WORD_RANGE for item in result.findings))
 
 
+class CitationReaderCoverage(unittest.TestCase):
+    def test_damaged_citation_reports_partial_coverage_through_main(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case = empty_population_input(Path(directory))
+            run, artifact = Path(case.argv[0]), Path(case.argv[2])
+            spec = assignment_docx.fixture_spec()
+            claims = "DATE: 2026-09-13\n"
+            for author, year, entry in (
+                ("Example Agency", "2025", spec.references[0]),
+                ("Freud", "2010", "Freud, S. (2010). *A study*. Example Press."),
+            ):
+                heading = f"The claim from {author} stands."
+                claims += (
+                    f"\n## CLAIM: {heading}\nSTATUS: sourced\nREFERENCE: {entry}\n"
+                    "REFUTATION: stands - the claim appears in the source.\n"
+                    f"TESTED-HEADING: {research_ledger.heading_digest(heading)}\n"
+                    "SECOND-ROUTE: source page -> independent reader\n"
+                )
+            (run / "claims.md").write_text(claims, encoding="utf-8")
+            for citation, finding, expected_status, remainder in (
+                ("(Freud\ufffd, 2010)", False, 2, 1),
+                ("(Freud, 2010)", False, 1, 0),
+                ("(Freud\ufffd, 2010)", True, 1, 1),
+            ):
+                with self.subTest(citation=citation, finding=finding):
+                    section = spec.sections[0]
+                    assignment_docx.build(replace(
+                        spec,
+                        sections=(replace(section, paragraphs=(
+                            *section.paragraphs, f"The claim stands {citation}.",
+                        )),),
+                    ), artifact, force=True)
+                    digest = file_digest.sha256(artifact)
+                    heading_path = run / "heading-read.md"
+                    heading_text = heading_path.read_text(encoding="utf-8")
+                    heading_path.write_text(re.sub(
+                        r"(?m)^DRAFT: .*", f"DRAFT: {digest}", heading_text,
+                    ), encoding="utf-8")
+                    file_digest.write_recorded_sha256(
+                        run / "render" / "pass-1" / scan.FINGERPRINT_FILE, digest,
+                    )
+                    (run / "bar.md").write_text(
+                        (run / "bar.md").read_text(encoding="utf-8").replace(
+                            "WORD-MIN: 1\n", "WORD-MIN: 1000\n" if finding else "WORD-MIN: 1\n",
+                        ), encoding="utf-8",
+                    )
+                    output = io.StringIO()
+                    with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                        status = scan.main([*case.argv, "--paper-language", "en", "--show"])
+                    self.assertEqual(expected_status, status, output.getvalue())
+                    self.assertIn(f"unread remainder {remainder}", output.getvalue().splitlines())
+                    self.assertIn(f"  citation unread   {remainder}", output.getvalue().splitlines())
+                    if not remainder:
+                        self.assertIn("reference-defect: freud 2010", output.getvalue())
+
+
 class CitationClaimTraceTest(unittest.TestCase):
     def test_a_parenthesized_schedule_year_remains_an_untraced_citation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

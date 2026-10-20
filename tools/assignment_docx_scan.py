@@ -184,6 +184,11 @@ class Scan:
     findings: tuple[Finding, ...]
     paper_language: str = "unspecified"
     bare_number_candidates: int = 0
+    citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
+
+    @property
+    def unread(self) -> int:
+        return self.heading_read_unread + self.citation_coverage.unread
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -579,6 +584,7 @@ def survey(source: Source) -> Scan:
         tuple(findings),
         reference_grade.paper_language,
         len(reference_grade.bare_number_candidates),
+        reference_grade.citation_coverage,
     )
 
 
@@ -597,7 +603,10 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  rendered records  {scan.rendered_records}",
         f"  heading reads     {scan.heading_reads}",
-        run_grader.format_unread_remainder(scan.heading_read_unread),
+        f"  heading unread    {scan.heading_read_unread}",
+        f"  citation candidates   {scan.citation_coverage.candidates}",
+        f"  citation unread   {scan.citation_coverage.unread}",
+        run_grader.format_unread_remainder(scan.unread),
         "",
     ]
     lines.extend(
@@ -628,7 +637,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         scan=scan,
         source=str(source.root),
         findings_failed=bool(scan.findings) or aar_failed or gate_failed,
-        coverage_failed=(not source.paragraphs or bool(scan.heading_read_unread)
+        coverage_failed=(not source.paragraphs or bool(scan.unread)
                          or scan.paper_language not in reference_alphabets.TABLE["languages"]),
         diagnostics=("DOCX findings require review",) if scan.findings else (),
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.docx.name,)), heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
