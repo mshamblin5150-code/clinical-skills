@@ -17,7 +17,7 @@ DECLARATION = "Rapid screens: negative unless stated"
 DECLARED_LIMITS = (
     "The caller supplies --profile; omission is reported not graded without opening account files. The opt-in is one complete line Rapid screens: negative unless stated, ignoring case and Markdown emphasis; other declarations are not inferred.",
     "Candidates name strep/streptococcus/streptococcal, influenza/flu, COVID-19/COVID or RSV with rapid, screen, antigen or POCT in one physical clause. Other test names and wordings remain outside this vocabulary check.",
-    "Clauses end at commas, semicolons or sentence-ending punctuation. The shared note_grammar reader locates the four SOAP sections and their closer; missing or ambiguous sections leave one note unread. Markup is preserved. Actual test performance and results remain readings.",
+    "Clauses end at commas, semicolons or sentence-ending punctuation, or at and/but before another named test assertion. Influenza A and B remains one name. The shared note_grammar reader locates the four SOAP sections and their closer; missing or ambiguous sections leave one note unread. Markup is preserved. Actual test performance and results remain readings.",
     "Pending, awaiting a result/results, unresulted and no result are recognized. Clauses declaring not performed, not done, not run, declined or refused, or naming culture, PCR or send-out, are outside the refusal.",
     "Only numbered batch notes, an explicit standalone --note, or the existing approved standalone source population are read; no resolved population is incomplete coverage.",
 )
@@ -25,6 +25,9 @@ TEST = re.compile(r"\b(?:strep(?:tococc(?:us|al))?|influenza|flu|covid(?:-19)?|r
 SCREEN = re.compile(r"\b(?:rapid|screens?|antigen|poct)\b", re.I)
 PENDING = re.compile(r"\b(?:pending|awaiting\s+(?:(?:a|the)\s+)?results?|unresulted|no\s+results?)\b", re.I)
 EXCLUDED = re.compile(r"\b(?:not\s+(?:performed|done|run)|declined|refused|culture|pcr|send[- ]out)\b", re.I)
+ASSERTION_BREAK = re.compile(
+    r"\s+(?:and|but)\s+(?=(?:rapid\b|screens?\b|antigen\b|poct\b|"
+    + TEST.pattern + r"|(?:\w+\s+)?culture\b|pcr\b|send[- ]out\b))", re.I)
 
 
 @dataclass(frozen=True)
@@ -46,7 +49,7 @@ def read_note(text: str) -> tuple[int, tuple[int, ...]]:
     body = ''.join(parsed.buckets[label] for label in 'SOAP')
     candidates, pending = 0, []
     for number, line in enumerate(body.splitlines(), offset + 1):
-        for clause in re.split(r"[,;]|(?<=[.!?])\s+", line):
+        for clause in re.split(r"[,;]|(?<=[.!?])\s+", ASSERTION_BREAK.sub(";", line)):
             if TEST.search(clause) and SCREEN.search(clause):
                 candidates += 1
                 if PENDING.search(clause) and not EXCLUDED.search(clause):

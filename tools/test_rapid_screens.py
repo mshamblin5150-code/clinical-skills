@@ -16,6 +16,7 @@ import completion_checks
 import rapid_screens
 import reader_remarks
 import differential_scan
+import filled_vitals_census
 import visit_times
 from prose_bind import bind, NAMING
 
@@ -55,6 +56,9 @@ class PublicRapidScreens(unittest.TestCase):
             ('Rapid strep declined; rapid flu pending.', 1),
             ('Rapid flu negative; PCR pending.', 0),
             ('Rapid strep not performed, RSV screen awaiting results.', 1),
+            ('Rapid strep pending and throat culture pending.', 1),
+            ('Rapid flu not performed but RSV screen pending.', 1),
+            ('Rapid flu negative and PCR pending.', 0),
         )
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
@@ -89,6 +93,20 @@ class PublicRapidScreens(unittest.TestCase):
                 self.assertEqual(2, clean.returncode, clean.stdout + clean.stderr)
                 self.assertEqual(1, failed.returncode, failed.stdout + failed.stderr)
 
+    def test_both_public_commands_report_unread_profile_as_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            for module in ('differential_scan', 'filled_vitals_census'):
+                self.invoke(run, module, 'Rapid strep negative.')
+                result = subprocess.run([
+                    sys.executable, str(TOOLS / (module + '.py')), str(run),
+                    '--profile', str(run / 'missing-profile.txt'),
+                    *(['--note', str(run / 'note-1.md')] if module == 'differential_scan' else [])],
+                    capture_output=True, encoding='utf-8', errors='replace')
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn('rapid screens: not checked - profile or note population unread', result.stdout)
+                self.assertEqual(1, sum(line == 'unread remainder 1' for line in result.stdout.splitlines()))
+
     def test_no_implicit_profile_read_and_exact_approval_boundary(self):
         with patch.object(Path, 'read_text', side_effect=AssertionError('unexpected file read')):
             self.assertEqual('unsupplied', rapid_screens.check(Path('absent'), batch=True).state)
@@ -112,6 +130,40 @@ class PublicRapidScreens(unittest.TestCase):
             self.assertEqual((1, 1, 1), (result.notes, len(result.findings), result.unread))
             self.assertTrue(result.incomplete)
             self.assertEqual(1, rapid_screens.check(run, batch=True, profile=run).unread)
+
+    def test_both_native_commands_use_the_exact_approval_boundary(self):
+        start, _moment = completion_checks.registry()[rapid_screens.CHECK]
+        original_grading = completion_checks.grading
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            note = run / 'note-1.md'
+            note.write_text(NOTE.format(screen='Rapid strep pending.'), encoding='utf-8')
+            profile = run / 'profile.txt'
+            profile.write_text(rapid_screens.DECLARATION, encoding='utf-8')
+            (run / 'shift-values.json').write_text(json.dumps({
+                'start': '0800', 'duration': {'hours': 8, 'minutes': 0}}), encoding='utf-8')
+            for module in (differential_scan, filled_vitals_census):
+                for observed, expected in ((start - timedelta(microseconds=1), 0), (start, 1)):
+                    @contextlib.contextmanager
+                    def dated_grading(path, submission):
+                        # Isolate only the retained approval moment at the normal
+                        # command grading boundary; all artifact rows run unchanged.
+                        with original_grading(path, submission):
+                            token = completion_checks.MOMENTS.set({'approval': observed})
+                            try:
+                                yield
+                            finally:
+                                completion_checks.MOMENTS.reset(token)
+                    args = [str(run), '--profile', str(profile)]
+                    if module is differential_scan:
+                        args += ['--note', str(note)]
+                    output = io.StringIO()
+                    with self.subTest(module=module.__name__, observed=observed), \
+                         patch.object(completion_checks, 'grading', dated_grading), \
+                         contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(expected, module.main(args), output.getvalue())
+                    self.assertIn('pending findings 1' if expected else
+                                  'rapid screens: not graded - check starts after approval', output.getvalue())
 
     def test_approved_standalone_population_and_numbered_batch_exclude_run_records(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -186,6 +238,7 @@ class SkillAgreement(unittest.TestCase):
         self.assertIn('delegate never answers', step4)
         self.assertIn('parsed value per encounter', step4)
         self.assertIn("shared opener command's `answer` route", step4)
+        # batch-shift step 4 settles the earlier-care question once.
         self.assertIn('only for an encounter step 4 did not settle', batch)
         clinical = (ROOT / 'skills/clinical-note/SKILL.md').read_text(encoding='utf-8')
         self.assertIn('Where an answer to this block can be parsed more than one way', clinical)
