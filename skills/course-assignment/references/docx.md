@@ -159,6 +159,11 @@ The grader reads these rows:
   `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
   `heading-read-context-defect`, plus `heading-read-qualifier-count`,
   `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
+  The ITEM quote rows are `heading-read-item-quote-missing` for no supporting quote or absence
+  sentinel, `heading-read-item-quote-absent` for zero normalized occurrences, and
+  `heading-read-item-quote-repeated` for multiple occurrences, including overlaps. File comparisons
+  use the recorded path and raw SHA-256; each unread source contributes once to the unread remainder.
+  Service-item quotes are counted, not graded, under the shared sourcing rule.
   `heading-read-own-figure-absent` reports a number listed on an `OWN` or `ITEM` line
   that is absent from the document's traced body numbers.
 

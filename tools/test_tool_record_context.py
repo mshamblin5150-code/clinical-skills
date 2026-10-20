@@ -43,7 +43,11 @@ class ToolRecords(unittest.TestCase):
                     with capture_errors() as faults:
                         current = heading_read.binding_from_context('synthetic.md', draft, (), root, as_of=date.max)
                         result = heading_read.scan(text.replace(fingerprint, '0' * 64), (current,))
-                    self.assertEqual([heading_read.DRAFT_MISMATCH], [row.kind for row in result.findings])
+                    kinds = [row.kind for row in result.findings]
+                    self.assertEqual([heading_read.DRAFT_MISMATCH, heading_read.ITEM_QUOTE_MISSING], kinds)
+                    for dependent in (heading_read.UNOPENED_ITEM, heading_read.ITEM_QUOTE_ABSENT,
+                                      heading_read.ITEM_QUOTE_REPEATED):
+                        self.assertNotIn(dependent, kinds)
                     self.assertEqual(1, len(faults))
                     self.assertIn('heading-read context comparisons', next(iter(faults.values())).dependent_checks)
                     self.assertEqual(b'GO-AHEAD: {', path.read_bytes())
