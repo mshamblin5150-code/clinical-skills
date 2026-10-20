@@ -41,6 +41,26 @@ class CompletionRegistry(unittest.TestCase):
 
 
 class CheckLandingBetweenPostingAndGrade(FrozenFixture):
+    def test_draft_label_substantiation_starts_at_approval(self):
+        import checks_ledger
+        from test_checks_ledger import instead_of
+        name = "the draft label on threshold-sheet citations"
+        key = "checks_ledger:" + name
+        start, moment = checks.registry()[key]
+        self.assertEqual("approval", moment)
+        text = instead_of(name, f"## CHECK: {name}\nVERDICT: clean\n")
+        for offset, expected in ((-1, False), (0, True), (1, True)):
+            with self.subTest(offset=offset):
+                self.item["recorded_at"] = start.timestamp() + offset
+                self.item["approval_revision"] = offset + 2
+                self.save()
+                with checks.grading(self.run, "post"):
+                    scan = checks_ledger.survey(checks_ledger.read_records(text))
+                self.assertEqual(expected, any(
+                    f.kind == checks_ledger.CLEAN_WITHOUT_FINDINGS and f.check == name
+                    for f in scan.findings
+                ))
+
     def test_outbound_search_gate_starts_at_its_landing(self):
         import outbound_search
         (self.run / outbound_search.PULLS).write_text(
