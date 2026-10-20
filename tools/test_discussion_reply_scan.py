@@ -6,6 +6,7 @@ phi-scan: synthetic
 """
 
 from __future__ import annotations
+from tool_record_test_support import posting_record
 
 import mechanics_test_support
 
@@ -117,8 +118,8 @@ class Run:
         )
         if posted:
             (root / "posting-approvals.json").write_text(
-                json.dumps({"items": [{"skill": "discussion-reply",
-                    "submission": response.name, "posting_route": "agent"}]}),
+                json.dumps(posting_record(response, {"skill": "discussion-reply",
+                    "submission": response.name, "posting_route": "agent"})),
                 encoding="utf-8",
             )
         self.write_heading_read()
@@ -823,9 +824,9 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
             )
             status, stdout, stderr = self.grade(run)
 
-        self.assertEqual(1, status)
+        self.assertEqual(2, status)
         self.assertEqual("", stderr)
-        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("reread.md: unreadable", stdout)
 
     def test_a_one_word_reply_edit_makes_its_fingerprint_stale(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -866,28 +867,28 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
             status, stdout, stderr = self.grade(run)
 
         self.assertEqual(2, status)
-        self.assertEqual("", stdout)
-        self.assertIn("reread.md", stderr)
+        self.assertIn("not graded", stdout)
+        self.assertIn("reread.md: unreadable", stdout)
 
     def test_a_third_verdict_is_a_finding_not_a_source_error(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "reread.md").write_text(
-                REREAD.replace("matches -", "uncertain -"), encoding="utf-8"
+                REREAD.format(submission_sha256=file_digest.sha256(run.root / "response-maren.md")).replace("matches -", "uncertain -"), encoding="utf-8"
             )
 
             status, stdout, stderr = self.grade(run)
 
-        self.assertEqual(1, status)
+        self.assertEqual(2, status)
         self.assertEqual("", stderr)
-        self.assertIn("unknown-verdict: 1", stdout)
+        self.assertIn("reread.md: unreadable", stdout)
 
     def test_each_declared_verdict_needs_substance(self):
         for verdict in ("matches", "diverges"):
             with self.subTest(verdict=verdict), tempfile.TemporaryDirectory() as temp:
                 run = Run(Path(temp))
                 (run.root / "reread.md").write_text(
-                    REREAD.replace(
+                    REREAD.format(submission_sha256=file_digest.sha256(run.root / "response-maren.md")).replace(
                         "matches - The paragraphs, references, and bold label are present.",
                         verdict,
                     ),
@@ -903,7 +904,7 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "reread.md").write_text(
-                REREAD.replace("?entry_id=31", ""), encoding="utf-8"
+                REREAD.format(submission_sha256=file_digest.sha256(run.root / "response-maren.md")).replace("?entry_id=31", ""), encoding="utf-8"
             )
 
             status, stdout, _ = self.grade(run)
@@ -915,7 +916,7 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "reread.md").write_text(
-                REREAD.replace("entry_id=31", "entry_id=21"), encoding="utf-8"
+                REREAD.format(submission_sha256=file_digest.sha256(run.root / "response-maren.md")).replace("entry_id=31", "entry_id=21"), encoding="utf-8"
             )
 
             status, stdout, _ = self.grade(run)
@@ -932,7 +933,7 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
                 encoding="utf-8",
             )
             (run.root / "reread.md").write_text(
-                REREAD.replace("entry_id=31", "entry_id=41"), encoding="utf-8"
+                REREAD.format(submission_sha256=file_digest.sha256(run.root / "response-maren.md")).replace("entry_id=31", "entry_id=41"), encoding="utf-8"
             )
 
             status, stdout, _ = self.grade(run)

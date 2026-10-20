@@ -69,6 +69,10 @@ class RunStatusContract(unittest.TestCase):
                     "gate1_approved": True,
                     "approval_revision": 1,
                     "upload_route": "awaiting-upload",
+                    "sha256": "a" * 64,
+                    "attachment_count": 1,
+                    "approved_carriers": [{"filename": self.artifact.name, "sha256": "a" * 64}],
+                    "uploaded_files": [],
                 }
             ),
             encoding="utf-8",
@@ -360,7 +364,7 @@ class RunStatusContract(unittest.TestCase):
                 self.assertEqual("block", self.grade("Mention fallback.")["decision"])
 
     def test_failing_retry_warns_in_both_payload_shapes_and_preserves_state(self) -> None:
-        before = b'{"status":"stopped"}'
+        before = b'{"status":"stopped","approval_revision":"[]"}'
         state = self.run / hook.STATE_RECORD
         state.write_bytes(before)
         line = f"Run status: {self.run.name} — complete"
@@ -580,7 +584,8 @@ class RunStatusContract(unittest.TestCase):
             json.dumps(command_record(run)) + "\n", encoding="utf-8"
         )
 
-        self.assertEqual({}, self.grade("The record is incomplete."))
+        self.assertEqual("block", self.grade("The record is incomplete.").get("decision"))
+        self.assertEqual({}, self.grade(f"Run status: {run.name} — stopped - approval record unreadable"))
 
     def test_each_posting_skill_opens_from_its_record_and_retracts_early_complete(self) -> None:
         for skill in (
@@ -638,6 +643,10 @@ class RunStatusContract(unittest.TestCase):
                     "artifact": other_artifact.name,
                     "artifact_path": str(other_artifact),
                     "gate1_approved": True,
+                    "sha256": "a" * 64,
+                    "attachment_count": 1,
+                    "approved_carriers": [{"filename": other_artifact.name, "sha256": "a" * 64}],
+                    "uploaded_files": [],
                     "approval_revision": 1,
                     "upload_route": "awaiting-upload",
                 }

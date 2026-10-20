@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+
 from discussion_artifact import check_posted_reading
+from run_record_reader import UnreadableRecord
 
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -22,10 +25,14 @@ from typing import Iterable
 import aar_scan
 import docx_write
 import entry_copy
-from discussion_artifact import read_posted_readings
 import reader_remarks
 import run_grader
 import project_context
+
+
+DECLARED_LIMITS = (
+    'approval_record record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+)
 
 
 class ApprovalRecordError(ValueError):
@@ -144,6 +151,8 @@ def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float 
     try:
         expected = uptodate_block.render(run, sources)
         boundary = max(path.stat().st_mtime for path in uptodate_block.source_paths(run, sources))
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError, TypeError) as failure:
         raise ApprovalRecordError("UpToDate disclosure could not be derived from private evidence") from failure
     if reply_at is None:
@@ -317,15 +326,13 @@ def _write(path: Path, payload: dict[str, object]) -> None:
 
 
 def _read(run: Path, *, missing_ok: bool = False) -> dict[str, object]:
+    from run_record_reader import read_tool_record, posting_record
     path = run / RECORD
-    if missing_ok and not path.exists():
-        return {"version": 1, "approval_revision": 0, "items": []}
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as failure:
-        raise ApprovalRecordError(f"could not read durable approval records: {failure}") from failure
-    if not isinstance(value, dict) or not isinstance(value.get("items"), list):
-        raise ApprovalRecordError("durable approval records must contain one items list")
+    value = read_tool_record(path, posting_record)
+    if value is None:
+        if missing_ok:
+            return {"version": 1, "approval_revision": 0, "items": []}
+        raise ApprovalRecordError("durable approval records are missing")
     return value
 
 
@@ -617,6 +624,9 @@ class PostedReadingState:
 
     @property
     def unrecorded_reading(self) -> bool:
+        from run_record_reader import unreadable_kind
+        if unreadable_kind(RECORD) or unreadable_kind("reread.md"):
+            return False
         return self.has_reading and not self.posted
 
 
@@ -627,6 +637,17 @@ def posting_route(run: Path, *, skill: str, submission: str) -> str | None:
     item = _matching_item(_read(Path(run), missing_ok=True), skill, submission)
     route = item.get("posting_route") if item is not None else None
     return route if isinstance(route, str) else None
+
+
+def graded_posting_route(run: Path, *, skill: str, submission: str) -> str | None:
+    """Let independent grader rows run while the captured route check is ungraded."""
+    from run_record_reader import collecting_errors
+    try:
+        return posting_route(run, skill=skill, submission=submission)
+    except UnreadableRecord:
+        if not collecting_errors():
+            raise
+        return None
 
 
 @dataclass(frozen=True)
@@ -708,9 +729,17 @@ def completion_gate(
     root = Path(run).resolve()
     try:
         payload = _read(root)
-        readings = read_posted_readings((root / "reread.md").read_text(encoding="utf-8"))
+        readings = read_posted_reading_file(root / "reread.md")
+    except UnreadableRecord as failure:
+        from run_record_reader import collecting_errors, fault_report
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check=label)
     except (ApprovalRecordError, OSError, UnicodeError, ValueError) as failure:
         return True, f"{label}: finding - could not read approval and posted-reading evidence: {failure}"
+    from run_record_reader import unreadable_record
+    if unreadable_record(root / "reread.md"):
+        return False, f"{label}: not graded - tool-written posted reading unreadable"
     by_submission = {reading.artifact: reading for reading in readings}
     incomplete = False
     for key in keys:

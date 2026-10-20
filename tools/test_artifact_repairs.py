@@ -271,7 +271,9 @@ class RepairChain(unittest.TestCase):
         payload = repairs.ledger(self.run)
         payload["files"][str(self.note.resolve())]["repairs"].append({"before": repairs.digest(self.note), "after": repairs.digest(self.note)})
         repairs.write_ledger(self.run, payload)
-        self.assertTrue(repairs.completion_gate(self.run, "shift", (self.note,))[0])
+        from run_record_reader import UnreadableRecord
+        with self.assertRaises(UnreadableRecord):
+            repairs.completion_gate(self.run, "shift", (self.note,))
 
 
 if __name__ == "__main__":

@@ -5,6 +5,8 @@ never regraded. Adoption reads retained evidence without asserting its quality.
 """
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import json
@@ -12,9 +14,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+from run_record_reader import (read_tool_record, frozen_record, state_record,
+                               locked_record, UnreadableRecord, fault_report)
 
 RECORD = "frozen-grades.json"
 DECLARED_LIMITS = (
+    "Existing unreadable bookkeeping refuses all reads and writes through the shared record reader; freeze and adoption replacement hold the exclusive artifact lock.",
     "A freeze records a successful public terminal command; it cannot establish the truth of reader judgments.",
     "Adoption checks retained readback and review existence, not their quality, and labels that exemption.",
     "Offset-free posting times are compared at their latest possible UTC instant; ambiguous same-day postings remain unfrozen.",
@@ -23,11 +28,7 @@ DECLARED_LIMITS = (
 
 
 def _read(path: Path) -> dict:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        return value if isinstance(value, dict) else {}
-    except (OSError, UnicodeError, ValueError):
-        return {}
+    return read_tool_record(path, frozen_record if path.name == RECORD else state_record) or {}
 
 
 def _write(run: Path, value: dict) -> None:
@@ -78,21 +79,33 @@ def freeze(run: Path, skill: str, item: dict, *, adoption: bool = False) -> None
     revision = item.get("approval_revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
         return
-    payload = _read(run / RECORD)
-    items = payload.setdefault("items", {})
-    key = skill + ":" + item["submission"]
-    existing = items.get(key)
-    if isinstance(existing, dict) and existing.get("approval_revision") == revision:
-        return
-    items[key] = dict(approval_revision=revision,
-                      frozen_at=datetime.now(timezone.utc).isoformat(),
-                      kind="frozen at adoption, never graded clean" if adoption else "graded clean",
-                      sources=_fingerprints(skill, item, approved=True))
-    payload["version"] = 1
-    _write(run, payload)
+    with locked_record(run / RECORD):
+        payload = _read(run / RECORD)
+        items = payload.setdefault("items", {})
+        key = skill + ":" + item["submission"]
+        existing = items.get(key)
+        if isinstance(existing, dict) and existing.get("approval_revision") == revision:
+            return
+        items[key] = dict(approval_revision=revision,
+                          frozen_at=datetime.now(timezone.utc).isoformat(),
+                          kind="frozen at adoption, never graded clean" if adoption else "graded clean",
+                          sources=_fingerprints(skill, item, approved=True))
+        payload["version"] = 1
+        _write(run, payload)
 
 
 def report(run: Path, submission: str, *, adopt_history: bool = True) -> str | None:
+    """An unreadable retained grade establishes no exemption in a captured command."""
+    from run_record_reader import collecting_errors
+    try:
+        return _report(run, submission, adopt_history=adopt_history)
+    except UnreadableRecord:
+        if not collecting_errors():
+            raise
+        return None
+
+
+def _report(run: Path, submission: str, *, adopt_history: bool = True) -> str | None:
     if adopt_history:
         adopt(run)
     approval = approved(run, submission)
@@ -132,7 +145,6 @@ class Adoption:
 def adopt(run: Path) -> Adoption:
     from run_status_stop_hook import approvals, STATE_RECORD
     from aar_scan import review_path
-    from discussion_artifact import read_posted_readings
     payload = _read(run / RECORD)
     if payload.get("adoption_done"):
         return Adoption()
@@ -146,8 +158,9 @@ def adopt(run: Path) -> Adoption:
     except (TypeError, ValueError):
         covered = []
     try:
-        readings = {reading.artifact: reading for reading in read_posted_readings(
-            (run / "reread.md").read_text(encoding="utf-8"))}
+        readings = {reading.artifact: reading for reading in read_posted_reading_file(run / "reread.md", collect=False)}
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError):
         readings = {}
     clean = adopted = 0
@@ -166,10 +179,12 @@ def adopt(run: Path) -> Adoption:
             clean += graded
             adopted += not graded
             lines.append(report(run, key, adopt_history=False) or key)
-    payload = _read(run / RECORD)
-    payload["adoption_done"] = True
-    payload["adoption_counts"] = dict(graded_clean=clean, never_graded_clean=adopted)
-    _write(run, payload)
+    with locked_record(run / RECORD):
+        payload = _read(run / RECORD)
+        payload.setdefault("items", {})
+        payload["adoption_done"] = True
+        payload["adoption_counts"] = dict(graded_clean=clean, never_graded_clean=adopted)
+        _write(run, payload)
     return Adoption(clean, adopted, tuple(lines))
 
 
@@ -220,7 +235,13 @@ def main(argv: list[str]) -> int:
     for path in args.runs:
         runs = (path,) if path.name != "runs" else tuple(p for p in path.iterdir() if p.is_dir())
         for run in runs:
-            result = adopt(run)
+            try:
+                result = adopt(run)
+            except UnreadableRecord as failure:
+                print(fault_report(failure, check="frozen grade"))
+                from run_grader import format_unread_remainder
+                print(format_unread_remainder(1))
+                return 2
             clean += result.clean
             adopted += result.adopted
             for line in result.lines:

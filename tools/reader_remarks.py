@@ -9,6 +9,8 @@ checks explicit leave decisions and the exact surface shown before that reply.
 
 from __future__ import annotations
 
+from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord
+
 from dataclasses import dataclass
 from hashlib import sha256
 import json
@@ -16,13 +18,13 @@ from pathlib import Path
 import re
 import time
 import coursework_run
-from run_record_reader import read_tool_record
 
 
 SCOPED_SKILLS = frozenset({"course-assignment", "discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
 PREFIX = "READER-REMARK: "
 DECLARED_LIMITS = (
     "Clinical collection reads canonical per-run coding reader files; legacy shared files outside the run are not bound or attached.",
+    'reader_remarks record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     "Remarks concealed in a folded field or a substance-only reason cannot be distinguished from ordinary reader text.",
     "The transcript comparison collapses whitespace and does not prove visual presentation or clinician attention.",
     "A fixed outcome records the change shown and accepted; it does not mechanically establish that the change resolves the remark.",
@@ -143,6 +145,8 @@ def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
         payload = read_tool_record(specificity, lambda text: coding_record(text, kind="specificity"))
         if payload is not None:
             result.extend(Remark("SPECIFICITY", text) for text in payload.get("remarks", []))
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
         raise RemarkError("the run's coding reader record is unreadable") from failure
     return tuple(dict.fromkeys(result))
@@ -226,15 +230,27 @@ class Prepared:
     coverage: tuple[str, ...]
 
 
+def _decode_receipt(text: str) -> dict:
+    value = object_record(text)
+    if (type(value.get("prepared_at")) not in (int, float)
+            or not isinstance(value.get("source_digest"), str) or not re.fullmatch(r"[0-9a-f]{64}", value["source_digest"])
+            or not all(isinstance(value.get(key), str) for key in ("report", "grader_report"))):
+        raise RecordShapeError("record fields")
+    return value
+
+
 def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
             *, coverage_only: bool = False) -> Prepared:
     import approval_record
     path = _receipt_path(run, skill, key)
     current = () if coverage_only else read_report(report_text)
     previous = ()
-    if path.exists() and not coverage_only:
+    stored = read_tool_record(path, _decode_receipt)
+    if stored is not None and not coverage_only:
         try:
-            previous = read_report(json.loads(path.read_text(encoding="utf-8"))["report"])
+            previous = read_report(stored["report"])
+        except UnreadableRecord:
+            raise
         except (OSError, ValueError, KeyError, TypeError) as failure:
             raise RemarkError("the preceding pre-ask remark receipt is unreadable") from failure
     retained = tuple(r for r in previous if r not in current)
@@ -286,13 +302,17 @@ def _prepared_receipt(run: Path, skill: str, key: str, sources: tuple[Path, ...]
                       transcript_unread: bool = False):
     """Keep the same grade, source and ordering comparison for every go-ahead."""
     try:
-        receipt = json.loads(_receipt_path(run, skill, key).read_text(encoding="utf-8"))
+        receipt = read_tool_record(_receipt_path(run, skill, key), _decode_receipt)
+        if receipt is None:
+            raise RemarkError("approval needs a readable pre-ask grade receipt")
         boundary = max(path.stat().st_mtime for path in sources)
         prepared_at = receipt["prepared_at"]
         if receipt["source_digest"] != _digest(sources) or (not accepted and receipt["grader_report"] != report_text):
             raise RemarkError("the prepared grade or source changed; prepare and show the approval again")
         if not boundary < prepared_at or (reply_at is None and not transcript_unread) or (reply_at is not None and not prepared_at < reply_at):
             raise RemarkError("the paired grader must run after the last source change and before the approval reply")
+    except UnreadableRecord:
+        raise
     except (OSError, ValueError, KeyError, TypeError) as failure:
         if isinstance(failure, RemarkError):
             raise

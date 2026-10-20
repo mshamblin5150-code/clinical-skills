@@ -12,13 +12,22 @@ from pathlib import Path
 import run_grader
 from console_codec import require_python_floor, use_utf8
 from note_grammar import parse
+from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report
 
 
 DECLARED_LIMITS = (
+    ("unreadable tool-written records", "Existing stored evidence refuses through the shared record reader and is never replaced after a failed read.", run_grader.EvidenceDisposition.BEHAVIOR),
     ("section meaning", "The grammar partitions text; a reader decides whether content belongs under its heading.", run_grader.EvidenceDisposition.DECLARED_READING),
     ("portal readback", "The stored strings record what was typed, not what Medatrax saved.", run_grader.EvidenceDisposition.DECLARED_READING),
     ("older differences", "Divergence reports a changed derivation and never authorizes correcting a posted note.", run_grader.EvidenceDisposition.BEHAVIOR),
 )
+
+
+def _decode_sections(text: str) -> dict:
+    stored = object_record(text)
+    if set(stored) != set("SOAP") or any(not isinstance(value, str) for value in stored.values()):
+        raise RecordShapeError("record fields")
+    return stored
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,13 +42,9 @@ def main(argv: list[str] | None = None) -> int:
         parsed = parse(copy.read_text(encoding="utf-8"))
         sections = {label: parsed.sections[label].strip() for label in "SOAP"}
         destination = copy.parent.parent / "private" / "form-sections" / (copy.stem + ".json")
-        existed = destination.exists()
+        stored = read_tool_record(destination, _decode_sections)
+        existed = stored is not None
         if existed:
-            stored = json.loads(destination.read_text(encoding="utf-8"))
-            if not isinstance(stored, dict) or set(stored) != set("SOAP") or any(
-                not isinstance(value, str) for value in stored.values()
-            ):
-                raise ValueError("stored form sections have invalid shape")
             diverged = [label for label in "SOAP" if stored[label] != sections[label]]
         else:
             diverged = []
@@ -55,6 +60,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"form sections {copy.name}: {action}; differing sections {len(diverged)}")
         print(run_grader.format_unread_remainder(0))
         return 0
+    except UnreadableRecord as error:
+        print(fault_report(error, check="form sections"))
+        print(run_grader.format_unread_remainder(1))
+        return 2
     except (OSError, UnicodeError, ValueError, TypeError) as error:
         print(f"form sections refused: {type(error).__name__}", file=sys.stderr)
         print(run_grader.format_unread_remainder(1))

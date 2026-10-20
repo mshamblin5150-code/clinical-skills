@@ -19,10 +19,11 @@ import artifact_lock
 from console_codec import require_python_floor, use_utf8
 from corpus_census import NOTE_DELIMITER
 from repo_root import enclosing_checkout
-from run_record_reader import read_tool_record, outbound_text_damage
+from run_record_reader import read_tool_record, outbound_text_damage, object_record, UnreadableRecord, fault_report
 
 
 DECLARED_LIMITS = (
+    "Existing opener bookkeeping uses the shared strict decoder; an unreadable record refuses record, answer and identity operations without replacing it and contributes one unread record.",
     ("clinical reading", "Names are checked for literal presence, not patient identity; age and sex are supplied readings, never extracted or inferred."),
     ("hand boundaries", "Full character coverage is checked; clinical correctness of a supplied cut and its reason remains a reader's judgment."),
     ("collision judgments", "Each same-name reference needs a reason; the writer cannot establish that two people are different."),
@@ -96,8 +97,8 @@ def population(items: object) -> list[dict]:
 
 
 def decode_record(text: str) -> dict:
-    record = json.loads(text)
-    if not isinstance(record, dict) or record.get("version") != 1:
+    record = object_record(text)
+    if type(record.get("version")) is not int or record["version"] != 1:
         raise ValueError("invalid opener record version")
     date.fromisoformat(record["service_date"])
     if record["mode"] not in ("split", "hand", "single"):
@@ -105,7 +106,14 @@ def decode_record(text: str) -> dict:
     if record["mode"] == "hand":
         clean_cell(record["reason"])
     population(record["encounters"])
+    if (not isinstance(record.get("source"), str) or not record["source"]
+            or not isinstance(record.get("source_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", record["source_sha256"])
+            or type(record.get("unassigned_end")) is not int):
+        raise ValueError("invalid opener source fields")
     for item in record["encounters"]:
+        if (any(key not in item for key in ("name", "age", "sex", "name_source", "name_asked"))
+                or not isinstance(item.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])):
+            raise ValueError("invalid opener item fields")
         if type(item.get("start")) is not int or type(item.get("end")) is not int:
             raise ValueError("invalid source span")
         if item["file"] != f"encounters/encounter-{item['note']}.txt":
@@ -311,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
             append_identity(args.run, args.note, args.reference, args.map, args.collisions)
             print("identity rows added 1")
         return 0
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check="encounter openers"), file=sys.stderr)
+        print("unread remainder 1")
+        return 2
     except (OSError, ValueError, TypeError, KeyError, IndexError):
         print("encounter-openers: refused; invalid, missing, changed, busy, or incomplete evidence", file=sys.stderr)
         return 2

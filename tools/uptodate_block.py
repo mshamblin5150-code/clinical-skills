@@ -5,6 +5,7 @@ The output is private clinical working material. The complete boundary belongs
 to uptodate_block.DECLARED_LIMITS.
 """
 from __future__ import annotations
+from run_record_reader import UnreadableRecord
 
 import argparse
 import re
@@ -16,6 +17,7 @@ import medatrax_posting
 import outbound_search
 
 DECLARED_LIMITS = (
+    'uptodate_block record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     "Only bracketed UpToDate-over-threshold and failed-pull tails in the supplied notes are recognized as conflicts.",
     "Recorded decisions, instruments, and differences are not independently verified against the browser or clinical sources.",
     "A live action with no committed search or outcome record remains invisible.",
@@ -101,6 +103,11 @@ def main(argv: list[str]) -> int:
         notes = tuple(args.notes) if args.notes else medatrax_posting.note_paths(args.run, batch=args.batch)
         print(render(args.run, notes), end="")
         return 0
+    except UnreadableRecord as failure:
+        from run_record_reader import fault_report
+        print(fault_report(failure, check="UpToDate disclosure"), file=sys.stderr)
+        print("unread remainder 1")
+        return 2
     except (OSError, UnicodeError, ValueError, TypeError):
         print("UpToDate disclosure: refused - private notes or outcome records incomplete or unreadable", file=sys.stderr)
         return 2

@@ -23,6 +23,7 @@ import repo_root
 import run_grader
 import voice_model_scan
 from console_codec import require_python_floor, use_utf8
+from run_record_reader import read_tool_record, UnreadableRecord, RecordContentError, fault_report, object_record
 
 
 RECORD_NAME = "voice-model-identity.json"
@@ -40,6 +41,7 @@ COMPLETION_GRADERS = MappingProxyType(
     {skill: aar_scan.COMPLETION_GRADERS[skill] for skill in SCOPED_SKILLS}
 )
 DECLARED_LIMITS = (
+    ("unreadable-tool-record", "An existing unreadable identity record is never a missing identity or draft observation; dependent checks are not graded and completion has incomplete coverage. Writers refuse without replacing it."),
     (
         "retrieval-before-draft-unobservable",
         "The historical first observation cannot see a draft deleted or moved before the gate, "
@@ -71,17 +73,14 @@ def write_record(run: Path, submission: str | None = None) -> str:
     """Resolve once and write that resolution into ``run`` at draft time."""
     observations = {}
     walk_reports = []
+    previous = read_tool_record(run / RECORD_NAME, _decode_record)
     if submission is not None:
         keys = coursework_run.submission_keys(submission)
         if len(keys) != 1:
             raise ValueError("write one submission observation at a time")
         if not (coursework_run.voice_records_directory(run, submission) / "supplied-voice.json").is_file():
             raise ValueError("supplied-voice.json is required before the identity gate")
-        record = run / RECORD_NAME
-        if record.is_file():
-            previous = json.loads(record.read_text(encoding="utf-8"))
-            if not _valid_record(previous):
-                raise ValueError("existing voice identity record is invalid")
+        if previous is not None:
             observations = previous.get("observations", {})
         observations = coursework_run.observe_draft(run, submission, observations, reports=walk_reports)
     resolved = repo_root.canonical_voice_model()
@@ -120,6 +119,13 @@ def _valid_record(payload: object) -> bool:
     return digest is None
 
 
+def _decode_record(text: str) -> dict:
+    payload = object_record(text)
+    if not _valid_record(payload):
+        raise ValueError("invalid identity record")
+    return payload
+
+
 def _identity_completion_gate(run: Path, submission: str | None) -> CompletionGate:
     """Grade the draft-time identity record when a terminal submission is named."""
     if submission is None:
@@ -130,14 +136,12 @@ def _identity_completion_gate(run: Path, submission: str | None) -> CompletionGa
         )
 
     record = run / RECORD_NAME
-    if not record.is_file():
-        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record is missing")
     try:
-        payload = json.loads(record.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record shape is invalid")
-    if not _valid_record(payload):
-        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record shape is invalid")
+        payload = read_tool_record(record, _decode_record)
+    except UnreadableRecord as failure:
+        return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW))
+    if payload is None:
+        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record is missing")
 
     try:
         resolved = repo_root.canonical_voice_model()
@@ -170,11 +174,16 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
     if submission is None:
         return result
     try:
-        payload = json.loads((run / RECORD_NAME).read_text(encoding="utf-8"))
-        observations = payload.get("observations") if isinstance(payload, dict) else None
-    except (OSError, UnicodeError, ValueError):
-        observations = None
-    order = coursework_run.grade_order(observations, submission, lambda key, path: project_context.order_waived(run, key, path), run=run)
+        payload = read_tool_record(run / RECORD_NAME, _decode_record)
+        observations = payload.get("observations") if payload is not None else None
+    except UnreadableRecord as failure:
+        return CompletionGate(False, True, fault_report(failure, check=EXPECTED_ROW) + "; draft order: not graded - identity record unreadable")
+    try:
+        order = coursework_run.grade_order(observations, submission, lambda key, path: project_context.order_waived(run, key, path), run=run)
+    except UnreadableRecord as failure:
+        return replace(result, coverage=True, report=result.report + "; " + fault_report(failure, check="draft order"))
+    except RecordContentError as failure:
+        return replace(result, finding=True, report=result.report + "; " + str(failure))
     return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
 
 
@@ -214,12 +223,18 @@ def main(argv: list[str]) -> int:
         submission = argv[3]
         print(write_record(run, submission))
         order = coursework_run.grade_order(
-            json.loads((run / RECORD_NAME).read_text(encoding="utf-8"))["observations"],
+            read_tool_record(run / RECORD_NAME, _decode_record)["observations"],
             submission, lambda key, path: project_context.order_waived(run, key, path),
         )
         print(order.report)
         if order.finding:
             return 1
+    except RecordContentError as failure:
+        print(str(failure), file=sys.stderr)
+        return 1
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check=EXPECTED_ROW), file=sys.stderr)
+        return 2
     except coursework_run.DraftWalkUnreadable as failure:
         print(f"voice model identity NOT WRITTEN -- {failure}", file=sys.stderr)
         return 2

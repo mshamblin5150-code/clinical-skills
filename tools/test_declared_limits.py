@@ -34,14 +34,13 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
-    "run_record_reader": "a decoder adapter distinguishing missing from unreadable; callers own schema and content claims",
+    "tool_record_test_support": "synthetic approval fixture construction, not a public reader or completeness check",
     "maintainer_python": "an advisory comparison of one pin with the running major.minor.micro release, not a population or CI reproducibility check",
     "mechanics_test_support": "test support for comparing older row fixtures before the mechanics start, not a public checker",
     "claude_output_access": "an exact saved-directory lookup whose module docstring excludes browser behavior and Codex permissions; no population completeness claim",
     "clinical_credentials": "a narrow account-setting adapter that returns the saved credential pair and asserts no population completeness",
     "title_page_credentials": "a narrow account-setting adapter that returns one saved answer and asserts no population completeness",
     "cpt_identity": "shared CPT identity shape with no independent coverage conclusion",
-    "assignment_bar": "a narrow envelope parser whose artifact adapters own branch completeness",
     "assignment_docx": "a deterministic producer whose supplied specification defines its output",
     "assignment_docx_render": "the renderer produces retained evidence and does not grade its coverage",
     "artifact_lock_test_support": "test support for artifact-lock fixtures, not a public checker",
@@ -87,7 +86,6 @@ NO_LIMITS = {
     "phi_scan": "a staged-content safety gate whose scanned surfaces are explicit in its implementation",
     "post_text": "a plain-text construction helper rather than a content-completeness grader",
     "post_html": "an HTML construction helper rather than a content-completeness grader",
-    "approval_record": "an exact authorization adapter whose approved source population defines its fingerprint boundary",
     "procedure_codes_lookup": "an exact local database lookup rather than a coding-rules or documentation grader",
     "project_context_test_support": "test support for synthetic project-context approval fixtures, not a public checker",
     "prose_bind": "the shared binding instrument; its exact name vocabulary is separately classified",

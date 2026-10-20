@@ -22,6 +22,7 @@ import research_ledger
 import run_grader
 from discussion_artifact import NUMBER
 from run_grader import EvidenceDisposition
+from run_record_reader import UnreadableRecord, mark_not_graded
 
 
 class DeclaredLimit(NamedTuple):
@@ -163,6 +164,37 @@ class Binding:
     opened_items: tuple[str, ...] = ()
     other_classmate_items: tuple[str, ...] = ()
     context_run: Path | None = None
+    context_available: bool = True
+
+
+def binding_from_context(artifact: str, draft: bytes, claims: tuple[research_ledger.Record, ...],
+                         run: Path, *, as_of: date | None = None,
+                         exclude_other_classmates: bool = False) -> Binding:
+    """Keep independent heading checks available when context cannot be read."""
+    import project_context
+    try:
+        digest = project_context.recorded_digest(run)
+        opened = project_context.recorded_opened_items(run)
+        other = project_context.other_classmate_items(run, artifact) if exclude_other_classmates else ()
+    except UnreadableRecord as failure:
+        mark_not_graded(failure, check="heading-read context comparisons")
+        return Binding(artifact, draft, claims, "", as_of=as_of, context_run=run, context_available=False)
+    return Binding(artifact, draft, claims, digest, as_of=as_of, opened_items=opened,
+                   other_classmate_items=other, context_run=run)
+
+
+def _context_matches(record: Record, binding: Binding) -> bool | None:
+    if not binding.context_available:
+        return None
+    if binding.context_run is None:
+        return record.value("CONTEXT-DIGEST").casefold() == binding.context_digest.casefold()
+    import project_context
+    try:
+        return project_context.heading_context_matches(
+            binding.context_run, record.value("CONTEXT-DIGEST").casefold(), record.artifact)
+    except UnreadableRecord as failure:
+        mark_not_graded(failure, check="heading-read context comparisons")
+        return None
 
 
 @dataclass(frozen=True)
@@ -251,6 +283,7 @@ def _drifted_at(detail: str, location: str) -> bool:
 def _record_findings(record: Record, binding: Binding) -> list[Finding]:
     found: list[Finding] = []
     artifact = record.artifact
+    context_matches = _context_matches(record, binding)
     if record.value("ROUTE").casefold() not in ROUTES:
         found.append(Finding(UNKNOWN_ROUTE, artifact, record.value("ROUTE") or "ROUTE is missing"))
 
@@ -265,8 +298,9 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
         locations = set()
         for line in record.items:
             parsed_item = ITEM.fullmatch(line)
-            if (parsed_item is None or parsed_item.group("item").strip() not in binding.opened_items
-                    or parsed_item.group("item").strip() in binding.other_classmate_items):
+            if (parsed_item is None or context_matches is not None and (
+                    parsed_item.group("item").strip() not in binding.opened_items
+                    or parsed_item.group("item").strip() in binding.other_classmate_items)):
                 found.append(Finding(UNOPENED_ITEM, artifact, line))
             if parsed_item:
                 location = parsed_item.group("location").strip()
@@ -325,12 +359,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
 
     recorded_context = record.value("CONTEXT-DIGEST").casefold()
     expected_context = binding.context_digest.casefold()
-    if binding.context_run is not None:
-        import project_context
-        context_matches = project_context.heading_context_matches(binding.context_run, recorded_context, artifact)
-    else:
-        context_matches = recorded_context == expected_context
-    if completion_checks.active("heading_read:heading-read-context-digest") and not context_matches:
+    if context_matches is not None and completion_checks.active("heading_read:heading-read-context-digest") and not context_matches:
         found.append(
             Finding(
                 CONTEXT_DIGEST_MISMATCH,
@@ -341,7 +370,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
 
     context_verdict = record.value("CONTEXT-VERDICT")
     context_keyword = context_verdict.casefold().split(maxsplit=1)[0] if context_verdict else ""
-    if expected_context == "none":
+    if context_matches is not None and expected_context == "none":
         if context_verdict.casefold() != "none":
             found.append(
                 Finding(
@@ -350,7 +379,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
                     context_verdict or "CONTEXT-VERDICT is missing",
                 )
             )
-    elif context_verdict.casefold() != "agrees":
+    elif context_matches is not None and context_verdict.casefold() != "agrees":
         shaped = re.fullmatch(
             r"(?i)(narrows|contradicts)[ \t]+-[ \t]+[^,]+,[ \t]+.+",
             context_verdict,

@@ -22,11 +22,13 @@ import artifact_lock
 import worksheet_grammar as worksheet
 from run_grader import EvidenceDisposition
 from console_codec import use_utf8, require_python_floor
+from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report, collecting_errors
 
 POPULATIONS = ("worksheet-codes", "entry-status", "differential-items",
                "differential-text", "note-codes")
 SECTIONS = ("preamble", "S", "O", "A", "P", "tail", "worksheet")
 DECLARED_LIMITS = (
+    ("artifact_repairs-record-coverage", 'artifact_repairs record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
     ("clinical prose outside protected populations",
      "Changed sections are reported for a reader; prose outside the compared populations is not graded.",
      EvidenceDisposition.DECLARED_READING),
@@ -152,7 +154,42 @@ def ledger_path(run: Path) -> Path:
 
 def ledger(run: Path) -> dict:
     path = ledger_path(run)
-    return read_json(path) if path.exists() else {"files": {}}
+    return read_tool_record(path, _decode_ledger) or {"files": {}}
+
+
+def _decode_ledger(text: str) -> dict:
+    payload = object_record(text)
+    files = payload.get("files")
+    if not isinstance(files, dict):
+        raise RecordShapeError("record items")
+    for key, row in files.items():
+        if (not isinstance(key, str) or not key or not isinstance(row, dict)
+                or row.get("kind") not in {"note", "worksheet"}
+                or not isinstance(row.get("placement"), str) or not re.fullmatch(r"[0-9a-f]{64}", row["placement"])
+                or not isinstance(row.get("repairs"), list)):
+            raise RecordShapeError("record item fields")
+        changes = list(row["repairs"]) + ([row["pending"]] if row.get("pending") else [])
+        for change in changes:
+            if (not isinstance(change, dict) or not isinstance(change.get("before"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", change["before"])
+                    or not isinstance(change.get("copies"), str)):
+                raise RecordShapeError("record item fields")
+            scope_record(change["scope"], legacy=True)
+        for repair in row["repairs"]:
+            if (not isinstance(repair.get("after"), str) or not re.fullmatch(r"[0-9a-f]{64}", repair["after"])
+                    or not isinstance(repair.get("comparison"), dict)
+                    or repair["comparison"].get("verdict") not in {"pass", "fail"}):
+                raise RecordShapeError("record item fields")
+        if not isinstance(row.get("acceptances", []), list):
+            raise RecordShapeError("record item fields")
+        for acceptance in row.get("acceptances", []):
+            if (not isinstance(acceptance, dict) or not isinstance(acceptance.get("supersedes"), str)
+                    or not isinstance(acceptance.get("comparison"), dict)
+                    or not isinstance(acceptance.get("clinician_reply"), str)
+                    or type(acceptance.get("reply_matched_at")) not in (int, float)):
+                raise RecordShapeError("record item fields")
+            scope_record(acceptance["scope"])
+    return payload
 
 
 def _write_ledger(run: Path, payload: dict) -> None:
@@ -295,6 +332,10 @@ def completion_gate(run: Path, submission: str | None, paths: tuple[Path, ...]) 
                 expected = repair["after"]
             if digest(path) != expected:
                 failures += 1
+    except UnreadableRecord as failure:
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check="the repair hash chain")
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         failures += 1
     return bool(failures), f"the repair hash chain: {'finding' if failures else 'clean'} - {failures} broken chain(s)"
@@ -391,6 +432,9 @@ def main(argv: list[str]) -> int:
             if args.show:
                 print(json.dumps(result, indent=2))
             return int(result["verdict"] != "pass")
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check="the repair hash chain"))
+        return 2
     except artifact_lock.ArtifactBusy as failure:
         print(str(failure), file=sys.stderr)
         return 2

@@ -61,14 +61,14 @@ class Disclosure(unittest.TestCase):
 
     def test_unreadable_private_log_does_not_emit_a_partial_block(self):
         (self.run / outbound_search.PULLS).write_text('{"search_id":', encoding="utf-8")
-        self.assertEqual((2, ""), self.block())
+        self.assertEqual((2, "unread remainder 1\n"), self.block())
 
     def test_wrong_shape_search_record_cannot_disappear_from_the_population(self):
         for row in ({}, {"search_id": "lost", "passed": True},
                     {"query": "cough", "passed": True}):
             with self.subTest(row=row):
                 (self.run / outbound_search.SEARCHES).write_text(json.dumps(row) + "\n")
-                self.assertEqual((2, ""), self.block())
+                self.assertEqual((2, "unread remainder 1\n"), self.block())
 
     def test_unterminated_failed_pull_tail_is_unread_not_an_empty_population(self):
         self.note.write_text(NOTE + "\nFILLED [thresholds/hypertension aha-2025; uptodate pull failed\n", encoding="utf-8")

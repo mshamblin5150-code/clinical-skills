@@ -20,6 +20,7 @@ from repo_root import scratch_path, scratch_root
 from run_record_reader import read_tool_record, UnreadableRecord
 
 DECLARED_LIMITS = (
+    'outbound_search record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     "Whether the remaining words are clinical vocabulary is not proved by identifier and shape checks.",
     "A search typed without the check and without a live-pull record leaves nothing for the grader to find.",
     "Only site strings in the profile's Site or Sites picklist are recognized as account sites.",
@@ -71,7 +72,14 @@ def refusal(query: str, profile: Path) -> str | None:
 
 def records(path: Path) -> list[dict]:
     def decode(text: str) -> list[dict]:
-        rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+        from run_record_reader import object_record
+        rows = []
+        for number, line in enumerate(text.splitlines(), 1):
+            if line.strip():
+                try:
+                    rows.append(object_record(line))
+                except json.JSONDecodeError as failure:
+                    raise UnreadableRecord(path, f"does not decode at line {number} column {failure.colno}") from failure
         if any(not isinstance(row, dict) for row in rows):
             raise ValueError("record line must be an object")
         for row in rows:
@@ -123,6 +131,11 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
         if failed or mismatched:
             report += f", {failed} failed pull(s), {mismatched} mismatched search(es)"
         return False, report
+    except UnreadableRecord as failure:
+        from run_record_reader import collecting_errors, fault_report
+        if not collecting_errors():
+            raise
+        return False, fault_report(failure, check="Outbound searches")
     except (OSError, UnicodeError, ValueError, TypeError):
         return False, "Outbound searches: unreadable - private record could not be read"
 
@@ -195,6 +208,11 @@ def main(argv: list[str]) -> int:
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
         print("Outbound search: recorded pass" if args.action == "check" else "UpToDate pull outcome: recorded")
         return 0
+    except UnreadableRecord as error:
+        from run_record_reader import fault_report
+        print(fault_report(error, check="Outbound searches"), file=sys.stderr)
+        print("unread remainder 1")
+        return 2
     except (OSError, UnicodeError, ValueError, TypeError) as error:
         reason = str(error) if type(error) in (ValueError, UnreadableRecord) else "required private input or record unreadable"
         print(f"outbound-search: refused - {reason}", file=sys.stderr)

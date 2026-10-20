@@ -30,6 +30,7 @@ import aar_scan
 import approval_record as approvals
 import completion_checks
 import reader_remarks as remarks
+from run_record_reader import UnreadableRecord
 import test_anchor_scan as agreement_tests
 import test_specificity_scan as specificity_tests
 from test_approval_record import NOTE
@@ -216,8 +217,9 @@ class ClinicalCodingRemarks(unittest.TestCase):
         original = self.record.read_bytes()
         for damaged in (b'{', b'[]', b'\xff'):
             self.record.write_bytes(damaged)
-            with self.assertRaisesRegex(approvals.ApprovalRecordError, "coding reader record is unreadable"):
+            with self.assertRaisesRegex(UnreadableRecord, "unreadable — "):
                 approvals.prepare(self.run, **self.arguments())
+            self.assertEqual(damaged, self.record.read_bytes())
         self.record.write_bytes(original)
         prepared = approvals.prepare(self.run, **self.arguments())
         outcomes = (remarks.Outcome("fixed", "The stated source was clarified."),)
@@ -258,7 +260,7 @@ class ClinicalCodingRemarks(unittest.TestCase):
             completion_checks.MOMENTS.reset(token)
         token = completion_checks.MOMENTS.set({"approval": cutoff})
         try:
-            with self.assertRaisesRegex(approvals.ApprovalRecordError, "coding reader record is unreadable"):
+            with self.assertRaisesRegex(UnreadableRecord, "unreadable — does not decode at line 1 column 2"):
                 approvals.prepare(self.run, **self.arguments())
         finally:
             completion_checks.MOMENTS.reset(token)

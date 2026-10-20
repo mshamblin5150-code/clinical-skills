@@ -15,6 +15,12 @@ from prose_bind import bind, NAMING
 
 
 class FrozenFixture(unittest.TestCase):
+    def reading(self, posted):
+        return (f"## REREAD: post\nPOSTED: {posted}\n"
+                "POST-URL: https://example.invalid/post\nREAD: retained\n"
+                f"SUBMISSION-SHA256: {file_digest.sha256(self.source)}\n"
+                "VERDICT: matches - synthetic retained reading\n")
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -51,7 +57,7 @@ class FrozenGrade(FrozenFixture):
         self.assertIsNone(frozen_grade.report(self.run, "post"))
 
     def test_adoption_requires_posting_readback_and_review(self):
-        (self.run / "reread.md").write_text("## REREAD: post\nPOSTED: 2026-10-01T12:00:00Z\n", encoding="utf-8")
+        (self.run / "reread.md").write_text(self.reading("2026-10-01T12:00:00Z"), encoding="utf-8")
         self.assertEqual(0, frozen_grade.adopt(self.run).adopted)
         review = self.run / "aar" / "post.md"
         review.parent.mkdir(parents=True)
@@ -65,7 +71,7 @@ class FrozenGrade(FrozenFixture):
     def test_a_prebuild_approval_posted_after_landing_is_not_adopted(self):
         from datetime import datetime, timezone, timedelta
         future = datetime.fromtimestamp(frozen_grade.landing_time(), timezone.utc) + timedelta(hours=1)
-        (self.run / "reread.md").write_text(f"## REREAD: post\nPOSTED: {future.isoformat()}\n", encoding="utf-8")
+        (self.run / "reread.md").write_text(self.reading(future.isoformat()), encoding="utf-8")
         review = self.run / "aar" / "post.md"
         review.parent.mkdir(parents=True)
         review.write_text("Retained review", encoding="utf-8")
@@ -75,7 +81,7 @@ class FrozenGrade(FrozenFixture):
     def test_a_legacy_item_is_dated_by_its_posting_not_the_shared_record_mtime(self):
         self.item.pop("recorded_at")
         self.save()
-        (self.run / "reread.md").write_text("## REREAD: post\nPOSTED: 2026-10-01T12:00:00Z\n", encoding="utf-8")
+        (self.run / "reread.md").write_text(self.reading("2026-10-01T12:00:00Z"), encoding="utf-8")
         review = self.run / "aar" / "post.md"
         review.parent.mkdir(parents=True)
         review.write_text("Retained synthetic review", encoding="utf-8")

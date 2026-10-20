@@ -16,6 +16,9 @@ The shared APA reader's boundaries belong to ``reference_scan.DECLARED_LIMITS``.
 
 from __future__ import annotations
 
+from discussion_artifact import read_posted_reading_file
+from discussion_artifact import posted_reading_unavailable
+
 from discussion_artifact import check_posted_reading
 
 import completion_checks
@@ -52,7 +55,6 @@ from discussion_artifact import (
     citation_occurrence_keys,
     claim_record_can_certify_values,
     read_citations,
-    read_posted_readings,
     strip_discussion_markers,
 )
 from discussion_post_scan import traceable_numeric_values
@@ -175,6 +177,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("reference-bullets-ungraded", "Reference-entry bullets are not graded, including bullets inherited from a layout."),
     DeclaredLimit("reference-word-rows-excluded", "The Word renderer rows heading-not-apa and entry-not-a-paragraph do not apply to slides; reference_scan owns the remaining APA reader limits."),
     DeclaredLimit("reference-position-unread", "Reference heading and entry boxes without explicit positions, or inside a group, enter the unread remainder; layout and group positions are not resolved. Reference text in tables, SmartArt, and charts also enters that remainder. Numeric-only page boxes are skipped."),
+    DeclaredLimit("deck_scan-record-coverage", 'deck_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.'),
     DeclaredLimit("reader-remark-free-text", "A visual verdict reason cannot distinguish a concealed reader remark from ordinary text."),
     DeclaredLimit(
         "presentation-intent-is-not-voice",
@@ -880,11 +883,7 @@ def load(
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
         adversarial_text = adversarial_path.read_text(encoding="utf-8") if adversarial_path.is_file() else None
         intent_text = intent_path.read_text(encoding="utf-8") if intent_path.is_file() else None
-        readings = (
-            read_posted_readings(reread_path.read_text(encoding="utf-8"))
-            if reread_path.is_file()
-            else ()
-        )
+        readings = read_posted_reading_file(reread_path)
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the terminal deck records: {failure}") from failure
     return Source(
@@ -1288,14 +1287,12 @@ def survey(source: Source) -> Scan:
     heading = heading_read.scan(
         source.heading_read_text,
         (
-            heading_read.Binding(
+            heading_read.binding_from_context(
                 source.deck.name,
                 source.deck_bytes,
                 tuple(research_ledger.read_records(source.claims)),
-                project_context.recorded_digest(source.root),
-                context_run=source.root,
+                source.root,
                 as_of=research_ledger.ledger_date(source.claims),
-                opened_items=project_context.recorded_opened_items(source.root),
             ),
         ),
     )
@@ -1464,7 +1461,8 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         "",
     ]
     for row in ROWS:
-        lines.append(f"{row}: {sum(finding.kind == row for finding in scan.findings)}")
+        count = run_grader.NOT_GRADED if row in POSTED_READING_KINDS.values() and posted_reading_unavailable() else sum(finding.kind == row for finding in scan.findings)
+        lines.append(f"{row}: {count}")
     if show:
         lines += ["", "findings:"]
         for finding in scan.findings:

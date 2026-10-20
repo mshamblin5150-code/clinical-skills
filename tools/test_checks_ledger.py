@@ -23,6 +23,7 @@ table.
 """
 
 from __future__ import annotations
+from tool_record_test_support import posting_record
 
 import contextlib
 import io
@@ -1117,8 +1118,9 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             )
             status, stdout, stderr = run([str(path), "--submission", "case-study"])
 
+        # The independent missing approval remains a finding and takes precedence.
         self.assertEqual(1, status)
-        self.assertIn("#1035", stderr)
+        self.assertIn("reread.md: unreadable", stdout)
         self.assertIn("submission-fingerprint", stdout)
 
     def test_submission_refuses_output_markdown_edited_after_the_reading(self):
@@ -1840,7 +1842,7 @@ class ComposerAttachmentOutcome(unittest.TestCase):
             (path.parent / checks.approval_record.RECORD).write_text("{", encoding="utf-8")
             status, report, error = self.grade_submission(path)
             self.assertEqual(2, status, report + error)
-            self.assertIn("could not read durable approval records", error)
+            self.assertIn("posting-approvals.json: unreadable", report)
 
     def test_clinician_attachment_without_refusal_still_checks_posted_bytes(self):
         directory, path = in_a_file(whole_file())
@@ -1850,10 +1852,10 @@ class ComposerAttachmentOutcome(unittest.TestCase):
             reread.write_text(re.sub(r"(?m)^REFUSAL:.*\n", "", reread.read_text(encoding="utf-8")), encoding="utf-8")
             record = path.parent / checks.approval_record.RECORD
             for route, expected in (("agent", 1), ("clinician", 0)):
-                record.write_text(json.dumps({"items": [{
+                record.write_text(json.dumps(posting_record(path.parent / "output" / "case-study.md", {
                     "skill": "practicum-case-study", "submission": "case-study",
                     "posting_route": route,
-                }]}), encoding="utf-8")
+                })), encoding="utf-8")
                 status, report, error = self.grade_submission(path)
                 self.assertEqual(expected, status, report + error)
             (path.parent / "posted" / "case-study.docx").write_bytes(b"changed Word bytes")
@@ -1894,7 +1896,7 @@ class ComposerAttachmentOutcome(unittest.TestCase):
             checks.approval_record,
             "completion_gate",
             return_value=(False, "the approval record: clean"),
-        ):
+        ), mock.patch("frozen_grade.command_result"):
             return run([str(path), "--submission", "case-study"])
 
     def test_a_composer_reading_without_an_outcome_exits_two(self):

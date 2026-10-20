@@ -31,7 +31,9 @@ class PostedReadingMembers(unittest.TestCase):
         clean = record.read_text(encoding='utf-8')
         for text, status, kind in (
             (clean, 0, None),
-            ('', 1, missing_kind),
+            # Keep a valid envelope but omit this member, without fixture helpers
+            # recreating an absent file or treating empty bytes as a missing record.
+            (re.sub(r'(?m)^## REREAD:.*$', '## REREAD: unrelated-synthetic-item', clean), 1, missing_kind),
             (re.sub(r'(?m)^SUBMISSION-SHA256:.*$', 'SUBMISSION-SHA256: ' + 'f' * 64, clean), 1, fingerprint_kind),
         ):
             with self.subTest(status=status, kind=kind):
@@ -85,7 +87,8 @@ class PostedReadingMembers(unittest.TestCase):
         clean = record.read_text(encoding='utf-8')
         for text, failed, detail in (
             (clean, False, 'clean'),
-            ('', True, 'no REREAD record for the submission'),
+            (re.sub(r'(?m)^## REREAD:.*$', '## REREAD: unrelated-synthetic-item', clean), True,
+             'no REREAD record for the submission'),
             (re.sub(r'(?m)^SUBMISSION-SHA256:.*$', 'SUBMISSION-SHA256: ' + 'f' * 64, clean), True,
              'SUBMISSION-SHA256 is missing, malformed, or stale'),
         ):
@@ -118,7 +121,10 @@ class PostedReadingMembers(unittest.TestCase):
                 approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True, clinician_reply='Post the synthetic loaded box.', approval_kind='posting')
             approval_record.record_agent_posting(run, skill='discussion-post', submission='post')
             record = run / 'reread.md'
-            record.write_text('## REREAD: post\nSUBMISSION-SHA256: ' + file_digest.sha256(note) + '\n', encoding='utf-8')
+            record.write_text('## REREAD: post\nPOST-URL: https://example.org/post\n'
+                              'POSTED: 2100-01-01\nREAD: 2100-01-01\n'
+                              'VERDICT: matches - the posted text equals the approved artifact\n'
+                              'SUBMISSION-SHA256: ' + file_digest.sha256(note) + '\n', encoding='utf-8')
             self.assert_gate_controls(record, lambda: approval_record.completion_gate(run, 'discussion-post', 'post'))
 
     def test_assignment_gate_results(self):

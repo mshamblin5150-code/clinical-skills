@@ -2456,11 +2456,17 @@ class MedatraxSubmissionFingerprint(unittest.TestCase):
         self.assertIn("notes read                       1", stdout)
         self.assertNotIn("SUBMISSION-SHA256", stderr)
 
-    def test_missing_fingerprint_is_a_finding(self) -> None:
+    def test_missing_fingerprint_is_unread_while_independent_findings_remain(self) -> None:
         self.write_reading(None)
-        status, _stdout, stderr = self.invoke()
+        record = self.run / "reread.md"
+        before = record.read_bytes()
+        status, stdout, _stderr = self.invoke()
         self.assertEqual(1, status)
-        self.assertIn("SUBMISSION-SHA256 is missing", stderr)
+        self.assertIn("wrong shape: record header fields", stdout)
+        self.assertIn("dependent record checks: not graded", stdout)
+        self.assertIn("unread tool-written records 1", stdout)
+        self.assertIn("the after-action review: finding", stdout)
+        self.assertEqual(record.read_bytes(), before)
 
     def test_stale_fingerprint_is_a_finding(self) -> None:
         self.write_reading(hashlib.sha256(self.note.read_bytes()).hexdigest())

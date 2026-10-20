@@ -44,6 +44,15 @@ GraderConformance = grader_conformance.for_module(aar_scan)
 _snapshot_check = aar_scan._check_snapshot_posted_reading
 
 
+def synthetic_approval(skill: str, submission: str, arguments: list[str]) -> dict:
+    return {"version": 1, "approval_revision": 1, "items": [{
+        "skill": skill, "submission": submission, "grader_args": arguments,
+        "sources": [arguments[0]], "sha256": "a" * 64,
+        "posting_route": "agent", "pregrade_status": "clean", "approval_revision": 1,
+        "recorded_at": 9999999999,
+    }]}
+
+
 def check_synthetic_snapshot(run: Path, submission: str) -> None:
     """Give transcript/review tests a real approved, fingerprinted source.
 
@@ -52,10 +61,8 @@ def check_synthetic_snapshot(run: Path, submission: str) -> None:
     """
     source = run / "synthetic-source.md"
     source.write_text("Synthetic academic artifact.\n", encoding="utf-8")
-    (run / "posting-approvals.json").write_text(json.dumps({"items": [{
-        "skill": "practicum-case-study", "submission": submission,
-        "grader_args": [str(run / "checks.md"), "--document", str(source)],
-    }]}), encoding="utf-8")
+    (run / "posting-approvals.json").write_text(json.dumps(synthetic_approval(
+        "practicum-case-study", submission, [str(run / "checks.md"), "--document", str(source)])), encoding="utf-8")
     reread = run / "reread.md"
     if reread.is_file():
         text = reread.read_text(encoding="utf-8")
@@ -353,16 +360,17 @@ class SnapshotResolver(unittest.TestCase):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as temp:
                 run = Path(temp)
                 if defect != "no-approval":
-                    (run / "posting-approvals.json").write_text(json.dumps({"items": [{
-                        "submission": "synthetic", "skill": "unrecognized" if defect == "unknown-skill" else "batch-shift",
-                        "grader_args": [str(run)],
-                    }]}), encoding="utf-8")
+                    (run / "posting-approvals.json").write_text(json.dumps(synthetic_approval(
+                        "unrecognized" if defect == "unknown-skill" else "batch-shift", "synthetic", [str(run)])), encoding="utf-8")
                 with mock.patch.object(filled_vitals_census, "posted_reading_check", None) if defect == "no-entrypoint" else mock.patch.object(aar_scan, "_tracked_files", return_value=()):
-                    status, _stdout, stderr = invoke_main([
+                    status, stdout, stderr = invoke_main([
                         str(run), "--submission", "synthetic", "--memory-index", str(run / "memory.md"), "--extract",
                     ])
                 self.assertEqual(status, 2)
-                self.assertIn("NOT SCANNED", stderr)
+                if defect == "unknown-skill":
+                    self.assertIn("not graded - tool-written record unreadable", stdout)
+                else:
+                    self.assertIn("NOT SCANNED", stderr)
                 self.assertFalse(aar_scan.extract_path(run, "synthetic").exists())
                 self.assertFalse(aar_scan.baseline_path(run, "synthetic").exists())
 
@@ -418,6 +426,7 @@ class CommandModes(SyntheticSnapshotCase):
             "  findings                        1\n"
             "unread remainder: not measured (extract unavailable or invalid)\n\n"
             "  declared limits:\n"
+            "    aar_scan-record-coverage\n"
             "    withdrawn reply text\n"
             "    system subtype meaning\n"
             "    memory index outside the sitting\n"
@@ -1437,8 +1446,8 @@ class SubmissionRecord(SyntheticSnapshotCase):
         del record["subject_lists"]
         path.write_text(json.dumps(record), encoding="utf-8")
         status, stdout, stderr = invoke_main(argv)
-        self.assertEqual(status, 1, stdout + stderr)
-        self.assertIn("measurement missing or invalid", stdout)
+        self.assertEqual(status, 2, stdout + stderr)
+        self.assertIn("not graded - tool-written record unreadable", stdout)
         del record["unplaced"]
         path.write_text(json.dumps(record), encoding="utf-8")
         status, stdout, stderr = invoke_main(argv)
@@ -1607,9 +1616,10 @@ class SubmissionRecord(SyntheticSnapshotCase):
         for replacement in ("", "UNDECLARED-SYSTEM-SUBTYPES: -1", "UNDECLARED-SYSTEM-SUBTYPES: unknown",
                             "UNDECLARED-SYSTEM-SUBTYPES: 1"):
             with self.subTest(replacement=replacement):
-                path.write_text(original.replace("UNDECLARED-SYSTEM-SUBTYPES: 0", replacement), encoding="utf-8")
+                path.write_text(original.replace("UNDECLARED-SYSTEM-SUBTYPES: 0\n", replacement + "\n" if replacement else ""), encoding="utf-8")
                 status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
-                self.assertEqual((status, stderr), (1, ""), stdout)
+                expected = 2 if replacement.endswith(("-1", "unknown")) else 1
+                self.assertEqual((status, stderr), (expected, ""), stdout)
 
     def test_a_real_finding_outranks_an_unread_remainder_and_blocks_completion(self) -> None:
         with self.transcript.open("a", encoding="utf-8") as stream:
@@ -1643,9 +1653,9 @@ class SubmissionRecord(SyntheticSnapshotCase):
         original = path.read_text(encoding="utf-8")
         for replacement in ("", "UNREAD-REMAINDER: -1", "UNREAD-REMAINDER: unknown"):
             with self.subTest(replacement=replacement):
-                path.write_text(original.replace("UNREAD-REMAINDER: 0", replacement), encoding="utf-8")
+                path.write_text(original.replace("UNREAD-REMAINDER: 0\n", replacement + "\n" if replacement else ""), encoding="utf-8")
                 status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
-                self.assertEqual((status, stderr), (1, ""), stdout)
+                self.assertEqual((status, stderr), (1 if not replacement else 2, ""), stdout)
 
     def test_named_hidden_text_never_becomes_a_candidate(self) -> None:
         with self.transcript.open("a", encoding="utf-8") as stream:
@@ -2650,10 +2660,10 @@ class SubmissionRecord(SyntheticSnapshotCase):
         )
 
         self.assertEqual(status, 2)
-        self.assertEqual(stdout, "")
-        self.assertIn("unknown extract format 99", stderr)
+        self.assertEqual(stderr, "")
+        self.assertIn("not graded - tool-written record unreadable", stdout)
 
-    def test_a_malformed_known_extract_is_an_extract_finding(self) -> None:
+    def test_a_malformed_known_extract_is_not_graded(self) -> None:
         self.write_clean()
         path = aar_scan.extract_path(self.run, self.submission)
         path.write_text(
@@ -2661,9 +2671,9 @@ class SubmissionRecord(SyntheticSnapshotCase):
             encoding="utf-8",
         )
 
-        scan = aar_scan.survey(self.run, self.submission)
-
-        self.assertEqual([finding.kind for finding in scan.findings], ["unscannable-extract"])
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual((status, stderr), (2, ""), stdout)
+        self.assertIn("not graded - tool-written record unreadable", stdout)
 
     def test_a_prior_review_result_is_relabelled_by_recorded_identity(self) -> None:
         self.transcript.write_text(

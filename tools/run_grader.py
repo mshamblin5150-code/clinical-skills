@@ -10,6 +10,9 @@ what this instrument can see; membership here is never proof that none exists.
 from __future__ import annotations
 
 import ast
+import contextlib
+from contextvars import ContextVar
+import io
 import re
 import sys
 from dataclasses import dataclass, field, replace as dataclass_replace
@@ -23,6 +26,7 @@ from console_codec import require_python_floor, use_utf8
 
 TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
+_REPORTING_RECORD_ERRORS = ContextVar("reporting_record_errors", default=False)
 NOT_GRADED = "not graded"
 UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
 RUN_RECORD_STEMS = ("README", "shift-summary", "delegated-answers", "reread")
@@ -86,6 +90,7 @@ DECLARED_LIMITS = (
         "clinical-note/, and icd10-cpt/SKILL.md; a name written without backticks is not read.",
         EvidenceDisposition.DECLARED_READING,
     ),
+    ("run_grader-record-coverage", 'run_grader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.', EvidenceDisposition.DECLARED_READING),
 )
 WALK_CEILING = DECLARED_LIMITS[0][1]
 TEXT_READ_WALK_CEILING = DECLARED_LIMITS[1][1]
@@ -310,6 +315,7 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "checks_ledger": "the ledger read uses replacement and grades the rows it can recover",
                 "reference_scan": "the draft read uses replacement and grades the references it can recover",
                 "research_ledger": "the run artifacts use replacement and grade the records they can recover",
+                "aar_scan": "direct transcript and handwritten review reads preserve readable text; tool bookkeeping uses the shared decoder outside this direct-read AST floor",
             }
         ),
         "refuse": MappingProxyType(
@@ -322,11 +328,7 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "voice_model_scan": "the model and tracked specification must both be readable before the comparison can run",
             }
         ),
-        "finding": MappingProxyType(
-            {
-                "aar_scan": "the graded path converts unreadable strict baseline and orphan-pointer evidence into findings; replacement would corrupt landing evidence",
-            }
-        ),
+        "finding": MappingProxyType({}),
         "crash": MappingProxyType({}),
         "no text read": MappingProxyType(
             {
@@ -727,12 +729,63 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         submission = parsed.value("--submission")
     except ParseError:
         return _run(command, argv)
-    with completion_checks.grading(run_path, submission):
-        status = _run(command, argv)
-        notice = completion_checks.report()
-        if notice:
-            print(notice)
-        return status
+
+    def invoke():
+        from run_record_reader import UnreadableRecord
+        try:
+            grading = completion_checks.grading(run_path, submission)
+            grading.__enter__()
+        except UnreadableRecord:
+            # Unreadable approval establishes no historical waiver. Continue
+            # grading the independent artifact checks at their current bar.
+            return _run(command, argv)
+        try:
+            status = _run(command, argv)
+            notice = completion_checks.report()
+            if notice:
+                print(notice)
+            return status
+        finally:
+            grading.__exit__(None, None, None)
+
+    return collect_record_errors(invoke)
+
+
+def collect_record_errors(invoke: Callable[[], int]) -> int:
+    """Share one fault population through a dispatcher and its selected grader."""
+    if _REPORTING_RECORD_ERRORS.get():
+        return invoke()
+    from run_record_reader import capture_errors, UnreadableRecord, RecordContentError, fault_report
+    output = io.StringIO()
+    token = _REPORTING_RECORD_ERRORS.set(True)
+    try:
+        with capture_errors() as faults, contextlib.redirect_stdout(output):
+            try:
+                status = invoke()
+            except UnreadableRecord as failure:
+                print(fault_report(failure, check="dependent record checks"))
+                status = 2
+            except RecordContentError as failure:
+                print(str(failure))
+                status = 1
+    finally:
+        _REPORTING_RECORD_ERRORS.reset(token)
+    report = output.getvalue()
+    if faults:
+        # Older callers can publish subordinate remainder lines; the family
+        # aggregation repair owns their population union. Keep the largest
+        # preexisting total here, and count each new record fault exactly once.
+        existing = [int(match.group(1)) for match in re.finditer(r"(?m)^unread remainder (\d+)(?:[^\n]*)$", report)]
+        report = re.sub(r"(?m)^unread remainder \d+[^\n]*\n?", "", report)
+        for failure in faults.values():
+            for check in sorted(failure.dependent_checks or {"dependent record checks"}):
+                report += fault_report(failure, check=check) + "\n"
+        report += f"unread tool-written records {len(faults)} (" + ", ".join(dict.fromkeys(str(e).split(": unreadable", 1)[0] for e in faults.values())) + ")\n"
+        report += format_unread_remainder(max(existing, default=0) + len(faults)) + "\n"
+        status = 1 if status == 1 else 2
+    if report:
+        print(report, end="" if report.endswith("\n") else "\n")
+    return status
 
 
 def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
@@ -753,7 +806,11 @@ def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         active = []
         for key in submission.split(","):
             key = key.strip()
-            frozen = frozen_grade.report(run_path, key)
+            from run_record_reader import UnreadableRecord
+            try:
+                frozen = frozen_grade.report(run_path, key)
+            except UnreadableRecord:
+                frozen = None  # No retained exemption can be established; grade fresh.
             if frozen is None:
                 active.append(key)
             else:
@@ -794,7 +851,8 @@ def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         return 1
     if result.coverage_failed:
         return 2
-    if submission and Path(command.grade.__code__.co_filename).stem in {
+    from run_record_reader import has_errors
+    if submission and not has_errors() and Path(command.grade.__code__.co_filename).stem in {
         "discussion_post_scan", "discussion_reply_scan", "peer_critique_scan",
         "checks_ledger", "differential_scan", "filled_vitals_census", "deck_scan", "assignment_docx_scan",
     }:

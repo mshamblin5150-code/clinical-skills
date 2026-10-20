@@ -104,8 +104,20 @@ class CaptureGate(unittest.TestCase):
                 file = self.root / name
                 original = file.read_bytes()
                 file.write_bytes(b"changed")
-                self.assertTrue(self.gate()[0])
+                if name in {"pass-1.json", "pass-2.json", "disagreements.json", "slide-terms.json"}:
+                    from run_record_reader import UnreadableRecord
+                    with self.assertRaises(UnreadableRecord):
+                        self.gate()
+                else:
+                    self.assertTrue(self.gate()[0])
                 file.write_bytes(original)
+
+    def test_empty_transcription_passes_are_readable_retained_records(self):
+        for name in ("pass-1.json", "pass-2.json"):
+            path = self.root / name
+            case_video.write_json(path, [])
+            self.assertEqual([], case_video.read_capture_json(path))
+        self.assertEqual([], case_video.disagreements([], []))
 
     def test_omitted_disagreement_cannot_be_hidden_by_refingerprinting(self):
         case_video.write_json(self.root / "disagreements.json", [])

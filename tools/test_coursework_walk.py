@@ -181,10 +181,13 @@ class DraftWalkCommands(unittest.TestCase):
         self.assert_link_commands()
 
     def test_damaged_identity_wins_over_unreadable_tree(self):
-        (self.run / voice_model_identity.RECORD_NAME).write_text("broken", encoding="utf-8")
+        record = self.run / voice_model_identity.RECORD_NAME
+        record.write_text("broken", encoding="utf-8")
         with patch.object(coursework_run, "draft_files", side_effect=AssertionError("must not walk")):
-            status, _ = self.command(voice_model_identity)
-        self.assertEqual(status, 1)
+            status, report = self.command(voice_model_identity)
+        self.assertEqual(status, 2, report)
+        self.assertIn("does not decode at line 1 column 1", report)
+        self.assertEqual(record.read_bytes(), b"broken")
 
     def test_damaged_context_wins_over_unreadable_tree(self):
         self.context.write_text("PROJECT-CONTEXT: none\tbroken\n", encoding="utf-8")

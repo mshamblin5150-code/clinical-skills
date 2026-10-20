@@ -15,15 +15,14 @@ import aar_scan
 import course_assignment_scan
 import medatrax_posting
 import peer_critique_scan
+from test_aar_scan import synthetic_approval
 
 
 class PostedReadingSnapshot(unittest.TestCase):
     def fixtures(self, root: Path, skill: str, submission: str) -> tuple[Path, Path, Path]:
         run = root / "run"
         run.mkdir()
-        (run / "posting-approvals.json").write_text(json.dumps({"items": [{
-            "skill": skill, "submission": submission, "grader_args": [str(run)],
-        }]}), encoding="utf-8")
+        (run / "posting-approvals.json").write_text(json.dumps(synthetic_approval(skill, submission, [str(run)])), encoding="utf-8")
         transcript = root / "transcript.jsonl"
         transcript.write_text(json.dumps({
             "type": "user", "uuid": "synthetic-user-1",
@@ -93,10 +92,15 @@ class PostedReadingSnapshot(unittest.TestCase):
             artifact_digest = sha256(artifact.read_bytes()).hexdigest()
             supplement_digest = sha256(b"synthetic supplement bytes").hexdigest()
             (run / "submission-gates.json").write_text(json.dumps({
+                "approval_revision": 1, "gate1_approved": True, "artifact_path": str(artifact),
+                "artifact": artifact.name, "sha256": artifact_digest,
+                "attachment_count": 2, "uploaded_files": [], "upload_route": "awaiting-upload",
                 "approved_carriers": [{"filename": "synthetic.docx", "sha256": artifact_digest}, {"filename": "supplement.pdf", "sha256": supplement_digest}],
             }), encoding="utf-8")
             record = (
                 "## REREAD: synthetic\n"
+                "POST-URL: https://example.org/submissions/1\n"
+                "POSTED: 2026-10-08\nREAD: 2026-10-08\n"
                 f"SUBMISSION-SHA256: {sha256(artifact.read_bytes()).hexdigest()}\n"
                 "VERDICT: matches - Both uploaded files were read.\n"
                 "ATTACHMENT-COUNT: 2\nSUBMITTED-FILE: synthetic.docx\nSUBMITTED-FILE: supplement.pdf\n"
@@ -119,11 +123,8 @@ class PostedReadingSnapshot(unittest.TestCase):
             draft.write_text("Synthetic initial post.\n", encoding="utf-8")
             html = run / "draft.html"
             html.write_text("<p>Synthetic initial post.</p>\n", encoding="utf-8")
-            (run / "posting-approvals.json").write_text(json.dumps({"items": [{
-                "skill": "discussion-post", "submission": "draft",
-                "posting_route": "agent",
-                "grader_args": [str(run), "--draft", str(draft), "--html", str(html)],
-            }]}), encoding="utf-8")
+            (run / "posting-approvals.json").write_text(json.dumps(synthetic_approval(
+                "discussion-post", "draft", [str(run), "--draft", str(draft), "--html", str(html)])), encoding="utf-8")
             record = (
                 "## REREAD: draft\nPOST-URL: https://example.org/t?entry_id=1\n"
                 "POSTED: 2026-10-08\nREAD: 2026-10-08\n"

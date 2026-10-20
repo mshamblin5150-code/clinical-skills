@@ -9,6 +9,8 @@ are also read from imported modules, including forwarded rows and tuple spreads.
 Dataclass Scan fields read by grade/_grade are registered as aggregate checks;
 computed properties and other result shapes remain outside this field walk.
 The suite binds this floor and tests a new literal kind.
+Unreadable tool-written approval bookkeeping establishes no historical exemption;
+captured commands retain its record fault and grade independent current checks.
 """
 from __future__ import annotations
 
@@ -150,7 +152,13 @@ def active(key: str, moment=None) -> bool:
 
 def approval_moment(run: Path, submission: str):
     import frozen_grade
-    approval = frozen_grade.approved(run, submission)
+    from run_record_reader import UnreadableRecord, collecting_errors
+    try:
+        approval = frozen_grade.approved(run, submission)
+    except UnreadableRecord:
+        if not collecting_errors():
+            raise
+        return None  # No historical exemption is established; record coverage retains the fault.
     if approval is None:
         return None
     item = approval[1]
@@ -172,7 +180,13 @@ def grading(run: Path, submission: str | None):
         observed = instant(approval_moment(run, key))
         moments.append(observed)
         items[key] = observed
-        approval = frozen_grade.approved(run, key)
+        from run_record_reader import UnreadableRecord, collecting_errors
+        try:
+            approval = frozen_grade.approved(run, key)
+        except UnreadableRecord:
+            if not collecting_errors():
+                raise
+            approval = None
         if approval is not None:
             for path in approval[1].get("sources", ()):
                 items[Path(path).name] = observed
