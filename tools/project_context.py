@@ -48,6 +48,7 @@ CLASSMATE_SKILLS = MappingProxyType({
     "peer-critique": re.compile(r"critique\.md"),
 })
 CLASSMATE_FIELDS = ("CLASSMATE-POST", "CLASSMATE-BOARD", "CLASSMATE-ATTACHMENT")
+DECLARED_FILE_FIELDS = ("COURSE-HISTORY", "MEMORY-FILE", "PRIOR-WORK")
 DECLARED_LIMITS = (
     ("unregistered-assets-unseen", "An asset the clinician never registers or names at confirmation is owed by nothing."),
     ("printable-write-damage-unseen", "The write preflight cannot detect damage that leaves only printable characters, such as a lost backslash."),
@@ -56,6 +57,7 @@ DECLARED_LIMITS = (
     ("heredoc-route-ungraded", "The write preflight checks file contents, not whether a heredoc was used to write them."),
     ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
     ("course-history-completeness-unverified", "The gate cannot tell whether the declared course history is complete, because course codes in names are unreliable."),
+    ("subject-retrieval-completeness-unverified", "The gate cannot establish that every memory description was compared or that every matching memory and earlier paper was declared; earlier work outside the owning checkout's output is outside the search."),
     ("date-only-confirmation-granularity", "A date-only confirmation compares as midnight UTC; the gate cannot place it before or after an intraday start on that date."),
     ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
     ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
@@ -111,7 +113,7 @@ _OPENED = re.compile(
 )
 _HEADER_FIELDS = frozenset(
     {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
-) | frozenset(CLASSMATE_FIELDS) | {"ASSET", "COURSE-HISTORY"}
+) | frozenset(CLASSMATE_FIELDS) | {"ASSET", *DECLARED_FILE_FIELDS}
 _ENTRY_FIELDS = frozenset(
     {
         "STATE",
@@ -126,7 +128,7 @@ _ENTRY_FIELDS = frozenset(
         "MEMORY-LINES",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", "ASSET", "COURSE-HISTORY", *CLASSMATE_FIELDS})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", "ASSET", *DECLARED_FILE_FIELDS, *CLASSMATE_FIELDS})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -390,36 +392,44 @@ def _opened_file_error(record: Record, name: str, value: str) -> str | None:
     return f"{name} path is not OPENED in a read PLACE"
 
 
-def _course_history_gate(record: Record) -> tuple[list[str], str]:
-    """Grade declared reads, leaving the course's complete population to its reader."""
+def _declared_file_gate(record: Record, name: str) -> tuple[list[str], str]:
+    """Grade opened declarations, leaving semantic completeness to the reader."""
+    label = name.lower().replace("-", " ")
     confirmed = completion_checks.instant(record.value("CONFIRMED"))
     if confirmed is None:
         return [], ""  # The confirmation shape check owns this refusal.
-    if not completion_checks.active("project_context:course-history", confirmed):
-        return [], "course history: not graded; pre-cutoff records: 1"
-    values = record.values("COURSE-HISTORY")
+    if not completion_checks.active("project_context:" + name.lower(), confirmed):
+        return [], label + ": not graded; pre-cutoff records: 1"
+    values = record.values(name)
     errors = []
     if not values:
-        errors.append("COURSE-HISTORY is missing")
+        errors.append(f"{name} is missing")
     none = tuple(value for value in values if value.casefold().startswith("none"))
     if none:
         if len(values) != 1:
-            errors.append("COURSE-HISTORY cannot put none beside another declaration")
+            errors.append(f"{name} cannot put none beside another declaration")
         if any(not re.fullmatch(r"(?i)none - \S.*", value) for value in none):
-            errors.append("COURSE-HISTORY none needs a reason")
+            errors.append(f"{name} none needs a reason")
     paths = [Path(value).expanduser().resolve() for value in values if value not in none]
     if len(set(paths)) != len(paths):
-        errors.append("duplicate COURSE-HISTORY path")
+        errors.append(f"duplicate {name} path")
     for value in values:
         if value not in none:
-            if error := _opened_file_error(record, "COURSE-HISTORY", value):
+            if error := _opened_file_error(record, name, value):
                 errors.append(error)
-    return errors, "course history: " + ("finding - " + "; ".join(errors) if errors else "clean")
+    return errors, label + ": " + ("finding - " + "; ".join(errors) if errors else "clean")
+
+
+def _declared_files_gate(record: Record) -> tuple[list[str], str]:
+    results = tuple(_declared_file_gate(record, name) for name in DECLARED_FILE_FIELDS)
+    return ([error for errors, _report in results for error in errors],
+            "; ".join(report for _errors, report in results if report))
 
 
 def _has_declared_retrieval(record: Record) -> bool:
     return any(record.values(name) for name in CLASSMATE_FIELDS) or any(
-        not value.casefold().startswith("none") for value in record.values("COURSE-HISTORY")
+        not value.casefold().startswith("none")
+        for name in DECLARED_FILE_FIELDS for value in record.values(name)
     )
 
 
@@ -730,7 +740,7 @@ def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
     payload = "".join(name + "\0" + record.value(name) + "\n"
                       for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     payload += "".join(name + "\0" + value + "\n"
-                       for name in (*CLASSMATE_FIELDS, "ASSET", "COURSE-HISTORY") for value in record.values(name))
+                       for name in (*CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS) for value in record.values(name))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -745,7 +755,7 @@ def _render(
     lines.extend(f"{name}: {record.value(name)}"
                  for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     lines.extend(f"{name}: {value}" for name in CLASSMATE_FIELDS for value in record.values(name))
-    lines.extend(f"COURSE-HISTORY: {value}" for value in record.values("COURSE-HISTORY"))
+    lines.extend(f"{name}: {value}" for name in DECLARED_FILE_FIELDS for value in record.values(name))
     lines.extend(f"ASSET: {value}" for value in record.values("ASSET"))
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
@@ -796,7 +806,7 @@ def _write_context_record(
     errors.extend(_context_declaration_errors(record))
     classmate_errors, classmate_report = _classmate_gate(record, submission)
     errors.extend(classmate_errors)
-    history_errors, history_report = _course_history_gate(record)
+    history_errors, history_report = _declared_files_gate(record)
     errors.extend(history_errors)
     retrieval_report = "; ".join(filter(None, (classmate_report, history_report)))
     project_name, declaration_error = _declaration(record)
@@ -1100,7 +1110,7 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             retain_heading_context(run)
         previous = read_record(path.read_text(encoding="utf-8"))
         current = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
-        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", "COURSE-HISTORY")
+        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS)
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
         if any(previous.values(name) != current.values(name) for name in names):
@@ -1148,7 +1158,7 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     shape_errors.extend(_context_declaration_errors(record, recheck_files=recheck_files))
     classmate_errors, classmate_report = _classmate_gate(record, submission)
     shape_errors.extend(classmate_errors)
-    history_errors, history_report = _course_history_gate(record)
+    history_errors, history_report = _declared_files_gate(record)
     shape_errors.extend(history_errors)
     retrieval_report = "; ".join(filter(None, (classmate_report, history_report)))
     confirmed = record.values("CONFIRMED")
