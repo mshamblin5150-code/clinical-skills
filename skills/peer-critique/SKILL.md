@@ -313,6 +313,7 @@ here so a reader who cannot run the command walks the same checks:
 | `narrative-body` | the shared house-style body row is clean |
 | `reference-minimum` | the critique carries at least 2 references |
 | `unresolved-citation` | every in-text citation resolves to the critique's own list |
+| `legal-citation-section-form` | a resolving legal section citation, including one without a year, must use the legal source's name and entry year ([apa7.md](../_shared/reference/apa7.md) §8) |
 | `untraced-number` | every body numeral traces to a believed claim record |
 | `missing-posted-reading` | the posted critique has been reread and recorded |
 | `unknown-verdict` | every posted reading carries a recognized verdict |
