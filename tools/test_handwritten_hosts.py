@@ -5,6 +5,7 @@ phi-scan: synthetic
 import artifact_lock_test_support
 from contextlib import redirect_stdout, redirect_stderr
 import io
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -18,6 +19,7 @@ import test_deck_scan as deck_fixture
 import test_assignment_docx_scan as docx_fixture
 import test_project_context as context_fixture
 import test_discussion_reply_scan as reply_fixture
+import test_voice_read as voice_fixture
 import discussion_reply_scan
 import assignment_docx_scan
 import repo_root
@@ -458,8 +460,13 @@ class HandwrittenHosts(unittest.TestCase):
         heading.write_text(heading.read_text(encoding='utf-8').replace(
             'e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf', digest), encoding='utf-8')
         fixture.registry.write_bytes(fixture.registry.read_bytes() + b'DETAIL: damaged\x07text\n')
+        model = fixture.run / 'voice-model.md'
+        model.write_text(voice_fixture.MODEL, encoding='utf-8')
+        resolved = repo_root.VoiceModelResolution(
+            path=model, sha256=hashlib.sha256(model.read_bytes()).hexdigest(), exists=True)
         output = io.StringIO()
-        with mock.patch.object(repo_root, 'project_registry', return_value=fixture.registry), redirect_stdout(output):
+        with mock.patch.object(repo_root, 'project_registry', return_value=fixture.registry), \
+                mock.patch.object(repo_root, 'canonical_voice_model', return_value=resolved), redirect_stdout(output):
             status = discussion_reply_scan.main([str(fixture.run), '--submission', response.name, '--show', '--paper-language', 'en'])
         self.assertEqual(1, status, output.getvalue())
         self.assertIn('untraced-number: 1', output.getvalue())
