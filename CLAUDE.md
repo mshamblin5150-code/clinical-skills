@@ -2075,6 +2075,12 @@ beside existing Stop hooks by the owning checkout's absolute path, and replaces 
 memory file named `grill-one-question-at-a-time.md` with a pointer to the tracked source. Repeating
 the command replaces its own block and hook registration instead of appending another copy.
 
+All three Codex hook installers refresh a registration where it stands through
+`install_grilling_guard.register_in_place`. Codex records hook trust under a positional
+`hooks.json:<event>:<group>:<handler>` key, so moving a registration to the end would shift every
+hook after it off its reviewed trust. Each installer takes no arguments: `--help` prints usage and
+any other argument exits 2, both before a user file is written.
+
 The Stop hook grades only the interval between a command that opens a `grilling`, `grill-me`, or
 `grill-with-docs` skill file and an assistant reply carrying the format's fixed closing line. It
 retracts a bundled, incomplete, or out-of-block question after display, suppresses its own retry,

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 import re
@@ -80,26 +81,9 @@ def _install_hook(document: object, script: Path) -> dict[str, object]:
     if not isinstance(stop, list):
         raise ValueError("~/.codex/hooks.json has no Stop list")
 
-    retained = []
-    for registration in stop:
-        if not isinstance(registration, dict):
-            retained.append(registration)
-            continue
-        handlers = registration.get("hooks")
-        if not isinstance(handlers, list):
-            retained.append(registration)
-            continue
-        remaining = [
-            handler
-            for handler in handlers
-            if not (
-                isinstance(handler, dict)
-                and HOOK_FILENAME in str(handler.get("command", ""))
-            )
-        ]
-        if remaining:
-            retained.append({**registration, "hooks": remaining})
-    retained.append(
+    hooks["Stop"] = register_in_place(
+        stop,
+        HOOK_FILENAME,
         {
             "hooks": [
                 {
@@ -109,10 +93,45 @@ def _install_hook(document: object, script: Path) -> dict[str, object]:
                     "statusMessage": "Checking one-question grilling format",
                 }
             ]
-        }
+        },
     )
-    hooks["Stop"] = retained
     return document
+
+
+def register_in_place(
+    registrations: list[object], filename: str, registration: dict[str, object]
+) -> list[object]:
+    """Refresh our registration without moving any other hook.
+
+    Codex records hook trust under a positional key,
+    ``hooks.json:<event>:<group>:<handler>``, so removing a registration and
+    appending its replacement shifts every hook after it onto a key whose
+    recorded trust belongs to another hook. The first registration holding only
+    handlers whose command names ``filename`` is replaced where it stands; our
+    handlers elsewhere are removed, and a registration left empty by that is
+    dropped. With no such registration the new one is appended.
+    """
+
+    def ours(handler: object) -> bool:
+        return isinstance(handler, dict) and filename in str(handler.get("command", ""))
+
+    result: list[object] = []
+    placed = False
+    for existing in registrations:
+        handlers = existing.get("hooks") if isinstance(existing, dict) else None
+        if not isinstance(handlers, list) or not any(ours(h) for h in handlers):
+            result.append(existing)
+            continue
+        if not placed and all(ours(h) for h in handlers):
+            result.append(registration)
+            placed = True
+            continue
+        remaining = [handler for handler in handlers if not ours(handler)]
+        if remaining:
+            result.append({**existing, "hooks": remaining})
+    if not placed:
+        result.append(registration)
+    return result
 
 
 def _memory_pointer(tracked_format: Path, subjects: tuple[str, ...] | None = None) -> str:
@@ -191,7 +210,8 @@ def install(*, home: Path, source_root: Path, owning_checkout: Path) -> None:
             _write_atomic(memory, _memory_pointer(tracked_format, subjects))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     install(
         home=Path.home(),
         source_root=SOURCE_ROOT,

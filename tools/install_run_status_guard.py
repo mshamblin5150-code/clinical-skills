@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 import sys
 import tempfile
 
 from console_codec import require_python_floor, use_utf8
+from install_grilling_guard import register_in_place
 from repo_root import main_repo_root
 
 
@@ -45,26 +47,9 @@ def _install_hook(document: object, script: Path) -> dict[str, object]:
     stop = hooks.setdefault("Stop", [])
     if not isinstance(stop, list):
         raise ValueError("~/.codex/hooks.json has no Stop list")
-    retained = []
-    for registration in stop:
-        if not isinstance(registration, dict):
-            retained.append(registration)
-            continue
-        handlers = registration.get("hooks")
-        if not isinstance(handlers, list):
-            retained.append(registration)
-            continue
-        remaining = [
-            handler
-            for handler in handlers
-            if not (
-                isinstance(handler, dict)
-                and HOOK_FILENAME in str(handler.get("command", ""))
-            )
-        ]
-        if remaining:
-            retained.append({**registration, "hooks": remaining})
-    retained.append(
+    hooks["Stop"] = register_in_place(
+        stop,
+        HOOK_FILENAME,
         {
             "hooks": [
                 {
@@ -74,9 +59,8 @@ def _install_hook(document: object, script: Path) -> dict[str, object]:
                     "statusMessage": "Checking approved run status",
                 }
             ]
-        }
+        },
     )
-    hooks["Stop"] = retained
     return document
 
 
@@ -105,7 +89,8 @@ def install(*, home: Path, source_root: Path, owning_checkout: Path) -> None:
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     install(
         home=Path.home(),
         source_root=SOURCE_ROOT,

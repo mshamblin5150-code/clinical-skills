@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import install_run_status_guard as installer
 
@@ -76,6 +77,34 @@ class InstallerContract(unittest.TestCase):
 
         self.assertFalse((self.home / ".codex" / "hooks.json").exists())
 
+
+    def test_a_rerun_keeps_every_stop_hook_at_its_trust_key_position(self) -> None:
+        david = {"hooks": [{"type": "command", "command": "node C:/david.mjs hook"}]}
+        old = {"hooks": [{"type": "command", "command": "python old/run_status_stop_hook.py"}]}
+        later = {"hooks": [{"type": "command", "command": "python grilling_stop_hook.py"}]}
+        (self.home / ".codex" / "hooks.json").write_text(
+            json.dumps({"hooks": {"Stop": [david, old, later]}}), encoding="utf-8"
+        )
+
+        self.install()
+
+        stop = json.loads(
+            (self.home / ".codex" / "hooks.json").read_text(encoding="utf-8")
+        )["hooks"]["Stop"]
+        self.assertEqual(stop[0], david)
+        self.assertIn(str(self.owning.resolve()), stop[1]["hooks"][0]["command"])
+        self.assertEqual(stop[2], later)
+        self.assertEqual(len(stop), 3)
+
+    def test_an_argument_never_installs(self) -> None:
+        for argument, status in (("--help", 0), ("--dry-run", 2)):
+            with self.subTest(argument=argument):
+                with mock.patch.object(installer, "install") as install:
+                    with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+                        with self.assertRaises(SystemExit) as stopped:
+                            installer.main([argument])
+                self.assertEqual(stopped.exception.code, status)
+                install.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

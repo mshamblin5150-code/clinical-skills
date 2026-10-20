@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import install_scanner_pipe_guard as installer
 
@@ -57,6 +58,34 @@ class ScannerPipeInstallerTests(unittest.TestCase):
                                   owning_checkout=root)
             self.assertFalse((root / '.codex').exists())
 
+
+    def test_refresh_keeps_every_pretooluse_hook_at_its_trust_key_position(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            path = home / '.codex' / 'hooks.json'
+            path.parent.mkdir()
+            first = {'matcher': 'Bash', 'hooks': [{'command': 'first-guard'}]}
+            stale = {'matcher': 'Bash|Monitor',
+                     'hooks': [{'command': 'python old/scanner_pipe_hook.py'}]}
+            last = {'matcher': 'Bash', 'hooks': [{'command': 'last-guard'}]}
+            path.write_text(json.dumps({'hooks': {'PreToolUse': [first, stale, last]}}),
+                            encoding='utf-8')
+            installer.install(home=home, source_root=installer.SOURCE_ROOT,
+                              owning_checkout=installer.SOURCE_ROOT)
+            result = json.loads(path.read_text(encoding='utf-8'))['hooks']['PreToolUse']
+            self.assertEqual([result[0], result[2]], [first, last])
+            self.assertNotIn('old/', result[1]['hooks'][0]['command'])
+            self.assertEqual(len(result), 3)
+
+    def test_an_argument_never_installs(self):
+        for argument, status in (('--help', 0), ('--dry-run', 2)):
+            with self.subTest(argument=argument):
+                with mock.patch.object(installer, 'install') as install:
+                    with mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+                        with self.assertRaises(SystemExit) as stopped:
+                            installer.main([argument])
+                self.assertEqual(stopped.exception.code, status)
+                install.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()
