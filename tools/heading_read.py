@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import completion_checks
 import re
+import zipfile
+from xml.etree.ElementTree import ParseError
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePath
@@ -71,6 +73,10 @@ DECLARED_LIMITS = (
         "The candidate matcher recognizes only level-two HEADING-READ headings; an alternate spelling or heading level remains invisible.",
         EvidenceDisposition.DECLARED_READING,
     ),
+    DeclaredLimit("item-quote-support-unverified", "A real unique quote does not establish that it supports the sentence's description.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("item-absence-search-unverified", "The absent - whole item searched sentinel cannot establish that a whole-item search took place or that the absence is true.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("service-item-quotes-ungraded", "Service ITEM lines are counted, not graded; service text is never retained for this check.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("item-text-recognition-floor", "Text files are UTF-8 source bytes including markup; Word quotes use docx_read's body paragraphs and table cells, excluding headers and other unread parts. Matching folds case and whitespace only.", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -88,7 +94,7 @@ SENTENCES = re.compile(
 PAIR = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<prefix>[0-9a-fA-F]{8})(?:[ \t]+\|[ \t]+qualifiers (?P<read>[0-9]+) of (?P<total>[0-9]+))?$", re.ASCII)
 FIGURES = rf"{NUMBER.pattern}(?:[ \t]*,[ \t]+{NUMBER.pattern})*"
 OWN = re.compile(rf"^(?P<location>.+?)[ \t]+->[ \t]+(?P<figures>{FIGURES})$", re.IGNORECASE)
-ITEM = re.compile(rf"^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+?)(?:[ \t]+\|[ \t]+figures (?P<figures>{FIGURES}))?$", re.IGNORECASE)
+ITEM = re.compile(rf'^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+?)(?:[ \t]+\|[ \t]+rests on (?P<quote>".*"|absent - whole item searched))?(?:[ \t]+\|[ \t]+figures (?P<figures>{FIGURES}))?$', re.IGNORECASE)
 ROUTES = frozenset(("separate context",))
 
 MISSING_RECORD = "missing-heading-read"
@@ -108,7 +114,14 @@ QUALIFIER_COUNT = "heading-read-qualifier-count"
 ITEM_COUNT = "heading-read-item-count"
 UNOPENED_ITEM = "heading-read-unopened-item"
 OWN_FIGURE_ABSENT = "heading-read-own-figure-absent"
+ITEM_QUOTE_MISSING = "heading-read-item-quote-missing"
+ITEM_QUOTE_ABSENT = "heading-read-item-quote-absent"
+ITEM_QUOTE_REPEATED = "heading-read-item-quote-repeated"
+ITEM_QUOTE_CHECK = "heading_read:item-quotes"
 KINDS = (
+    ITEM_QUOTE_MISSING,
+    ITEM_QUOTE_ABSENT,
+    ITEM_QUOTE_REPEATED,
     OWN_FIGURE_ABSENT,
     QUALIFIER_COUNT,
     ITEM_COUNT,
@@ -228,6 +241,9 @@ class Scan:
     unread_records: tuple[str, ...] = ()
     other_files: int | None = None
     unbound_unread: int = 0
+    unread_items: int = 0
+    service_items: int = 0
+    absence_items: int = 0
 
 
 def read_records(text: str) -> tuple[Record, ...]:
@@ -293,6 +309,85 @@ def own_figures(text: str, artifact: str) -> frozenset[str]:
 def _drifted_at(detail: str, location: str) -> bool:
     """A substantive drift finding attached to exactly this pair location."""
     return re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},[ \t]+\S", detail) is not None
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _item_text(source) -> str:
+    """Read only the exact recorded bytes; Word is rehashed after extraction."""
+    raw = source.path.read_bytes()
+    if file_digest.sha256_bytes(raw) != source.digest:
+        raise ValueError("item fingerprint moved")
+    if source.path.suffix.casefold() == ".docx":
+        import docx_read
+        text = "\n".join(docx_read.read_docx(source.path))
+        if file_digest.sha256_bytes(source.path.read_bytes()) != source.digest:
+            raise ValueError("item fingerprint moved during reading")
+        return _normalized(text)
+    return _normalized(raw.decode("utf-8"))
+
+
+def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> tuple[list[Finding], int, int]:
+    """Keep source-dependent coverage separate from independent record checks."""
+    if not record.items or not completion_checks.active_for_item(ITEM_QUOTE_CHECK, binding.artifact):
+        return [], 0, 0
+    import project_context
+    sources = ()
+    available = binding.context_available
+    try:
+        if available and binding.context_run:
+            sources = project_context.recorded_item_sources(binding.context_run, record.value("CONTEXT-DIGEST"))
+    except UnreadableRecord as failure:
+        mark_not_graded(failure, check="heading-read item quotes")
+        available = False
+    except (OSError, ValueError):
+        sources = ()
+    found, services, absences = [], 0, 0
+    for line in record.items:
+        parsed = ITEM.fullmatch(line)
+        if parsed is None:
+            continue  # The existing item-shape row owns this finding.
+        identifier = parsed.group("item").strip()
+        matches = tuple(source for source in sources if source.identifier == identifier)
+        if len(matches) == 1 and matches[0].path is None:
+            services += 1
+            continue
+        quote = parsed.group("quote")
+        if not quote or quote == '""':
+            found.append(Finding(ITEM_QUOTE_MISSING, record.artifact, "ITEM needs its supporting quote or absence sentinel"))
+        if not available:
+            continue
+        if len(matches) != 1:
+            unread.add((binding.context_run, identifier))
+            continue
+        source = matches[0]
+        key = (source.path, source.digest)
+        if key not in cache:
+            try:
+                cache[key] = _item_text(source)
+            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, KeyError, ParseError):
+                cache[key] = None
+        text = cache[key]
+        if text is None:
+            unread.add(source.path)
+            continue
+        if not quote:
+            continue
+        if quote.casefold() == "absent - whole item searched":
+            absences += 1
+            continue
+        needle = _normalized(quote[1:-1])
+        if not needle:
+            if quote != '""':
+                found.append(Finding(ITEM_QUOTE_MISSING, record.artifact, "ITEM quote is empty"))
+            continue
+        occurrences = sum(text.startswith(needle, position) for position in range(len(text)))
+        if occurrences != 1:
+            kind = ITEM_QUOTE_ABSENT if occurrences == 0 else ITEM_QUOTE_REPEATED
+            found.append(Finding(kind, record.artifact, "ITEM quote occurs " + str(occurrences) + " times in its recorded item"))
+    return found, services, absences
 
 
 def _record_findings(record: Record, binding: Binding) -> list[Finding]:
@@ -448,6 +543,8 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     read = 0
     found: list[Finding] = []
     expected = {binding.artifact: binding for binding in bindings}
+    item_cache, unread_items = {}, set()
+    service_items = absence_items = 0
     for artifact, binding in expected.items():
         if binding.record_path is not None and record_unavailable(binding.record_path, artifact):
             continue
@@ -462,10 +559,14 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
             )
         for record in matches:
             found.extend(_record_findings(record, binding))
+            quoted, services, absences = _item_quotes(record, binding, item_cache, unread_items)
+            found.extend(quoted)
+            service_items += services
+            absence_items += absences
     bound_records = tuple(r for r in records if r.artifact in expected)
-    unread = max(0, population - read) + sum(r.unread for r in bound_records)
+    unread = max(0, population - read) + sum(r.unread for r in bound_records) + len(unread_items)
     remarks = tuple(reader_remarks.Remark(f"HEADING-READ: {r.artifact}", text) for r in bound_records for text in r.remarks)
-    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread), other_files, max(0, population - read))
+    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread), other_files, max(0, population - read), len(unread_items), service_items, absence_items)
 
 
 def _other_files(text: str, artifacts: set[str]) -> int:
@@ -488,11 +589,20 @@ def format_coverage(result: Scan, *, include_remainder: bool = True) -> str:
             _format_other_files(result.other_files) if result.other_files is not None else "",
             run_grader.format_unread_remainder(result.unread) if include_remainder else "",
             f"unread heading-read headings: {result.unbound_unread}" if not include_remainder and result.unbound_unread else "",
-            f"unread heading-read record lines: {result.unread - result.unbound_unread}" if not include_remainder and result.unread > result.unbound_unread else "",
+            f"unread heading-read record lines: {result.unread - result.unbound_unread - result.unread_items}" if not include_remainder and result.unread > result.unbound_unread + result.unread_items else "",
+            format_item_coverage(result),
             *(f"unread reader record: HEADING-READ: {name}" for name in result.unread_records),
             reader_remarks.report(result.remarks),
         ) if line
     )
+
+
+def format_item_coverage(result: Scan) -> str:
+    return "\n".join(line for line in (
+        f"unread item sources: {result.unread_items}" if result.unread_items else "",
+        f"service-item quotes: {result.service_items} counted, not graded" if result.service_items else "",
+        f"item absence claims: {result.absence_items} not graded - whole-item search unverified" if result.absence_items else "",
+    ) if line)
 
 
 def protocol_coverage(

@@ -302,6 +302,7 @@ class Scan:
     reader_records_unread: int = 0
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
+    heading_items_report: str = ""
 
 
 def _heading_lines(text: str) -> list[str]:
@@ -559,6 +560,7 @@ def survey(source: RunSource) -> Scan:
             reference_boundary_graded=False,
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
+            heading_items_report=heading_read.format_item_coverage(heading),
             findings=structural,
             withheld_rows=tuple(sorted(withheld)),
             posted_reading_states=posted_reading_states,
@@ -600,6 +602,7 @@ def survey(source: RunSource) -> Scan:
         reference_boundary_graded=True,
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
+        heading_items_report=heading_read.format_item_coverage(heading),
         findings=tuple(findings),
         withheld_rows=tuple(sorted(withheld)),
         posted_reading_states=posted_reading_states,
@@ -630,6 +633,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             else f"literal ampersands: {NOT_GRADED}"
         ),
         f"heading-read records: {scan.heading_reads}",
+        *scan.heading_items_report.splitlines(),
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread + scan.image_answer_unread
         ),
