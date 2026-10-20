@@ -23,10 +23,10 @@ class PublicRecordApis(unittest.TestCase):
         self.source = self.root / 'synthetic.pptx'
         self.source.write_bytes(b'synthetic artifact')
 
-    def refuses(self, path, action):
+    def refuses(self, path, action, *, wrong_cause='wrong shape: record object'):
         path.parent.mkdir(parents=True, exist_ok=True)
         for content, cause in ((b'{', 'does not decode at line 1 column 2'),
-                               (b'[]', 'wrong shape: record object'), (None, 'could not be opened')):
+                               (b'[]', wrong_cause), (None, 'could not be opened')):
             with self.subTest(kind=path.name, cause=cause):
                 if content is None:
                     path.mkdir()
@@ -47,6 +47,19 @@ class PublicRecordApis(unittest.TestCase):
             self.root, skill='discussion-post', submission='synthetic', sources=(self.source,),
             grader_args=(str(self.root),), content_approved=True, clinician_reply='Synthetic approval.',
         ))
+
+    def test_clinical_prepare_preserves_existing_shared_coding_record_faults(self):
+        def prepare():
+            return approval_record.prepare(self.root, skill='clinical-note', submission='synthetic',
+                sources=(self.source,), grader_args=(str(self.root),))
+        with mock.patch.object(approval_record, '_pre_post_grade', return_value=(0, 'synthetic grade: clean')):
+            self.assertEqual('synthetic grade: clean', prepare().report.strip())
+            receipt = reader_remarks._receipt_path(self.root, 'clinical-note', 'synthetic')
+            original = receipt.read_bytes()
+            for directory in ('agreement-reader', 'specificity-reader'):
+                self.refuses(self.root / directory / 'read.json', prepare,
+                    wrong_cause='wrong shape: declared record shape')
+                self.assertEqual(original, receipt.read_bytes())
 
     def test_only_shared_absence_can_start_a_new_approval_history(self):
         self.assertEqual([], approval_record._read(self.root, missing_ok=True)['items'])

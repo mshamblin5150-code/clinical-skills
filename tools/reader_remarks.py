@@ -145,6 +145,8 @@ def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
         payload = read_tool_record(specificity, lambda text: coding_record(text, kind="specificity"))
         if payload is not None:
             result.extend(Remark("SPECIFICITY", text) for text in payload.get("remarks", []))
+    except UnreadableRecord:
+        raise
     except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
         raise RemarkError("the run's coding reader record is unreadable") from failure
     return tuple(dict.fromkeys(result))
