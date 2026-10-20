@@ -22,8 +22,8 @@ class CauseRecords(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
 
-    def correction(self, classifier="shown - user-1", final="shown - user-1", reason=None):
-        self.fixture.extract()
+    def correction(self, classifier="shown - user-1", final="shown - user-1", reason=None, candidates="none\n"):
+        self.fixture.extract(candidates)
         self.fixture.correction()
         lines = self.fixture.record.read_text(encoding="utf-8").splitlines()
         self.fixture.record.write_text("\n".join(line for line in lines
@@ -38,8 +38,8 @@ class CauseRecords(unittest.TestCase):
     def grade(self):
         return self.fixture.command("--show")
 
-    def ticket(self, classifier="unverified - user-1", reason=None):
-        self.correction(classifier=classifier, final="unverified - user-1", reason=reason)
+    def ticket(self, classifier="unverified - user-1", reason=None, candidates="none\n"):
+        self.correction(classifier=classifier, final="unverified - user-1", reason=reason, candidates=candidates)
         self.landing = "https://github.com/synthetic/repository/issues/71"
         source = self.fixture.record.read_text(encoding="utf-8")
         self.fixture.record.write_text(source.replace("DISPOSITION: memory-write", "DISPOSITION: tracker-ticket")
@@ -91,6 +91,74 @@ class CauseRecords(unittest.TestCase):
                     status, report = self.grade()
                     self.assertEqual(status, 1, report)
                     self.assertIn("unverified-publication", report)
+
+    def test_unverified_ticket_and_not_shown_candidate_keep_separate_counts(self):
+        self.ticket(candidates="A reversal had no retained transcript entry.\n")
+        self.fixture.append("\n## CANDIDATE: 1\nANSWER: not shown - no retained entry carries this reversal\n")
+        self.evidence()
+        status, report = self.grade()
+        self.assertEqual(status, 0, report)
+        self.assertEqual(report.count("round 1 unverified causes: 1"), 1)
+        self.assertIn("not a correction 0; not shown 1", report)
+        self.assertEqual(report.count("unread remainder "), 1)
+
+    def test_candidate_damage_keeps_independent_cause_and_strict_record_accounting(self):
+        self.correction(classifier=None, final=None)
+        self.fixture.input.write_bytes(b"none\x07\n")
+        status, report = self.grade()
+        self.assertEqual(status, 1, report)
+        self.assertIn("cause-line", report)
+        self.assertIn("U+0007", report)
+        self.assertEqual(report.count("unread remainder "), 1)
+        self.assertIn("unread remainder 0", report)
+        baseline = aar_scan.baseline_path(self.fixture.run, "synthetic")
+        baseline.write_bytes(b"{")
+        status, report = self.grade()
+        self.assertEqual(status, 1, report)
+        self.assertIn("cause-line", report)
+        self.assertIn("U+0007", report)
+        self.assertIn("unread remainder 1", report)
+        self.assertNotIn("unread remainder 2", report)
+
+    def test_damaged_review_withholds_cause_joins_and_reads_only_owed_candidate(self):
+        self.correction(classifier=None, final=None)
+        self.fixture.record.write_bytes(self.fixture.record.read_bytes() + b"\x07")
+        self.fixture.input.write_bytes(b"none\x0b\n")
+        status, report = self.grade()
+        self.assertEqual(status, 1, report)
+        self.assertIn("U+0007", report)
+        self.assertIn("U+000B", report)
+        self.assertNotIn("cause-line", report)
+        self.assertEqual(report.count("unread remainder"), 1)
+        self.assertIn("unread remainder: not measured", report)
+        aar_scan.extract_path(self.fixture.run, "synthetic").write_bytes(b"{")
+        status, report = self.grade()
+        self.assertEqual(status, 1, report)
+        self.assertIn("U+0007", report)
+        self.assertNotIn("U+000B", report)
+        self.assertNotIn("cause-line", report)
+        self.assertIn("unread remainder 1", report)
+
+    def test_handwritten_approval_and_cause_extraction_clocks_stay_independent(self):
+        self.correction(classifier=None, final=None)
+        self.fixture.memory.write_text("# Index\n- [Correction](correction.md) — synthetic workflow\n", encoding="utf-8")
+        path = aar_scan.extract_path(self.fixture.run, "synthetic")
+        original = path.read_text(encoding="utf-8")
+        cause_start = aar_scan.completion_checks.registry()["aar_scan:cause-line"][0]
+        handwritten_start = aar_scan.completion_checks.registry()["run_record_reader:handwritten-damage"][0]
+        self.fixture.input.write_bytes(b"none\x07\n")
+        for extracted in (cause_start - timedelta(microseconds=1), cause_start):
+            path.write_text(original.replace(self.fixture.fields["EXTRACTED-AT"], extracted.isoformat()), encoding="utf-8")
+            aar_scan.measure_memory(self.fixture.run, "synthetic", 1)
+            for approval in (handwritten_start - timedelta(microseconds=1), handwritten_start, None):
+                with self.subTest(extracted=extracted, approval=approval), \
+                     mock.patch.object(aar_scan, "UNVERIFIED_CAUSE_CUTOFF", cause_start), \
+                     mock.patch.object(aar_scan.completion_checks, "approval_moment", return_value=approval):
+                    status, report = self.grade()
+                self.assertEqual(status, 1, report)
+                self.assertEqual(extracted == cause_start, "cause-line" in report, report)
+                self.assertEqual(approval != handwritten_start - timedelta(microseconds=1), "U+0007" in report, report)
+                self.assertIn("unread remainder 0", report)
 
     def test_comment_requires_warning_but_no_new_issue_labels(self):
         self.ticket()
