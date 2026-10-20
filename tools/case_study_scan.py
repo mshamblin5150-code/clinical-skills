@@ -924,25 +924,28 @@ def _prn_maximum_unreachable(order: str) -> bool:
     return False
 
 
-def _prescription_order_findings(sections: list[Section], every: list, *, prescription_unread: bool = False) -> list[Finding]:
+def _read_prescription_rows(every: list) -> tuple[tuple[int, research_ledger.Prescription], ...]:
+    return tuple((block.line, rx) for block in every if block.kind == "table"
+                 for rx in research_ledger.read_prescription_rows(block.rows))
+
+
+def _prescription_order_findings(sections: list[Section], every: list, *, prescription_unread: bool = False,
+                               prescription_rows: tuple | None = None) -> list[Finding]:
     """Use the ledger's declaration/table reader; no drug vocabulary or proposal input."""
     found = []
-    prescriptions = []
+    if prescription_rows is None:
+        prescription_rows = _read_prescription_rows(every)
     owner = section_owner(sections)
-    for block in every:
-        if block.kind != "table":
-            continue
-        for rx in research_ledger.read_prescription_rows(block.rows):
-            prescriptions.append(rx)
-            order = rx.order + " " + rx.sig
-            if (rx.declaration == "continued home medication"
-                    and not PRN_WORD.search(order) and not ONCE_ORDER.search(order)
-                    and not re.search(r"\b(?:IV|IM|intravenous|intramuscular)\b", order, re.I)
-                    and rx.refill != "3"):
-                found.append(Finding(HOME_MEDICATION_REFILL, owner.get(block.line, RX), block.line, rx.order))
-            if _prn_maximum_unreachable(order):
-                found.append(Finding(PRN_MAXIMUM_UNREACHABLE, owner.get(block.line, RX), block.line, order))
-    drugs = {rx.drug.lower() for rx in prescriptions if rx.drug}
+    for line, rx in prescription_rows:
+        order = rx.order + " " + rx.sig
+        if (rx.declaration == "continued home medication"
+                and not PRN_WORD.search(order) and not ONCE_ORDER.search(order)
+                and not re.search(r"\b(?:IV|IM|intravenous|intramuscular)\b", order, re.I)
+                and rx.refill != "3"):
+            found.append(Finding(HOME_MEDICATION_REFILL, owner.get(line, RX), line, rx.order))
+        if _prn_maximum_unreachable(order):
+            found.append(Finding(PRN_MAXIMUM_UNREACHABLE, owner.get(line, RX), line, order))
+    drugs = {rx.drug.lower() for _, rx in prescription_rows if rx.drug}
     if prescription_unread:
         return found
     for section in sections:
@@ -964,13 +967,14 @@ def _prescription_order_findings(sections: list[Section], every: list, *, prescr
     return found
 
 
-def _row_coverage(markdown: str, sections: list[Section], cross_references: tuple[CrossReference, ...]) -> tuple[RowCoverage, ...]:
+def _row_coverage(markdown: str, sections: list[Section], cross_references: tuple[CrossReference, ...],
+                  prescription_rows: tuple) -> tuple[RowCoverage, ...]:
     """Wider raw candidates independent of the renderer and field extraction."""
     tables = re.findall(r"(?m)(?:^[ \t]*\|[^\n]*(?:\n|$))+", markdown)
     rx_candidates = sum(len(re.findall(r"\bDisp\s*:", table, re.I))
         for table in tables if re.search(r"\bSig\s*:", table, re.I))
     home_candidates = len(re.findall(r"(?im)^.*\|\s*[`*_]*continued home medication\s*:", markdown))
-    prescriptions = research_ledger.read_prescriptions(markdown)
+    prescriptions = [rx for _, rx in prescription_rows]
     pointers = len(re.findall(r"\b(?:items?|entr(?:y|ies))\s+\d+", markdown, re.I))
     pointers += len(re.findall(r"\bdifferential(?:[ \t]+diagnoses)?[*_: ]*[ \t]+\d+", markdown, re.I))
     raw_lines = []
@@ -1267,6 +1271,7 @@ def findings(
     every: list,
     cross_references: tuple[CrossReference, ...] = (),
     *, prescription_unread: bool = False,
+    prescription_rows: tuple | None = None,
 ) -> list[Finding]:
     """Every row, sorted by ``KINDS``.
 
@@ -1289,7 +1294,8 @@ def findings(
         + _source_quotation_findings(sections, every)
         + _temperature_unit_findings(sections, every)
         + _expanded_clinical_label_findings(sections, every)
-        + _prescription_order_findings(sections, every, prescription_unread=prescription_unread)
+        + _prescription_order_findings(sections, every, prescription_unread=prescription_unread,
+                                       prescription_rows=prescription_rows)
     )
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: (order[f.kind], f.line))
@@ -1327,12 +1333,14 @@ def survey(markdown: str, skill_text: str | None) -> Scan:
     not_opening_at_one, broken_transitions = numbering_advisories(sections)
     cross_references = read_cross_references(sections, every)
     section_names = {section.name for section in sections}
-    coverage = _row_coverage(markdown, sections, cross_references)
+    prescription_rows = _read_prescription_rows(every)
+    coverage = _row_coverage(markdown, sections, cross_references, prescription_rows)
     prescription_unread = any(row.unread for row in coverage
                               if row.subject in {"prescription records", "home labels"})
     return Scan(
         row_coverage=coverage,
-        findings=findings(sections, every, cross_references, prescription_unread=prescription_unread),
+        findings=findings(sections, every, cross_references, prescription_unread=prescription_unread,
+                          prescription_rows=prescription_rows),
         sections=len(sections),
         intake_sections=len([s for s in sections if s.name in INTAKE_SECTIONS]),
         tables=len([b for b in every if b.kind == "table"]),

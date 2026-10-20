@@ -185,6 +185,30 @@ class WrittenPrescriptionRows(unittest.TestCase):
         self.assertIn("home labels: candidates 1, read 0, unread 1", report)
         self.assertIn("unread remainder 1", report)
 
+    def test_renderer_only_table_drop_cannot_borrow_the_ledgers_independent_read(self):
+        original = scan.read_sections
+        text = draft(prescription("Continued home medication: metformin 500 mg PO daily until reassessment"),
+                     "Continue metformin 500 mg PO daily.")
+        def without_rx(value):
+            sections, every = original(value)
+            for section in sections:
+                section.blocks[:] = [block for block in section.blocks if block.kind != "table"]
+            return sections, [block for block in every if block.kind != "table"]
+        with mock.patch.object(scan, "read_sections", side_effect=without_rx):
+            status, report = self.invoke(text)
+            self.assertEqual(2, status, report)
+            self.assertIn("prescription records: candidates 1, read 0, unread 1", report)
+            self.assertIn("unread remainder 1", report)
+            self.assertRegex(report, r"(?m)^plan-order-without-table\s+not graded$")
+            status, report = self.invoke(text + "\n- Independent bullet.\n")
+            self.assertEqual(1, status, report)
+            self.assertRegex(report, r"(?m)^bullet-marker\s+1$")
+            self.assertIn("unread remainder 1", report)
+        status, report = self.invoke(text)
+        self.assertEqual(1, status, report)
+        self.assertEqual(1, self.row_count(report, "home-medication-refill"))
+        self.assertIn("prescription records: candidates 1, read 1, unread 0", report)
+
 
 if __name__ == "__main__":
     unittest.main()
