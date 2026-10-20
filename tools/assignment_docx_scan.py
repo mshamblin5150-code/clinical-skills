@@ -44,6 +44,7 @@ import run_grader
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import coursework_style
@@ -94,6 +95,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
 )
@@ -190,10 +192,12 @@ class Scan:
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
     heading_items_report: str = ""
+    model_unread: int = 0
+    image_match_unread: int = 0
 
     @property
     def unread(self) -> int:
-        return self.heading_read_unread + self.citation_coverage.unread + self.reader_records_unread + self.image_answer_unread
+        return self.heading_read_unread + self.citation_coverage.unread + self.reader_records_unread + self.image_answer_unread + self.model_unread + self.image_match_unread
 
 
 def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
@@ -667,19 +671,14 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission
     )
-    grade = voice_read.apply_completion_gate(
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.root,
         submission,
         voice_read.draft_surface(
             ((source.docx, "\n".join(paragraph.text for paragraph in source.paragraphs)),)
         ),
-    )
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.root,
         {submission or source.docx.stem: "\n".join(paragraph.text for paragraph in source.paragraphs)},
-        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(grade, source.root, submission)
     grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered), heading_unread=scan.heading_read_unread)

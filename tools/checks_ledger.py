@@ -194,6 +194,7 @@ import aar_scan
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import case_video
@@ -213,6 +214,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
     case_video.EXPECTED_ROW,
@@ -651,6 +653,8 @@ class Scan:
     reader_remarks: tuple[reader_remarks.Remark, ...] = ()
     unread_records: tuple[str, ...] = ()
     withheld_rows: tuple[str, ...] = ()
+    model_unread: int = 0
+    image_match_unread: int = 0
 
 
 def read_records(text: str) -> list[Record]:
@@ -1372,22 +1376,17 @@ def _grade(
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path.parent, submission
     )
-    grade = voice_read.apply_completion_gate(
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.path.parent,
         submission,
         voice_read.draft_surface(
             ((source.document, source.document_bytes.decode("utf-8", errors="replace")),)
         ),
-    )
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.path.parent,
         {submission or source.document.stem: source.document_bytes.decode("utf-8", errors="replace")},
-        terminal=submission is not None,
     )
     grade = replace(grade, reports=grade.reports + (
-        run_grader.format_unread_remainder(heading.unread + scan.reader_unread + reader_unread + grade.scan.image_answer_unread),))
+        run_grader.format_unread_remainder(heading.unread + scan.reader_unread + reader_unread + grade.scan.image_answer_unread + grade.scan.model_unread + grade.scan.image_match_unread),))
     grade = project_context.apply_completion_gate(
         grade, source.path.parent, submission
     )
