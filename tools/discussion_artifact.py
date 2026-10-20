@@ -212,6 +212,8 @@ LEGAL_CITATION = re.compile(
     r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
 )
+LEGAL_CITATION_SECTION_FORM = "legal-citation-section-form"
+
 REFERENCE_DATE_WORDS = (
     "January",
     "February",
@@ -1097,6 +1099,8 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
     if legal is not None:
         name_text = author_text[: legal.start()].rstrip("., ")
         keys = [author_key(name_text)] if name_text else []
+        if name_text:
+            keys.append(author_key(_legal_author(legal)))
     elif surnames:
         keys = [author_key(surnames[0])]
         if len(surnames) > 1:
@@ -1117,6 +1121,8 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
         if not key:
             continue
         keyed.append((key, years[0], prefix))
+        if legal is not None and key == author_key(_legal_author(legal)) and years[0]:
+            keyed.append((key, "", False))
     return tuple(keyed)
 
 
@@ -1489,6 +1495,19 @@ def citation_coverage(
     reference_key_set: ReferenceKeySet = ReferenceKeySet(),
 ) -> CitationCoverage:
     return _read_citations(body, reference_key_set)[1]
+
+
+def legal_section_citation(citation: Citation, references: ReferenceKeySet) -> bool:
+    """Whether a recognized section citation resolves to a listed legal source."""
+
+    return bool(
+        LEGAL_CITATION.fullmatch(citation.author)
+        and references.resolves((author_key(citation.author), citation.year))
+    )
+
+
+def legal_section_detail(citation: str) -> str:
+    return f"{citation}: write the legal source's name and the entry's year"
 
 
 def legal_citation_spans(body: str) -> frozenset[tuple[int, int]]:

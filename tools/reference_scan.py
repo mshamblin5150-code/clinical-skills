@@ -105,9 +105,10 @@ list would otherwise be found by neither.
 
 - **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
-- **A supported statute or regulation resolves on its title and publication year.**
+- **A supported statute or regulation resolves on its title or section.**
+  A section citation, including one with no year, is refused for its form.
 - **A supported named statute or regulation participates in ``uncited-entry``.**
-  Its title and publication year are the in-text key; its code locator is not.
+  Both its title and its code locator establish that it was cited.
 
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
@@ -253,6 +254,8 @@ from discussion_artifact import (
     citation_year,
     group_abbreviation_definitions,
     legal_citation_spans,
+    LEGAL_CITATION_SECTION_FORM,
+    legal_section_detail,
     legal_reference_lacks_name,
     personal_authors,
 )
@@ -617,6 +620,7 @@ _REFERENCE_BUCKET_BY_NAME = {bucket.name: bucket for bucket in REFERENCE_BUCKETS
 # whether or not any draft reaches it. Found by ``/code-review`` on the branch that
 # landed the ruling.
 BODY_ROWS = (
+    LEGAL_CITATION_SECTION_FORM,
     CANVAS_ARTIFACT,
     UPTODATE_ITALICS,
     INTEXT_YEAR_MISMATCH,
@@ -636,6 +640,7 @@ NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 # body: *a checker built from the ticket as written would look in the wrong file
 # and find nothing.* A column headed with one file name would have reproduced that.
 ROWS = {
+    LEGAL_CITATION_SECTION_FORM: "apa7 8",
     MISSING_ARTICLE: "apa7 10",
     FORMAT_BRACKET: "apa7 39",
     ITALIC_IDENTIFIER: "apa7 39",
@@ -1125,6 +1130,9 @@ class Entry:
         """Citation-pairing keys without changing ``key``'s grouping contract."""
 
         keys = [(self.key, year_key(self.year))] if self.key and self.year else []
+        if self._legal_match is not None:
+            section = normalize(_legal_section_text(self._legal_match))
+            keys.extend(((section, year_key(self.year)), (section, "")))
         first_author = self.first_author_initials
         if first_author is not None and self.year:
             surname, initials = first_author
@@ -2171,6 +2179,16 @@ def _citation_findings(document: Document) -> list[Finding]:
         if normalize(bare_surname).replace(" ", "") in ambiguous:
             found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
         matched = tuple(entry for entry in document.entries if matches(citation, entry))
+        if any(
+            entry._legal_match is not None
+            and citation.key == normalize(_legal_section_text(entry._legal_match))
+            and citation.key != entry.key
+            for entry in matched
+        ):
+            found.append(Finding(
+                LEGAL_CITATION_SECTION_FORM, "body",
+                legal_section_detail(f"{citation.phrase}, {citation.year}"),
+            ))
         # Read only corresponding surnames or full group names, never body prose.
         # Abbreviated groups and shortened titles are not spelling differences.
         cited_names = re.split(r"\s+(?:&|and)\s+|\s+et\s+al\.", phrase, flags=re.I)

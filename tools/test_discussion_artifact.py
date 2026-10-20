@@ -371,24 +371,24 @@ class CitationResolutionIsDirectional(unittest.TestCase):
         cases = (
             (
                 "Professional and Vocational Regulations, 16 CCR § 1481",
-                (("professionalandvocationalregulations", ""),),
+                (("professionalandvocationalregulations", ""), ("16ccr1481", "")),
             ),
             (
                 "Eligibility for prescriptive authority, W. Va. Code § 30-7-15b",
-                (("eligibilityforprescriptiveauthority", ""),),
+                (("eligibilityforprescriptiveauthority", ""), ("wvacode30715b", "")),
             ),
             (
                 "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, § 1263",
-                (("consolidatedappropriationsact2023", ""),),
+                (("consolidatedappropriationsact2023", ""), ("publno1173281263", "")),
             ),
             (
                 "Payment for nurse practitioners' services, 42 C.F.R. § 414.56",
-                (("paymentfornursepractitionersservices", ""),),
+                (("paymentfornursepractitionersservices", ""), ("42cfr41456", "")),
             ),
             (
                 "Advanced practice registered nurse licensure requirements "
                 "(W. Va. Code R. § 19-7, 2024)",
-                (("advancedpracticeregisterednurselicensurerequirements", ""),),
+                (("advancedpracticeregisterednurselicensurerequirements", ""), ("wvacoder197", "")),
             ),
             ("King James Bible.", ()),
             ("World Health Organization.", ()),

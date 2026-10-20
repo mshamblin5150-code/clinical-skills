@@ -1218,16 +1218,18 @@ REFUTATION: stands - the page addresses the cited proposition.
                 keys = artifact.citation_occurrence_keys(citations)
                 self.assertIn((artifact.author_key(author), "2024"), keys[0])
 
-    def test_yearless_legal_citation_does_not_match_a_dated_regulation_record(self):
+    def test_yearless_legal_citation_matches_a_dated_regulation_record(self):
         citations = artifact.read_citations("42 C.F.R. § 482.13 supplies the legal context.")
         reference = artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
 
         self.assertEqual(1, len(citations))
-        self.assertFalse(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
+        self.assertTrue(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
 
-    def test_a_legal_reference_keys_on_its_title_and_year(self):
+    def test_a_legal_reference_keys_on_its_title_and_section_with_or_without_year(self):
         self.assertEqual(
-            ((artifact.author_key("Patient rights"), "2024"),),
+            ((artifact.author_key("Patient rights"), "2024"),
+             (artifact.author_key("42 C.F.R. § 482.13"), "2024"),
+             (artifact.author_key("42 C.F.R. § 482.13"), "")),
             artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024)."),
         )
 
@@ -1414,7 +1416,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         entries = {
             "name-and-section": (
                 "Patient rights, 42 C.F.R. § 482.13 (2024).",
-                (False, False, False, True, True),
+                (True, True, True, True, True),
             ),
             "section-only": (
                 "42 C.F.R. § 482.13 (2024). Patient rights.",
@@ -1441,6 +1443,11 @@ REFUTATION: stands - the page addresses the cited proposition.
                         for key in occurrence
                     )
                     self.assertEqual(should_resolve, resolved)
+                    self.assertEqual(
+                        should_resolve and form.startswith(("42", "(42")),
+                        any(artifact.legal_section_citation(citation, keys) for citation in citations),
+                    )
+            self.assertEqual(entry_name == "section-only", artifact.legal_reference_lacks_name(entry))
 
     def test_a_name_narrative_is_read_from_the_reference_key_set(self):
         keys = artifact.ReferenceKeySet.from_references(

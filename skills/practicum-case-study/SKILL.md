@@ -1172,6 +1172,7 @@ sorted.
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
 | A legal entry carrying only its section | add the legal source name in [apa7.md](../_shared/reference/apa7.md) §8's form |
 | An entry in the list that is cited nowhere in the body | delete it |
+| A legal citation written as a section instead of its source name | write the legal source's name and the entry's year; a yearless section resolves but takes the same form finding ([apa7.md](../_shared/reference/apa7.md) §8) |
 | A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |
 | A misspelled month | check every one |

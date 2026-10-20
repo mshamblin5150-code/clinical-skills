@@ -49,6 +49,10 @@ from discussion_artifact import (
     discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
+    LEGAL_CITATION,
+    LEGAL_CITATION_SECTION_FORM,
+    legal_section_citation,
+    legal_section_detail,
     read_citations,
     read_invoked_sources,
     read_posted_readings,
@@ -106,6 +110,7 @@ BORROWED_LOCATOR = "borrowed-locator"
 EDITOR_READBACK = "editor-readback"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = {
+    LEGAL_CITATION_SECTION_FORM: "legal citations use the source name and entry year",
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
     NARRATIVE_BODY: "the graded body uses narrative prose rather than lists or tables",
@@ -141,6 +146,7 @@ GATED_ROW_SETS = {
             RESPENT_SOURCE,
             INVOKED_PROPERTY,
             LEGAL_REFERENCE_NAME,
+            LEGAL_CITATION_SECTION_FORM,
         ),
         (
             "words",
@@ -222,7 +228,7 @@ DECLARED_LIMITS = (
     ),
     (
         "whether faculty require the canonical in-text legal spelling",
-        "The command accepts resolving name and section forms because no evidence establishes which in-text legal spelling faculty will mark.",
+        "The section form resolves and is refused on the Publication Manual's rule; the command establishes nothing about faculty marking.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -420,7 +426,8 @@ def _valid_references(reply: Reply) -> tuple[str, ...]:
         if (
             year
             and author_key(entry[: year.start()].rstrip(". "))
-            and re.search(r"[A-Za-z]{2,}", entry[year.end() :])
+            and (LEGAL_CITATION.search(entry[: year.start()])
+                 or re.search(r"[A-Za-z]{2,}", entry[year.end() :]))
         ):
             valid.append(entry)
     return tuple(valid)
@@ -494,7 +501,13 @@ def _citation_findings(
         for citation in citations
         if references.missing_first_author_initials(citation.author)
     )
-    return unresolved + missing
+    section_form = tuple(
+        Finding(LEGAL_CITATION_SECTION_FORM, reply.path.name,
+                legal_section_detail(f"{citation.author}, {citation.year}"))
+        for citation in citations
+        if legal_section_citation(citation, references)
+    )
+    return unresolved + missing + section_form
 
 
 def _numeric_values(reply: Reply, citations: tuple[Citation, ...]) -> tuple[str, ...]:
