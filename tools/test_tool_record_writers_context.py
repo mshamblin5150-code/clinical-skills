@@ -25,7 +25,7 @@ class ContextWriters(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.run = Path(temporary.name)
+        self.run = Path(temporary.name).resolve()
         resolved = repo_root.VoiceModelResolution(self.run / 'model.md', 'a' * 64, True)
         patch = mock.patch.object(repo_root, 'canonical_voice_model', return_value=resolved)
         patch.start()

@@ -1458,7 +1458,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
     def setUp(self) -> None:
         super().setUp()
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.run = self.root / "course-module-discussion"
         self.run.mkdir()
         self.transcript = self.root / "session-1.jsonl"

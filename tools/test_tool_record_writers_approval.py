@@ -70,7 +70,7 @@ class ApprovalFamilyWriters(unittest.TestCase):
                 yield fixture.run / approval_record.RECORD, call
             return
         with tempfile.TemporaryDirectory() as directory:
-            run = Path(directory)
+            run = Path(directory).resolve()
             source = run / "artifact.docx"
             source.write_bytes(b"synthetic artifact")
             if kind in {"stage", "confirm", "clinician-upload"}:

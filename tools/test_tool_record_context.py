@@ -52,7 +52,7 @@ class ToolRecords(unittest.TestCase):
 
     def test_context_writer_reports_shared_open_failure_before_parsing(self):
         with tempfile.TemporaryDirectory() as directory:
-            run = Path(directory)
+            run = Path(directory).resolve()
             path = run / project_context.RECORD_NAME
             path.write_bytes(b'CONFIRMED: synthetic\n')
             original_open = Path.open

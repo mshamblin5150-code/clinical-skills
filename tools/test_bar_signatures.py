@@ -49,7 +49,7 @@ class SharedBarSigning(unittest.TestCase):
 
     def test_native_success_keeps_another_creators_reused_temporary_name(self):
         with tempfile.TemporaryDirectory() as directory:
-            run = Path(directory)
+            run = Path(directory).resolve()
             self.sign(run, "peer-critique", "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n")
             reply = "I confirm this second synthetic bar."
             messages = [{"type": "user", "timestamp": "2101-01-01T00:00:00Z", "message": {"content": reply}}]
@@ -75,7 +75,7 @@ class SharedBarSigning(unittest.TestCase):
     def test_shared_signer_native_refusals_preserve_each_new_skill_history(self):
         for skill in bar_signatures.SKILLS[1:]:
             with self.subTest(skill=skill), tempfile.TemporaryDirectory() as directory:
-                run = Path(directory)
+                run = Path(directory).resolve()
                 text = "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n"
                 if skill == "discussion-post":
                     text += "TOPIC: Synthetic\nSYLLABUS: Synthetic\nWORD-FLOOR: 100\nWORD-CEILING: none\nREFERENCE-MINIMUM: 1\n"

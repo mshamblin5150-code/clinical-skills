@@ -26,7 +26,7 @@ NOTE = (
 class ApprovalRecordContract(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.run = self.root / "scratch" / "runs" / "nur-5042-module-5-discussion"
         self.run.mkdir(parents=True)
         write_none_context(self.run)
@@ -182,6 +182,10 @@ class ApprovalRecordContract(unittest.TestCase):
                     self.assertIn("before entry", str(refused.exception))
                     self.assertFalse(record.exists())
                     other.write_text(NOTE, encoding="utf-8")
+                    # This is an entry-grammar control, not a filesystem-clock race.
+                    # Windows may assign the same tick to a write and preparation.
+                    for source in (self.artifact, other):
+                        os.utime(source, (1, 1))
                     approval_record.prepare(self.run, skill=skill, submission="note-key",
                         sources=(self.artifact, other), grader_args=(str(self.run),))
                     approval_record.approve(

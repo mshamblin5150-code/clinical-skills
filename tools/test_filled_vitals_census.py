@@ -36,17 +36,20 @@ import filled_vitals_census as fvc
 import visit_times
 from unittest.mock import patch as _times_patch
 
+_times_controls = []
+
 
 def setUpModule():
     # Preserve these clinical-floor controls independently of visit times.
     # test_visit_times exercises both integrations without replacing the row.
-    global _times_control
-    _times_control = _times_patch.object(fvc.visit_times, "check", return_value=visit_times.Result(graded=False))
-    _times_control.start()
+    # Live-control tests run nested same-module suites, so each setup owns a handle.
+    control = _times_patch.object(fvc.visit_times, "check", return_value=visit_times.Result(graded=False))
+    control.start()
+    _times_controls.append(control)
 
 
 def tearDownModule():
-    _times_control.stop()
+    _times_controls.pop().stop()
 import grader_conformance
 import medatrax_posting
 import run_grader
