@@ -21,7 +21,7 @@ RECORD_NAMES = frozenset({
     'bar.md', 'claims.md', 'heading-read.md', 'checks.md', 'reread.md',
     'rendered.md', 'adversarial.md', 'intent.md', 'project-context.md',
     'shift-summary.md', 'delegated-answers.md', 'shift-values.json',
-    'imagery-proposals.json', 'handling.json', 'attachments.md',
+    'imagery-proposals.json', 'recorded-image-match.json', 'handling.json', 'attachments.md',
 })
 
 # Counts preserve each reviewed occurrence; an extra raw read in the same
@@ -92,9 +92,11 @@ class HandwrittenReadRoutes(unittest.TestCase):
             (root / 'synthetic.py').write_text(
                 "def read(run):\n p = run / 'claims.md'\n return p.read_text()\n"
                 "def bytes(run):\n return (run / 'reread.md').read_bytes()\n"
-                "def stream(run):\n return open(run / 'heading-read.md').read()\n", encoding='utf-8')
+                "def stream(run):\n return open(run / 'heading-read.md').read()\n"
+                "def image(run):\n return (run / 'recorded-image-match.json').read_text()\n", encoding='utf-8')
             self.assertEqual(Counter({'synthetic.read:claims.md': 1,
-                'synthetic.bytes:reread.md': 1, 'synthetic.stream:heading-read.md': 1}), direct_literal_reads(root))
+                'synthetic.bytes:reread.md': 1, 'synthetic.stream:heading-read.md': 1,
+                'synthetic.image:recorded-image-match.json': 1}), direct_literal_reads(root))
 
     def test_explicit_computed_candidate_constructor_enters_the_bounded_floor(self):
         with tempfile.TemporaryDirectory() as directory:

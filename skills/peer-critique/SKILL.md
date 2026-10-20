@@ -113,6 +113,10 @@ Then read three documents side by side and keep them side by side for the whole 
 material** the assignment supplied, the **classmate's post**, and the **clinician's own post** on
 the same case.
 
+Declare the faculty source and any separate working capture under
+[Case material and its capture](../_shared/reference/sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger).
+That shared rule governs checking case wording before quotation or a missing-data charge.
+
 For a video case, follow [Case video capture](../_shared/reference/case-video.md) now; that sheet
 owns capture order, the confirmation-list stop, and the clinician's repair-or-type choice after
 failure. Record its selected route and bound review, including its document-only declaration for
@@ -125,6 +129,9 @@ item absent from that data set — a family history nobody was given, an insuran
 never stated — is not the classmate's omission, and a finding against them for it is a finding
 against the assignment. Grade the reasoning applied to what was given. This rule is the one most
 easily broken by a reader working from a required-components list rather than from the case.
+An inconsistency inside the faculty's case is not the classmate's error. How the classmate handled
+it is gradable only when a silent choice between the conflicting figures changed a clinical
+decision. Name both accounts; never reconcile the conflict silently.
 
 Read [The clinician's own position](../_shared/reference/rubric.md#the-clinicians-own-position)
 before deciding which points to fault; resolve a disagreement with his submission before drafting.
@@ -148,6 +155,12 @@ Two rules govern how a differential is graded, and both cut against reflexive cr
 - **An entry never made is the failure.** An entry argued off is a decision; an entry that never
   appears leaves nothing to check, and every downstream section — the regimen, the disposition, the
   follow-up — can read as complete while resting on it.
+
+Where the clinician's own paper argued alternatives for and against that the classmate never made,
+the Clinical Reasoning heading states how his paper handled each one: argued down, kept, or deferred.
+Write every such sentence as an **Item description** of **Own submission** under the existing
+[heading-read contract](../_shared/reference/sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger),
+using that paper's opened item identifier. Say no more than the paper supports.
 
 Where the classmate cited a guideline, **read the guideline they cited**. A critique that shows the
 answer was inside their own reference is worth more than one that introduces a new source, and it
@@ -257,18 +270,17 @@ At the go-ahead, show any late gate and its waived-observation count.
 
 Read only the canonical path the identity command reports.
 
-Reuse a recorded image whole where it fits. Where none fits, follow
-[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
-domain may be proposed, and one that works never licenses a second instance.
+Before the first prose, follow the shared
+[Recorded image match](../_shared/reference/voice.md#recorded-image-match-before-drafting).
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 **Image stop.** Once the draft is complete, stop before its first grade, carrier build,
 render or reader. Show every proposal in its surrounding paragraph with the recorded domain
 and real behavior, separately from the later substance question:
 
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+| Proposed image | Recorded domain | Real behavior it spends | Recorded-image match | Approve this image? |
+| --- | --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | `<central point; images weighed and why none fit>` | yes / no |
 
 Apply the answer and retain the whole reply and shown-draft timestamp under
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.
