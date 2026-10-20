@@ -237,11 +237,11 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
 class SupersessionBindingTests(unittest.TestCase):
     def test_marker_inside_numbered_ruling_preserves_binding(self):
         records = {
-            "0001-old.md": '1. Old choice.\n\n   *Superseded 2026-10-19.* The words "Old choice" fall to [ADR 0002](0002-new.md) ruling 1. Other choices stand.\n\n2. Other choice.\n',
-            "0002-new.md": '1. New choice.\n\n## Supersedes\n\n- [ADR 0001](0001-old.md) ruling 1, the words "Old choice". Other choices stand.\n',
+            "0135-old.md": '8. Old choice.\n\n   *Superseded 2026-10-19.* The words "Old choice" fall to [ADR 0280](0280-new.md) ruling 1. Other choices stand.\n\n9. Other choice.\n',
+            "0280-new.md": '1. New choice.\n\n## Supersedes\n\n- [ADR 0135](0135-old.md) ruling 8, the words "Old choice". Other choices stand.\n',
         }
         self.assertEqual(supersession_findings(records), ())
-        records['0001-old.md'] = records['0001-old.md'].replace('ruling 1.', 'ruling 2.')
+        records['0135-old.md'] = records['0135-old.md'].replace('ruling 1.', 'ruling 2.')
         self.assertTrue(supersession_findings(records))
 
     def quote_records(self):
