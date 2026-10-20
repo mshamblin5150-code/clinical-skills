@@ -25,10 +25,11 @@ import specificity_scan
 import test_encounter_openers as opener_tests
 import test_medatrax_readback_command as portal_tests
 import test_specificity_scan as specificity_tests
+import test_delegated_answers as delegated_tests
 import visit_times
 
 CONTROLS = ('\t', '\a', '\0', '\f', '\v', '\r')
-ANSWER = '## QUESTION: Synthetic question\nRULE: none found\nANSWER: Follow up.\n'
+ANSWER = '## QUESTION: Synthetic question\nRULE: none found\nANSWER: Follow up.\nNOTE: note-1.md\nSECTIONS: P\n'
 NOTE = ('Start time 0800\nEnd time 0830\nS:\nCough.\nO:\nNormal.\n'
         'A:\nDifferential:\n1. Cough - R05.9: most likely.\nP:\nFollow up.\n'
         '---\nFILLED·asserted   BP 118/76 filled.\n')
@@ -39,6 +40,7 @@ class HandwrittenClinical(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)
+        (self.run / 'note-1.md').write_text(NOTE, encoding='utf-8')
 
     def test_text_populations_refuse_damage_including_before_the_first_question(self):
         for character in CONTROLS:
@@ -48,7 +50,7 @@ class HandwrittenClinical(unittest.TestCase):
                          ANSWER.replace('Follow up.', 'Follow' + character + ' up.')):
                 with self.subTest(character=ord(character), text=text):
                     (self.run / delegated_answers.RECORD).write_bytes(text.encode())
-                    finding, report = delegated_answers.completion_gate(self.run, 'synthetic')
+                    finding, report, unread = delegated_answers.completion_gate(self.run, 'synthetic')
                     self.assertTrue(finding, report)
                     self.assertIn('not graded — damaged text', report)
                     self.assertIn(f'U+{ord(character):04X}', report)
@@ -76,13 +78,66 @@ class HandwrittenClinical(unittest.TestCase):
             # Historical damage is not a new finding, but an original malformed
             # answer remains a finding under its original contract.
             path.write_bytes(('\a\n' + ANSWER.replace('ANSWER: Follow up.\n', '')).encode())
-            finding, report = delegated_answers.completion_gate(self.run, 'old')
+            finding, report, unread = delegated_answers.completion_gate(self.run, 'old')
             self.assertTrue(finding)
             self.assertIn('ANSWER must appear once', report)
             self.assertNotIn('U+0007', report)
         finally:
             completion_checks.ITEM_MOMENTS.reset(item)
             completion_checks.MOMENTS.reset(global_moment)
+
+    def test_answer_reader_damage_is_content_and_keeps_independent_rule_findings(self):
+        source = self.run / delegated_answers.RECORD
+        source.write_text(ANSWER, encoding='utf-8')
+        path = delegated_tests.write_reader(self.run)
+        intact = path.read_bytes()
+        for character in CONTROLS:
+            for raw in (intact + character.encode(),
+                        json.dumps({'private' + character: 'value'}).encode(),
+                        json.dumps({'private': [{'value': character}]}).encode()):
+                with self.subTest(character=ord(character), raw=raw):
+                    path.write_bytes(raw)
+                    finding, report, unread = delegated_answers.completion_gate(self.run, 'synthetic')
+                    self.assertTrue(finding, report)
+                    self.assertEqual(0, unread, report)
+                    self.assertIn(f'U+{ord(character):04X}', report)
+                    self.assertNotIn('private', report)
+        source.write_text(ANSWER.replace('RULE: none found', 'RULE: invented rule'), encoding='utf-8')
+        for command in (differential_scan, filled_vitals_census):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                status = command.main([str(self.run), '--submission', 'synthetic'])
+            self.assertEqual(1, status, output.getvalue())
+            self.assertIn('U+000D', output.getvalue())
+            self.assertIn('RULE is neither', output.getvalue())
+
+    def test_answer_reader_cutoff_and_derived_writer_force_are_per_item(self):
+        source = self.run / delegated_answers.RECORD
+        source.write_text(ANSWER, encoding='utf-8')
+        path = delegated_tests.write_reader(self.run)
+        path.write_bytes(path.read_bytes() + b'\x07')
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        token = completion_checks.MOMENTS.set({'approval': old})
+        item = completion_checks.ITEM_MOMENTS.set({'old': old, 'exact': start})
+        try:
+            self.assertFalse(delegated_answers.completion_gate(self.run, 'old')[0])
+            for key in ('exact', 'unknown'):
+                finding, report, unread = delegated_answers.completion_gate(self.run, key)
+                self.assertTrue(finding, report)
+                self.assertEqual(0, unread)
+            finding, report, unread = delegated_answers.completion_gate(self.run, 'old', pre_approval=True)
+            self.assertTrue(finding, report)
+            source.write_bytes(source.read_bytes() + b'\x07')
+            before = source.read_bytes()
+            for operation in (lambda: delegated_answers.reader_brief(self.run),
+                              lambda: delegated_answers.verify_shown_answers(self.run, 1, transcripts=((), False))):
+                with self.assertRaises(records.DamagedRecord):
+                    operation()
+            self.assertEqual(before, source.read_bytes())
+        finally:
+            completion_checks.ITEM_MOMENTS.reset(item)
+            completion_checks.MOMENTS.reset(token)
 
     def test_json_key_and_nested_string_damage_precedes_schema_in_each_reader(self):
         path = self.run / 'read.json'
