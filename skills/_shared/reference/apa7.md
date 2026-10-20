@@ -360,6 +360,8 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| unlisted lowercase author | A lowercase first word is read only when its author is named in this draft's reference list; an absent entry cannot be reported as an unlisted citation. |
+| ambiguous lowercase-group sentence opening | The opening row stays silent after abbreviations, initials, ellipses, or a soft line break without a clear sentence boundary. |
 | all-digit journal number absent from its DOI | A bare number can be a one-page article's page; report it as a reader candidate rather than a finding. |
 | file-format word outside the closed list | Only the closed format words in FORMAT_WORDS are mechanically refused by this row. |
 | short bare identifier code | A parenthetical such as (CMS-1807-F) has neither an identifier word nor five consecutive digits. |
@@ -956,7 +958,7 @@ compounds as the dictionary directs and temporary pre-noun compounds only when t
 misreading or joins one meaning; most post-noun and `-ly` adverb compounds remain open (§6.12 and
 Tables 6.1–6.3).
 
-Capitalize sentence openings, proper names, racial and ethnic group names, exact test names, formal
+Capitalize sentence openings (for lowercase group names, follow §39's house rule), proper names, racial and ethnic group names, exact test names, formal
 titles immediately before names, and the major words of headings (§§6.13–6.21). Lowercase generic
 drug names, diseases, procedures, theories, variables, generic roles, and ordinary group labels
 unless a proper name remains inside them. Reference-entry work titles use sentence case; periodical
@@ -1133,7 +1135,15 @@ add an informative bracketed description when needed, and omit a list entry when
 source exists. `Anonymous` is used only when the work is actually signed that way.
 
 Preserve individual and group names as published, including diacritics, capitalization, surname
-particles, suffixes, usernames, and creator roles. List up to 20 authors; for 21 or more, retain the
+particles, suffixes, usernames, and creator roles. **House rule (ADR 0402):** a lowercase group
+name keeps that rendering in its reference entry and mid-sentence citations, and never opens a
+sentence. Reword so the name falls mid-sentence or in parentheses. APA's sentence-opening exception
+names a person whose name begins lowercase; applying it to groups is unsettled here. This house
+rule avoids that case rather than attributing an answer to APA. `reference_scan` reports
+`lowercase-group-sentence-opening` only at a clear paragraph or sentence opening, and
+`citation-author-spelling` includes capitalization-only differences between citation and entry.
+
+List up to 20 authors; for 21 or more, retain the
 first 19 and final author around an ellipsis without an ampersand. Use the most specific responsible
 group and omit a publisher identical to that group. Dates identify the cited version and may be a
 year, fuller date, span, `n.d.`, or `in press`; retrieval dates follow §4. Under §9.15, a last-updated

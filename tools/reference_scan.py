@@ -148,7 +148,7 @@ the first significant word of the entry against the first significant word of th
     sources whose first authors share a surname are one key here. Folded spelling
 differences match and receive their own finding. **A parenthetical is read
 as a citation when its first word looks like an author** -- a proper noun, a quoted
-short title, or a lowercase name particle -- so ``(systolic, 2000 to 3000)`` is not
+short title, a lowercase name particle, or an author evidenced by the reference list -- so ``(systolic, 2000 to 3000)`` is not
 one and a capitalized common noun in that position still is. And **sorting compares
 normalized entry elements in APA order**: punctuation and spaces inside names are
 disregarded, numeric title tokens are alphabetized as words, and the date element
@@ -553,6 +553,7 @@ MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 CITATION_READER_COVERAGE = "citation-reader-coverage"
 CITATION_AUTHOR_SPELLING = "citation-author-spelling"
+LOWERCASE_GROUP_SENTENCE_OPENING = "lowercase-group-sentence-opening"
 # #1570 / ADR 0357: mechanically recognizable reference-element defects.
 MISSING_ARTICLE = "missing-article"
 FORMAT_BRACKET = "format-bracket"
@@ -629,6 +630,7 @@ BODY_ROWS = (
     MISSING_FIRST_AUTHOR_INITIALS,
     CITATION_READER_COVERAGE,
     CITATION_AUTHOR_SPELLING,
+    LOWERCASE_GROUP_SENTENCE_OPENING,
 )
 NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 
@@ -664,6 +666,7 @@ ROWS = {
     UNLISTED_CITATION: "apa7 5",
     MISSING_FIRST_AUTHOR_INITIALS: "apa7 5",
     CITATION_AUTHOR_SPELLING: "apa7 5",
+    LOWERCASE_GROUP_SENTENCE_OPENING: "apa7 39",
 }
 KINDS = tuple(ROWS)
 
@@ -729,6 +732,8 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    ("unlisted lowercase author", "A lowercase first word is read only when its author is named in this draft's reference list; an absent entry cannot be reported as an unlisted citation."),
+    ("ambiguous lowercase-group sentence opening", "The opening row stays silent after abbreviations, initials, ellipses, or a soft line break without a clear sentence boundary."),
     ("all-digit journal number absent from its DOI", "A bare number can be a one-page article's page; report it as a reader candidate rather than a finding."),
     ("file-format word outside the closed list", "Only the closed format words in FORMAT_WORDS are mechanically refused by this row."),
     ("short bare identifier code", "A parenthetical such as (CMS-1807-F) has neither an identifier word nor five consecutive digits."),
@@ -1016,7 +1021,7 @@ def _legal_section_text(match: re.Match[str]) -> str:
     )
 
 
-def citation_key(author: str) -> str:
+def citation_key(author: str, entries: tuple[Entry, ...] = ()) -> str:
     """The author key of an in-text citation, or ``""`` where it is not one.
 
     Two things happen here and both were found by reading real APA prose. A leading
@@ -1025,7 +1030,8 @@ def citation_key(author: str) -> str:
     noun, a quoted short title, or a lowercase name particle -- because the shape
     ``(<word>, <four digits>)`` is not rare in a clinical paper: without this,
     ``Range (systolic, 2000 to 3000) mL`` cites a source called ``systolic`` and the
-    unlisted-citation row fires on a compliant draft.
+    unlisted-citation row fires on a compliant draft. ADR 0402 also admits a
+    lowercase author when the reference list supplies that exact author phrase.
     """
     text = SIGNAL_PHRASE.sub("", re.sub(r"\s+", " ", author)).strip()
     text = without_leading_article(text)
@@ -1042,7 +1048,9 @@ def citation_key(author: str) -> str:
         return ""
     word = match.group(1)
     quoted = text[: match.start(1)].strip() != ""
-    if not (word[0].isupper() or quoted or word.lower() in PARTICLES):
+    if not (word[0].isupper() or quoted or word.lower() in PARTICLES or any(
+        normalize(text) == normalize(entry.citation_author) for entry in entries
+    )):
         return ""
     return normalize(word)
 
@@ -1110,7 +1118,7 @@ class Entry:
             if stripped == head:
                 break
             head = stripped
-        if re.search(r",\s*[" + UPPER + r"]\.", head):
+        if personal_authors(head):
             return ""
         return normalize(without_leading_article(head.rstrip(". "))).replace(" ", "")
 
@@ -1452,20 +1460,15 @@ def _evidenced_parenthetical(
 
     for entry in entries:
         author = entry.citation_author
-        key = citation_key(author)
-        if not author or len(key) < 3:
+        key = citation_key(author, entries)
+        if not author or not key or (len(key) < 3 and author[:1].isupper()):
             continue
         for date_match in EVIDENCE_COMMA_DATE.finditer(part):
             written = part[: date_match.start()].strip()
-            first_letter = next(
-                (character for character in written if character.isalpha()),
-                "",
-            )
             if (
                 normalize(written) != normalize(author)
                 or "\n" in written
                 or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
-                or not first_letter.isupper()
                 or _inside_code(body, start, start + len(part))
             ):
                 continue
@@ -1512,8 +1515,8 @@ def _evidenced_narratives(
         starts = [match.start() for match in re.finditer(r"\S+", prefix)]
         for entry in entries:
             author = entry.citation_author
-            key = citation_key(author)
-            if not author or len(key) < 3:
+            key = citation_key(author, entries)
+            if not author or not key or (len(key) < 3 and author[:1].isupper()):
                 continue
             normalized_author = normalize(author)
             maximum_written_tokens = len(normalized_author.split()) + 1
@@ -1548,14 +1551,9 @@ def _evidenced_narratives(
                     ):
                         continue
                     author_start = prefix_initials.start()
-                first_letter = next(
-                    (character for character in candidate if character.isalpha()),
-                    "",
-                )
                 if (
                     "\n" in written
                     or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
-                    or not first_letter.isupper()
                     or _inside_code(body, author_start, block.end())
                 ):
                     break
@@ -1610,7 +1608,7 @@ def citation_coverage(
             None,
         )
         if overlapping is not None:
-            evidence_key = citation_key(author)
+            evidence_key = citation_key(author, entries)
             grammar_key = citation_key(overlapping.group(1))
             if evidence_key != grammar_key:
                 disagreements.append((evidence_key, grammar_key))
@@ -1649,7 +1647,7 @@ def citation_coverage(
                 candidates += len(dates)
                 evidenced += len(dates)
                 if parsed is not None:
-                    evidence_key = citation_key(evidence_author)
+                    evidence_key = citation_key(evidence_author, entries)
                     grammar_key = citation_key(parsed.group(1))
                     if evidence_key != grammar_key:
                         disagreements.append((evidence_key, grammar_key))
@@ -1728,7 +1726,7 @@ def read_citations(
     )
 
     def add(author: str, token: str, start: int = -1) -> None:
-        key = citation_key(author)
+        key = citation_key(author, entries)
         if not key:
             return
         year = year_key(citation_year(token))
@@ -2131,6 +2129,29 @@ def _disambiguation_findings(entries: tuple[Entry, ...], language: str | None) -
     return found
 
 
+def _clear_sentence_opening(body: str, start: int) -> bool:
+    """Recognize paragraph/list openings and unambiguous sentence punctuation."""
+
+    prefix = body[:start]
+    paragraph = re.split(r"\n\s*\n", prefix)[-1]
+    marker = r"(?:#{1,4}\s+|[-+*]\s+|\d+[.)]\s+)"
+    if re.fullmatch(r"\s*(?:" + marker + r")?", paragraph):
+        return True
+    if re.fullmatch(r"\s*" + marker, prefix.rsplit("\n", 1)[-1]):
+        return True
+    ending = prefix.rstrip().rstrip('\"\u201d\u2019)]')
+    if ending.endswith(("!", "?")):
+        return True
+    if not ending.endswith(".") or ending.endswith(".."):
+        return False
+    word = ending.split()[-1][:-1].casefold()
+    # Short words and internal periods can be initials or abbreviations. Longer
+    # common abbreviations need the same conservative treatment (ADR 0402).
+    return len(word) > 3 and "." not in word and word not in {
+        "approx", "dept", "prof", "assoc", "resp", "vols", "chap",
+    }
+
+
 def _citation_findings(document: Document) -> list[Finding]:
     """Both directions of section 5, plus the year the two have to agree on."""
     found: list[Finding] = []
@@ -2209,9 +2230,10 @@ def _citation_findings(document: Document) -> list[Finding]:
                 listed_words = re.findall(r"[^\W\d_]+", unicodedata.normalize("NFC", listed))
                 for cited_word, listed_word in zip(cited_words, listed_words):
                     if (normalize(cited_word) == normalize(listed_word)
-                            and cited_word.lower() != listed_word.lower()):
+                            and cited_word != listed_word):
                         found.append(Finding(CITATION_AUTHOR_SPELLING, "body",
-                                             f"{cited_word} / {listed_word} {citation.year}"))
+                                             f"{cited_word} / {listed_word} {citation.year}; "
+                                             "match the entry; reword a sentence opening"))
         listed_years = {
             year for entry in matched for _key, year in entry.resolution_keys
         }
@@ -2225,6 +2247,21 @@ def _citation_findings(document: Document) -> list[Finding]:
                     f"{citation.key} cited as {citation.year}, listed as {'/'.join(sorted(listed_years))}",
                 )
             )
+    # Read occurrences separately: citation pairing deduplicates repeated names,
+    # but a later occurrence can open a sentence even when the first did not.
+    lowercase_groups = {
+        normalize(entry.citation_author)
+        for entry in document.entries
+        if entry.title_proper_key and entry.citation_author[:1].islower()
+    }
+    group_entries = tuple(
+        entry for entry in document.entries
+        if normalize(entry.citation_author) in lowercase_groups
+    )
+    for author, _dates, start, _end in _evidenced_narratives(document.body, group_entries):
+        if normalize(author) in lowercase_groups and _clear_sentence_opening(document.body, start):
+            found.append(Finding(LOWERCASE_GROUP_SENTENCE_OPENING, "body",
+                                 "reword so the lowercase group name falls mid-sentence or in parentheses"))
     for entry in document.entries:
         entry_cited = any(
             matches(citation, entry)
