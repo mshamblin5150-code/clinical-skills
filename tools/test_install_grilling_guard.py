@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import install_grilling_guard as installer
 
@@ -211,6 +212,98 @@ class InstallerContract(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "owning checkout"):
             self.install()
+
+    def test_a_rerun_keeps_every_stop_hook_at_its_trust_key_position(self) -> None:
+        # register_in_place's docstring owns why a position matters.
+        hooks = self.home / ".codex" / "hooks.json"
+        david = {"hooks": [{"type": "command", "command": "node C:/david.mjs hook"}]}
+        old = {"hooks": [{"type": "command", "command": "python old/grilling_stop_hook.py"}]}
+        later = {"hooks": [{"type": "command", "command": "python run_status_stop_hook.py"}]}
+        hooks.write_text(
+            json.dumps({"hooks": {"Stop": [david, old, later]}}), encoding="utf-8"
+        )
+
+        self.install()
+
+        stop = json.loads(hooks.read_text(encoding="utf-8"))["hooks"]["Stop"]
+        self.assertEqual(stop[0], david)
+        self.assertIn(
+            str((self.owning / "tools" / "grilling_stop_hook.py").resolve()),
+            stop[1]["hooks"][0]["command"],
+        )
+        self.assertEqual(stop[2], later)
+        self.assertEqual(len(stop), 3)
+
+
+class InPlaceRegistration(unittest.TestCase):
+    """The shared seam every Codex hook installer registers through."""
+
+    @staticmethod
+    def handler(command: str) -> dict[str, object]:
+        return {"type": "command", "command": command}
+
+    def ours(self) -> dict[str, object]:
+        return {"hooks": [self.handler("python new/guard.py")]}
+
+    def test_an_absent_registration_is_appended(self) -> None:
+        other = {"hooks": [self.handler("other")]}
+        self.assertEqual(
+            installer.register_in_place([other], "guard.py", self.ours()),
+            [other, self.ours()],
+        )
+
+    def test_a_sole_registration_is_replaced_where_it_stands(self) -> None:
+        first = {"hooks": [self.handler("first")]}
+        last = {"hooks": [self.handler("last")]}
+        stale = {"matcher": "Bash", "hooks": [self.handler("python old/guard.py")]}
+        self.assertEqual(
+            installer.register_in_place([first, stale, last], "guard.py", self.ours()),
+            [first, self.ours(), last],
+        )
+
+    def test_a_duplicate_is_removed_and_moves_only_what_follows_it(self) -> None:
+        # The declared cost: deduplicating has to shift the registrations after it.
+        first = {"hooks": [self.handler("first")]}
+        stale = {"hooks": [self.handler("python old/guard.py")]}
+        later = {"hooks": [self.handler("later")]}
+        self.assertEqual(
+            installer.register_in_place(
+                [first, stale, dict(stale), later], "guard.py", self.ours()
+            ),
+            [first, self.ours(), later],
+        )
+
+    def test_a_shared_registration_keeps_its_other_handlers(self) -> None:
+        shared = {
+            "matcher": "Bash",
+            "hooks": [self.handler("other"), self.handler("python old/guard.py")],
+        }
+        self.assertEqual(
+            installer.register_in_place([shared], "guard.py", self.ours()),
+            [{"matcher": "Bash", "hooks": [self.handler("other")]}, self.ours()],
+        )
+
+    def test_registrations_that_name_no_handler_of_ours_are_untouched(self) -> None:
+        empty = {"hooks": []}
+        opaque = "not a registration"
+        self.assertEqual(
+            installer.register_in_place([empty, opaque], "guard.py", self.ours()),
+            [empty, opaque, self.ours()],
+        )
+
+
+class CommandLine(unittest.TestCase):
+    """An argument never performs the install it was meant to ask about."""
+
+    def test_an_argument_never_installs(self) -> None:
+        for argument, status in (("--help", 0), ("--dry-run", 2)):
+            with self.subTest(argument=argument):
+                with mock.patch.object(installer, "install") as install:
+                    with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+                        with self.assertRaises(SystemExit) as stopped:
+                            installer.main([argument])
+                self.assertEqual(stopped.exception.code, status)
+                install.assert_not_called()
 
 
 if __name__ == "__main__":
