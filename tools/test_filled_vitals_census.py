@@ -33,6 +33,20 @@ from pathlib import Path
 from unittest.mock import patch
 
 import filled_vitals_census as fvc
+import visit_times
+from unittest.mock import patch as _times_patch
+
+
+def setUpModule():
+    # Preserve these clinical-floor controls independently of visit times.
+    # test_visit_times exercises both integrations without replacing the row.
+    global _times_control
+    _times_control = _times_patch.object(fvc.visit_times, "check", return_value=visit_times.Result(graded=False))
+    _times_control.start()
+
+
+def tearDownModule():
+    _times_control.stop()
 import grader_conformance
 import medatrax_posting
 import run_grader

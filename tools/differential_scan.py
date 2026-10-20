@@ -222,6 +222,10 @@ File attribution uses ``run_grader.artifact_label`` for pasteable output; privat
 from __future__ import annotations
 
 import completion_checks
+import visit_times
+
+# The shared visit-times row adds an exit-2 limb on every invocation: visit times
+# not fully checked. Its complete reading boundary is visit_times.DECLARED_LIMITS.
 import re
 import sys
 from dataclasses import dataclass, replace
@@ -1621,6 +1625,7 @@ NO_DIFFERENTIAL_ENTRY = "no differential entry in any note read"
 NO_NUMBERED_ITEM = "no numbered item in a labeled block"
 BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
 UNREADABLE_THRESHOLD_SHEET = "a cited threshold sheet did not parse"
+VISIT_TIMES_INCOMPLETE = "visit times not fully checked"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_DIRECTORY,
@@ -1629,6 +1634,7 @@ EXIT_2_LIMBS = (
     NO_NUMBERED_ITEM,
     BARE_NOT_CODED,
     UNREADABLE_THRESHOLD_SHEET,
+    VISIT_TIMES_INCOMPLETE,
     run_grader.UNREADABLE_RUN_ARTIFACT,
     approval_record.REPLY_UNREADABLE,
 )
@@ -1666,6 +1672,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+    times = visit_times.check(source.directory, batch=False,
+                             note=Path(_parsed.value("--note")) if _parsed.value("--note") else None)
     scan = survey([_read_artifact(artifact) for artifact in source.artifacts]
                   if source.artifacts else [read_note(text) for text in source.texts])
     scan = replace(scan, attribution=locate(source.artifacts))
@@ -1677,6 +1685,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     )
     diagnostics: list[str] = []
     coverage_limbs: list[str] = []
+    if times.incomplete:
+        coverage_limbs.append(VISIT_TIMES_INCOMPLETE)
     if has_findings:
         messages = []
         if scan.findings:
@@ -1772,12 +1782,13 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.directory.name,
         findings_failed=(
-            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed
+            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed or bool(times.findings)
         ),
-        coverage_failed=coverage_failed or "Outbound searches: unreadable" in outbound_report,
+        coverage_failed=coverage_failed or times.incomplete or "Outbound searches: unreadable" in outbound_report,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(run_grader.run_records_report(source.directory), aar_report, posting_report, chain_report, delegated_report, outbound_report),
+        reports=(run_grader.run_records_report(source.directory), visit_times.report(times, show=_parsed.show),
+                 run_grader.format_unread_remainder(times.unread), aar_report, posting_report, chain_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")

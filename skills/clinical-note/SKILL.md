@@ -1394,6 +1394,11 @@ GAPS holds what the rubric needs and the encounter did not supply: an x-ray orde
 
 ### 7. Check for drift
 
+Run `python tools/differential_scan.py <the run directory> --note <the finished note>`
+before the go-ahead. Its shared visit-times row checks this note's field lines against
+the Times rule and `shift-values.json`. A times finding blocks the go-ahead until
+the note is re-timed; an unread field or unrecorded shift window is incomplete coverage.
+
 A note **drifts** when a finding goes in the front and never comes out the back — documented in the shorthand, carried dutifully into Objective, and then absent from the Assessment and the Plan. Drift is what a long day does to documentation, and catching it is the reason this skill exists.
 
 Walk every row. **Emit a verdict for each one by name** — a summary line invites declaring the set passed without walking it.

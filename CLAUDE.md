@@ -459,6 +459,11 @@ Its output contains counts and paths, never extracted or transcribed text.
 
 ### Filled-vitals census
 
+`tools/visit_times.py` owns the shared visit-times row called on every invocation by
+`filled_vitals_census.py` and `differential_scan.py`. It independently resolves the posted
+notes, accepts `--note` for a standalone run, and reports counts by default (`--show` is private).
+Its complete reading boundary belongs to `visit_times.DECLARED_LIMITS`.
+
 **File attribution:** findings, reader candidates, and unread remainders carry
 checked file labels beside their row counts. `run_grader.artifact_label` owns the
 pasteable naming rule; `--show` finding lines carry real filenames. Zero and

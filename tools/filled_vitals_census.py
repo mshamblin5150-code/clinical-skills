@@ -79,6 +79,7 @@ File attribution uses ``run_grader.artifact_label`` for pasteable output; privat
 from __future__ import annotations
 
 import completion_checks
+import visit_times
 import re
 import sys
 from collections import Counter
@@ -779,6 +780,8 @@ def grade(
     notes = [artifact.text for artifact in artifacts]
     scan = survey(notes)
     scan = replace(scan, attribution=locate(tuple(artifacts)))
+    times = visit_times.check(directory, batch=True)
+    scan = replace(scan, unread_remainder=scan.unread_remainder + times.unread)
     paths = medatrax_posting.note_paths(directory, batch=True) or tuple(
         path for path in sorted(directory.glob("*.md"))
         if path.is_file() and not run_grader.is_run_record(path)
@@ -838,9 +841,9 @@ def grade(
     )
     findings_failed = bool(
         scan.findings or aar_failed or posting_failed or summary_failed or chain_failed
-        or delegated_failed
+        or delegated_failed or times.findings
     )
-    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete)
+    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete or times.incomplete)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
@@ -857,7 +860,7 @@ def grade(
         )
     elif unread or scan.unread_remainder:
         candidate_note = (
-            f"{scan.unread_remainder} height, weight or BMI candidate(s) were unread."
+            f"{scan.unread_remainder} vital, BMI or visit-time candidate(s) were unread."
             if scan.unread_remainder
             else ""
         )
@@ -881,7 +884,7 @@ def grade(
         findings_failed=findings_failed or outbound_failed,
         coverage_failed=coverage_failed or "Outbound searches: unreadable" in outbound_report,
         diagnostics=diagnostics,
-        reports=(run_grader.run_records_report(directory), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
+        reports=(run_grader.run_records_report(directory), visit_times.report(times, show=parsed.show), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")

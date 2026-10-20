@@ -31,7 +31,11 @@ class EncounterUpToDate(unittest.TestCase):
             return uptodate_store.main(["--store", str(self.store), "ingest", str(source), "--dump-id", dump_id, "--module", "synthetic", "--received-on", "2026-10-12", *extra])
 
     def scan(self, tail):
-        (self.run / "note.md").write_text("A:\nDifferential:\n1. Cough - R05.9: Documented symptom. Most likely.\n\nFILLED·proposed 1. Screening reviewed " + tail + "\n", encoding="utf-8")
+        # Keep the independent visit-time gate satisfied while these controls
+        # discriminate citation identity and freshness.
+        (self.run / "shift-values.json").write_text(
+            '{"start":"0800","duration":{"hours":8,"minutes":0}}', encoding="utf-8")
+        (self.run / "note.md").write_text("Start time 0800\nEnd time 0830\nA:\nDifferential:\n1. Cough - R05.9: Documented symptom. Most likely.\n\nFILLED·proposed 1. Screening reviewed " + tail + "\n", encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()):
             status = differential_scan.main([str(self.run)])
         return status, out.getvalue()
