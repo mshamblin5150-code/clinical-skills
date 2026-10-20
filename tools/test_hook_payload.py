@@ -9,6 +9,7 @@ import unittest
 
 TOOLS = Path(__file__).resolve().parent
 COMMAND_GUARDS = {
+    "subagent_staging_hook": ("scratch/runs/a/", "output/b/", "scratch/other/", "plain"),
     "fixture_writer_hook": ("scratch/fixture-runs/a/", "scratch/fixture-runs/b/", "scratch/other/", "plain"),
     "backslash_pair_hook": (chr(92) * 4, "a" + chr(92) * 4 + "b", chr(92), "plain"),
     "heredoc_write_hook": ("<< scratch", "<< output", "<< public", "scratch"),

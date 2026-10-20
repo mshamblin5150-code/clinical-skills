@@ -24,6 +24,16 @@ the command emits a denial decision otherwise. It exits 0 after emitting the hos
 including when that response refuses a spawn. The launch guard's complete boundary belongs to
 `fixture_writer_hook.DECLARED_LIMITS`.
 
+### Subagent staging hook
+
+`tools/subagent_staging_hook.py` reads Claude `Agent` and `Task` launch prompts before dispatch,
+enforcing [ADR 0375](docs/adr/0375-a-subagent-launch-hook-refuses-a-patient-work-brief-that-names-temp-or-no-existing-staging-folder.md).
+It refuses recognized temp/scratchpad locations and run briefs without an existing staging folder
+under a registered checkout. Relative paths use the payload's working directory. It emits a denial
+without repeating brief text, exits 0, and reads malformed payloads through the shared ADR 0392
+reader. The measured Workflow bypass and complete boundary belong to
+`subagent_staging_hook.DECLARED_LIMITS`.
+
 ### Extractor coverage
 
 **This section keeps its stable, widely cited heading even though the name is now narrower than its contents:** the publication-time rule below governs re-derivation as well as extraction.

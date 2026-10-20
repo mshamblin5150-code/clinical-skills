@@ -174,8 +174,8 @@ class ModuleRootProperty(unittest.TestCase):
                 f"{path.name}:{line}" for line in account_owned_literal_joins(source)
             )
 
-        # #1890 adds a checkout-local committed CI pin, not account-owned state.
-        self.assertEqual(len(population), 51)
+        # #1593 adds a checkout-local Git anchor for registered-worktree discovery.
+        self.assertEqual(len(population), 52)
         self.assertEqual(offenders, [])
 
 
