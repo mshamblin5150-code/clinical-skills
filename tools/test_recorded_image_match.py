@@ -180,7 +180,7 @@ class ComposedVoice(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.run = self.fixture.run
-        source = voice_fixture.MODEL + "\n" + MODEL
+        source = voice_fixture.MODEL
         self.fixture.model.write_text(source, encoding="utf-8")
         digest = hashlib.sha256(self.fixture.model.read_bytes()).hexdigest()
         self.resolved = repo_root.VoiceModelResolution(self.fixture.model, digest, True)
@@ -204,6 +204,21 @@ class ComposedVoice(unittest.TestCase):
         surface = voice_read.DraftSurface(voice_fixture.digest(self.fixture.draft), self.fixture.draft, self.fixture.draft)
         return match.apply_coursework_gates(run_grader.Grade(GateScan(), "synthetic", findings_failed=finding), self.run,
             "submission", surface, {"submission": self.fixture.draft})
+
+    def test_fully_frozen_composition_never_resolves_or_reads_a_model(self):
+        with mock.patch("frozen_grade.all_reports", return_value="frozen retained grade"), mock.patch.object(match, "observe", side_effect=AssertionError("new model read")), mock.patch.object(repo_root, "canonical_voice_model", side_effect=AssertionError("new model resolution")):
+            grade = self.grade()
+        self.assertEqual(grade.scan.model_unread, 0)
+        self.assertFalse(grade.coverage_failed)
+        self.assertTrue(all(not report or report == "frozen retained grade" for report in grade.reports))
+
+    def test_mixed_frozen_and_current_match_members_only_owe_current_record(self):
+        def frozen(_run, key):
+            return "frozen retained grade" if key == "frozen.md" else None
+        with mock.patch("frozen_grade.all_reports", side_effect=frozen):
+            result = match.completion_gate(self.run, {"frozen.md": "Old synthetic paper.", "submission": self.fixture.draft})
+        self.assertFalse(result.finding)
+        self.assertIn("read 1 of 1", result.report)
 
     def test_native_voice_question_and_original_populations_remain_independent(self):
         self.assertFalse(self.grade().findings_failed)

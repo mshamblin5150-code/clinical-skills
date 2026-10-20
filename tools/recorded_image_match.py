@@ -86,12 +86,13 @@ def completion_gate(
     """Continue other keyed records after damage; count the model only once."""
     if artifacts is None:
         return CompletionGate(False, False, f"{EXPECTED_ROW}: not graded - --submission was not supplied")
+    import frozen_grade
     if not before_drafting:
-        import frozen_grade
         frozen = frozen_grade.all_reports(run, ",".join(artifacts))
         if frozen is not None:
             return CompletionGate(False, False, frozen)
-    active = tuple(key for key in artifacts if before_drafting or active_for_artifact(CHECK, key))
+    active = tuple(key for key in artifacts if before_drafting or (
+        frozen_grade.all_reports(run, key) is None and active_for_artifact(CHECK, key)))
     if not active:
         return CompletionGate(False, False, f"{EXPECTED_ROW}: not graded - approval predates check")
     observation = model if model is not None else observe()
@@ -140,6 +141,14 @@ def apply_coursework_gates(
     """Compose the three readers and union their one canonical-model member."""
     import imagery_proposals
     import voice_read
+    import frozen_grade
+    if submission is not None and frozen_grade.all_reports(run, submission) is not None:
+        # Existing frozen gates retain their own reports and bypass every new read.
+        grade = voice_read.apply_completion_gate(grade, run, submission, surface,
+            coverage_limb=voice_coverage_limb)
+        return imagery_proposals.apply_completion_gate(grade, run, artifacts,
+            partial=partial, known_artifacts=known_artifacts, terminal=True,
+            coverage_limb=imagery_coverage_limb)
     model = observe() if submission is not None else None
     proposal = imagery_proposals.completion_gate(run, artifacts, partial=partial,
         known_artifacts=known_artifacts, terminal=submission is not None, model=model)

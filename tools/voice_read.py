@@ -658,6 +658,10 @@ def _voice_result(
 
 def _recorded_image_question(run, records, artifact, draft_text, model_text, approved_points) -> ReadResult:
     """Judge the new answer without replacing any existing reader population."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, artifact)
+    if frozen is not None:
+        return ReadResult(False, False, "unused recorded image: " + frozen)
     from recorded_image_match import active_for_artifact
     if not active_for_artifact("voice_read:unused-recorded-image", artifact):
         return ReadResult(False, False, "unused recorded image: not graded - approval predates check")
