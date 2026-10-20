@@ -156,6 +156,12 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 ### Clinical go-ahead disclosure
 
+`approval_record.prepare` retains the paired clinical completion grade before the ask. Its
+`coverage` lines are shown unchanged in chat; `approve` compares that grade and the shown lines
+through `reader_remarks`' shared receipt seam. Clinical coverage, UpToDate and reply checks share
+one transcript read with separate time boundaries. Unreadable coverage transcripts are recorded
+incomplete with a reason; readable transcripts missing a required line refuse.
+
 `python tools/uptodate_block.py --run <run-directory> --notes <final-note-paths>` prints the private
 UpToDate block shown unchanged at either clinical go-ahead. `--batch` selects numbered notes.
 `approval_record.approve` derives it again and compares the last shown block before the matched

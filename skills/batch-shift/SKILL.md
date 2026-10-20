@@ -451,11 +451,19 @@ re-approval.
 Record that re-approval through `approval_record.approve` with `clinician_reply` quoting the new
 reply whole.
 Beside `PRE-APPROVAL PATIENT QUESTIONS`, show the `REPAIRS` block produced by standing rule 6's command, including `none` when there were no repairs. Keep it outside the Review sheet. The clinician reads any marked changed sections outside the named scope; those section marks alone do not block approval.
+Before asking, call `approval_record.prepare(run, skill="batch-shift", submission=shift_key,
+sources=medatrax_posting.note_paths(run, batch=True), grader_args=(str(run),))`.
+Show every line in the returned `coverage` exactly as printed in chat beside
+`PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS`, and the UpToDate block, outside the Review sheet.
+These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that approval call `approval_record.approve(run, skill="batch-shift",
 submission=shift_key, sources=medatrax_posting.note_paths(run, batch=True),
-grader_args=(str(run),), content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage
-does not block, while a finding refuses the record. From this record onward every reply touching
+grader_args=(str(run),), content_approved=True, clinician_reply=clinician_reply)`.
+A changed grade, a grade run after the reply, or a readable transcript missing a required line
+refuses: prepare again, show the new lines, and ask again. An unreadable transcript records
+incomplete coverage with its reason, never clean. Shown incomplete coverage does not block,
+while a finding refuses the record. From this record onward every reply touching
 the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
 AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
 name enters it.

@@ -202,6 +202,10 @@ verified.
 artifact-specific gate; `discussion-post`, `discussion-reply`, `peer-critique`,
 `practicum-case-study`, `clinical-note`, and `batch-shift` write per-item records through
 `tools/approval_record.py`. `icd10-cpt` opens no run of its own.
+The two clinical skills call `approval_record.prepare` before asking and show its paired-grader
+coverage lines verbatim in chat. Approval checks the unchanged grade and those shown lines;
+an unreadable clinical transcript records incomplete coverage with its reason. Coursework keeps
+its existing refusal. The selector's wording floor belongs to `reader_remarks.DECLARED_LIMITS`.
 `.claude/settings.json` registers `tools/run_status_stop_hook.py` for Claude Code, and
 `python tools/install_run_status_guard.py` installs the same Stop hook for Codex after the tracked
 files reach the owning checkout. The hook reads its open and close rules from one per-skill table,

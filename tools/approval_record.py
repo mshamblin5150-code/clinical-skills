@@ -51,13 +51,14 @@ POSTING_GO_AHEAD_CUTOFF = completion_checks.registry()["approval_record:posting-
 POSTING_GO_AHEAD_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
 
 SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique"})
+CLINICAL_SKILLS = frozenset({"batch-shift", "clinical-note"})
 
 
-def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str], bool]:
+def assistant_text(run: Path, *, after: float, before: float, transcripts=None) -> tuple[list[str], bool]:
     """Read main-session assistant text in one strict timestamp window."""
     shown = []
-    transcripts, unread = _main_transcripts(run)
-    for rows in transcripts:
+    population, unread = _main_transcripts(run) if transcripts is None else transcripts
+    for rows in population:
         for row in rows:
             if row.get("isSidechain") or row.get("isMeta"):
                 continue
@@ -136,7 +137,8 @@ def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | No
     return ReplyVerification("not found", f"approved text was not shown: {missing} missing blocks")
 
 
-def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:
+def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float | None,
+                         *, transcripts=None) -> ReplyVerification:
     """Check the generated clinical block in the source-change-to-reply window."""
     import uptodate_block
     try:
@@ -146,7 +148,7 @@ def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float 
         raise ApprovalRecordError("UpToDate disclosure could not be derived from private evidence") from failure
     if reply_at is None:
         return ReplyVerification("unreadable", "UpToDate shown-block transcript unreadable")
-    shown, unread = assistant_text(run, after=boundary, before=reply_at)
+    shown, unread = assistant_text(run, after=boundary, before=reply_at, transcripts=transcripts)
     # The latest shown block supersedes an earlier one, including an edited block.
     blocks = [message for message in shown if any(heading in message for heading in uptodate_block.HEADINGS)]
     if unread:
@@ -193,6 +195,7 @@ def _main_transcripts(run: Path) -> tuple[list[list[dict]], bool]:
 def verify_clinician_reply(
     run: Path, reply: str, sources: tuple[Path, ...], *, after: float | None = None,
     source_modified_at: float | None = None,
+    transcripts=None,
 ) -> ReplyVerification:
     """Match a whole human message after the sources and the preceding approval."""
 
@@ -206,9 +209,9 @@ def verify_clinician_reply(
             boundary = max(boundary, after)
     except (OSError, ValueError):
         return ReplyVerification("unreadable", "transcript discovery or source time unavailable")
-    transcripts, unread = _main_transcripts(run)
+    population, unread = _main_transcripts(run) if transcripts is None else transcripts
     matches: list[float] = []
-    for rows in transcripts:
+    for rows in population:
         for row in rows:
             values = aar_scan.clinician_pieces(row)
             if not any(" ".join(value.split()) == normalized for value in values):
@@ -246,6 +249,7 @@ class CompletionResult:
 
 def _recheck_replies(
     run: Path, approvals: list[dict[str, object]], sources: tuple[Path, ...],
+    *, transcripts=None,
 ) -> ReplyVerification:
     after = None
     unread = False
@@ -258,6 +262,7 @@ def _recheck_replies(
             result = verify_clinician_reply(
                 run, reply, sources, after=after,
                 source_modified_at=approval.get("source_modified_at"),
+                transcripts=transcripts,
             )
             if result.state == "not found":
                 return result
@@ -372,13 +377,15 @@ def prepare(
     """Run and retain the paired grade before composing the go-ahead request."""
     root = Path(run).resolve()
     paths = tuple(Path(path).resolve() for path in sources)
-    if skill not in reader_remarks.SCOPED_SKILLS or not root.is_dir() or not paths or not submission.strip():
-        raise ApprovalRecordError("prepare needs a coursework skill, run, submission and source population")
+    if skill not in reader_remarks.SCOPED_SKILLS | CLINICAL_SKILLS or not root.is_dir() or not paths or not submission.strip():
+        raise ApprovalRecordError("prepare needs a supported skill, run, submission and source population")
     if "--submission" in grader_args:
         raise ApprovalRecordError("the pre-post grader must not receive --submission")
     status, report = _pre_post_grade(skill, grader_args)
     if status not in {0, 2}:
         raise ApprovalRecordError("the pre-post grade has a finding: " + report)
+    if skill in CLINICAL_SKILLS:
+        return reader_remarks.prepare(root, skill, submission, paths, report, coverage_only=True)
     payload = _read(root, missing_ok=True)
     revision = payload.get("approval_revision", 0) + 1
     context = project_context.go_ahead(root, submission, approval_revision=revision)
@@ -440,11 +447,16 @@ def approve(
         ) if name in previous})
     # Resolve pending earlier gates before accepting a later reply. Otherwise an
     # unreadable Gate 1 could be matched to Gate 2's message at completion.
-    preceding = _recheck_replies(root, history, resolved_sources)
+    # The clinical reply, UpToDate block and coverage check share one observed
+    # transcript population while preserving each check's own time boundary.
+    transcripts = _main_transcripts(root) if skill in CLINICAL_SKILLS else None
+    transcript_args = {"transcripts": transcripts} if transcripts is not None else {}
+    preceding = _recheck_replies(root, history, resolved_sources, **transcript_args)
     if preceding.state == "not found":
         raise ApprovalRecordError("a preceding approval reply was not found")
     after = preceding.matched_at
-    verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after)
+    verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after,
+                                          **transcript_args)
     if verification.state == "not found":
         raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
     if preceding.state == "unreadable":
@@ -473,8 +485,19 @@ def approve(
             grade_status = 2
             grade_report += "\n" + shown.reason
 
-    if skill in {"batch-shift", "clinical-note"}:
-        shown = verify_uptodate_block(root, resolved_sources, verification.matched_at)
+    coverage = ReplyVerification("exempt", "other skill")
+    if skill in CLINICAL_SKILLS:
+        # Compare the raw paired report before appending transcript qualifiers.
+        try:
+            coverage = reader_remarks.verify_coverage(root, skill, submission, resolved_sources,
+                grade_report, verification.matched_at, transcripts=transcripts)
+        except reader_remarks.RemarkError as failure:
+            raise ApprovalRecordError(str(failure)) from failure
+        if coverage.state == "unreadable":
+            grade_status = 2
+            grade_report += "\n" + coverage.reason
+        shown = verify_uptodate_block(root, resolved_sources, verification.matched_at,
+                                      transcripts=transcripts)
         if shown.state == "not found":
             raise ApprovalRecordError(shown.reason)
         if shown.state == "unreadable":
@@ -519,6 +542,8 @@ def approve(
         "pregrade_status": "clean" if grade_status == 0 else "incomplete",
         "project_context_check": skill in project_context.SCOPED_SKILLS,
         "shown_text_verification": shown.state,
+        "coverage_verification": coverage.state,
+        "coverage_reason": coverage.reason,
         "clinician_reply": clinician_reply,
         "reply_verification": "verified" if verification.state == "verified" else "not verified",
         "reply_reason": verification.reason,

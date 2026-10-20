@@ -139,7 +139,12 @@ class ApprovalRecordContract(unittest.TestCase):
     def test_incomplete_pre_post_coverage_is_recorded_and_does_not_block(self) -> None:
         self.artifact.write_text(NOTE, encoding="utf-8")
         completed = subprocess.CompletedProcess([], 2, "unread remainder 1\n", "")
+        self.transcript.write_text(self.transcript.read_text(encoding="utf-8").replace(
+            "approved post", "approved post\\nunread remainder 1"), encoding="utf-8")
         with mock.patch.object(approval_record.subprocess, "run", return_value=completed):
+            approval_record.prepare(self.run, skill="clinical-note",
+                submission="encounter-key-2026-09-26", sources=(self.artifact,),
+                grader_args=(str(self.run),))
             approved = approval_record.approve(
                 self.run,
                 skill="clinical-note",
@@ -176,6 +181,8 @@ class ApprovalRecordContract(unittest.TestCase):
                     self.assertIn("before entry", str(refused.exception))
                     self.assertFalse(record.exists())
                     other.write_text(NOTE, encoding="utf-8")
+                    approval_record.prepare(self.run, skill=skill, submission="note-key",
+                        sources=(self.artifact, other), grader_args=(str(self.run),))
                     approval_record.approve(
                         self.run, skill=skill, submission="note-key",
                         sources=(self.artifact, other), grader_args=(str(self.run),),

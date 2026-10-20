@@ -323,6 +323,8 @@ class WholeReplyApproval(unittest.TestCase):
             encoding="utf-8",
         )
         self.transcript.unlink()
+        approvals.prepare(self.run, skill="clinical-note", submission="synthetic-post",
+                          sources=(self.source,), grader_args=(str(self.run),))
         self.approve(skill="clinical-note")
         self.posted(skill="clinical-note")
         stack = ExitStack()

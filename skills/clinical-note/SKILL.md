@@ -1659,12 +1659,19 @@ Enter a Time Log row only on the clinician's explicit instruction in this run, f
 [batch-shift's Time Log entry route](../batch-shift/SKILL.md#time-log-entry), including its existing-row
 branch, live-form reading, saved-row readback and correction rules. The shift's go-ahead does not
 authorize that write. Record its outcome in the posted reading as that route specifies.
+Before asking, call `approval_record.prepare(run, skill="clinical-note", submission=submission_key,
+sources=(output_note,), grader_args=(str(run), "--note", str(output_note)))`.
+Show every line in the returned `coverage` exactly as printed in chat beside
+`PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS`, and the UpToDate block, outside the note and Review
+document. These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
 submission=submission_key, sources=(output_note,),
-grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply)`. Show its
-`pregrade_report`; incomplete coverage
-does not block, while a finding refuses the record. From this record onward every reply touching
+grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply)`.
+A changed grade, a grade run after the reply, or a readable transcript missing a required line
+refuses: prepare again, show the new lines, and ask again. An unreadable transcript records
+incomplete coverage with its reason, never clean. Shown incomplete coverage does not block,
+while a finding refuses the record. From this record onward every reply touching
 the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
 AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
 name enters it.

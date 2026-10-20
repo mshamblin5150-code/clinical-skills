@@ -97,6 +97,8 @@ class Disclosure(unittest.TestCase):
                         {"type": "user", "timestamp": "2100-01-01T11:00:00Z", "message": {"content": "Approved."}},
                     )) + "\n", encoding="utf-8")
                     with mock.patch.object(aar_scan, "discover_transcripts", return_value=aar_scan.TranscriptDiscovery((transcript,), 1, 0, 0, 1)), mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
+                        approval_record.prepare(self.run, skill=skill, submission="shift",
+                            sources=(self.note,), grader_args=(str(self.run),))
                         def approve():
                             return approval_record.approve(self.run, skill=skill, submission="shift", sources=(self.note,), grader_args=(str(self.run),), content_approved=True, clinician_reply="Approved.")
                         if block == EMPTY:
@@ -107,6 +109,8 @@ class Disclosure(unittest.TestCase):
 
     def test_unreadable_transcript_records_incomplete_approval(self):
         with mock.patch.object(approval_record, "_main_transcripts", return_value=([], True)), mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
+            approval_record.prepare(self.run, skill="clinical-note", submission="note",
+                sources=(self.note,), grader_args=(str(self.run),))
             approval_record.approve(self.run, skill="clinical-note", submission="note", sources=(self.note,),
                 grader_args=(str(self.run),), content_approved=True, clinician_reply="Approved.")
         item = json.loads((self.run / approval_record.RECORD).read_text())["items"][0]
