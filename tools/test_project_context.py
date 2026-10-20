@@ -249,6 +249,116 @@ class CourseHistory(ProjectContextFixture):
                 self.assertIn("At the go-ahead, show the reuse list required by [Course history]", text)
 
 
+class SubjectRetrieval(ProjectContextFixture):
+    """Synthetic declared reads exercise both fields through the public command."""
+
+    def prepare(self, field, values=(), *, confirmed="2026-10-20T04:19:44Z", project=False):
+        other = "PRIOR-WORK" if field == "MEMORY-FILE" else "MEMORY-FILE"
+        lines = [
+            "PROJECT-CONTEXT: Atlas" if project else "PROJECT-CONTEXT: none - no project",
+            "OWN-SUBMISSION: none - no submission",
+            "CASE-MATERIAL: none - no case", "CASE-RESEARCH: none - no research",
+            "COURSE-HISTORY: none - first module", f"{other}: none - no match",
+            *(f"{field}: {value}" for value in values),
+            f'PROJECT-SEARCH: {self.location} - "subject"',
+            f"CONFIRMED: {confirmed}",
+            self.plan_entry(terms="subject").replace("STATE: searched", "STATE: read"),
+        ]
+        if project:
+            lines.extend((self.memory_entry(), self.service_entry()))
+        (self.run / context.RECORD_NAME).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def command(self, *arguments):
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(self.service_payloads))), \
+                redirect_stdout(output), redirect_stderr(output):
+            code = context.main([str(self.run), *(arguments or (
+                "--write", "--submission", "submission", "--service-payloads", "-"))])
+        return code, output.getvalue()
+
+    def test_each_field_refuses_missing_malformed_duplicate_and_unopened_declarations(self):
+        for field in ("MEMORY-FILE", "PRIOR-WORK"):
+            for values, message in (
+                ((), f"{field} is missing"),
+                (("none",), "none needs a reason"),
+                (("none - no match", str(self.plan)), "cannot put none beside"),
+                ((str(self.plan), str(self.plan.parent / "." / self.plan.name)), f"duplicate {field} path"),
+                ((str(self.location / "unopened.md"),), "not OPENED in a read PLACE"),
+                (("relative.md",), "absolute file path"),
+            ):
+                with self.subTest(field=field, values=values):
+                    self.prepare(field, values)
+                    code, report = self.command()
+                    self.assertEqual(1, code, report)
+                    self.assertIn(message, report)
+
+    def test_declared_reads_work_without_a_project_and_recheck_changed_files(self):
+        for field in ("MEMORY-FILE", "PRIOR-WORK"):
+            with self.subTest(field=field):
+                self.prepare(field, (str(self.plan),))
+                code, report = self.command()
+                self.assertEqual(0, code, report)
+                self.assertIn(f"{field}: {self.plan}",
+                              (self.run / context.RECORD_NAME).read_text(encoding="utf-8"))
+                code, report = self.command("--go-ahead", "submission")
+                self.assertEqual(0, code, report)
+                self.plan.write_text("changed subject position", encoding="utf-8")
+                code, report = self.command("--go-ahead", "submission")
+                self.assertEqual(2, code, report)
+                self.assertIn("file item moved", report)
+                self.plan.write_text("atlas plan\n", encoding="utf-8")
+
+    def test_none_passes_and_declaration_change_breaks_digest(self):
+        for field in ("MEMORY-FILE", "PRIOR-WORK"):
+            with self.subTest(field=field):
+                self.prepare(field, ("none - no match",), project=True)
+                self.assertEqual(0, self.command()[0])
+                path = self.run / context.RECORD_NAME
+                path.write_text(path.read_text(encoding="utf-8").replace(
+                    f"{field}: none - no match", f"{field}: {self.plan}"), encoding="utf-8")
+                code, report = self.command("--go-ahead", "submission")
+                self.assertEqual(1, code, report)
+                self.assertIn("record fingerprint is invalid", report)
+
+    def test_pre_build_record_is_not_backfilled(self):
+        self.prepare("MEMORY-FILE", confirmed="2026-10-20T04:19:43Z", project=True)
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "PRIOR-WORK: none - no match\n", ""), encoding="utf-8")
+        code, report = self.command()
+        self.assertEqual(0, code, report)
+        self.assertIn("memory file: not graded", report)
+        self.assertIn("prior work: not graded", report)
+        self.assertNotIn("MEMORY-FILE:", path.read_text(encoding="utf-8"))
+        self.assertNotIn("PRIOR-WORK:", path.read_text(encoding="utf-8"))
+
+    def test_each_check_starts_at_the_first_implementation_instant(self):
+        for field in ("MEMORY-FILE", "PRIOR-WORK"):
+            for instant, expected in (("2026-10-20T04:19:43.999999Z", 0),
+                                      ("2026-10-20T04:19:44Z", 1)):
+                with self.subTest(field=field, instant=instant):
+                    self.prepare(field, confirmed=instant, project=True)
+                    code, report = self.command()
+                    self.assertEqual(expected, code, report)
+                    if expected:
+                        self.assertIn(f"{field} is missing", report)
+                    else:
+                        self.assertIn(field.lower().replace("-", " ") + ": not graded", report)
+
+    def test_heading_read_rejects_a_changed_declared_list(self):
+        self.prepare("MEMORY-FILE", (str(self.plan),))
+        code, report = self.command()
+        self.assertEqual(0, code, report)
+        digest = context.recorded_digest(self.run)
+        context.retain_heading_context(self.run)
+        self.assertTrue(context.heading_context_matches(self.run, digest, "submission"))
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            f"MEMORY-FILE: {self.plan}", "MEMORY-FILE: none - no match"), encoding="utf-8")
+        self.assertFalse(context.heading_context_matches(self.run, digest, "submission"))
+
+
 class OwnedAssets(ProjectContextFixture):
     def command(self):
         output = io.StringIO()

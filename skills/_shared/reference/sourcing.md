@@ -347,6 +347,8 @@ Each project may also carry `ASSET: <description>` lines, added only on the clin
 PROJECT-CONTEXT: <project> | none - <reason>
 OWN-SUBMISSION: <path> | none - <reason>
 COURSE-HISTORY: <absolute path to one earlier submission in this course; repeat for each> | none - <reason>
+MEMORY-FILE: <absolute path to one opened memory file; repeat for each> | none - <reason>
+PRIOR-WORK: <absolute path to one earlier paper on the same subject outside this course; repeat for each> | none - <reason>
 CASE-MATERIAL: <path> | none - <reason>
 CASE-RESEARCH: <dump id> | none - <reason>
 ASSET: <one registered asset of the declared project; repeat for each>
@@ -417,12 +419,12 @@ A sentence stating what the classmate wrote, found, or planned is an **Item desc
 **Draft order**. Its `ITEM:` may name its own key's classmate files or other opened items;
 naming a classmate file declared only under another submission key is a finding, on the
 heading read's existing Item-description cutoff.
-When `PROJECT-CONTEXT` is `none`, the classmate and course-history declarations still owe their opened files: add
+When `PROJECT-CONTEXT` is `none`, the classmate, course-history, memory-file, and prior-work declarations still owe their opened files: add
 their read locations through `PROJECT-SEARCH`. No registered project places are owed in
 that branch; file hashing and the go-ahead recheck apply to the declared retrieval.
 
 On a run that names a project, the memory index and every registered project place are owed.
-A `none` run owes neither; with no declared classmate or `COURSE-HISTORY` retrieval its record
+A `none` run owes neither; with no declared classmate, `COURSE-HISTORY`, `MEMORY-FILE`, or `PRIOR-WORK` retrieval its record
 carries no `PROJECT-SEARCH`, `PROJECT-WAIVE` or `## PLACE:` entry, and `tools/project_context.py`
 refuses one that does. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.
@@ -435,7 +437,7 @@ Run `python tools/project_context.py <run-directory> --write --submission <submi
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and a context digest binding the
-`OWN-SUBMISSION`, `COURSE-HISTORY`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
+`OWN-SUBMISSION`, `COURSE-HISTORY`, `MEMORY-FILE`, `PRIOR-WORK`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
 and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader
@@ -443,6 +445,31 @@ rehashes file items; drift is exit-2 coverage, while a finding still wins. It do
 service items again.
 
 ### Draft order
+
+Before drafting in any of the five coursework skills, compare every memory's own description
+with the board or assignment subject by meaning. Open subject indexes as needed to reach each
+description; a subject line alone is not the comparison. Open each matching memory file and
+declare its absolute path on a separate `MEMORY-FILE:` line in the confirmed project-context
+header, or write `MEMORY-FILE: none - <reason>` when none matches. Search all of the clinician's
+coursework in the owning checkout's `output/` outside the current course for the same subject,
+open each match, and declare each absolute path as `PRIOR-WORK:`, or `PRIOR-WORK: none - <reason>`.
+The clinician confirms both lists with the header before prose. Course history still covers
+every earlier submission in the same course under its existing rule.
+
+Both declarations are checked on `COURSE-HISTORY`'s terms: a missing line, reasonless `none`,
+`none` beside a path, duplicate path, relative path, or path not `OPENED` as an item of a `read`
+place refuses. Add read locations through `PROJECT-SEARCH`, including on a `none` run; these
+declarations are declared retrievals and make no memory file a registered owed place. Their
+lines join the context digest and go-ahead recheck, so an edited file is reported as moved.
+Each check's start is recorded in `reference/completion-check-starts.tsv`; earlier confirmations
+report `not graded` without backfill. Semantic completeness remains the drafting run's reading
+and the clinician's confirmation, under `project_context.DECLARED_LIMITS`.
+
+The heading reader's `CONTEXT-VERDICT` also compares positions taken by declared `MEMORY-FILE`
+and `PRIOR-WORK` items. Where an opened item takes a position on a subject the draft argues,
+the draft argues it at least as strongly. Omitting a position that bears on the draft's point
+is `narrows`; arguing the opposite is `contradicts`. Both block the go-ahead. The draft need
+not restate an earlier paper. The reader judges whether its position bears on the point.
 
 A draft sentence recommending that the clinician or his project buy, rent, or subscribe to something
 a listed asset already provides is `CONTEXT-VERDICT: narrows`, unless the draft states why the owned
