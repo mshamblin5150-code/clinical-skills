@@ -22,6 +22,7 @@ import artifact_lock_test_support  # noqa: F401 -- the graders below reach artif
 import delegated_answers as d
 import differential_scan
 import filled_vitals_census
+import run_status_stop_hook
 import test_clinical_coverage_approval as clinical_tests
 from prose_bind import NAMING, bind
 
@@ -285,6 +286,18 @@ class AnswerReader(unittest.TestCase):
 
 
 class ClinicalAnswerApproval(unittest.TestCase):
+    def assert_delegation_survives_record_and_stop_read(self, fixture):
+        expected = {name: fixture.item()[name] for name in
+                    ("delegated_answers_verification", "delegated_answers_reason")}
+        self.assertTrue(expected["delegated_answers_reason"])
+        clinical_tests.approvals.record_agent_posting(
+            fixture.run, skill=fixture.skill, submission="synthetic-note")
+        items = run_status_stop_hook.approvals(fixture.run)
+        self.assertEqual(1, len(items))
+        self.assertEqual(expected, {name: items[0][1][name] for name in expected})
+        self.assertEqual("agent", clinical_tests.approvals.posting_route(
+            fixture.run, skill=fixture.skill, submission="synthetic-note"))
+
     def test_terminal_hosts_keep_the_answer_unread_member_despite_independent_findings(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
@@ -361,6 +374,7 @@ class ClinicalAnswerApproval(unittest.TestCase):
                     fixture.approve()
                     fixture.discovery.assert_called_once()
                     self.assertEqual("verified", fixture.item()["delegated_answers_verification"])
+                    self.assert_delegation_survives_record_and_stop_read(fixture)
 
     def test_unreadable_transcript_records_incomplete_instead_of_a_fabricated_quote(self):
         fixture = clinical_tests.ClinicalCoverageApproval("runTest")
@@ -374,6 +388,7 @@ class ClinicalAnswerApproval(unittest.TestCase):
         fixture.approve()
         self.assertEqual("incomplete", fixture.item()["pregrade_status"])
         self.assertEqual("unreadable", fixture.item()["delegated_answers_verification"])
+        self.assert_delegation_survives_record_and_stop_read(fixture)
 
 
 if __name__ == "__main__":
