@@ -76,7 +76,7 @@ DECLARED_LIMITS = (
     ),
     (
         "note-section recognition",
-        "Pointers resolve unique Markdown or standalone colon headings, with Subjective/Objective/Assessment/Plan aliases and nested Plan labels; other heading forms cannot be located by this reader.",
+        "Pointers resolve unique Markdown or standalone colon headings, with Subjective/Objective/Assessment/Plan aliases and standalone labels nested inside their SOAP section; other heading forms cannot be located by this reader.",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -116,7 +116,6 @@ def _section_name(value: str) -> str:
 
 def section_texts(text: str) -> dict[str, str]:
     """Read unique Markdown or standalone colon headings, retaining section bytes."""
-    from entry_copy import PLAN_LABELS, PLAN_EXCEPTIONS
     lines = text.splitlines(keepends=True)
     headings: list[tuple[int, int, str]] = []
     end = len(lines)
@@ -136,8 +135,10 @@ def section_texts(text: str) -> dict[str, str]:
         if markdown:
             headings.append((index, len(markdown[1]), _section_name(markdown[2])))
         elif re.fullmatch(r"[A-Za-z][A-Za-z /&-]*:", label):
-            level = next((depth + 1 for _, depth, name in reversed(headings) if name == "p"), 2) if label[:-1] in PLAN_LABELS | PLAN_EXCEPTIONS else 1
-            headings.append((index, level, _section_name(label)))
+            name = _section_name(label)
+            level = 1 if name in {"s", "o", "a", "p"} else next(
+                (depth + 1 for _, depth, parent in reversed(headings) if parent in {"s", "o", "a", "p"}), 1)
+            headings.append((index, level, name))
     result = {}
     for position, (start, level, name) in enumerate(headings):
         if sum(other == name for _, _, other in headings) != 1:

@@ -163,6 +163,30 @@ class BothNoteGradersRunIt(unittest.TestCase):
 
 
 class AnswerReader(unittest.TestCase):
+    def test_committed_note_sections_are_resolved_without_rewriting_the_fixture(self):
+        population = tuple(sorted((Path(__file__).resolve().parents[1] / "fixtures/filled-anchor/notes").glob("case-*.md")))
+        self.assertEqual(12, len(population))
+        for source in population:
+            with self.subTest(note=source.name), Checkout() as (_root, run):
+                note = run / source.name
+                note.write_bytes(source.read_bytes())
+                text = source.read_text(encoding="utf-8")
+                # These source boundaries are selected independently of the extractor.
+                assessment = text.index("## A:")
+                plan = text.index("## P:")
+                posting = text.index("## Medatrax entry")
+                record = NONE + f"NOTE: {source.name}\nSECTIONS: A | P\n"
+                answers, problems = d.answer_sections(run, record)
+                self.assertEqual((), problems)
+                self.assertEqual(1, len(answers))
+                self.assertEqual(((source.name + "#a", text[assessment:plan]),
+                                  (source.name + "#p", text[plan:posting])), answers[0].sections)
+                # Removing the pointed-to heading must make this same member unreadable.
+                note.write_text(text.replace("## P:", "## Changed section:", 1), encoding="utf-8")
+                changed, problems = d.answer_sections(run, record)
+                self.assertEqual((), changed)
+                self.assertEqual(1, len(problems))
+
     def test_new_pointer_and_reader_checks_start_at_the_exact_approval_boundary(self):
         with Checkout() as (root, run):
             (run / d.RECORD).write_text(NONE, encoding="utf-8")
