@@ -10,6 +10,8 @@ what this instrument can see; membership here is never proof that none exists.
 from __future__ import annotations
 
 import ast
+import contextlib
+import io
 import re
 import sys
 from dataclasses import dataclass, field, replace as dataclass_replace
@@ -727,12 +729,46 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         submission = parsed.value("--submission")
     except ParseError:
         return _run(command, argv)
-    with completion_checks.grading(run_path, submission):
-        status = _run(command, argv)
-        notice = completion_checks.report()
-        if notice:
-            print(notice)
-        return status
+    from run_record_reader import capture_errors, UnreadableRecord, RecordContentError, fault_report
+    output = io.StringIO()
+    with capture_errors() as faults, contextlib.redirect_stdout(output):
+        try:
+            try:
+                grading = completion_checks.grading(run_path, submission)
+                grading.__enter__()
+            except UnreadableRecord:
+                # Unreadable approval bookkeeping establishes no historical waiver;
+                # still grade the independent artifact checks at their current bar.
+                status = _run(command, argv)
+            else:
+                try:
+                    status = _run(command, argv)
+                    notice = completion_checks.report()
+                    if notice:
+                        print(notice)
+                finally:
+                    grading.__exit__(None, None, None)
+        except UnreadableRecord as failure:
+            print(fault_report(failure, check="dependent record checks"))
+            status = 2
+        except RecordContentError as failure:
+            print(str(failure))
+            status = 1
+    report = output.getvalue()
+    if faults:
+        # Older callers can publish subordinate remainder lines; the family
+        # aggregation repair owns their population union. Keep the largest
+        # preexisting total here, and count each new record fault exactly once.
+        existing = [int(match.group(1)) for match in re.finditer(r"(?m)^unread remainder (\d+)(?:[^\n]*)$", report)]
+        report = re.sub(r"(?m)^unread remainder \d+[^\n]*\n?", "", report)
+        for failure in faults.values():
+            report += fault_report(failure, check="dependent record checks") + "\n"
+        report += f"unread tool-written records {len(faults)} (" + ", ".join(dict.fromkeys(str(e).split(": unreadable", 1)[0] for e in faults.values())) + ")\n"
+        report += format_unread_remainder(max(existing, default=0) + len(faults)) + "\n"
+        status = 1 if status == 1 else 2
+    if report:
+        print(report, end="" if report.endswith("\n") else "\n")
+    return status
 
 
 def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
@@ -753,7 +789,11 @@ def _run(command: Grader[TSource, TScan], argv: list[str]) -> int:
         active = []
         for key in submission.split(","):
             key = key.strip()
-            frozen = frozen_grade.report(run_path, key)
+            from run_record_reader import UnreadableRecord
+            try:
+                frozen = frozen_grade.report(run_path, key)
+            except UnreadableRecord:
+                frozen = None  # No retained exemption can be established; grade fresh.
             if frozen is None:
                 active.append(key)
             else:

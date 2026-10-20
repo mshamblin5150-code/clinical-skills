@@ -317,15 +317,13 @@ def _write(path: Path, payload: dict[str, object]) -> None:
 
 
 def _read(run: Path, *, missing_ok: bool = False) -> dict[str, object]:
+    from run_record_reader import read_tool_record, posting_record
     path = run / RECORD
     if missing_ok and not path.exists():
         return {"version": 1, "approval_revision": 0, "items": []}
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as failure:
-        raise ApprovalRecordError(f"could not read durable approval records: {failure}") from failure
-    if not isinstance(value, dict) or not isinstance(value.get("items"), list):
-        raise ApprovalRecordError("durable approval records must contain one items list")
+    value = read_tool_record(path, posting_record)
+    if value is None:
+        raise ApprovalRecordError("durable approval records are missing")
     return value
 
 

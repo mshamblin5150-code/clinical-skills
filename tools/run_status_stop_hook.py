@@ -19,6 +19,8 @@ from typing import Any, Mapping
 
 from hook_payload import read_payload
 from console_codec import require_python_floor, use_utf8
+from run_record_reader import (read_tool_record, posting_record, submission_record,
+                               state_record, valid_posting_item, UnreadableRecord)
 
 
 @dataclass(frozen=True)
@@ -75,7 +77,7 @@ DECLARED_LIMITS = (
     "Every touched open run needs one keyed status line; a current completed approval revision is not reopened by an unrelated later reply.",
     "Waiting-status truth beyond complete and the presence of a stopped reason remains a clinician reading.",
     "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
-    "Malformed transcript rows and unreadable approval records cannot establish an open approved run.",
+    "Malformed transcript rows cannot establish an open run; an unreadable durable approval or status record instead requires a keyed stopped reason and is never repaired by this hook.",
     "A missing transcript path allows the stop without grading.",
 )
 
@@ -215,11 +217,7 @@ def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
 
 
 def _read_object(path: Path) -> dict[str, object] | None:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
+    return read_tool_record(path, posting_record if path.name == "posting-approvals.json" else submission_record)
 
 
 def approvals(run: Path) -> tuple[tuple[RunKind, dict[str, object]], ...]:
@@ -283,35 +281,9 @@ def _positive_integer(value: object) -> bool:
 def _validated_posting_item(
     item: object,
 ) -> tuple[RunKind, dict[str, object]] | None:
-    if not isinstance(item, dict):
+    if not valid_posting_item(item):
         return None
-    skill = item.get("skill")
-    spec = RUN_KIND_BY_SKILL.get(skill) if isinstance(skill, str) else None
-    submission = item.get("submission")
-    digest = item.get("sha256")
-    sources = item.get("sources")
-    grader_args = item.get("grader_args")
-    if (
-        spec is None
-        or spec.skill == "course-assignment"
-        or not isinstance(submission, str)
-        or not submission
-        or not isinstance(digest, str)
-        or SHA256.fullmatch(digest) is None
-        or not isinstance(sources, list)
-        or not sources
-        or not all(isinstance(source, str) and source for source in sources)
-        or not isinstance(grader_args, list)
-        or not grader_args
-        or not all(isinstance(argument, str) for argument in grader_args)
-        or "--submission" in grader_args
-        or item.get("posting_route")
-        not in {"awaiting-posting", "agent", "clinician"}
-        or item.get("pregrade_status") not in {"clean", "incomplete"}
-        or not _positive_integer(item.get("approval_revision"))
-    ):
-        return None
-    return spec, item
+    return RUN_KIND_BY_SKILL[item["skill"]], item
 
 
 def completion_is_clean(run: Path, spec: RunKind, approval: Mapping[str, object]) -> bool:
@@ -372,11 +344,7 @@ def _approval_revision(items: tuple[tuple[RunKind, dict[str, object]], ...]) -> 
 
 
 def _state(run: Path) -> dict[str, object]:
-    try:
-        value = json.loads((run / STATE_RECORD).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return {}
-    return value if isinstance(value, dict) else {}
+    return read_tool_record(run / STATE_RECORD, state_record) or {}
 
 
 def _write_state(run: Path, value: Mapping[str, object]) -> None:
@@ -451,12 +419,18 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     open_runs: list[
         tuple[Path, tuple[tuple[RunKind, dict[str, object]], ...], str]
     ] = []
+    unreadable_runs: dict[Path, UnreadableRecord] = {}
     for run in touched_runs(records):
-        approved = approvals(run)
+        try:
+            approved = approvals(run)
+            state = _state(run)
+        except UnreadableRecord as failure:
+            unreadable_runs[run] = failure
+            open_runs.append((run, (), "unreadable"))
+            continue
         if not approved:
             continue
         revision = _approval_revision(approved)
-        state = _state(run)
         if state.get("status") == "complete" and state.get("approval_revision") == revision:
             continue
         open_runs.append((run, approved, revision))
@@ -500,6 +474,10 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             continue
         match = keyed[0]
         status = match.group("status")
+        if run in unreadable_runs:
+            if not status.startswith("stopped - "):
+                failures.append(f"{unreadable_runs[run]}; this run needs stopped - <reason>.")
+            continue
         state = _state(run)
         stopped_here = (
             state.get("status") == "stopped"
@@ -509,15 +487,20 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             failures.append(
                 f"{match.group(0)!r}: Run {run.name} stays stopped until it completes or another approval is recorded."
             )
-        if status == "complete" and not all(
-            completion_is_clean(run, spec, approval) for spec, approval in approved
-        ):
-            failures.append(
-                f"{match.group(0)!r}: complete requires a clean terminal grade for every approved item."
-            )
+        if status == "complete":
+            try:
+                clean = all(completion_is_clean(run, spec, approval) for spec, approval in approved)
+            except UnreadableRecord as failure:
+                unreadable_runs[run] = failure
+                clean = False
+                failures.append(f"{failure}; this run needs stopped - <reason>.")
+            if not clean:
+                failures.append(f"{match.group(0)!r}: complete requires a clean terminal grade for every approved item.")
     if failures:
         return refuse(" ".join(failures))
     for run, _approved, revision in open_runs:
+        if run in unreadable_runs:
+            continue  # A status reply never authorizes repairing damaged bookkeeping.
         match = by_key[run.name]
         status = match.group("status")
         if status.startswith("stopped"):

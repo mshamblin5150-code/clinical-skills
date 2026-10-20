@@ -74,9 +74,9 @@ def note_paths(run: Path, *, batch: bool) -> tuple[Path, ...]:
 def _approved_standalone_note(run: Path) -> Path | None:
     """Resolve the output note named by one clinical-note approval record."""
 
-    try:
-        payload = json.loads((run / "posting-approvals.json").read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+    from run_record_reader import posting_record
+    payload = read_tool_record(run / "posting-approvals.json", posting_record)
+    if payload is None:
         return None
     items = payload.get("items") if isinstance(payload, dict) else None
     if not isinstance(items, list):
