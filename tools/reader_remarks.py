@@ -245,7 +245,10 @@ def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_t
             *, coverage_only: bool = False) -> Prepared:
     path = _receipt_path(run, skill, key)
     current = () if coverage_only else read_report(report_text)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as failure:
+        raise UnreadableRecord(path, "could not be opened") from failure
     def change(stored):
         previous = ()
         if stored is not None and not coverage_only:

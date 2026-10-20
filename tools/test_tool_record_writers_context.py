@@ -45,6 +45,39 @@ class ContextWriters(unittest.TestCase):
     def invoke_form(self):
         return form_sections.main([str(self.copy), '--replace'])
 
+    def test_machine_directory_failures_are_safe_and_preserve_evidence(self):
+        canonical = self.run / context.RECORD_NAME
+        digest = 'b' * 64
+        canonical.write_text(canonical.read_text(encoding='utf-8').replace(
+            'CONTEXT-DIGEST: ' + context.recorded_digest(self.run), 'CONTEXT-DIGEST: ' + digest), encoding='utf-8')
+        retained = self.run / 'private/heading-contexts' / (digest + '.md')
+        form = self.run / 'private/form-sections/note-1.json'
+        original_mkdir = Path.mkdir
+        for target, invoke in (
+            (retained, lambda: context.retain_heading_context(self.run)),
+            (retained, lambda: context.main([str(self.run), '--write', '--submission', 'response-first.md'])),
+            (form, self.invoke_form),
+        ):
+            with self.subTest(target=target.name, invoke=invoke):
+                before = canonical.read_bytes(), form.read_bytes()
+                def denied(path, *args, **kwargs):
+                    if path == target.parent:
+                        raise OSError('PRIVATE-DIRECTORY-FAILURE')
+                    return original_mkdir(path, *args, **kwargs)
+                with mock.patch.object(Path, 'mkdir', denied), redirect_stdout(io.StringIO()) as out, redirect_stderr(out):
+                    try:
+                        status = invoke()
+                    except records.UnreadableRecord as failure:
+                        self.assertEqual(target, failure.path)
+                        self.assertIn('could not be opened', str(failure))
+                        self.assertNotIn('PRIVATE-DIRECTORY-FAILURE', str(failure))
+                    else:
+                        self.assertEqual(2, status, out.getvalue())
+                        self.assertIn('unreadable — could not be opened', out.getvalue())
+                    self.assertNotIn('PRIVATE-DIRECTORY-FAILURE', out.getvalue())
+                self.assertEqual(before, (canonical.read_bytes(), form.read_bytes()))
+                self.assertFalse(retained.exists())
+
     def writers(self):
         return (
             (self.run / context.RECORD_NAME, lambda: context.main([str(self.run), '--write', '--submission', 'response-first.md'])),

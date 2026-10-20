@@ -201,7 +201,10 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
     record = {"version": 1, "mode": mode, "reason": reason, "source": str(source.resolve()), "source_sha256": digest(raw),
               "service_date": service_date, "unassigned_end": unassigned_end, "encounters": records}
     path = private_target(run / "openers.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as failure:
+        raise UnreadableRecord(path, "could not be opened") from failure
     def change(existing):
         if existing is not None and existing != record:
             # Later missing-name answers may change readings; never silently replace evidence.

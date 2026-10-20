@@ -43,7 +43,10 @@ def main(argv: list[str] | None = None) -> int:
         parsed = parse(copy.read_text(encoding="utf-8"))
         sections = {label: parsed.sections[label].strip() for label in "SOAP"}
         destination = copy.parent.parent / "private" / "form-sections" / (copy.stem + ".json")
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as failure:
+            raise UnreadableRecord(destination, "could not be opened") from failure
         def change(stored):
             existed = stored is not None
             diverged = [label for label in "SOAP" if stored[label] != sections[label]] if existed else []

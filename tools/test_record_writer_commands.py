@@ -155,6 +155,28 @@ class NativeWriterTransactions(unittest.TestCase):
             with self.subTest(command=command[0]):
                 self.check_refusals(record, lambda: encounter_openers.main(command))
 
+    def test_opener_directory_failure_is_safe_and_preserves_prior_record(self):
+        fixture = openers.OpenerCommands()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.assertEqual(0, fixture.record('Note 1\nadult female\n',
+            [{'note': 1, 'name': None, 'age': 'adult', 'sex': 'female'}]).returncode)
+        record = fixture.run / 'openers.json'
+        before = record.read_bytes()
+        original_mkdir = Path.mkdir
+        def denied(directory, *args, **kwargs):
+            if directory == record.parent:
+                raise OSError('PRIVATE-DIRECTORY-FAILURE')
+            return original_mkdir(directory, *args, **kwargs)
+        with mock.patch.object(Path, 'mkdir', denied):
+            status, report = invoke(lambda: encounter_openers.main([
+                'record', '--run', str(fixture.run), '--source', str(fixture.source),
+                '--readings', str(fixture.readings), '--service-date', '2026-01-01']))
+        self.assertEqual(2, status, report)
+        self.assertIn('openers.json: unreadable — could not be opened', report)
+        self.assertNotIn('PRIVATE-DIRECTORY-FAILURE', report)
+        self.assertEqual(before, record.read_bytes())
+
     def test_opener_native_temporary_collision_keeps_competing_file_and_prior_record(self):
         fixture = openers.OpenerCommands()
         fixture.setUp()

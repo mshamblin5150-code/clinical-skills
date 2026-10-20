@@ -1669,7 +1669,10 @@ def _write_extract(run: Path, transcript: Path | None, submission: str,
     population = _departure_population(run) + population
     round_number = _next_review_round(run, submission)
     destination = extract_path(run, submission, round_number)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as failure:
+        raise UnreadableRecord(destination, "could not be opened") from failure
     diagnostics = extract_diagnostics(transcripts, population)
     memory_walk = tree_walk.walk_files(memory_index.parent)
     baseline = {

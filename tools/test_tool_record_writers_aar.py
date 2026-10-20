@@ -20,6 +20,29 @@ import test_medatrax_readback_command as portal_fixtures
 
 
 class WriterTransactions(unittest.TestCase):
+    def test_extract_directory_failure_is_safe_and_preserves_prior_round(self):
+        fixture = self.aar()
+        fixture.write_clean()
+        first = aar_scan.extract_path(fixture.run, fixture.submission)
+        baseline = aar_scan.baseline_path(fixture.run, fixture.submission)
+        before = first.read_bytes(), baseline.read_bytes()
+        aar_scan.review_path(fixture.run, fixture.submission).unlink()
+        target = aar_scan.extract_path(fixture.run, fixture.submission, 2)
+        original_mkdir = Path.mkdir
+        def denied(directory, *args, **kwargs):
+            if directory == target.parent:
+                raise OSError('PRIVATE-DIRECTORY-FAILURE')
+            return original_mkdir(directory, *args, **kwargs)
+        with mock.patch.object(Path, 'mkdir', denied):
+            status, report = self.capture(lambda: aar_scan.main([
+                str(fixture.run), '--submission', fixture.submission, '--extract',
+                '--memory-index', str(fixture.memory), '--transcript', str(fixture.transcript)]))
+        self.assertEqual(2, status, report)
+        self.assertIn('unreadable — could not be opened', report)
+        self.assertNotIn('PRIVATE-DIRECTORY-FAILURE', report)
+        self.assertEqual(before, (first.read_bytes(), baseline.read_bytes()))
+        self.assertFalse(target.exists())
+
     def capture(self, action):
         output = io.StringIO()
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):

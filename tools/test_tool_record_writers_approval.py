@@ -22,6 +22,22 @@ class ApprovalFamilyWriters(unittest.TestCase):
     ROUTES = ("approve", "agent-post", "clinician-post", "stage", "confirm",
               "clinician-upload", "prepare", "agreement", "specificity")
 
+    def test_prepare_directory_failure_is_classified_and_preserves_receipt(self):
+        with self.command_case('prepare') as (path, call):
+            before = path.read_bytes()
+            original_mkdir = Path.mkdir
+            def denied(directory, *args, **kwargs):
+                if directory == path.parent:
+                    raise OSError('PRIVATE-DIRECTORY-FAILURE')
+                return original_mkdir(directory, *args, **kwargs)
+            with mock.patch.object(Path, 'mkdir', denied):
+                with self.assertRaises(records.UnreadableRecord) as caught:
+                    call()
+            self.assertEqual(path, caught.exception.path)
+            self.assertIn('could not be opened', str(caught.exception))
+            self.assertNotIn('PRIVATE-DIRECTORY-FAILURE', str(caught.exception))
+            self.assertEqual(before, path.read_bytes())
+
     def approve(self, fixture, key="first"):
         return approval_record.approve(
             fixture.run, skill="discussion-post", submission=key,

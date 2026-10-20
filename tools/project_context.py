@@ -1188,8 +1188,11 @@ def _retain_context_text(run: Path, text: str | None) -> None:
     digest = read_record(text).value("CONTEXT-DIGEST")
     if _SHA256.fullmatch(digest):
         directory = run / "private" / "heading-contexts"
-        directory.mkdir(parents=True, exist_ok=True)
         path = directory / (digest + ".md")
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as failure:
+            raise UnreadableRecord(path, "could not be opened") from failure
         update_tool_record(path, _decode_context_text,
                            lambda previous: RecordUpdate(text.encode("utf-8") if previous is None else None))
 
