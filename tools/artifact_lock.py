@@ -51,7 +51,15 @@ def lock_root() -> Path:
 
 def lock_path(artifact: Path | str) -> Path:
     """Map an artifact identity to its scoped record outside every checkout."""
-    identity = os.path.normcase(str(Path(artifact).resolve())).encode("utf-8")
+    resolved = os.path.normcase(str(Path(artifact).resolve()))
+    # Windows may retain the extended prefix when a missing parent appears
+    # during resolve(). Equivalent DOS/UNC spellings must own the same lock.
+    if os.name == "nt":
+        if resolved.startswith("\\\\?\\unc\\"):
+            resolved = "\\\\" + resolved[8:]
+        elif resolved.startswith("\\\\?\\") and resolved[5:7] == ":\\":
+            resolved = resolved[4:]
+    identity = resolved.encode("utf-8")
     digest = hashlib.sha256(identity).hexdigest()
     return lock_root() / digest / "lock"
 

@@ -19,6 +19,52 @@ SUITE_LOCK_ROOT = artifact_lock_test_support.LOCK_ROOT
 
 
 class LockIdentityLayout(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows final-path namespace")
+    def test_directory_appearing_during_resolution_keeps_one_exclusive_identity(self):
+        import ntpath
+
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory).resolve() / "aar" / ".record-allocation"
+            native = ntpath._getfinalpathname
+            created = False
+
+            def create_after_missing_parent(path):
+                nonlocal created
+                try:
+                    return native(path)
+                except OSError as failure:
+                    if not created and failure.winerror == 3 and Path(path) == target:
+                        target.parent.mkdir()
+                        created = True
+                    raise
+
+            with mock.patch.object(ntpath, "_getfinalpathname", create_after_missing_parent):
+                raced = target.resolve()
+            self.assertTrue(created)
+            ordinary = target.resolve()
+            self.assertEqual(artifact_lock.lock_path(ordinary), artifact_lock.lock_path(raced))
+            with artifact_lock.hold(raced, "directory-race owner"):
+                with self.assertRaises(artifact_lock.ArtifactBusy):
+                    with artifact_lock.hold(ordinary, "competing spelling"):
+                        self.fail("one resource acquired by both spellings")
+
+    @unittest.skipUnless(os.name == "nt", "Windows final-path namespace")
+    def test_extended_dos_and_unc_spellings_share_their_ordinary_identity(self):
+        for ordinary, extended in (
+            (r"C:\synthetic\artifact", r"\\?\C:\synthetic\artifact"),
+            (r"\\server\share\artifact", r"\\?\UNC\server\share\artifact"),
+        ):
+            with self.subTest(ordinary=ordinary):
+                # No network access: supply the resolver's two native output forms.
+                with mock.patch.object(Path, "resolve", return_value=Path(ordinary)), mock.patch.object(
+                    artifact_lock, "lock_root", return_value=SUITE_LOCK_ROOT
+                ):
+                    expected = artifact_lock.lock_path(Path("synthetic"))
+                with mock.patch.object(Path, "resolve", return_value=Path(extended)), mock.patch.object(
+                    artifact_lock, "lock_root", return_value=SUITE_LOCK_ROOT
+                ):
+                    self.assertEqual(expected, artifact_lock.lock_path(Path("synthetic")))
+
     def test_every_lock_bearing_test_module_reaches_the_shared_bootstrap(self):
         tools = Path(__file__).resolve().parent
         sources = {path.stem: path for path in tools.glob("*.py")}
