@@ -735,7 +735,7 @@ YEAR = re.compile(r"\b(19[89]\d|20[0-4]\d)\b")
 
 
 def derive_year(pages: list[str]) -> str:
-    """Publication year, from the journal citation and then the online-publication line.
+    """Year from journal citation, online-publication/copyright, then AHRQ date.
 
     The DOI is stripped before the year is looked for: ``doi:10.1001/jama.2023.5634``
     otherwise reads as the year 1001. Every citation-shaped line is checked rather
@@ -753,6 +753,16 @@ def derive_year(pages: list[str]) -> str:
             year = YEAR.search(re.sub(r"doi:\S+", "", line))
             if year:
                 return year.group(1)
+    for page in evidence:
+        publication = re.search(
+            r"^\s*AHRQ Pub\. No\. [A-Za-z0-9]+(?:-[A-Za-z0-9]+)*[^\S\n]*\n"
+            r"[^\S\n]*(?:January|February|March|April|May|June|July|August|"
+            r"September|October|November|December) ([0-9]{4})[^\S\n]*$",
+            page,
+            re.M,
+        )
+        if publication:
+            return publication.group(1)
     return NOT_STATED
 
 

@@ -1386,7 +1386,6 @@ This ledger records the blind second reads required by issues #106 and #512. The
 | USPSTF | rhrs.pdf | title | ? | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | USPSTF | rhrs.pdf | topic | Rh(D) incompatibility screening | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | USPSTF | rhrs.pdf | population | pregnancy | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
-| USPSTF | rhrs.pdf | year | ? | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | USPSTF | scoliosis-final-rec-statement.pdf | title | Screening for Adolescent Idiopathic Scoliosis: US Preventive Services Task Force Recommendation Statement | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | USPSTF | Screening for Thyroid Cancer US Preventive Services Task Force Recommendation Statement Cancer Screening, Prevention, Control JAMA JAMA Network.pdf | title | Screening for Thyroid Cancer: US Preventive Services Task Force Recommendation Statement | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
 | USPSTF | Screening for Thyroid Dysfunction Final RS_Print_5.5.15.pdf | title | Screening for Thyroid Dysfunction: U.S. Preventive Services Task Force Recommendation Statement | 2026-08-20 | Clinician confirmed the catalog value after reviewing the blind audit disagreement. |
