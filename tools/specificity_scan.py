@@ -55,6 +55,8 @@ import run_grader
 import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
+import completion_checks
+import reader_remarks
 from worksheet_grammar import (
     ENTRY,
     ENTRY_CANDIDATE,
@@ -90,6 +92,11 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    (
+        "remarks concealed in specificity prose",
+        "A remark inside about cannot be distinguished from ordinary independent reading text.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
     (
         "whether a substantive specificity reason is true",
         "The command checks for substance but cannot establish that the stated reason is correct.",
@@ -226,6 +233,9 @@ class SecondRead:
     read_on: str | None = None
     ok: bool = True
     why_not: str | None = None
+    remarks: tuple[reader_remarks.Remark, ...] = ()
+    unread: int = 0
+    unexpected_keys: int = 0
 
 
 @dataclass(frozen=True)
@@ -236,6 +246,9 @@ class SecondReadGate:
     warnings: tuple[str, ...] = ()
     pairings: tuple[str, ...] = ()
     uncovered: tuple[str, ...] = ()
+    remarks: tuple[reader_remarks.Remark, ...] = ()
+    unread: int = 0
+    unexpected_keys: int = 0
 
 
 def _keyword(value: str) -> tuple[str, str]:
@@ -344,6 +357,7 @@ def brief(per_worksheet: list[list[Flag | WorksheetEntry]], source: str) -> str:
         "reading in your own words:",
         "",
         '  {"read_on": "<YYYY-MM-DD>",',
+        '   "remarks": ["<code and problem outside the specificity question>"],',
         '   "codes": [{"code": "<subject code>",',
         '              "family": [{"code": "<category code>",',
         '                          "descriptor": "<official descriptor>",',
@@ -353,6 +367,9 @@ def brief(per_worksheet: list[list[Flag | WorksheetEntry]], source: str) -> str:
         '                                     "text": "<exact note text>"}]}],',
         '              "about": "<what the release shows about specificity>"}]}',
         "",
+        "Use an empty remarks list when there are none. Put outside problems there",
+        "and nowhere else, naming each code; never change an answer for a remark.",
+        "A replacement record retains every earlier remark.",
         f"  {SECOND_READ_IS_A_SMOKE_TEST}.",
     ]
     return "\n".join(lines) + "\n"
@@ -420,7 +437,21 @@ def load_second_read_record(loaded: object, path: Path) -> SecondRead:
         if code in seen:
             return SecondRead(path=path, ok=False, why_not=f"code {record['code']} appears twice")
         seen.add(code)
-    return SecondRead(path=path, codes=loaded["codes"], read_on=str(read_on))
+    unexpected = len(set(loaded) - {"read_on", "codes", "remarks"})
+    for record in loaded["codes"]:
+        unexpected += len(set(record) - set(SECOND_READ_CODE_FIELDS))
+        for fact in record["family"]:
+            unexpected += len(set(fact) - set(SECOND_READ_FACT_FIELDS))
+            unexpected += sum(len(set(note) - {"code", "kind", "text"}) for note in fact["notes"])
+    if not completion_checks.active("specificity_scan:unexpected-reader-keys"):
+        unexpected = 0
+    remarks, malformed = reader_remarks.record_remarks(loaded.get("remarks", []), "SPECIFICITY")
+    malformed += sum(not any(re.search(r"(?<![A-Za-z0-9])" + re.escape(record["code"]) + r"(?![A-Za-z0-9])",
+                                     remark.text, re.I) for record in loaded["codes"]) for remark in remarks)
+    if not completion_checks.active("specificity_scan:reader-remarks"):
+        remarks, malformed = (), 0
+    return SecondRead(path=path, codes=loaded["codes"], read_on=str(read_on),
+                      remarks=remarks, unread=unexpected + malformed, unexpected_keys=unexpected)
 
 
 def load_second_read(path: Path) -> SecondRead:
@@ -434,12 +465,14 @@ def load_second_read(path: Path) -> SecondRead:
             ok=False,
             why_not=f"unreadable {path.name}: {error.__class__.__name__}",
         )
-    except ValueError as error:
+    except json.JSONDecodeError as error:
         return SecondRead(
             path=path,
             ok=False,
             why_not=f"unreadable {path.name}: invalid JSON at line {error.lineno}",
         )
+    except UnicodeError:
+        return SecondRead(path=path, ok=False, why_not="specificity reader record has undecodable bytes")
     return load_second_read_record(loaded, path)
 
 
@@ -519,6 +552,7 @@ def gate_second_read(
         warnings=tuple(warnings),
         pairings=tuple(pairings),
         uncovered=tuple(uncovered),
+        remarks=read.remarks, unread=read.unread, unexpected_keys=read.unexpected_keys,
     )
 
 
@@ -703,10 +737,13 @@ def format_second_read_report(gate: SecondReadGate, show: bool) -> str:
         f"  off-brief code(s)               {len(gate.warnings)}",
         f"  subject code(s) uncovered       {len(gate.uncovered)}",
         f"  prose pairing(s), ungraded      {len(gate.pairings)}",
+        f"  unexpected specificity keys    {gate.unexpected_keys}",
+        f"  reader record unread fields    {gate.unread}",
     ]
     if not gate.uncovered and gate.pairings:
         lines += ["", f"  {SECOND_READ_IS_A_SMOKE_TEST}."]
     if show:
+        lines.append(reader_remarks.report(gate.remarks))
         lines += ["", "  UNGRADED pairings (PHI - read, do not paste):"]
         lines.extend(f"    {pairing}" for pairing in gate.pairings)
         if gate.refusals:
@@ -870,8 +907,11 @@ def _grade(
             f"\n{len(second_gate.refusals)} source fact(s) fail the separated read. "
             "Re-run with --show to see which, and do not paste that output."
         )
-    if second_gate and second_gate.uncovered:
+    if second_gate and (second_gate.uncovered or second_gate.unread):
         coverage_failed = True
+        if second_gate.unread:
+            scan = replace(scan, unread_remainder=scan.unread_remainder + second_gate.unread)
+            diagnostics.append("unread specificity reader record: " + run_grader.artifact_label(second_read_path, 1, 1))
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, parsed.value("--submission")
     )

@@ -1680,13 +1680,21 @@ branch, live-form reading, saved-row readback and correction rules. The shift's 
 authorize that write. Record its outcome in the posted reading as that route specifies.
 Before asking, call `approval_record.prepare(run, skill="clinical-note", submission=submission_key,
 sources=(output_note,), grader_args=(str(run), "--note", str(output_note)))`.
+Give every returned coding remark an `Outcome("fixed", "<what changed>")` or
+`Outcome("leave", "<proposal and reason>")` from `reader_remarks`, in returned order.
+Show `reader_remarks.surface(prepared, outcomes, clinical=True)` as the numbered `READER REMARKS` block,
+outside the note and Review document. Keep it beside the patient questions and repairs;
+leave proposals are outside the delegable block. A bare approval cannot leave one: the
+clinician's own reply must name its number or explicitly cover all proposed leaves.
+Use [icd10-cpt's reader record shapes and retry route](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 Show every line in the returned `coverage` exactly as printed in chat beside
 `PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS`, and the UpToDate block, outside the note and Review
 document. These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
 submission=submission_key, sources=(output_note,),
-grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply)`.
+grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply,
+remark_outcomes=outcomes)`.
 A changed grade, a grade run after the reply, or a readable transcript missing a required line
 refuses: prepare again, show the new lines, and ask again. An unreadable transcript records
 incomplete coverage with its reason, never clean. Shown incomplete coverage does not block,

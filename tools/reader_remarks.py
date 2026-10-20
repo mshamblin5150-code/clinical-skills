@@ -16,11 +16,13 @@ from pathlib import Path
 import re
 import time
 import coursework_run
+from run_record_reader import read_tool_record
 
 
 SCOPED_SKILLS = frozenset({"course-assignment", "discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
 PREFIX = "READER-REMARK: "
 DECLARED_LIMITS = (
+    "Clinical collection reads canonical per-run coding reader files; legacy shared files outside the run are not bound or attached.",
     "Remarks concealed in a folded field or a substance-only reason cannot be distinguished from ordinary reader text.",
     "The transcript comparison collapses whitespace and does not prove visual presentation or clinician attention.",
     "A fixed outcome records the change shown and accepted; it does not mechanically establish that the change resolves the remark.",
@@ -48,6 +50,106 @@ class RemarkError(ValueError):
 
 def report(remarks: tuple[Remark, ...]) -> str:
     return "\n".join(PREFIX + json.dumps({"origin": r.origin, "text": r.text}, ensure_ascii=True) for r in remarks)
+
+
+def record_remarks(value: object, origin: str) -> tuple[tuple[Remark, ...], int]:
+    """Keep a reader's legal remarks and count every malformed list member."""
+    if not isinstance(value, list):
+        return (), 1
+    return (tuple(Remark(origin, text) for text in value if isinstance(text, str) and text.strip()),
+            sum(not isinstance(text, str) or not text.strip() for text in value))
+
+
+def coding_record(text: str, *, kind: str) -> dict:
+    """Require a complete reader container before treating its remarks as evidence."""
+    value = json.loads(text)
+    if not isinstance(value, dict):
+        raise ValueError("coding reader record is not an object")
+    if kind == "specificity":
+        import specificity_scan
+        read = specificity_scan.load_second_read_record(value, Path("read.json"))
+        if not read.ok or read.unread:
+            raise ValueError("specificity reader record is not completely readable")
+        return value
+    if kind != "agreement" or not isinstance(value.get("pairs"), list):
+        raise ValueError("agreement reader record has no pairs")
+    import anchor_scan
+    if set(value) != {"pairs"}:
+        raise ValueError("agreement reader record has unexpected keys")
+    stems = set()
+    for pair in value["pairs"]:
+        if (not isinstance(pair, dict) or not isinstance(pair.get("stem"), str)
+                or not pair["stem"] or pair["stem"] in stems
+                or set(pair) - {"stem", "codes", "remarks"}
+                or not isinstance(pair.get("codes"), list)):
+            raise ValueError("agreement reader pair is invalid")
+        stems.add(pair["stem"])
+        _, unread = record_remarks(pair.get("remarks", []), pair["stem"])
+        if unread:
+            raise ValueError("agreement reader remarks are invalid")
+        identifiers = set()
+        for row in pair["codes"]:
+            if (not isinstance(row, dict) or set(row) - anchor_scan.AGREEMENT_CODE_FIELDS
+                    or any(not isinstance(row.get(name), str) or not row[name]
+                           for name in anchor_scan.AGREEMENT_CODE_FIELDS - {"column_ground"})
+                    or not isinstance(row.get("column_ground", "none"), str)
+                    or not row.get("column_ground", "none")
+                    or row["subject_id"] in identifiers):
+                raise ValueError("agreement reader code row is invalid")
+            identifiers.add(row["subject_id"])
+    return value
+
+
+def replace_coding_record(path: Path, replacement: dict, *, kind: str) -> None:
+    """Write a retry while retaining the replaced reader's remarks verbatim."""
+    import approval_record
+    decode = lambda text: coding_record(text, kind=kind)
+    current = read_tool_record(path, decode)
+    updated = decode(json.dumps(replacement))
+    if current is not None:
+        if kind == "specificity":
+            updated["remarks"] = list(dict.fromkeys((*current.get("remarks", []), *updated.get("remarks", []))))
+        else:
+            old = {pair["stem"]: pair.get("remarks", []) for pair in current["pairs"]}
+            new_stems = {pair["stem"] for pair in updated["pairs"]}
+            if any(remarks and stem not in new_stems for stem, remarks in old.items()):
+                raise RemarkError("replacement cannot drop a note with retained reader remarks")
+            for pair in updated["pairs"]:
+                pair["remarks"] = list(dict.fromkeys((*old.get(pair["stem"], []), *pair.get("remarks", []))))
+    approval_record._write(path, updated)
+
+
+def coding_remarks(run: Path, sources: tuple[Path, ...]) -> tuple[Remark, ...]:
+    """Join only the run's canonical coding records and check-generated grounds."""
+    import anchor_scan
+    result: list[Remark] = []
+    agreement = run / "agreement-reader" / "read.json"
+    specificity = run / "specificity-reader" / "read.json"
+    try:
+        payload = read_tool_record(agreement, lambda text: coding_record(text, kind="agreement"))
+        if payload is not None:
+            notes = tuple(path for path in sources if path.suffix == ".md" and path.parent.name != "worksheets")
+            rendered_path = run / "agreement" / "cpt-rendered-pages.json"
+            rendered = anchor_scan._rendered_descriptors(rendered_path if rendered_path.exists() else None)
+            pairs = []
+            for parent in dict.fromkeys(path.parent for path in notes):
+                selected, _, _ = anchor_scan._pair_agreement_sources(run / "worksheets", parent, rendered,
+                    {path.stem for path in notes if path.parent == parent})
+                pairs.extend(selected)
+            if {pair["stem"] for pair in payload["pairs"]} - {pair.stem for pair in pairs}:
+                raise RemarkError("agreement reader records do not match the approved notes")
+            grade = anchor_scan._grade_agreement(pairs, 0, [agreement], {pair.stem for pair in pairs})
+            result.extend((*grade.remarks, *grade.column_remarks))
+        payload = read_tool_record(specificity, lambda text: coding_record(text, kind="specificity"))
+        if payload is not None:
+            result.extend(Remark("SPECIFICITY", text) for text in payload.get("remarks", []))
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as failure:
+        raise RemarkError("the run's coding reader record is unreadable") from failure
+    return tuple(dict.fromkeys(result))
+
+
+def clinical_report(report_text: str, run: Path, sources: tuple[Path, ...]) -> str:
+    return report_text + "\n" + report(coding_remarks(run, sources))
 
 
 def apply_readers(grade, claims, headings, artifacts: tuple[str, ...], visuals=(), *, coverage_limb=None, heading_unread=None):
@@ -152,10 +254,11 @@ def leave_request(outcomes: tuple[Outcome, ...]) -> str | None:
     return f'Proposed to leave: {numbers}. To leave them, reply "leave all of them" or "leave {numbers}".'
 
 
-def surface(prepared: Prepared, outcomes: tuple[Outcome, ...] = (), *, request_leaves: bool = True) -> str:
+def surface(prepared: Prepared, outcomes: tuple[Outcome, ...] = (), *, request_leaves: bool = True,
+            clinical: bool = False) -> str:
     if len(outcomes) != len(prepared.remarks):
         raise RemarkError("every reader remark needs a fixed outcome or a proposal to leave it")
-    lines = []
+    lines = ["READER REMARKS"] if clinical and prepared.remarks else []
     for number, (remark, outcome) in enumerate(zip(prepared.remarks, outcomes), 1):
         if outcome.status not in {"fixed", "leave"} or not outcome.detail.strip():
             raise RemarkError(f"remark {number} needs a substantive fixed or leave outcome")
@@ -221,10 +324,11 @@ def verify_coverage(run: Path, skill: str, key: str, sources: tuple[Path, ...],
 
 def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
            reply: str, reply_at: float | None, outcomes: tuple[Outcome, ...],
-           *, accepted: list[dict] | None = None) -> list[dict]:
+           *, accepted: list[dict] | None = None, transcripts=None, clinical: bool = False) -> list[dict]:
     import approval_record
     receipt, boundary, prepared_at = _prepared_receipt(run, skill, key, sources, report_text,
-                                                      reply_at, accepted=accepted is not None)
+                                                      reply_at, accepted=accepted is not None,
+                                                      transcript_unread=clinical and reply_at is None)
     prepared = Prepared(receipt["report"], read_report(receipt["report"]), coverage_lines(report_text))
     inherited_leaves = set()
     if accepted is not None:
@@ -236,8 +340,13 @@ def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_te
                          for row in accepted)
         inherited_leaves = {n for n, row in enumerate(accepted, 1) if row["outcome"] == "left on clinician's word"}
     # A posting inherits answered leaves, so only the content ask must carry the reply forms.
-    required = surface(prepared, outcomes, request_leaves=accepted is None).splitlines()
-    shown, unread = approval_record.assistant_text(run, after=boundary if accepted is not None else prepared_at, before=reply_at)
+    required = surface(prepared, outcomes, request_leaves=accepted is None, clinical=clinical).splitlines()
+    if clinical and not prepared.remarks:
+        return []  # The independent clinical coverage check retains its unread posture.
+    if reply_at is None:
+        raise RemarkError("reader remarks transcript unreadable; show the block before approval")
+    shown, unread = approval_record.assistant_text(run, after=boundary if accepted is not None else prepared_at,
+        before=reply_at, **({"transcripts": transcripts} if transcripts is not None else {}))
     missing = _missing_lines(required, shown)
     if missing:
         raise RemarkError("reader remarks or coverage lines were not shown before approval" + ("; transcript unreadable" if unread else "") + ": " + " | ".join(missing))

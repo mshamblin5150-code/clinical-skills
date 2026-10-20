@@ -171,6 +171,14 @@ through `reader_remarks`' shared receipt seam. Clinical coverage, UpToDate and r
 one transcript read with separate time boundaries. Unreadable coverage transcripts are recorded
 incomplete with a reason; readable transcripts missing a required line refuse.
 
+The same receipt carries coding remarks from the run's `agreement-reader/read.json` and
+`specificity-reader/read.json`, including check-generated medicine-column grounds. Clinical
+approval shares its transcript observation with the numbered remark check and keeps coursework
+project context separate. `reader_remarks.replace_coding_record` preserves earlier remarks in
+a replacement reader record; malformed prior evidence refuses the replacement. The shared
+[reader-remarks route](skills/_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead)
+owns the consumer steps, and `reader_remarks.DECLARED_LIMITS` owns the collection ceiling.
+
 `python tools/uptodate_block.py --run <run-directory> --notes <final-note-paths>` prints the private
 UpToDate block shown unchanged at either clinical go-ahead. `--batch` selects numbered notes.
 `approval_record.approve` derives it again and compares the last shown block before the matched

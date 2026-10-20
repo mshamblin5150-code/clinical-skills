@@ -587,6 +587,27 @@ both fields must be `none` there. New runs use the bound digest and the `agrees`
 
 ## Reader remarks at the go-ahead
 
+For clinical coding readers, use the record's `remarks` list instead of `REMARK:` lines:
+one list on each note's agreement entry, and one top-level list on the specificity read.
+Each specificity remark names its code; an agreement remark about a code names it too.
+The answers still address only the assigned question. Keep the blind records at
+`<run>/agreement-reader/read.json` and `<run>/specificity-reader/read.json`; a legacy shared
+file outside the run is not attached to its clinical approval. Create each record with
+`reader_remarks.replace_coding_record(path, payload, kind="agreement")` or
+`kind="specificity"`, and use the same call for a retry. It retains the replaced record's
+remarks without changing the replacement's answers and refuses damaged prior evidence.
+The Writer self-record has no remarks list.
+
+Before either clinical ask, use `approval_record.prepare` as below with the note skill's
+existing source tuple and paired grader. It collects both coding readers and the check's
+generated column-ground remarks. Show `reader_remarks.surface(prepared, outcomes, clinical=True)`
+as the numbered `READER REMARKS` block in chat beside
+`PRE-APPROVAL PATIENT QUESTIONS`, `REPAIRS` and the UpToDate blocks, outside the note and
+Review sheet. A leave proposal needs the clinician's own explicit reply; it is outside the
+delegable patient questions. The approval question never asks a yes-or-no question about
+leave proposals. Pass the same outcomes to `approval_record.approve`. The coding worksheet
+rides on its owning note's submission key and receives no separate approval.
+
 Refutation records use the same outside-problem line:
 
 ```text

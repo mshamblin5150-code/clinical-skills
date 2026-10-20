@@ -385,6 +385,12 @@ def prepare(
     if status not in {0, 2}:
         raise ApprovalRecordError("the pre-post grade has a finding: " + report)
     if skill in CLINICAL_SKILLS:
+        if completion_checks.active("reader_remarks:clinical-go-ahead"):
+            try:
+                report = reader_remarks.clinical_report(report, root, paths)
+            except reader_remarks.RemarkError as failure:
+                raise ApprovalRecordError(str(failure)) from failure
+            return reader_remarks.prepare(root, skill, submission, paths, report)
         return reader_remarks.prepare(root, skill, submission, paths, report, coverage_only=True)
     payload = _read(root, missing_ok=True)
     revision = payload.get("approval_revision", 0) + 1
@@ -486,11 +492,14 @@ def approve(
             grade_report += "\n" + shown.reason
 
     coverage = ReplyVerification("exempt", "other skill")
+    clinical_report = grade_report
     if skill in CLINICAL_SKILLS:
         # Compare the raw paired report before appending transcript qualifiers.
         try:
+            if completion_checks.active("reader_remarks:clinical-go-ahead"):
+                clinical_report = reader_remarks.clinical_report(grade_report, root, resolved_sources)
             coverage = reader_remarks.verify_coverage(root, skill, submission, resolved_sources,
-                grade_report, verification.matched_at, transcripts=transcripts)
+                clinical_report, verification.matched_at, transcripts=transcripts)
         except reader_remarks.RemarkError as failure:
             raise ApprovalRecordError(str(failure)) from failure
         if coverage.state == "unreadable":
@@ -517,11 +526,14 @@ def approve(
         if context.coverage:
             grade_status = 2
     remark_records = []
-    if skill in reader_remarks.SCOPED_SKILLS:
+    if skill in reader_remarks.SCOPED_SKILLS or (skill in CLINICAL_SKILLS
+            and completion_checks.active("reader_remarks:clinical-go-ahead")):
         try:
-            remark_records = reader_remarks.verify(root, skill, submission, resolved_sources, grade_report,
+            remark_records = reader_remarks.verify(root, skill, submission, resolved_sources,
+                clinical_report if skill in CLINICAL_SKILLS else grade_report,
                 clinician_reply, verification.matched_at, remark_outcomes,
-                accepted=previous.get("reader_remarks", []) if approval_kind == "posting" else None)
+                accepted=previous.get("reader_remarks", []) if approval_kind == "posting" else None,
+                **({"clinical": True, "transcripts": transcripts} if skill in CLINICAL_SKILLS else {}))
         except reader_remarks.RemarkError as failure:
             raise ApprovalRecordError(str(failure)) from failure
     for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
