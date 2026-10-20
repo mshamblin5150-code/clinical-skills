@@ -137,6 +137,10 @@ def completion_gate(
         reports.append("canonical recorded imagery: not graded - model imagery unreadable")
     if observation.unread:
         reports.append("unread canonical voice models: 1")
+    if observation.text is None or observation.imagery.missing:
+        reports.append("recorded imagery: not measured - inventory unavailable or format incomplete")
+    else:
+        reports.append(f"recorded imagery: candidates {observation.imagery.candidates}; read {observation.imagery.read}; unread {observation.imagery.unread}")
     if record_unread:
         reports.append("unread recorded-image match records: 1")
     detail = "; finding - " + "; ".join(dict.fromkeys(findings)) if findings else ""
@@ -200,4 +204,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
+    require_python_floor()
     raise SystemExit(main())

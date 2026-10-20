@@ -9,7 +9,7 @@ import repo_root
 
 DECLARED_LIMITS = {
     "recorded-image-format": "Recorded images are complete blockquotes or double-quoted spans in Imagery's How an image works for the writer and Scale and consequence subsections; prose outside those quoted entries is not an image inventory.",
-    "recorded-image-meaning": "Quoted-entry membership does not establish whether an image fits a point; the independent Voice reader judges that.",
+    "recorded-image-meaning": "Quoted-entry membership does not establish that the entry is figurative imagery or that it fits a point; the independent Voice reader judges both.",
     "model-observation": "The observation binds its decoded text to its own raw-byte digest; other identity readers may independently read the model, and no single physical read for the command is claimed.",
 }
 
@@ -48,6 +48,10 @@ class ImagePopulation:
     unread: int
     missing: bool = False
 
+    @property
+    def read(self) -> int:
+        return max(0, self.candidates - self.unread)
+
 
 @dataclass(frozen=True)
 class ModelObservation:
@@ -67,7 +71,7 @@ def read_images(text: str) -> ImagePopulation:
     """Derive quoted entries independently of any selected match record."""
     sections = tuple(_SECTION.finditer(text))
     if len(sections) != 1:
-        return ImagePopulation((), 0, len(sections), True)
+        return ImagePopulation((), 0, 0, True)
     body = sections[0].group("body")
     images: list[str] = []
     candidates = unread = 0
@@ -76,14 +80,13 @@ def read_images(text: str) -> ImagePopulation:
         parts = tuple(re.finditer(rf"^### {re.escape(name)}[ \t]*\r?$\n(?P<body>.*?)(?=^### |\Z)", body, re.MULTILINE | re.DOTALL))
         if len(parts) != 1:
             missing = True
-            unread += len(parts)
             continue
         part_body = parts[0].group("body")
         entries = tuple(_QUOTED.finditer(part_body))
         owed = _candidate_count(part_body)
         candidates += owed
         unread += max(0, owed - len(entries))
-        if not entries:
+        if not owed:
             missing = True
         for entry in entries:
             block = entry.group("block")

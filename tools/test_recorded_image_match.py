@@ -122,6 +122,36 @@ class MatchRecord(unittest.TestCase):
         self.write("An image not in the model.")
         self.assertEqual(self.command()[0], 1)
 
+    def test_preexisting_public_model_member_controls_the_native_inventory(self):
+        path = Path(__file__).parent / "testdata" / "voice-model-synthetic.md"
+        original = path.read_bytes()
+        expected = (
+            "The image carries the mechanism instead of decorating the sentence.",
+            "The orbit stays whole so the objection remains active without collapsing the argument.",
+        )
+        resolution = repo_root.VoiceModelResolution(path, hashlib.sha256(original).hexdigest(), True)
+        observed = models.observe(resolution)
+        self.assertEqual(observed.imagery.images, expected)
+        self.assertEqual((observed.imagery.candidates, observed.imagery.read, observed.imagery.unread), (2, 2, 0))
+        self.assertNotIn("Orbital mechanics gives me a way to show motion held by a constraint.", observed.imagery.images)
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=resolution):
+            self.write(expected[1])
+            status, report = self.command()
+            self.assertEqual(status, 0, report)
+            self.assertIn("recorded imagery: candidates 2; read 2; unread 0", report)
+            self.write("The orbit stays whole")
+            self.assertEqual(self.command()[0], 1)
+            self.write()
+            original_matcher = models._QUOTED
+            with mock.patch.object(models, "_QUOTED") as partial:
+                partial.finditer.side_effect = lambda body: () if "orbit stays whole" in body else original_matcher.finditer(body)
+                status, report = self.command()
+            self.assertEqual(status, 2, report)
+            self.assertIn("recorded imagery: candidates 2; read 1; unread 1", report)
+            self.assertIn("unread canonical voice models: 1", report)
+            self.assertEqual(report.count("unread remainder "), 1)
+        self.assertEqual(path.read_bytes(), original)
+
     def test_terminal_model_and_artifact_membership_are_separate(self):
         image = "The synthetic wheel carries the load."
         self.write(image)
@@ -302,6 +332,40 @@ class ComposedVoice(unittest.TestCase):
         self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
         self.assertTrue(voice_read.completion_gate(self.run, "submission", surface,
             approved_points=frozenset({("submission", "Synthetic point.")})).finding)
+
+    def test_image_changing_plant_is_dated_and_an_intact_image_twin_passes(self):
+        source = self.fixture.model.read_text(encoding="utf-8") + "\n> This is the original sentence.\n"
+        self.fixture.model.write_bytes(source.encode("utf-8"))
+        digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+        resolution = repo_root.VoiceModelResolution(self.fixture.model, digest, True)
+        identity = self.run / "voice-model-identity.json"
+        payload = json.loads(identity.read_text(encoding="utf-8"))
+        payload["sha256"] = digest
+        identity.write_text(json.dumps(payload), encoding="utf-8")
+        reader = self.fixture.payload(voice_read.READER_RECORD_NAME)
+        reader["model_sha256"] = digest
+        self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+        cutoff = datetime(2026, 10, 20, 17, 22, 53, tzinfo=timezone.utc)
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=resolution):
+            for observed, failed in ((cutoff - timedelta(microseconds=1), False), (cutoff, True), (None, True)):
+                token = completion_checks.ITEM_MOMENTS.set({"submission": observed})
+                try:
+                    result = self.grade()
+                    self.assertEqual(result.findings_failed, failed)
+                    if failed:
+                        self.assertIn("plant changed a recorded image", "\n".join(result.reports))
+                    self.assertEqual(result.scan.model_unread, 0)
+                finally:
+                    completion_checks.ITEM_MOMENTS.reset(token)
+            planter = self.fixture.payload(voice_read.PLANTER_RECORD_NAME)
+            planter["original_sentence"] = "Another sentence remains."
+            planted = self.fixture.draft.replace("Another sentence remains.", "This is a generic sentence.")
+            (self.fixture.records / voice_read.PLANTED_COPY_NAME).write_bytes(planted.encode("utf-8"))
+            planted_digest = hashlib.sha256(planted.encode("utf-8")).hexdigest()
+            planter["planted_sha256"] = reader["planted_sha256"] = planted_digest
+            self.fixture.write_payload(voice_read.PLANTER_RECORD_NAME, planter)
+            self.fixture.write_payload(voice_read.READER_RECORD_NAME, reader)
+            self.assertFalse(self.grade().findings_failed)
 
     def test_only_actual_verified_current_proposal_returns_same_point_metadata(self):
         image = "A synthetic comparison carries the point."

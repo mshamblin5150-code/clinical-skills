@@ -96,6 +96,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit("handwritten voice damage", "Supplied capture, planter and reader JSON use the shared C0 reader per artifact; damaged evidence withholds its comparisons while other records and independent profanity checks continue. Planted and draft artifact bytes remain outside this record check.", run_grader.EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("unused-imagery-judgment", "The new answer binds its declared central point and a whole recorded image; whether that image fits the point better than the draft's choice remains the Voice reader's judgment, independently of planted-pair detection.", run_grader.EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("protected-image-comparison", "The dated plant guard compares whitespace-normalized whole quoted inventory entries in the real and planted voice surfaces; it does not classify their figurative meaning or protect equivalent rewordings.", run_grader.EvidenceDisposition.BEHAVIOR),
 )
 
 _PAIR_SECTION = re.compile(
@@ -538,6 +540,7 @@ def _voice_result(
     pairs: tuple[Pair, ...],
     model_digest: str,
     artifact: str | None = None,
+    *, protected_images: tuple[str, ...] = (),
 ) -> ReadResult:
     try:
         planter = _read_json(records / PLANTER_RECORD_NAME, artifact)
@@ -602,6 +605,12 @@ def _voice_result(
         return ReadResult(True, False, "finding - planted copy differs in other than the named sentence")
     if not _verbatim_sentence(planted, replacement):
         return ReadResult(True, False, "finding - planted sentence is not one complete sentence")
+    if protected_images and artifact is not None:
+        from recorded_image_match import active_for_artifact, normalized
+        if active_for_artifact("voice_read:recorded-image-plant", artifact):
+            if any(normalized(surface.text).count(normalized(image)) > normalized(planted).count(normalized(image))
+                   for image in protected_images):
+                return ReadResult(True, False, "finding - plant changed a recorded image used by the draft")
 
     population = {pair.identifier for pair in pairs}
     if len(population) != len(pairs):
@@ -779,6 +788,8 @@ def _completion_gate(
 
     pair_read = read_pairs(model_text)
     profanity_read = read_profanity_terms(model_text)
+    from voice_model_observation import read_images
+    imagery_read = model.imagery if model is not None else read_images(model_text)
     voice_results: list[VoiceResult] = []
     profanity_count = 0
     drafts_with_profanity = 0
@@ -818,7 +829,8 @@ def _completion_gate(
         else:
             from run_record_reader import UnreadableRecord, collecting_errors, fault_report
             try:
-                pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key)
+                pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key,
+                                            protected_images=imagery_read.images)
             except UnreadableRecord as failure:
                 if not collecting_errors():
                     raise

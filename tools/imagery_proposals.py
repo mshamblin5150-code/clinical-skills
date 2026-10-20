@@ -55,6 +55,7 @@ DECLARED_LIMITS = (
     ),
     ("image answer scope", "A whole-message match proves who wrote the recorded reply after the declared shown-draft time, not that it answered the displayed image question. One unread transcript observation is counted once across all proposals."),
     ("handwritten proposal damage", "The shared reader checks all proposal JSON strings and keys, including nested ruling and changed-image text; a damaged record withholds proposal-dependent checks while artifact working-marker checks continue."),
+    ("same-point-ruling-binding", "A verified proposal's exact declared central point identifies the match question it settles; the gate does not infer semantic equivalence between differently worded points or prove that the displayed proposal showed its declared match."),
 )
 
 _STATUSES = frozenset(
