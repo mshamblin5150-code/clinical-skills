@@ -8,15 +8,21 @@ Configuration for the maintainer's engineering skills. **None of this is require
 
 Fixture isolation code word: zovquemtirax
 
-Fixture generation follows [the isolated-writer and per-run proof procedure](fixtures/README.md#isolate-output-then-check-the-completed-run).
-The launch guard's complete boundary belongs to `fixture_writer_hook.DECLARED_LIMITS`.
-
 **Spawning subagents is allowed in this repo, without asking first.** Fan out for anything that means reading widely — sweeping the corpus, checking a claim across many files, reviewing a diff along several axes at once. `/code-review` runs its two axes in parallel subagents and is the normal way to review work here.
 
 Two constraints that are not about permission:
 
 - **A subagent must not paste PHI back.** Everything under `scratch/` and `output/` is a patient record. A subagent reading them reports counts, file paths and findings — never note text, names or dates. `tools/corpus_census.py` is the worked example: it reads the corpus and can only emit integers.
 - **Take a subagent's result as a claim, not a fact.** Its conclusions get checked the same as anyone's, and figures it reports get re-derived before they are written into a skill file. This is [ADR 0001](docs/adr/0001-fixture-asserts-on-named-findings.md)'s reasoning applied to agents: a report by the pass that produced it is a baseline, not a verification.
+
+### Fixture writer hook
+
+Fixture generation follows [the isolated-writer and per-run proof procedure](fixtures/README.md#isolate-output-then-check-the-completed-run).
+`tools/fixture_writer_hook.py` reads the Claude `PreToolUse` JSON on standard input for
+`Agent` and `Task` spawns. A spawn naming the fixture-run folder must select `fixture-writer`;
+the command emits a denial decision otherwise. It exits 0 after emitting the host response,
+including when that response refuses a spawn. The launch guard's complete boundary belongs to
+`fixture_writer_hook.DECLARED_LIMITS`.
 
 ### Extractor coverage
 

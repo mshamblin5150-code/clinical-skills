@@ -17,7 +17,7 @@ class FixtureWriterLaunch(unittest.TestCase):
     def command(self, raw: str) -> dict:
         result = subprocess.run(
             [sys.executable, str(COMMAND)], input=raw,
-            capture_output=True, text=True, encoding="utf-8", check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
         )
         self.assertEqual(result.stderr, "")
         return json.loads(result.stdout) if result.stdout.strip() else {}
@@ -115,6 +115,7 @@ class FixtureWriterInstallation(unittest.TestCase):
                 self.assertEqual(result.returncode, 0 if ignored else 1)
 
     def test_the_secret_is_unique_without_copying_it_into_test_data(self):
+        """No tracked file duplicates the word; untracked files are not read."""
         import git_paths
 
         label = "Fixture isolation code word: "
