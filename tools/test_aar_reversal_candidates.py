@@ -169,6 +169,35 @@ class ReversalCandidates(unittest.TestCase):
                     status, report = self.command("--show")
                     self.assertEqual(0 if mode in {"correct", "before-extract"} else 1, status, report)
 
+    def test_pre_build_round_keeps_its_grade_and_the_exact_boundary_enables_new_checks(self):
+        self.extract()
+        landing = "https://github.com/example/repo/issues/42#issuecomment-123"
+        self.correction(disposition="tracker-ticket", landing=landing)
+        cutoff = aar_scan.REVERSAL_CANDIDATES_CUTOFF
+        (self.memory.parent / "correction.md").unlink()  # Tracker landing adds no memory.
+        candidate = next(entry.identifier for entry in self.entries if entry.kind == "reversal-candidates")
+        self.record.write_text(self.record.read_text(encoding="utf-8").replace("SUSTAINS: none\n", ""), encoding="utf-8")
+        self.append(f"\n## SUSTAIN: {candidate}\nSUMMARY: Retain the settled workflow.\n")
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": "event_msg", "timestamp": (cutoff + timedelta(seconds=5)).isoformat(),
+                "payload": {"type": "item_completed", "item": {"type": "CommandExecution",
+                    "command": "gh issue comment 42", "status": "completed", "exit_code": 0, "stdout": landing}}}) + "\n")
+        self.input.unlink()
+        path = aar_scan.extract_path(self.run, "synthetic")
+        original = path.read_text(encoding="utf-8")
+        for when, expected in ((cutoff - timedelta(microseconds=1), 0), (cutoff, 1)):
+            with self.subTest(when=when):
+                path.write_text(original.replace(self.fields["EXTRACTED-AT"], when.isoformat()), encoding="utf-8")
+                aar_scan.measure_memory(self.run, "synthetic", 1)
+                status, report = self.command("--show")
+                self.assertEqual(expected, status, report)
+                if expected:
+                    self.assertIn("reversal-candidates:", report)
+                    self.assertIn("missing-landing-search:", report)
+                    self.assertIn("sustain-on-reversal-candidates:", report)
+                else:
+                    self.assertIn("not graded - extract predates check", report)
+
 
 if __name__ == "__main__":
     unittest.main()
