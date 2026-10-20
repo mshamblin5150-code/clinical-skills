@@ -153,6 +153,10 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
 # enumeration is the **one** copy -- ``CLAUDE.md`` points at it now rather than
 # repeating it, because two hand-kept lists of a set held in code is #220.
 ROW_PHRASES = {
+    scan.HOME_MEDICATION_REFILL: "a labeled continued home medication carrying exactly `Refill: 3`",
+    scan.PRN_MAXIMUM_UNREACHABLE: "an as-needed count-unit daily maximum not exceeding its stated minimum interval",
+    scan.UNNAMED_CROSS_REFERENCE_ROW: "no bare `item N` or `entry N` pointer",
+    scan.PLAN_ORDER_WITHOUT_TABLE: "a Plan dose with a route and frequency naming its table's drug within the five preceding words",
     scan.BULLET_MARKER: "no bullet anywhere in the document",
     scan.INTAKE_TABLE: (
         "no table under Demographics, the Review of Systems, the Physical Examination, or "
@@ -408,7 +412,8 @@ class CrossReferencesResolveAgainstTheNamedSection(unittest.TestCase):
             status, out, _ = run([str(path)])
         finally:
             directory.cleanup()
-        self.assertEqual(status, 0, out)
+        self.assertEqual(status, 1, out)
+        self.assertIn(scan.UNNAMED_CROSS_REFERENCE_ROW, {f.kind for f in result.findings})
 
     def test_the_report_counts_each_class(self):
         text = CLEAN.replace(
@@ -1314,6 +1319,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
     WRONG_CROSS_REFERENCE = "a cross-reference inside range that lands on the wrong item"
     UNNAMED_CROSS_REFERENCE = "an unnamed cross-reference is never resolved"
     OPTIONAL_HEADING = "a misspelled optional heading disables its row under ADR 0230"
+    BRAND_GENERIC = "a brand name in Plan and a generic name in its table do not match"
 
     def test_every_limit_has_exactly_one_known_disposition(self):
         self.assertEqual(
@@ -1336,6 +1342,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
                 self.WRONG_CROSS_REFERENCE,
                 self.UNNAMED_CROSS_REFERENCE,
                 self.OPTIONAL_HEADING,
+                self.BRAND_GENERIC,
             ],
         )
         self.assertEqual(

@@ -102,6 +102,7 @@ import docx_write
 import coursework_run
 import reference_scan
 import run_grader
+import research_ledger
 from run_grader import EvidenceDisposition
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -163,22 +164,22 @@ CROSS_REFERENCE_RANGE = (
 CROSS_REFERENCE_PATTERNS = (
     (
         "Plan:",
-        re.compile(r"\bPlan\s+items?\s+" + CROSS_REFERENCE_RANGE, re.I),
+        re.compile(r"\bPlan[*_]*\s*:?[*_]*\s+items?\s+" + CROSS_REFERENCE_RANGE, re.I),
     ),
     (
         "MDM",
-        re.compile(r"\bMDM\s+entr(?:y|ies)\s+" + CROSS_REFERENCE_RANGE, re.I),
+        re.compile(r"\bMDM[*_]*\s*:?[*_]*\s+entr(?:y|ies)\s+" + CROSS_REFERENCE_RANGE, re.I),
     ),
     (
         "Patient Education:",
         re.compile(
-            r"\bPatient\s+Education\s+items?\s+" + CROSS_REFERENCE_RANGE,
+            r"\bPatient\s+Education[*_]*\s*:?[*_]*\s+items?\s+" + CROSS_REFERENCE_RANGE,
             re.I,
         ),
     ),
     (
         "Differential Diagnoses",
-        re.compile(r"\bdifferential\s+" + CROSS_REFERENCE_RANGE, re.I),
+        re.compile(r"\bdifferential(?:\s+diagnoses)?[*_]*\s*:?[*_]*\s+(?:items?\s+)?" + CROSS_REFERENCE_RANGE, re.I),
     ),
 )
 UNNAMED_CROSS_REFERENCE = re.compile(
@@ -366,6 +367,10 @@ PROPOSED_HEADING = "proposed-heading"
 UNMARKED_BLOCK_QUOTATION = "unmarked-block-quotation"
 TEMPERATURE_DEGREES_WORD_ROW = "temperature-degrees-word"
 EXPANDED_CLINICAL_LABEL = "expanded-clinical-label"
+HOME_MEDICATION_REFILL = "home-medication-refill"
+PRN_MAXIMUM_UNREACHABLE = "prn-maximum-unreachable"
+UNNAMED_CROSS_REFERENCE_ROW = "unnamed-cross-reference"
+PLAN_ORDER_WITHOUT_TABLE = "plan-order-without-table"
 
 # Where each row's rule is written, so a reader knows which file to open. Keyed
 # rather than built from ``KINDS``, on ``checks_ledger.ROW_TICKET``'s reasoning: a
@@ -373,6 +378,10 @@ EXPANDED_CLINICAL_LABEL = "expanded-clinical-label"
 # could never fail and the claim that a row cannot arrive without a written rule
 # would be a claim about code that does not check it.
 ROWS = {
+    HOME_MEDICATION_REFILL: "ADR0366 ruling 1 - labeled home medication carries Refill: 3",
+    PRN_MAXIMUM_UNREACHABLE: "ADR0366 ruling 3 - count-unit PRN maximum cannot exceed the stated interval",
+    UNNAMED_CROSS_REFERENCE_ROW: "ADR0366 ruling 5 - a cross-reference names its section",
+    PLAN_ORDER_WITHOUT_TABLE: "ADR0366 ruling 6 - a dosed Plan order takes its prescription table",
     BULLET_MARKER: "style.md 1a, SKILL.md - never bullets, anywhere",
     INTAKE_TABLE: "style.md 1a - defined fields, never a table",
     INTAKE_FIELD_LAYOUT: "style.md 1a - one intake field or developmental domain per line",
@@ -401,6 +410,9 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 ROW_SECTION_REQUIREMENTS = {
+    HOME_MEDICATION_REFILL: (RX,),
+    PRN_MAXIMUM_UNREACHABLE: (RX,),
+    PLAN_ORDER_WITHOUT_TABLE: (PLAN,),
     INTAKE_TABLE: (REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION),
     INTAKE_FIELD_LAYOUT: (REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION),
     MDM_ENTRY_NO_CITATION: (MDM,),
@@ -415,6 +427,13 @@ ROW_SECTION_REQUIREMENTS = {
     DIAGNOSIS_ALL_BOLD: (MOST_LIKELY,),
     RX_TABLE_SHAPE: (RX,),
     NO_STOP_CRITERION: (RX,),
+}
+
+ROW_COVERAGE_SUBJECTS = {
+    HOME_MEDICATION_REFILL: ("prescription records", "home labels"),
+    PRN_MAXIMUM_UNREACHABLE: ("prescription records",),
+    UNNAMED_CROSS_REFERENCE_ROW: ("item pointers",),
+    PLAN_ORDER_WITHOUT_TABLE: ("prescription records", "Plan dose blocks"),
 }
 
 # **What no row here reaches, named rather than left to be discovered.**
@@ -476,6 +495,11 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     ("whether an MDM citation supports its claim", EvidenceDisposition.DECLARED_READING),
+    ("a milligram daily maximum is not graded", EvidenceDisposition.DECLARED_READING),
+    ("two daily limits side by side require a wording reading", EvidenceDisposition.DECLARED_READING),
+    ("a brand name in Plan and a generic name in its table do not match", EvidenceDisposition.BEHAVIOR),
+    ("order arithmetic reads digit amounts and number words one through twelve with explicit hour intervals and count-unit ceilings", EvidenceDisposition.DECLARED_READING),
+    ("candidate coverage is a floor over literal table, pointer and Plan dose-block forms; overlapping prescription populations use the larger missing count", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
 
@@ -539,6 +563,17 @@ class CrossReference:
 
 
 @dataclass(frozen=True)
+class RowCoverage:
+    subject: str
+    candidates: int
+    read: int
+
+    @property
+    def unread(self) -> int:
+        return max(self.candidates - self.read, 0)
+
+
+@dataclass(frozen=True)
 class Scan:
     """What one run found, and what it was able to look at.
 
@@ -566,6 +601,14 @@ class Scan:
     no_section: bool
     skeleton_disagreement: list
     skeleton_unread: bool
+    row_coverage: tuple[RowCoverage, ...] = ()
+
+    @property
+    def unread_remainder(self) -> int:
+        missing = {row.subject: row.unread for row in self.row_coverage}
+        # A failed prescription read can also withhold its home declaration.
+        return (max(missing.get("prescription records", 0), missing.get("home labels", 0))
+                + missing.get("item pointers", 0) + missing.get("Plan dose blocks", 0))
 
 
 def normalize(label: str) -> str:
@@ -822,7 +865,9 @@ def read_cross_references(sections: list[Section], every: list) -> tuple[CrossRe
 def _cross_reference_findings(
     cross_references: tuple[CrossReference, ...],
 ) -> list[Finding]:
-    return [
+    unnamed = [Finding(UNNAMED_CROSS_REFERENCE_ROW, OUTSIDE_ANY_SECTION, reference.line,
+                       reference.label) for reference in cross_references if reference.section is None]
+    return unnamed + [
         Finding(
             CROSS_REFERENCE_OUT_OF_RANGE,
             reference.section or OUTSIDE_ANY_SECTION,
@@ -834,6 +879,127 @@ def _cross_reference_findings(
         and reference.section_present
         and reference.target is None
     ]
+
+
+NUMBER_WORDS = {word: value for value, word in enumerate(
+    ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+     "nine", "ten", "eleven", "twelve"))}
+ORDER_NUMBER = r"(?:\d+(?:\.\d+)?|" + "|".join(NUMBER_WORDS) + r")"
+ORDER_AMOUNT = re.compile(r"\b(?P<number>" + ORDER_NUMBER + r")\s*(?P<unit>(?:mg|mcg|g|grams?|ml|l|units?|tablets?|capsules?|puffs?|drops?|patch(?:es)?)\b|%)", re.I)
+PRN_WORD = re.compile(r"\b(?:PRN|as[ -]needed)\b", re.I)
+ONCE_ORDER = re.compile(r"\b(?:single[ -]dose|one[ -]time|x1)\b|\bonce\b(?!\s+(?:daily|nightly|a\s+day|per\s+day|weekly|monthly|every))", re.I)
+HOUR_INTERVAL = re.compile(r"\b(?:every\s+|q\s*)(?P<hours>" + ORDER_NUMBER + r")(?:\s*(?:-|–|to)\s*" + ORDER_NUMBER + r")?\s*(?:h(?:ours?)?|hrs?)\b", re.I)
+COUNT_CEILING = re.compile(
+    r"\b(?:max(?:imum)?(?:\s+of)?|do\s+not\s+exceed|not\s+to\s+exceed|up\s+to)\s*:?\s*"
+    r"(?P<number>" + ORDER_NUMBER + r")\s*(?P<unit>doses?|tablets?|capsules?)\s*"
+    r"(?:/\s*day\b|(?:per|a|each)\s+day\b|daily\b|(?:in|per)\s+24\s+hours?\b)", re.I)
+ORDER_ROUTE = re.compile(r"\b(?:PO|IV|IM|SC|SQ|oral|orally|mouth|topical|topically|intravenous|intramuscular|subcutaneous|inhaled|inhalation|rectal|vaginal|ophthalmic|otic|nasal|intranasal|sublingual|buccal|transdermal)\b", re.I)
+ORDER_FREQUENCY = re.compile(RECURRING.pattern + r"|\b(?:once|single[ -]dose|one[ -]time|PRN|as[ -]needed|twice\s+daily|three\s+times\s+daily|four\s+times\s+daily)\b", re.I)
+ORDER_WORD = re.compile(r"[\w'-]+")
+
+
+def _order_number(text: str) -> float:
+    return float(NUMBER_WORDS[text.lower()]) if text.lower() in NUMBER_WORDS else float(text)
+
+
+def _prn_maximum_unreachable(order: str) -> bool:
+    if not PRN_WORD.search(order):
+        return False
+    intervals = [_order_number(match["hours"]) for match in HOUR_INTERVAL.finditer(order)]
+    if not intervals or min(intervals) <= 0:
+        return False
+    for ceiling in COUNT_CEILING.finditer(order):
+        amounts = list(ORDER_AMOUNT.finditer(order[:ceiling.start()]))
+        if not amounts:
+            continue
+        unit = ceiling["unit"].lower().rstrip("s")
+        per_dose = 1.0
+        if unit != "dose":
+            counts = [match for match in amounts if match["unit"].lower().rstrip("s") == unit]
+            if not counts:
+                continue
+            per_dose = _order_number(counts[0]["number"])
+        if _order_number(ceiling["number"]) > 24 / min(intervals) * per_dose:
+            return True
+    return False
+
+
+def _read_prescription_rows(every: list) -> tuple[tuple[int, research_ledger.Prescription], ...]:
+    return tuple((block.line, rx) for block in every if block.kind == "table"
+                 for rx in research_ledger.read_prescription_rows(block.rows))
+
+
+def _prescription_order_findings(sections: list[Section], every: list, *, prescription_unread: bool = False,
+                               prescription_rows: tuple | None = None) -> list[Finding]:
+    """Use the ledger's declaration/table reader; no drug vocabulary or proposal input."""
+    found = []
+    if prescription_rows is None:
+        prescription_rows = _read_prescription_rows(every)
+    owner = section_owner(sections)
+    for line, rx in prescription_rows:
+        order = rx.order + " " + rx.sig
+        if (rx.declaration == "continued home medication"
+                and not PRN_WORD.search(order) and not ONCE_ORDER.search(order)
+                and not re.search(r"\b(?:IV|IM|intravenous|intramuscular)\b", order, re.I)
+                and rx.refill != "3"):
+            found.append(Finding(HOME_MEDICATION_REFILL, owner.get(line, RX), line, rx.order))
+        if _prn_maximum_unreachable(order):
+            found.append(Finding(PRN_MAXIMUM_UNREACHABLE, owner.get(line, RX), line, order))
+    drugs = {rx.drug.lower() for _, rx in prescription_rows if rx.drug}
+    if prescription_unread:
+        return found
+    for section in sections:
+        if section.name != PLAN:
+            continue
+        for block in section.blocks:
+            if block.kind not in {"paragraph", "numbered"}:
+                continue
+            for sentence in re.split(r"(?<=[.!?])\s+", block.text):
+                if not ORDER_ROUTE.search(sentence) or not (
+                    ORDER_FREQUENCY.search(sentence) or HOUR_INTERVAL.search(sentence)
+                ):
+                    continue
+                for dose in ORDER_AMOUNT.finditer(sentence):
+                    before = ORDER_WORD.findall(sentence[:dose.start()])[-5:]
+                    if not drugs.intersection(word.lower() for word in before):
+                        found.append(Finding(PLAN_ORDER_WITHOUT_TABLE, PLAN, block.line, sentence))
+                        break
+    return found
+
+
+def _row_coverage(markdown: str, sections: list[Section], cross_references: tuple[CrossReference, ...],
+                  prescription_rows: tuple) -> tuple[RowCoverage, ...]:
+    """Wider raw candidates independent of the renderer and field extraction."""
+    tables = re.findall(r"(?m)(?:^[ \t]*\|[^\n]*(?:\n|$))+", markdown)
+    rx_candidates = sum(len(re.findall(r"\bDisp\s*:", table, re.I))
+        for table in tables if re.search(r"\bSig\s*:", table, re.I))
+    home_candidates = len(re.findall(r"(?im)^.*\|\s*[`*_]*continued home medication\s*:", markdown))
+    prescriptions = [rx for _, rx in prescription_rows]
+    pointers = len(re.findall(r"\b(?:items?|entr(?:y|ies))\s+\d+", markdown, re.I))
+    pointers += len(re.findall(r"\bdifferential(?:[ \t]+diagnoses)?[*_: ]*[ \t]+\d+", markdown, re.I))
+    raw_lines = []
+    active = False
+    for line in markdown.splitlines():
+        if line.strip().strip("#*_ :").lower() == "plan":
+            active = True
+        elif active and (line.startswith("#") or re.fullmatch(r"\s*\*\*[^*]+:\*\*\s*", line)):
+            active = False
+        elif active:
+            raw_lines.append(line)
+    # This lexical floor deliberately recognizes more than an order: a quoted
+    # numeric dose is still a read subject even when it has no route/frequency.
+    dose = re.compile(r"\d\s*(?:mg\b|mcg\b|g\b|ml\b|%|tablets?\b|capsules?\b)", re.I)
+    raw_blocks = re.split(r"\n\s*\n|(?m:^\d+\.\s+)", "\n".join(raw_lines))
+    plan_candidates = sum(bool(dose.search(block)) for block in raw_blocks)
+    plan_read = sum(bool(dose.search(block.text)) for section in sections if section.name == PLAN
+                    for block in section.blocks)
+    return (
+        RowCoverage("prescription records", rx_candidates, len(prescriptions)),
+        RowCoverage("home labels", home_candidates,
+                    sum(rx.declaration == "continued home medication" for rx in prescriptions)),
+        RowCoverage("item pointers", pointers, len(cross_references)),
+        RowCoverage("Plan dose blocks", plan_candidates, plan_read),
+    )
 
 
 def _closer_findings(sections: list[Section]) -> list[Finding]:
@@ -1104,6 +1270,8 @@ def findings(
     sections: list[Section],
     every: list,
     cross_references: tuple[CrossReference, ...] = (),
+    *, prescription_unread: bool = False,
+    prescription_rows: tuple | None = None,
 ) -> list[Finding]:
     """Every row, sorted by ``KINDS``.
 
@@ -1126,6 +1294,8 @@ def findings(
         + _source_quotation_findings(sections, every)
         + _temperature_unit_findings(sections, every)
         + _expanded_clinical_label_findings(sections, every)
+        + _prescription_order_findings(sections, every, prescription_unread=prescription_unread,
+                                       prescription_rows=prescription_rows)
     )
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: (order[f.kind], f.line))
@@ -1163,8 +1333,14 @@ def survey(markdown: str, skill_text: str | None) -> Scan:
     not_opening_at_one, broken_transitions = numbering_advisories(sections)
     cross_references = read_cross_references(sections, every)
     section_names = {section.name for section in sections}
+    prescription_rows = _read_prescription_rows(every)
+    coverage = _row_coverage(markdown, sections, cross_references, prescription_rows)
+    prescription_unread = any(row.unread for row in coverage
+                              if row.subject in {"prescription records", "home labels"})
     return Scan(
-        findings=findings(sections, every, cross_references),
+        row_coverage=coverage,
+        findings=findings(sections, every, cross_references, prescription_unread=prescription_unread,
+                          prescription_rows=prescription_rows),
         sections=len(sections),
         intake_sections=len([s for s in sections if s.name in INTAKE_SECTIONS]),
         tables=len([b for b in every if b.kind == "table"]),
@@ -1199,6 +1375,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("  of them intake subsections         {n}".format(n=scan.intake_sections))
     lines.append("headings not recognized              {n}".format(n=scan.unrecognized_headings))
     lines.append("tables                               {n}".format(n=scan.tables))
+    for row in scan.row_coverage:
+        lines.append(f"{row.subject}: candidates {row.candidates}, read {row.read}, unread {row.unread}")
+    lines.append(run_grader.format_unread_remainder(scan.unread_remainder))
     lines.append(
         "em dashes  COUNTED, NEVER GRADED     {n}".format(n=scan.em_dashes)
     )
@@ -1251,7 +1430,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             for section in ROW_SECTION_REQUIREMENTS.get(kind, ())
             if section not in scan.recognized_sections
         ]
-        outcome = run_grader.NOT_GRADED if missing_for_row else str(len(hits))
+        unread_subjects = {row.subject for row in scan.row_coverage if row.unread}
+        unavailable = bool(unread_subjects.intersection(ROW_COVERAGE_SUBJECTS.get(kind, ())))
+        outcome = run_grader.NOT_GRADED if missing_for_row or unavailable else str(len(hits))
         lines.append("{k}{p}  {n}".format(k=kind, p=" " * (width - len(kind)), n=outcome))
         if show:
             for finding in hits:
@@ -1332,7 +1513,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         coverage_failed=scan.no_section
         or bool(scan.missing_required_sections)
         or bool(scan.skeleton_disagreement)
-        or scan.skeleton_unread,
+        or scan.skeleton_unread or bool(scan.unread_remainder),
         diagnostics=diagnostics,
     )
     return coursework_mechanics.apply_grade(
