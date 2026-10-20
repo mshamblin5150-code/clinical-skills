@@ -117,10 +117,18 @@ class ToolRecordCommands(unittest.TestCase):
         capture = self.root / 'case-video' / 'capture'
         fake_python = self.root / 'synthetic-python'
         fake_python.write_bytes(b'synthetic')
-        self.damaged(capture / 'capture.json', lambda: case_video.main([
-            'transcribe', str(self.root), '--python', str(fake_python),
-            '--terms', str(capture / 'slide-terms.json'),
-        ]))
+        terms = self.root / 'synthetic-terms.json'
+        terms.write_text('{"frames_read":[],"terms":"Synthetic vocabulary","model_reason":"Synthetic model"}',
+                         encoding='utf-8')
+        with mock.patch.object(case_video.subprocess, 'run', side_effect=AssertionError('worker must not launch')) as worker, \
+             mock.patch.object(case_video, 'transcribe', side_effect=AssertionError('heavy transcriber must not load')) as transcriber:
+            self.damaged(capture / 'capture.json', lambda: case_video.main([
+                'transcribe', str(self.root), '--python', str(fake_python),
+                '--terms', str(terms),
+            ]))
+        worker.assert_not_called()
+        transcriber.assert_not_called()
+        self.assertFalse((capture / 'transcribe.log').exists())
 
     def test_every_capture_record_kind_refuses_through_the_check_command(self):
         from test_case_video import CaptureGate

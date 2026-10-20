@@ -3,7 +3,7 @@
 phi-scan: synthetic
 """
 import artifact_lock_test_support
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 import io
 import json
 import tempfile
@@ -33,6 +33,7 @@ import course_assignment_scan
 import anchor_scan
 import completion_checks
 from datetime import timedelta
+from dataclasses import replace
 from unittest import mock
 
 
@@ -41,6 +42,112 @@ class HandwrittenHosts(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)
+
+    def _native_output(self, operation):
+        output, error = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(error):
+            status = operation()
+        return status, output.getvalue() + error.getvalue()
+
+    def test_native_required_claims_keep_strict_utf8_refusal_and_clean_twins(self):
+        for kind in ('deck', 'docx'):
+            with self.subTest(kind=kind):
+                root = self.run / kind
+                root.mkdir()
+                if kind == 'deck':
+                    fixture = deck_fixture.Run(root)
+                    fixture.write_deck((deck_fixture.slide_xml('Plan', 'Plain synthetic text'),))
+                    path = root / 'claims.md'
+                    def invoke():
+                        status, output, error = fixture.grade('--paper-language', 'en')
+                        return status, output + error
+                else:
+                    fixture = docx_fixture.empty_population_input(root)
+                    run, artifact = Path(fixture.argv[0]), Path(fixture.argv[2])
+                    spec = docx_fixture.assignment_docx.fixture_spec()
+                    docx_fixture.assignment_docx.build(replace(spec,
+                        title_page=replace(spec.title_page, title='Synthetic document')), artifact, force=True)
+                    digest = docx_fixture.file_digest.sha256(artifact)
+                    heading_path = run / 'heading-read.md'
+                    heading_path.write_text(re.sub(r'(?m)^DRAFT: .*', 'DRAFT: ' + digest,
+                        heading_path.read_text(encoding='utf-8')), encoding='utf-8')
+                    docx_fixture.file_digest.write_recorded_sha256(
+                        run / 'render/pass-1' / assignment_docx_scan.FINGERPRINT_FILE, digest)
+                    path = run / 'claims.md'
+                    reference = spec.references[0]
+                    heading = 'The example connects authority.'
+                    path.write_text(
+                        'DATE: 2026-09-13\n\n## CLAIM: ' + heading + '\nSTATUS: sourced\n'
+                        'REFERENCE: ' + reference + '\nREFUTATION: stands - the source states the connection.\n'
+                        'TESTED-HEADING: ' + docx_fixture.research_ledger.heading_digest(heading) + '\n'
+                        'SECOND-ROUTE: source page -> independent reading\n', encoding='utf-8')
+                    invoke = lambda: self._native_output(lambda: assignment_docx_scan.main(
+                        [*fixture.argv, '--paper-language', 'en', '--show']))
+                clean = path.read_bytes()
+                status, report = invoke()
+                self.assertEqual(0, status, report)
+                path.write_bytes(clean + b'\xff')
+                status, report = invoke()
+                self.assertEqual(2, status, report)
+                self.assertIn('could not read', report)
+                self.assertNotIn('U+00', report)
+                path.write_bytes(clean)
+                self.assertEqual(0, invoke()[0])
+
+    def test_native_checks_replacement_matches_decoded_twin_and_keeps_findings(self):
+        ledger = self.run / 'checks.md'
+        ledger.write_text(checks_fixture.whole_file(), encoding='utf-8')
+        status, report, error = checks_fixture.run([str(ledger)])
+        self.assertEqual(0, status, report + error)
+        document = self.run / 'draft.md'
+        claims = self.run / 'claims.md'
+        ledger_text = ledger.read_text(encoding='utf-8').replace('VERDICT: clean', 'VERDICT: invented', 1)
+        raw_ledger = ledger_text.encode() + b'\nNOTE: retained\xfftext\n'
+        raw_claims = b'DATE: 2026-09-13\n\n## CLAIM: Synthetic\xffclaim\nSTATUS: sourced\n'
+        reports, observations = [], []
+        original_checks = checks_ledger.read_records
+        original_claims = checks_ledger.research_ledger.read_records
+        for replacement in (False, True):
+            with self.subTest(replacement=replacement):
+                ledger.write_bytes(raw_ledger.decode('utf-8', errors='replace').encode() if replacement else raw_ledger)
+                claims.write_bytes(raw_claims.decode('utf-8', errors='replace').encode() if replacement else raw_claims)
+                observed = []
+                def checks_read(text):
+                    observed.append(('checks', text))
+                    return original_checks(text)
+                def claims_read(text):
+                    observed.append(('claims', text))
+                    return original_claims(text)
+                with mock.patch.object(checks_ledger, 'read_records', side_effect=checks_read), \
+                     mock.patch.object(checks_ledger.research_ledger, 'read_records', side_effect=claims_read):
+                    status, report = self._native_output(lambda: checks_ledger.main(
+                        [str(ledger), '--document', str(document), '--show']))
+                self.assertEqual(1, status, report)
+                self.assertIn('unknown-verdict', report)
+                self.assertIn(('checks', raw_ledger.decode('utf-8', errors='replace')), observed)
+                self.assertIn(('claims', raw_claims.decode('utf-8', errors='replace')), observed)
+                reports.append(report)
+                observations.append(observed)
+        self.assertEqual(reports[0], reports[1])
+        self.assertEqual(observations[0], observations[1])
+
+    def test_native_walks_only_ledger_keeps_strict_utf8_refusal(self):
+        ledger = self.run / 'checks.md'
+        clean = b'FIRST-DRAFT: 2099-01-01T00:00:00Z\n'
+        walks = checks_fixture.PreReviewWalksThroughCommand().records()
+        walks['routing-walk.json'] = checks_fixture.RoutingWalkThroughCommand().routing_record()
+        for name, value in walks.items():
+            (self.run / name).write_text(json.dumps(value), encoding='utf-8')
+        (self.run / 'bar.md').write_text('SIGNED: 2000-01-01\nSUBMISSION-TYPE: file-upload\n', encoding='utf-8')
+        ledger.write_bytes(clean)
+        invoke = lambda: self._native_output(lambda: checks_ledger.main([str(ledger), '--walks-only']))
+        self.assertEqual(0, invoke()[0])
+        ledger.write_bytes(clean + b'\xff')
+        status, report = invoke()
+        self.assertEqual(2, status, report)
+        self.assertIn('could not read checks file', report)
+        ledger.write_bytes(clean)
+        self.assertEqual(0, invoke()[0])
 
     def test_canonical_signer_forces_content_refusal_for_every_skill_before_mutation(self):
         start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
