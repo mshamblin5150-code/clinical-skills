@@ -381,7 +381,7 @@ DECLARED_LIMITS = (
         "The transcript cannot reveal a clinician handover or prove a conditional tab creation unless the tool result marks it, so ownership is reported conservatively and never graded.",
     ),
     ("locked record publication", "AAR writers take the allocation resource before round, retirement and archive decisions, then lock each actual record for its shared atomic update. Extract and baseline are separate publications, not a multi-file atomic transaction; an extract may remain if its later baseline publication fails."),
-    ("unverified cause", "A cause resting on an agent's explanation of dropped tool output is marked, not checked. The grader requires cause pointers and restricts unverified landings to warning-bearing tickets, but cannot prove that the reader noticed every narrated cause or that a shown entry supports it. A not-shown candidate is counted separately and establishes no correction. Publication recognition uses the existing successful Claude tool-result and Codex CommandExecution shapes and command_reader body-file grammar; unknown shapes refuse. The file is read at grading time, not retained as its publication-time bytes; matching command evidence cannot prove the file was unchanged."),
+    ("unverified cause", "A cause resting on an agent's explanation of dropped tool output is marked, not checked. The grader requires cause pointers and restricts unverified landings to warning-bearing tickets, but cannot prove that the reader noticed every narrated cause or that a shown entry supports it. A not-shown candidate is counted separately and establishes no correction. Publication recognition uses the existing successful Claude tool-result and Codex CommandExecution shapes and command_reader body-file grammar. Multiple command strings sharing output refuse; a single gh publication may have only literal cd && prefixes. Other compound or unknown shapes refuse. The file is read at grading time, not retained as its publication-time bytes; matching command evidence cannot prove the file was unchanged."),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
@@ -2190,6 +2190,7 @@ class GhCommand:
     cwd: str | None
     output: str
     timestamp: datetime | None
+    shared_output: bool = False
 
 
 def _successful_gh_commands(transcripts: Iterable[Path]) -> tuple[GhCommand, ...]:
@@ -2226,6 +2227,7 @@ def _successful_gh_commands(transcripts: Iterable[Path]) -> tuple[GhCommand, ...
                             command, _text(item.get("cwd") or item.get("workdir") or row.get("cwd")) or None,
                             "\n".join(_text(item.get(field)) for field in ("stdout", "aggregated_output")),
                             timestamp,
+                            len(commands) != 1,
                         ))
             elif row.get("type") == "user":
                 for block in _content_blocks(row.get("message")):
@@ -2410,10 +2412,15 @@ def _unverified_publication(transcripts: Iterable[Path], landing: str,
     if extracted_at is None:
         return False
     for call in _successful_gh_commands(transcripts):
-        if not _printed_landing(call, landing, extracted_at):
+        if call.shared_output or not _printed_landing(call, landing, extracted_at):
             continue
-        # One recorded publication has one body; compound/unknown shapes refuse.
-        if len(tuple(shell_reader.executable_calls(call.command, "gh"))) != 1:
+        # Shared output cannot identify which executable printed the address.
+        # Recognize only one gh command, optionally preceded by literal cd &&.
+        pieces = [piece.strip() for piece in shell_reader.shell_pieces(call.command) if piece.strip()]
+        if (not pieces or len(pieces) % 2 != 1
+                or any((shell_reader.LITERAL_CD.fullmatch(piece) is None if index % 2 == 0
+                        else piece != "&&") for index, piece in enumerate(pieces[:-1]))
+                or len(tuple(shell_reader.executable_calls(pieces[-1], "gh"))) != 1):
             continue
         command = call.command
         if call.cwd and Path(call.cwd).is_absolute():

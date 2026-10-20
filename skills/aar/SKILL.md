@@ -136,6 +136,8 @@ carries the sentence without a label requirement. Retain the body file: the grad
 named by the successful command that printed the exact landing address. An inline body or an
 unrecognized command shape refuses. Relative body paths need the recorded command's absolute
 working directory or a literal `cd` in that command. The grader never replays a command.
+Keep one publication per command result: a multi-command batch sharing output or another shell
+executable beside the publication refuses. A literal `cd ... && gh ...` remains recognized.
 
 File a `tracker-ticket` or `skill-file` ticket as soon as its body passes the publish hook; no per-ticket go-ahead is needed, because a ticket records and ADR 0109 ruling 3 applies it unattended. The skill-file diff on that ticket still waits for the clinician's ruling. Never report a review clean while one of its tickets is unfiled.
 

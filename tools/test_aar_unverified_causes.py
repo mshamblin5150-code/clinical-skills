@@ -142,6 +142,38 @@ class CauseRecords(unittest.TestCase):
         self.body.write_text(self.body_text.replace(WARNING, ""), encoding="utf-8")
         self.assertIn("unverified-publication", self.grade()[1])
 
+    def test_codex_shared_output_cannot_bind_a_sibling_body_to_the_landing(self):
+        self.ticket()
+        (self.folder / "bad.md").write_text(self.body_text.replace(WARNING, ""), encoding="utf-8")
+        good = "gh issue create --body-file cause.md --label grilling"
+        bad = "gh issue create --body-file bad.md --label grilling"
+        for commands in ([good, bad], [good, "echo " + self.landing]):
+            with self.subTest(commands=commands):
+                self.evidence(commands, "codex")
+                with mock.patch.object(aar_scan.subprocess, "run", side_effect=AssertionError("never replay")):
+                    status, report = self.grade()
+                self.assertEqual(status, 1, report)
+                self.assertIn("unverified-publication", report)
+                # The historical landing/search evidence keeps its original recognition.
+                self.assertNotIn("missing-gh-call", report)
+                self.assertNotIn("missing-landing-search", report)
+        self.evidence([good], "codex")
+        self.assertEqual(self.grade()[0], 0)
+
+    def test_compound_result_is_not_a_single_publication_but_literal_cd_is(self):
+        self.ticket()
+        good = "gh issue create --body-file cause.md --label grilling"
+        for command in (good + " && echo " + self.landing,
+                        "echo ready; " + good,
+                        good + " ; gh issue create --body-file absent.md --label grilling"):
+            with self.subTest(command=command):
+                self.evidence(command)
+                status, report = self.grade()
+                self.assertEqual(status, 1, report)
+                self.assertIn("unverified-publication", report)
+        self.evidence(f'cd "{self.folder.as_posix()}" && ' + good, cwd=False)
+        self.assertEqual(self.grade()[0], 0)
+
     def test_unknown_extraction_moment_is_active_and_not_an_historical_exemption(self):
         self.correction(classifier=None, final=None)
         path = aar_scan.extract_path(self.fixture.run, "synthetic")
