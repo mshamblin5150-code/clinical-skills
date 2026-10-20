@@ -220,10 +220,14 @@ def filter_findings(module: str, findings, *, moment=None, ledger_date=None):
         observed = moment
         if registry()[key][1] == "ledger":
             observed = ledger_date
+        applies = None
         if observed is None and registry()[key][1] == "approval":
             artifact = getattr(finding, "artifact", getattr(finding, "response", ""))
-            observed = ITEM_MOMENTS.get().get(artifact)
-        if active(key, observed):
+            if artifact:
+                applies = active_for_item(key, artifact)
+        if applies is None:
+            applies = active(key, observed)
+        if applies:
             selected.append(finding)
     return tuple(selected)
 

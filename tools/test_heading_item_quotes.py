@@ -5,9 +5,12 @@ phi-scan: synthetic
 import artifact_lock_test_support
 import mechanics_test_support
 import hashlib
+import importlib
+import io
 import tempfile
 import unittest
 import zipfile
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -16,6 +19,9 @@ import heading_read
 import project_context
 import research_ledger
 import test_discussion_post_scan as post_tests
+import test_own_figures as figure_tests
+import test_checks_ledger as checks_tests
+from prose_bind import ProseBind
 
 setUpModule, tearDownModule = mechanics_test_support.module_hooks()
 
@@ -55,9 +61,9 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
         return code, output + error
 
     def test_real_committed_item_and_case_whitespace_normalization(self):
-        self.item = Path(__file__).resolve().parents[1] / "tools" / "test_heading_read.py"
+        self.item = Path(__file__).resolve().parents[1] / "AGENTS.md"
         self.identifier = str(self.item)
-        self.prepare(' | rests on "All   drafts and CLAIM records are synthetic."')
+        self.prepare(' | rests on "Agent-agnostic   skills for a NURSE practitioner student\'s written work"')
         code, output = self.command()
         self.assertEqual(0, code, output)
 
@@ -84,10 +90,9 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
         self.assertEqual(0, code, output)
         self.assertIn("service-item quotes: 1 counted, not graded", output)
 
-    def test_moved_missing_and_unreadable_file_have_one_source_remainder(self):
+    def test_moved_or_missing_file_has_one_source_remainder(self):
         for damage in (lambda: self.item.write_text("moved", encoding="utf-8"),
-                       lambda: self.item.unlink(),
-                       lambda: self.item.write_bytes(b"\xff")):
+                       lambda: self.item.unlink()):
             with self.subTest(damage=damage):
                 self.item.write_text("Alpha beta gamma.", encoding="utf-8")
                 self.prepare()
@@ -97,6 +102,19 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
                 self.assertIn("unread item sources: 1", output)
                 self.assertIn("unread remainder 1", output)
                 self.assertIn(heading_read.ITEM_QUOTE_ABSENT + ": 0", output)
+
+    def test_unreadable_text_at_its_recorded_digest_is_coverage_not_a_finding(self):
+        for name, raw in (("item.md", b"\xff"), ("item.docx", b"not a Word package")):
+            with self.subTest(name=name):
+                self.item = self.root / name
+                self.identifier = name
+                self.item.write_bytes(raw)
+                self.prepare()
+                code, output = self.command()
+                self.assertEqual(2, code, output)
+                self.assertIn("unread item sources: 1", output)
+                self.assertIn("unread remainder 1", output)
+                self.assertIn("findings: 0", output)
 
     def test_word_body_reader_and_post_read_digest(self):
         self.item = self.root / "item.docx"
@@ -132,14 +150,98 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
         from datetime import timedelta
         self.prepare("")
         start = completion_checks.registry()[heading_read.ITEM_QUOTE_CHECK][0]
-        binding = heading_read.binding_from_context(self.run.draft.name, self.run.draft.read_bytes(), (), self.root)
-        for moment, expected in ((start - timedelta(microseconds=1), 0), (start, 1)):
-            token = completion_checks.MOMENTS.set({"approval": moment})
-            try:
-                result = heading_read.scan(self.root.joinpath("heading-read.md").read_text(encoding="utf-8"), (binding,))
-            finally:
-                completion_checks.MOMENTS.reset(token)
-            self.assertEqual(bool(expected), any(f.kind == heading_read.ITEM_QUOTE_MISSING for f in result.findings))
+        before = start - timedelta(microseconds=1)
+        for moment, item_moment, expected in ((before, before, 0), (start, start, 1), (before, None, 1)):
+            @contextmanager
+            def approval_context(_run, _submission):
+                token = completion_checks.MOMENTS.set({"approval": moment})
+                item_token = completion_checks.ITEM_MOMENTS.set({"old.md": before, "new.md": start, self.run.draft.name: item_moment})
+                try:
+                    yield
+                finally:
+                    completion_checks.ITEM_MOMENTS.reset(item_token)
+                    completion_checks.MOMENTS.reset(token)
+            with mock.patch.object(completion_checks, "grading", approval_context):
+                code, output = self.command()
+            self.assertEqual(expected, code, output)
+            self.assertIn(f"{heading_read.ITEM_QUOTE_MISSING}: {expected}", output)
+
+    def test_retained_digest_resolves_its_own_item_path_after_current_context_moves(self):
+        self.prepare()
+        self.assertEqual(0, self.command()[0])  # Retains the original context population.
+        record = (self.root / "heading-read.md").read_text(encoding="utf-8")
+        self.item = self.root / "later" / "item.md"
+        self.item.parent.mkdir()
+        self.item.write_text("Later unrelated source.", encoding="utf-8")
+        self.prepare(' | rests on "Later unrelated source."')
+        (self.root / "heading-read.md").write_text(record, encoding="utf-8")
+        code, output = self.command()
+        self.assertEqual(1, code, output)  # The existing context-population comparison refuses.
+        self.assertIn(heading_read.CONTEXT_DIGEST_MISMATCH + ": 1", output)
+        self.assertIn(heading_read.ITEM_QUOTE_ABSENT + ": 0", output)
+        self.assertIn("unread remainder 0", output)
+
+
+class EveryNativeHostCarriesItemCoverage(unittest.TestCase):
+    def test_service_count_and_one_unread_source_reach_all_six_reports(self):
+        for name in (*figure_tests.CONSUMERS, "checks_ledger"):
+            for service in (True, False):
+                with self.subTest(host=name, service=service), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    if name == "checks_ledger":
+                        run, artifact = root, root / "draft.md"
+                        artifact.write_text(checks_tests.DRAFT_TEXT, encoding="utf-8")
+                        checks_path = root / "checks.md"
+                        checks_path.write_text(checks_tests.whole_file(), encoding="utf-8")
+                        argv = [str(checks_path), "--document", str(artifact)]
+                    else:
+                        run, artifact, argv = figure_tests.fixture(name, root, "The plan names a review.")
+                    item = run / "source.md"
+                    item.write_bytes(b"\xff")
+                    digest = hashlib.sha256(item.read_bytes()).hexdigest()
+                    context_digest = hashlib.sha256((str(run) + str(service)).encode()).hexdigest()
+                    (run / "project-context.md").write_text(
+                        "PROJECT-CONTEXT: none - synthetic source\n"
+                        "OWN-SUBMISSION: none - no synthetic earlier work\nCASE-MATERIAL: none - no synthetic case\n"
+                        "CASE-RESEARCH: none - no synthetic research\nCONFIRMED: 2001-01-01\n"
+                        f"CONTEXT-DIGEST: {context_digest}\n"
+                        f"## PLACE: {'synthetic-service' if service else run}\nSTATE: read\n"
+                        + ("" if service else f"ROOT: {run}\n")
+                        + f"OPENED: source.md | SHA256: {digest}\n", encoding="utf-8")
+                    record = (
+                        f"## HEADING-READ: {artifact.name}\nDRAFT: {hashlib.sha256(artifact.read_bytes()).hexdigest()}\n"
+                        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own, 2 item\n"
+                        'ITEM: paragraph 1 -> source.md | rests on "support"\n'
+                        'ITEM: paragraph 2 -> source.md | rests on "other support"\n'
+                        f"CONTEXT-DIGEST: {context_digest}\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n")
+                    if name == "checks_ledger":
+                        checks_path.write_text(checks_tests.whole_file() + "\n" + record, encoding="utf-8")
+                    else:
+                        (run / "heading-read.md").write_text(record, encoding="utf-8")
+                    (run / "claims.md").write_text("DATE: 2026-10-20\n", encoding="utf-8")
+                    output = io.StringIO()
+                    with redirect_stdout(output), redirect_stderr(output):
+                        code = importlib.import_module(name).main(argv)
+                    report = output.getvalue()
+                    self.assertIn(code, (0, 1, 2), report)
+                    self.assertEqual(1, sum(line.startswith("unread remainder ") for line in report.splitlines()), report)
+                    if service:
+                        self.assertIn("service-item quotes: 2 counted, not graded", report)
+                        self.assertNotIn("unread item sources:", report)
+                    else:
+                        self.assertNotEqual(0, code, report)
+                        self.assertIn("unread item sources: 1", report)
+                        self.assertNotIn("unread item sources: 2", report)
+
+
+class ReaderBriefsCarryTheSharedQuoteContract(ProseBind, unittest.TestCase):
+    def test_all_five_briefs_name_reader_written_support(self):
+        root = Path(__file__).resolve().parents[1]
+        for skill in ("discussion-post", "discussion-reply", "peer-critique", "course-assignment", "practicum-case-study"):
+            with self.subTest(skill=skill):
+                text = (root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertProseIn("Each ITEM quotes its unique supporting place", text)
+                self.assertProseIn("shared service-item exception", text)
 
 
 if __name__ == "__main__":

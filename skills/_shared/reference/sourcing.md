@@ -538,10 +538,20 @@ restatement does. The clinician's own reasoning and experience are counted but n
 no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
 a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
 `project-context.md` records it. The reader opens and compares that item itself, claim by claim.
+Every `ITEM` line adds ` | rests on "<exact quote>"`, naming the unique place in that item
+the sentence rests on. For an asserted absence or exclusivity, use
+` | rests on absent - whole item searched` instead. The grader checks file quotes against
+the recorded path and SHA-256, ignoring case and runs of whitespace, and refuses zero or
+multiple occurrences, including overlapping ones. It reads UTF-8 source text with its markup;
+Word items use the repository's body-paragraph and table-cell reader. An unreadable or moved
+file contributes one unread source, even when several lines name it. A unique quote does not
+prove support, and the absence sentinel does not verify a whole-item search. Service-item lines
+are counted, not graded, because no service text is retained. These checks start at each item's
+approval time; earlier approvals report them as not graded.
 Write one `OWN: <location> -> <number>[, <number> ...]` line for each clinician's own
 sentence carrying a number; own sentences without numbers get no line. The `OWN` line count
 is independent of the own-sentence count. For an item description carrying numbers, add
-` | figures <number>[, <number> ...]` after the `ITEM` identifier once those numbers agree
+` | figures <number>[, <number> ...]` after the quote suffix once those numbers agree
 with the opened item. List values in the same numeral form used in the draft. The number graders
 excuse listed values throughout that artifact and report a listed value absent from its traced
 numbers. The reader still pairs every factual sentence, including one sharing a listed value.
@@ -567,7 +577,8 @@ ROUTE: separate context
 SENTENCES: <n> factual, <n> clinician's own, <n> item
 PAIR: <location> -> <first 8 hex of the heading digest> | qualifiers <n> of <total>
 OWN: <location> -> <number>[, <number> ...]
-ITEM: <location> -> <opened item identifier>[ | figures <number>[, <number> ...]]
+ITEM: <location> -> <opened item identifier> | rests on "<exact quote>"[ | figures <number>[, <number> ...]]
+ITEM: <location> -> <opened item identifier> | rests on absent - whole item searched[ | figures <number>[, <number> ...]]
 CONTEXT-DIGEST: <the project-context digest when this read was taken>
 CONTEXT-VERDICT: agrees
 CONTEXT-VERDICT: none

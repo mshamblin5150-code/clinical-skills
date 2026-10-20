@@ -77,6 +77,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("item-absence-search-unverified", "The absent - whole item searched sentinel cannot establish that a whole-item search took place or that the absence is true.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("service-item-quotes-ungraded", "Service ITEM lines are counted, not graded; service text is never retained for this check.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("item-text-recognition-floor", "Text files are UTF-8 source bytes including markup; Word quotes use docx_read's body paragraphs and table cells, excluding headers and other unread parts. Matching folds case and whitespace only.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("item-quote-raw-digest-required", "An appended memory index can preserve the existing context binding while its changed raw digest leaves an ITEM quote unread until the source and heading read are refreshed.", EvidenceDisposition.BEHAVIOR),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -350,12 +351,13 @@ def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> 
         if parsed is None:
             continue  # The existing item-shape row owns this finding.
         identifier = parsed.group("item").strip()
-        matches = tuple(source for source in sources if source.identifier == identifier)
+        matches = tuple({(source.path, source.digest): source for source in sources if source.identifier == identifier}.values())
         if len(matches) == 1 and matches[0].path is None:
             services += 1
             continue
         quote = parsed.group("quote")
-        if not quote or quote == '""':
+        missing = not quote or quote.startswith('"') and not _normalized(quote[1:-1])
+        if missing:
             found.append(Finding(ITEM_QUOTE_MISSING, record.artifact, "ITEM needs its supporting quote or absence sentinel"))
         if not available:
             continue
@@ -373,16 +375,12 @@ def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> 
         if text is None:
             unread.add(source.path)
             continue
-        if not quote:
+        if missing:
             continue
         if quote.casefold() == "absent - whole item searched":
             absences += 1
             continue
         needle = _normalized(quote[1:-1])
-        if not needle:
-            if quote != '""':
-                found.append(Finding(ITEM_QUOTE_MISSING, record.artifact, "ITEM quote is empty"))
-            continue
         occurrences = sum(text.startswith(needle, position) for position in range(len(text)))
         if occurrences != 1:
             kind = ITEM_QUOTE_ABSENT if occurrences == 0 else ITEM_QUOTE_REPEATED

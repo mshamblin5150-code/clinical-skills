@@ -230,7 +230,9 @@ file items only while a key is unposted; after recorded posting they carry forwa
 result and name any move approved over by the clinician. At each go-ahead, the approval path
 rechecks opened files, records the keyed result, and reports a move as incomplete coverage.
 The shared heading read binds the draft to the items retained at that digest; edited or removed
-items or added places or items break it, while appended memory-index lines preserve it. A posted
+items or added places or items break it, while appended memory-index lines preserve it. Its reader-written
+`ITEM` quotes follow [the shared heading-read contract](skills/_shared/reference/sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger).
+A posted
 item's read is not rebound. Without a clean pre-draft
 exit, drafting stops; without the completion row, the run is not mechanically verified.
 
