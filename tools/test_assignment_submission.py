@@ -104,6 +104,9 @@ class TwoGateUpload(unittest.TestCase):
             self.assertFalse(assignment_submission.submit_is_authorized(staged))
             record["reply_matched_at"] = 1
             assignment_submission._write(root / assignment_submission.RECORD, record)
+            self.assertTrue(assignment_submission.completion_gate(root, deck)[0])
+            record.pop("gate1_recorded_at")  # A genuinely pre-build record has no recording timestamp.
+            assignment_submission._write(root / assignment_submission.RECORD, record)
             failed, report = assignment_submission.completion_gate(root, deck)
             self.assertFalse(failed, report)
             self.assertIn("not graded", report)

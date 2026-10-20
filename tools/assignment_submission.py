@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -220,6 +221,7 @@ def stage(
             "approved_carriers": _carrier_payload(carriers),
             "uploaded_files": [],
             "gate1_approved": True,
+            "gate1_recorded_at": time.time(),
             "clinician_reply": clinician_reply,
             "reply_matched_at": verification.matched_at,
             "reader_remarks": remarks,
@@ -469,7 +471,8 @@ def completion_gate(
             and path.name in filenames
         )
         if _upload_route(payload) is UploadRoute.AGENT:
-            if completion_checks.active("assignment_submission:gate2-reply", payload.get("reply_matched_at")):
+            gate1_moment = payload.get("gate1_recorded_at", payload.get("reply_matched_at"))
+            if completion_checks.active("assignment_submission:gate2-reply", gate1_moment):
                 clean = clean and _verified_gate2(payload)
             else:
                 gate2_report = "\nGate 2 reply: not graded - Gate 1 predates check"
