@@ -9,9 +9,12 @@ from pathlib import Path
 from typing import Callable, TypeVar
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 import json
+import os
 import re
 import time
+import uuid
 
 
 DECLARED_LIMITS = (
@@ -19,6 +22,14 @@ DECLARED_LIMITS = (
 )
 
 T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class RecordUpdate:
+    """Replacement bytes and caller result; None explicitly leaves evidence untouched."""
+    payload: bytes | None
+    result: object = None
+    rollback: Callable[[], None] | None = None
 
 # ADR 0421 outbound damage set; ADR 0423 applies it to reference sheets.
 # CR is conditional: only CR immediately before LF is a line ending.
@@ -307,3 +318,49 @@ def locked_record(path: Path):
         yield
     finally:
         manager.__exit__(None, None, None)
+
+
+def update_tool_record(
+    path: Path, decode: Callable[[str], T], change: Callable[[T | None], RecordUpdate],
+    *, append: bool = False,
+) -> object:
+    """Own the exclusive read/change/write transaction, or an explicit no-write result.
+
+    The callback runs under the lock and must make history-dependent decisions there.
+    Append-only kinds validate their whole prior record before appending under this lock.
+    Other kinds replace one file atomically; no cross-file transaction is promised.
+    """
+    path = Path(path)
+    with locked_record(path):
+        previous = read_tool_record(path, decode)
+        update = change(previous)
+        if update.payload is None:
+            return update.result
+        temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".partial")
+        try:
+            if append:
+                with path.open("ab") as stream:
+                    stream.write(update.payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            else:
+                with temporary.open("xb") as stream:
+                    stream.write(update.payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+        except BaseException as failure:
+            if update.rollback is not None:
+                try:
+                    update.rollback()
+                except BaseException:
+                    pass  # Preserve the original persistence failure, never its private details.
+            if isinstance(failure, OSError):
+                raise UnreadableRecord(path, "could not be opened") from failure
+            raise
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass  # A refused write keeps its original classified cause.
+        return update.result
