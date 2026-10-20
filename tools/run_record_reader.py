@@ -1,7 +1,8 @@
-"""Shared tool-written record read: missing is distinct from unreadable (ADR 0422).
+"""Shared run-record boundaries: handwritten content and tool-owned bookkeeping.
 
-The caller supplies the record's decoder and shape validator. This adapter does
-not certify the content's truth or infer a schema from its filename.
+ADR 0395 checks handwritten C0 damage before parsing. ADR 0422 keeps missing
+distinct from unreadable; its caller supplies the decoder and shape validator.
+Neither boundary certifies content truth or infers ownership from a filename.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ import uuid
 DECLARED_LIMITS = (
     'run_record_reader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     'The locked update callback owns history-dependent reads and decisions; one replacement is atomic, append remains append-only, and compound sibling recovery is best effort under the same lock rather than a cross-file transaction.',
+    'Handwritten damage covers raw C0 and strings/keys in successfully decoded declared JSON bodies, not printable escape loss or outbound DEL/C1. Copied-post body tabs are the sole exception. Diagnostics use declared filenames/field names or numeric locators without values. Known historical reads retain their prior newline view and existing validation; writers and original boundaries force refusal. Callers must withhold only damaged dependencies and continue independent records.',
 )
 
 T = TypeVar("T")
@@ -64,6 +66,9 @@ SAFE_FILENAMES = frozenset({
 SHAPE_RULES = frozenset({"record object", "record fields", "record items", "record revision",
                          "record item fields", "unique submission keys", "record header fields"})
 _FAULTS: ContextVar[dict[Path, "UnreadableRecord"] | None] = ContextVar("tool_record_faults", default=None)
+_HANDWRITTEN_DAMAGE: ContextVar[dict[Path, "DamagedRecord"] | None] = ContextVar("handwritten_record_damage", default=None)
+HANDWRITTEN_DAMAGE = "handwritten-damage"
+KINDS = (HANDWRITTEN_DAMAGE,)
 
 
 def checked_label(path: Path) -> str:
@@ -83,10 +88,74 @@ class RecordContentError(Exception):
 
 class DamagedRecord(RecordContentError):
     """A fully read handwritten record has damaged content, not a shape fault."""
-    def __init__(self, path: Path, diagnostics: tuple[str, ...]):
+    def __init__(self, path: Path, diagnostics: tuple[str, ...], *, raw_damage: bool = False):
         self.path = _record_key(path)
         self.diagnostics = diagnostics
+        self.raw_damage = raw_damage
+        self._finding: bool | None = None
+        self.checks: set[str] = set()
+        if (damage := _HANDWRITTEN_DAMAGE.get()) is not None:
+            if previous := damage.get(self.path):
+                self.diagnostics = tuple(dict.fromkeys((*previous.diagnostics, *diagnostics)))
+                self.raw_damage |= previous.raw_damage
+                self._finding = True if previous._finding else None
+                self.checks = previous.checks
+            damage[self.path] = self
         super().__init__(f"{checked_label(path)}: not graded — damaged text\n" + "\n".join(diagnostics))
+
+    @property
+    def finding(self) -> bool:
+        # An unhandled damaged read cannot silently become a historical waiver.
+        return self._finding is not False
+
+
+@contextmanager
+def capture_handwritten_damage():
+    """Track one command's damaged records; local callers still continue siblings."""
+    damage: dict[Path, DamagedRecord] = {}
+    token = _HANDWRITTEN_DAMAGE.set(damage)
+    try:
+        yield damage
+    finally:
+        _HANDWRITTEN_DAMAGE.reset(token)
+
+
+def handwritten_record_damage(path: Path) -> DamagedRecord | None:
+    """Actual-path dependency state, including retained records with digest names."""
+    return (_HANDWRITTEN_DAMAGE.get() or {}).get(_record_key(path))
+
+
+def damaged_record_result(error: DamagedRecord, *, check: str, artifact: str | None = None,
+                          force: bool = False) -> tuple[bool, str]:
+    """Withhold only this record's checks; writers and existing boundaries force refusal."""
+    applies = force or _handwritten_check_applies(artifact)
+    current = handwritten_record_damage(error.path) or error
+    current._finding = applies if current._finding is None else current._finding or applies
+    error._finding = current._finding
+    if not applies:
+        return False, f"{check}: not graded - check starts after approval"
+    current.checks.add(check)
+    return True, f"{check}: not graded — damaged text\n" + "\n".join(current.diagnostics)
+
+
+def _handwritten_check_applies(artifact: str | None) -> bool:
+    import completion_checks
+    key = "run_record_reader:" + HANDWRITTEN_DAMAGE
+    if artifact is not None:
+        # A known global moment is not evidence of this keyed item's approval.
+        if artifact not in completion_checks.ITEM_MOMENTS.get():
+            return True
+        return completion_checks.active_for_item(key, artifact)
+    return completion_checks.active(key)
+
+
+@dataclass(frozen=True)
+class HandwrittenKind:
+    """Named raw JSON spans and public field vocabulary, never business validation."""
+    name: str
+    json_bodies: Callable[[str], tuple[tuple[str, str], ...]] = lambda text: ()
+    field_names: frozenset[str] = frozenset()
+    legacy_newlines: bool = True
 
 
 @dataclass(frozen=True)
@@ -95,28 +164,63 @@ class HandwrittenRead:
     path: Path
     _text: str = field(repr=False)
     diagnostics: tuple[str, ...] = ()
+    _bodies: tuple[tuple[str, object], ...] = field(default=(), repr=False)
+    _decode_error: ValueError | RecursionError | None = field(default=None, repr=False)
+    _raw_damage: bool = False
+    _legacy_newlines: bool = True
 
     @property
     def text(self) -> str:
         return self.require_text()
 
-    def require_text(self) -> str:
-        if self.diagnostics:
-            raise DamagedRecord(self.path, self.diagnostics)
+    def require_text(self, *, force: bool = False, artifact: str | None = None) -> str:
+        applies = force or _handwritten_check_applies(artifact)
+        if self.diagnostics and applies:
+            raise DamagedRecord(self.path, self.diagnostics, raw_damage=self._raw_damage)
+        if not applies and self._legacy_newlines:
+            # Inactive enforcement retains the former Path.read_text view,
+            # including bare-CR handling, so existing checks do not change.
+            return self._text.replace("\r\n", "\n").replace("\r", "\n")
         return self._text
+
+    @property
+    def json(self) -> object:
+        return self.require_json()
+
+    def require_json(self, *, force: bool = False, artifact: str | None = None) -> object:
+        self.require_text(force=force, artifact=artifact)
+        if self._decode_error is not None:
+            raise self._decode_error
+        if len(self._bodies) != 1:
+            raise ValueError("record kind has no single JSON body")
+        return self._bodies[0][1]
+
+    @property
+    def json_bodies(self) -> tuple[tuple[str, object], ...]:
+        return self.require_json_bodies()
+
+    def require_json_bodies(self, *, force: bool = False, artifact: str | None = None) -> tuple[tuple[str, object], ...]:
+        self.require_text(force=force, artifact=artifact)
+        if self._decode_error is not None:
+            raise self._decode_error
+        return self._bodies
+
+    @property
+    def raw_damage(self) -> bool:
+        """Identify the original raw C0 boundary without revealing raw payload."""
+        return self._raw_damage
 
 
 # Unlike tracker-body #723, tabs and bare CR are damage: Windows path
 # escapes can produce them. Only LF and CR immediately before LF are safe.
 # This is deliberately separate from ADR 0421's wider outbound DEL/C1 set.
 HANDWRITTEN_CONTROL_CHARACTERS = frozenset(chr(code) for code in range(32) if code != 10)
+# Faithful classmate post bodies may contain tabs; their agent-written metadata
+# still refuses them. No other record kind has a copied-body tab exception.
+COPIED_TEXT_TAB_KINDS = frozenset({"copied-post"})
 
 
-def check_handwritten_text(text: str, path: Path, kind: str = "text") -> HandwrittenRead:
-    """Check already-owned text without reopening a locked writer's record."""
-    if kind != "text":
-        raise ValueError("unknown handwritten record kind")
-    diagnostics = []
+def _handwritten_damage(text: str):
     lines = text.split("\n")
     for number, line in enumerate(lines, 1):
         for offset, character in enumerate(line):
@@ -124,11 +228,100 @@ def check_handwritten_text(text: str, path: Path, kind: str = "text") -> Handwri
                 continue
             if character == "\r" and offset == len(line) - 1 and number < len(lines):
                 continue
-            diagnostics.append(f"{checked_label(path)}: line {number}: U+{ord(character):04X}")
-    return HandwrittenRead(path, text, tuple(diagnostics))
+            yield number, character
 
 
-def read_handwritten_record(path: Path, kind: str = "text") -> HandwrittenRead:
+@dataclass(frozen=True)
+class _JSONPairs:
+    pairs: tuple[tuple[str, object], ...]
+
+
+def _join_field(parent: str, child: str) -> str:
+    return parent + "." + child if parent else child
+
+
+def _handwritten_json(text: str, kind: HandwrittenKind, prefix: str):
+    parsed = json.loads(text, object_pairs_hook=lambda pairs: _JSONPairs(tuple(pairs)))
+    diagnostics = []
+    def damage(value, location):
+        diagnostics.extend(f"{location}: U+{ord(character):04X}"
+                           for _line, character in _handwritten_damage(value))
+    def visit(value, location):
+        if isinstance(value, _JSONPairs):
+            result = {}
+            for index, (key, child) in enumerate(value.pairs, 1):
+                damage(key, _join_field(location, f"key[{index}]"))
+                label = (key if key in kind.field_names and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", key)
+                         else f"field[{index}]")
+                result[key] = visit(child, _join_field(location, label))
+            return result
+        if isinstance(value, list):
+            return [visit(child, f"{location}[{index}]") for index, child in enumerate(value)]
+        if isinstance(value, str):
+            damage(value, location or "value")
+        return value
+    decoded = visit(parsed, prefix)
+    return decoded, diagnostics
+
+
+def _attachment_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
+    header, separator, body = text.strip().partition("\n")
+    return (("body", body),) if separator and header.rstrip("\r") != "ATTACHMENTS: none" else ()
+
+
+def _context_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
+    counts = {}
+    bodies = []
+    for line in text.split("\n"):
+        name, separator, raw = line.partition(":")
+        if separator and name in {"ORDER-OBSERVATION", "GO-AHEAD", "MEMORY-LINES"}:
+            counts[name] = counts.get(name, 0) + 1
+            bodies.append((f"{name}[{counts[name]}]", raw.rstrip("\r")))
+    return tuple(bodies)
+
+
+_HANDWRITTEN_KINDS = {
+    "text": HandwrittenKind("text"),
+    "raw-text": HandwrittenKind("raw-text", legacy_newlines=False),
+    "json": HandwrittenKind("json", lambda text: (("", text),)),
+    "copied-post": HandwrittenKind("copied-post"),
+    "attachments": HandwrittenKind("attachments", _attachment_json_bodies, frozenset({
+        "body", "file_id", "name", "size", "sha256", "local_sha256", "local_path", "location_source", "test",
+    })),
+    "project-context": HandwrittenKind("project-context", _context_json_bodies,
+                                    frozenset({"ORDER-OBSERVATION", "GO-AHEAD", "MEMORY-LINES"}),
+                                    legacy_newlines=False),
+}
+
+
+def check_handwritten_text(text: str, path: Path, kind: str | HandwrittenKind = "text") -> HandwrittenRead:
+    """Check already-owned text without reopening a locked writer's record."""
+    if isinstance(kind, str):
+        kind = _HANDWRITTEN_KINDS[kind]
+    label = checked_label(path)
+    body_after = next((index for index, line in enumerate(text.split("\n"), 1)
+                       if not line.removesuffix("\r")), len(text.split("\n")))
+    diagnostics = [f"{label}: line {line}: U+{ord(character):04X}"
+                   for line, character in _handwritten_damage(text)
+                   if not (character == "\t" and kind.name in COPIED_TEXT_TAB_KINDS and line > body_after)]
+    raw_damage = bool(diagnostics)
+    bodies = []
+    failure = None
+    for index, (prefix, raw) in enumerate(kind.json_bodies(text), 1):
+        # A selector may name a declared public field, never an input value.
+        safe = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_-]*)(?:\[[0-9]+\])?", prefix)
+        if prefix and (safe is None or safe[1] not in kind.field_names):
+            prefix = f"body[{index}]"
+        try:
+            decoded, damaged = _handwritten_json(raw, kind, prefix)
+            bodies.append((prefix, decoded))
+            diagnostics.extend(f"{label}: {item}" for item in damaged)
+        except (ValueError, RecursionError) as error:
+            failure = failure or error
+    return HandwrittenRead(path, text, tuple(diagnostics), tuple(bodies), failure, raw_damage, kind.legacy_newlines)
+
+
+def read_handwritten_record(path: Path, kind: str | HandwrittenKind = "text") -> HandwrittenRead:
     """Open and check together; callers retain their missing/unreadable meanings."""
     with path.open("r", encoding="utf-8", newline="") as stream:
         text = stream.read()
