@@ -22,6 +22,31 @@ from datetime import timedelta
 
 
 class SharedBarSigning(unittest.TestCase):
+    def test_native_success_keeps_another_creators_reused_temporary_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            self.sign(run, "peer-critique", "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n")
+            reply = "I confirm this second synthetic bar."
+            messages = [{"type": "user", "timestamp": "2101-01-01T00:00:00Z", "message": {"content": reply}}]
+            replace = bar_signatures.os.replace
+            reused = []
+            def publish_then_reuse(source, destination):
+                replace(source, destination)
+                if Path(destination) == run / "bar.md":
+                    Path(source).write_bytes(b"other creator evidence")
+                    reused.append(Path(source))
+            with mock.patch.object(bar_signatures.os, "replace", side_effect=publish_then_reuse), mock.patch.object(
+                approval_record, "_main_transcripts", return_value=([messages], False)
+            ), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(0, bar_signatures.main([str(run), "--skill", "peer-critique", "--reply", reply]))
+            self.assertEqual(1, len(reused))
+            self.assertEqual(b"other creator evidence", reused[0].read_bytes())
+            history = json.loads((run / bar_signatures.RECORD).read_text())["signatures"]
+            self.assertEqual(2, len(history))
+            self.assertEqual(reply, history[-1]["clinician_reply"])
+            self.assertEqual((run / "bar.md").read_bytes(), (run / history[-1]["copy"]).read_bytes())
+            self.assertFalse(bar_signatures.completion_gate(run, skill="peer-critique")[0])
+
     def test_shared_signer_native_refusals_preserve_each_new_skill_history(self):
         for skill in bar_signatures.SKILLS[1:]:
             with self.subTest(skill=skill), tempfile.TemporaryDirectory() as directory:

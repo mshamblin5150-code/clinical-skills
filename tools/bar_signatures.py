@@ -95,6 +95,7 @@ def _replace(path: Path, content: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(partial, path)
+        created = False  # Publication consumed our candidate; its old name is no longer ours.
     finally:
         if created:
             partial.unlink(missing_ok=True)
