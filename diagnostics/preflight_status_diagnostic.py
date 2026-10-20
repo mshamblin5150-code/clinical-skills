@@ -1,7 +1,7 @@
 """Bounded status evidence for an unchanged observer prefix, never its full main.
 
 The unprimed process runs no Git command before the original owned HEAD/status
-pair. A separate process and checkout deliberately measure status priming.
+pair. Two fresh processes compare omitted and materialized pinned ignore rules.
 Only fixed codes, counts, hashes, and exact allowlisted paths leave the runner.
 """
 
@@ -27,6 +27,7 @@ SEED_HEAD = "38c431b15b7fafb0f5f89a67ecb501de318c47a1"
 BUDGET_HASH = "a50ca5d8e7d73797b03330e23b57b6354bae95cdbd42f4f526bd4fab9ac65a59"
 CANDIDATE_HASH = "f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275"
 BRANCH = "refs/heads/diagnostic/2013-parallel-proof-20261020"
+IGNORE_HASH = "eb2ca7842a88302304ce1bc2df1143edd82ea7c402189bce50a54226a7ffb21c"
 SOURCE_HASHES = {
     "diagnostics/measure_parallel_readers.py": "5c1abd882b0e599f413dfc279648bfc0cab0738f4ed8dcd85804941679c5c7c1",
     "diagnostics/parallel_reader_capture.py": "15630af9a15e1bf8a8046dc2b6baffffd48a9046624d9830b7328fc659741542",
@@ -65,7 +66,9 @@ SAFE_HOLDS = frozenset({
     "before_status_not_clean", "status_record_invalid", "diagnostic_budget_expired",
     "source_hash_mismatch", "source_origin_mismatch", "unexpected_preloaded_module",
     "detached_head_mismatch", "helper_head_mismatch", "before_status_location_invalid",
-    "diagnostic_contract_mismatch",
+    "diagnostic_contract_mismatch", "baseline_ignore_materialized",
+    "candidate_ignore_unavailable", "candidate_ignore_hash_mismatch",
+    "second_observation_budget_unavailable",
 })
 
 
@@ -140,6 +143,36 @@ def emit_hold(error, mode, original, evidence_root):
 def require_clean_status(status, original_require):
     """The original predicate and reason, including refusal of whitespace."""
     original_require(not status, "observer_not_clean")
+
+
+def verify_ignore_input(observer, mode):
+    """Read the pinned input directly, without a status or Git object query."""
+    path = observer / ".gitignore"
+    if mode == "baseline":
+        require(not path.exists() and not path.is_symlink(), "baseline_ignore_materialized")
+        return None
+    require(path.is_file() and not path.is_symlink(), "candidate_ignore_unavailable")
+    require(digest(normalized(path)) == IGNORE_HASH, "candidate_ignore_hash_mismatch")
+    return IGNORE_HASH
+
+
+def comparison_result(mode, status, hold_reason, *, verified):
+    """Classify completed evidence without changing the original guard."""
+    if not verified or status is None:
+        return "failed"
+    if status == "" and hold_reason is None:
+        return "candidate_clean" if mode == "candidate" else "inconclusive"
+    summary = sanitize_status(status.encode("utf-8"))
+    expected = {
+        str(Path(path).parent.as_posix()) + "/__pycache__/" + Path(path).stem + ".cpython-314.pyc"
+        for path in IMPORTED_PATHS
+    }
+    if (mode == "baseline" and hold_reason == "observer_not_clean"
+            and summary["valid"] and summary["categories"] == {"untracked": len(expected)}
+            and summary["unknown_paths"] == 0 and not summary["detail_truncated"]
+            and {item["path"] for item in summary["known_paths"]} == expected):
+        return "baseline_reproduced"
+    return "failed"
 
 
 def sanitize_status(raw):
@@ -318,22 +351,22 @@ def capture_before_main(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("unprimed", "status-primed", "capture-before"), required=True)
+    parser.add_argument("--mode", choices=("baseline", "candidate"), required=True)
     parser.add_argument("--observer", type=Path, required=True)
     parser.add_argument("--seed", type=Path, required=True)
-    parser.add_argument("--before-status", type=Path)
     parser.add_argument("--job-start-epoch", type=float, required=True)
     args = parser.parse_args(argv)
-    if args.mode == "capture-before":
-        return capture_before_main(args)
     started = time.monotonic()
     original = commands = run_root = None
     deadline = started
-    gate_status = before = gate_attempt = None
-    success = False
+    gate_status = gate_attempt = hold_reason = None
+    prefix_clean = verified = False
+    result = "failed"
     try:
         elapsed = time.time() - args.job_start_epoch
         require(0 <= elapsed < 540, "diagnostic_budget_expired")
+        if args.mode == "candidate":
+            require(elapsed < 420, "second_observation_budget_unavailable")
         # Both observations share one 600-second job. Each has at most 120
         # command seconds and the global last 60 seconds are cleanup reserve.
         deadline = min(started + 120, started + 540 - elapsed)
@@ -344,13 +377,9 @@ def main(argv=None):
                     "detached_head_mismatch")
         require((helper / ".git/HEAD").read_text(encoding="ascii").strip() == os.environ.get("GITHUB_SHA"),
                 "helper_head_mismatch")
-        require((args.mode == "status-primed") == (args.before_status is not None), "diagnostic_contract_mismatch")
-        if args.before_status is not None:
-            before_path = args.before_status.resolve()
-            require(before_path.is_relative_to(Path(os.environ["RUNNER_TEMP"]).resolve()),
-                    "before_status_location_invalid")
-            with before_path.open("rb") as stream:
-                before = stream.read(2000000)
+        ignore_hash = verify_ignore_input(observer, args.mode)
+        emit("ignore_input", mode=args.mode, materialized=args.mode == "candidate",
+             normalized_sha256=ignore_hash)
         original = load_original(observer)
         # Original pure preflight order; the historical 150-minute plan is
         # authenticated as evidence, not used to authorize this job's duration.
@@ -374,8 +403,12 @@ def main(argv=None):
         gate_attempt = (commands.counter + 1, len(commands.owners))
         gate_status = commands.git(observer, "status", "--porcelain=v1", "--untracked-files=all", deadline=deadline)
         require_clean_status(gate_status, original.require)
-        success = True
+        prefix_clean = True
     except Exception as error:
+        if original is not None and isinstance(error, original.Hold):
+            hold_reason = str(error)
+        else:
+            hold_reason = "unexpected_failure"
         emit_hold(error, args.mode, original, run_root)
     finally:
         # Nothing below enters original main past its first status guard. These
@@ -384,10 +417,6 @@ def main(argv=None):
             statuses_valid = True
             if gate_status is None and gate_attempt is not None:
                 emit_retained_status(commands, gate_attempt, run_root, args.mode, "failed_original_guard_capture")
-            if before is not None:
-                summary = sanitize_status(before)
-                emit("status", mode=args.mode, phase="before_import", **summary)
-                statuses_valid = summary["valid"]
             if gate_status is not None:
                 summary = sanitize_status(gate_status.encode("utf-8"))
                 emit("status", mode=args.mode, phase="original_guard", **summary)
@@ -404,18 +433,34 @@ def main(argv=None):
                 require(statuses_valid, "status_record_invalid")
                 require(not after, "post_status_not_clean")
             require(statuses_valid, "status_record_invalid")
-            require(not before, "before_status_not_clean")
             require(time.monotonic() < deadline, "diagnostic_budget_expired")
+            verified = gate_status is not None
         except Exception as error:
-            success = False
+            verified = False
             emit_hold(error, args.mode, original, run_root)
-        clean = commands.cleanup() if commands is not None else True
-        success = success and clean and time.time() - args.job_start_epoch < 600
-        emit("diagnostic_stop", mode=args.mode, prefix_clean=success, process_trees_verified=clean,
+        try:
+            clean = commands.cleanup() if commands is not None else True
+        except Exception as error:
+            clean = False
+            emit_hold(error, args.mode, original, run_root)
+        verified = (verified and clean and time.monotonic() < deadline
+                    and 0 <= time.time() - args.job_start_epoch < 600)
+        result = comparison_result(args.mode, gate_status, hold_reason, verified=verified)
+        emit("diagnostic_stop", mode=args.mode, prefix_clean=prefix_clean and verified,
+             comparison_result=result, process_trees_verified=clean,
              raw_reports_uploaded=False, private_files_retained=True,
              full_original_preflight_passed=False, controls_run=False, population_run=False,
              speed_claim_allowed=False, observer_wall_seconds=time.monotonic() - started)
-    return 0 if success else 2
+    if result in {"baseline_reproduced", "candidate_clean"}:
+        try:
+            require(time.monotonic() < deadline, "diagnostic_budget_expired")
+            with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+                stream.write("comparison_result=" + result + "\n")
+            require(time.monotonic() < deadline, "diagnostic_budget_expired")
+            return 0
+        except Exception as error:
+            emit_hold(error, args.mode, original, run_root)
+    return 2
 
 
 if __name__ == "__main__":

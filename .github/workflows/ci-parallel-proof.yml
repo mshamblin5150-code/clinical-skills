@@ -1,6 +1,6 @@
-# One approved diagnostic job, not a population retry or a repair.
-# First observe the unprimed prefix; separately observe a fresh status-primed copy.
-name: reader preflight status diagnosis
+# One approved A/B diagnostic job, not a population retry or an adopted fix.
+# Both observations are fresh and unprimed; only the pinned ignore input differs.
+name: reader pinned ignore comparison
 
 on:
   push:
@@ -20,11 +20,11 @@ jobs:
         run: |
           "PREFLIGHT_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Unprimed observer at the failed revision
+      - name: Fresh baseline observer at the failed revision
         uses: actions/checkout@v7
         with:
           ref: 96a8c794b71184881fbaa9b3df471fecf2f9b331
-          path: observer
+          path: observer-baseline
           fetch-depth: 0
           persist-credentials: false
           sparse-checkout-cone-mode: false
@@ -68,12 +68,12 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Original import and first-status prefix without status priming
-        id: unprimed
+      - name: Unprimed baseline original import and first-status prefix
+        id: baseline
         continue-on-error: true
         shell: pwsh
         run: |
-          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode unprimed --observer observer --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
+          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode baseline --observer observer-baseline --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
           exit $LASTEXITCODE
 
       - name: Admit a second fresh observation only with time remaining
@@ -88,16 +88,17 @@ jobs:
           }
           'admitted=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Separate pinned observer for the status-primed observation
+      - name: Fresh candidate observer with existing pinned ignore input
         if: steps.second.outputs.admitted == 'true'
         uses: actions/checkout@v7
         with:
           ref: 96a8c794b71184881fbaa9b3df471fecf2f9b331
-          path: observer-primed
+          path: observer-candidate
           fetch-depth: 0
           persist-credentials: false
           sparse-checkout-cone-mode: false
           sparse-checkout: |
+            /.gitignore
             /diagnostics/
             /.github/workflows/ci-parallel-proof.yml
             /tools/test_suite_ids.py
@@ -105,35 +106,27 @@ jobs:
             /tools/python_floor.py
             /tools/git_paths.py
 
-      - name: Capture pre-import status through the separate helper owner
-        id: before
+      - name: Unprimed candidate original import and first-status prefix
+        id: candidate
         if: steps.second.outputs.admitted == 'true'
         continue-on-error: true
         shell: pwsh
         run: |
-          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode capture-before --observer observer-primed --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
-          exit $LASTEXITCODE
-
-      - name: Observe the status-primed prefix in a fresh Python process
-        id: primed
-        if: steps.before.outcome == 'success'
-        continue-on-error: true
-        shell: pwsh
-        env:
-          BEFORE_STATUS_FILE: ${{ steps.before.outputs.before_status }}
-        run: |
-          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode status-primed --observer observer-primed --seed source-seed --before-status "$env:BEFORE_STATUS_FILE" --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
+          python diagnostic-helper/diagnostics/preflight_status_diagnostic.py --mode candidate --observer observer-candidate --seed source-seed --job-start-epoch $env:PREFLIGHT_JOB_START_EPOCH
           exit $LASTEXITCODE
 
       - name: Preserve every hold and state the diagnostic boundary
         if: always()
         shell: pwsh
         env:
-          UNPRIMED_OUTCOME: ${{ steps.unprimed.outcome }}
-          PRIMED_OUTCOME: ${{ steps.primed.outcome }}
+          BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
+          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+          BASELINE_RESULT: ${{ steps.baseline.outputs.comparison_result }}
+          CANDIDATE_RESULT: ${{ steps.candidate.outputs.comparison_result }}
         run: |
           Write-Output '{"event":"diagnostic_boundary","full_original_preflight_passed":false,"controls_run":false,"population_run":false,"speed_claim_allowed":false,"raw_reports_uploaded":false}'
-          if ($env:UNPRIMED_OUTCOME -ne 'success' -or $env:PRIMED_OUTCOME -ne 'success') { exit 2 }
+          if ($env:BASELINE_OUTCOME -ne 'success' -or $env:CANDIDATE_OUTCOME -ne 'success' -or $env:BASELINE_RESULT -ne 'baseline_reproduced' -or $env:CANDIDATE_RESULT -ne 'candidate_clean') { exit 2 }
+          Write-Output '{"event":"comparison_result","baseline_reproduced":true,"candidate_first_guard_clean":true,"mitigation_observed":true,"root_cause_proven":false,"production_adoption":false}'
 
 # No artifact upload, additional workflow, dispatch, PR trigger, matrix, secrets,
 # dependency installation, retry, deletion, or changes to checks.yml/tracker.yml.

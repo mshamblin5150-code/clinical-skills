@@ -237,6 +237,168 @@ class FailedStatusEvidenceControls(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue())["event"], "status_unread")
 
 
+class ABOutcomeControls(unittest.TestCase):
+    # Independently recorded seven-cache status from run 39511662886.
+    baseline_status = """?? diagnostics/__pycache__/parallel_reader_capture.cpython-314.pyc
+?? diagnostics/__pycache__/parallel_reader_diagnostics.cpython-314.pyc
+?? diagnostics/__pycache__/parallel_reader_scheduler.cpython-314.pyc
+?? diagnostics/__pycache__/windows_job_probe.cpython-314.pyc
+?? tools/__pycache__/console_codec.cpython-314.pyc
+?? tools/__pycache__/git_paths.cpython-314.pyc
+?? tools/__pycache__/python_floor.cpython-314.pyc
+"""
+
+    def test_exact_baseline_hold_is_reproduction_not_clean_prefix(self):
+        self.assertEqual(diagnostic.comparison_result("baseline", self.baseline_status,
+                                                     "observer_not_clean", verified=True),
+                         "baseline_reproduced")
+
+    def test_clean_baseline_is_inconclusive_and_only_clean_candidate_passes(self):
+        self.assertEqual(diagnostic.comparison_result("baseline", "", None, verified=True), "inconclusive")
+        self.assertEqual(diagnostic.comparison_result("candidate", "", None, verified=True), "candidate_clean")
+        for mode, status, reason, verified in (
+                ("candidate", self.baseline_status, "observer_not_clean", True),
+                ("baseline", self.baseline_status, "owned_command_failed", True),
+                ("baseline", self.baseline_status, "observer_not_clean", False),
+                ("candidate", "", None, False),
+                ("candidate", "", "diagnostic_budget_expired", True),
+                ("baseline", self.baseline_status + "?? private-path\n", "observer_not_clean", True),
+                ("baseline", self.baseline_status.splitlines(keepends=True)[0] * 7, "observer_not_clean", True)):
+            with self.subTest(mode=mode, reason=reason, verified=verified):
+                self.assertEqual(diagnostic.comparison_result(mode, status, reason, verified=verified), "failed")
+
+
+class IgnoreInputControls(unittest.TestCase):
+    def test_baseline_requires_absence_candidate_requires_exact_pinned_rules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(diagnostic.verify_ignore_input(root, "baseline"), None)
+            with self.assertRaisesRegex(DiagnosticHold, "^candidate_ignore_unavailable$"):
+                diagnostic.verify_ignore_input(root, "candidate")
+            (root / ".gitignore").write_bytes(b"synthetic\r\n")
+            with self.assertRaisesRegex(DiagnosticHold, "^baseline_ignore_materialized$"):
+                diagnostic.verify_ignore_input(root, "baseline")
+            with self.assertRaisesRegex(DiagnosticHold, "^candidate_ignore_hash_mismatch$"):
+                diagnostic.verify_ignore_input(root, "candidate")
+            with mock.patch.object(diagnostic, "IGNORE_HASH", diagnostic.digest(b"synthetic\n")):
+                self.assertEqual(diagnostic.verify_ignore_input(root, "candidate"), diagnostic.IGNORE_HASH)
+
+
+class ABCommandControls(unittest.TestCase):
+    def run_observation(self, mode, status, *, cleanup=True, final_error=False, job_elapsed=0):
+        calls = []
+        class Hold(RuntimeError):
+            diagnostics = None
+        def require(condition, reason):
+            if not condition:
+                raise Hold(reason)
+        class Commands:
+            counter = 0
+            owners = []
+            def git(self, repo, *args, **kwargs):
+                self.counter += 1
+                calls.append(args)
+                if args[0] == "status":
+                    return status if self.counter == 2 else ""
+                if args[-1] == "HEAD^{tree}":
+                    if final_error:
+                        raise Hold("observer_tree_mismatch")
+                    return diagnostic.OBSERVER_TREE
+                return diagnostic.OBSERVER_HEAD if self.counter == 1 else diagnostic.SEED_HEAD
+            def cleanup(self):
+                return cleanup
+        original = SimpleNamespace(
+            Hold=Hold, require=require, OwnedCommands=lambda root: Commands(),
+            environment_preflight=lambda: None, reviewed_budget=lambda *a: None,
+            corpus_preflight=lambda *a: None, sha=diagnostic.digest,
+            normalized=lambda path: b"synthetic-suite", SUITE_PATH="suite.py", outside=lambda *a: True)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observer, seed = root / "observer", root / "seed"
+            for path, head in ((observer, diagnostic.OBSERVER_HEAD), (seed, diagnostic.SEED_HEAD)):
+                (path / ".git").mkdir(parents=True)
+                (path / ".git/HEAD").write_text(head)
+            if mode == "candidate":
+                (observer / ".gitignore").write_bytes(b"synthetic-ignore\n")
+            helper_head = Path(diagnostic.__file__).resolve().parent.parent / ".git/HEAD"
+            output_file = root / "routing"
+            output_file.touch()
+            stream = io.StringIO()
+            with mock.patch.object(diagnostic, "load_original", return_value=original), \
+                    mock.patch.object(diagnostic, "os", SimpleNamespace(name="nt", environ=diagnostic.os.environ)), \
+                    mock.patch.object(diagnostic.platform, "python_version", return_value="3.14.4"), \
+                    mock.patch.object(diagnostic, "IGNORE_HASH", diagnostic.digest(b"synthetic-ignore\n")), \
+                    mock.patch.object(diagnostic, "CANDIDATE_HASH", diagnostic.digest(b"synthetic-suite")), \
+                    mock.patch.dict(diagnostic.os.environ, {"GITHUB_SHA": helper_head.read_text().strip(),
+                        "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": diagnostic.BRANCH,
+                        "RUNNER_TEMP": str(root), "GITHUB_OUTPUT": str(output_file)}), redirect_stdout(stream):
+                code = diagnostic.main(["--mode", mode, "--observer", str(observer), "--seed", str(seed),
+                                        "--job-start-epoch", str(time.time() - job_elapsed)])
+            return code, [json.loads(line) for line in stream.getvalue().splitlines()], output_file.read_text(), calls
+
+    def test_baseline_cli_retains_original_hold_and_publishes_reproduction_receipt(self):
+        code, rows, routing, calls = self.run_observation("baseline", ABOutcomeControls.baseline_status)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[:2], [("rev-parse", "HEAD"), ("status", "--porcelain=v1", "--untracked-files=all")])
+        self.assertTrue(any(row.get("reason") == "observer_not_clean" for row in rows))
+        receipt = next(row for row in rows if row["event"] == "diagnostic_stop")
+        self.assertFalse(receipt["prefix_clean"])
+        self.assertEqual(receipt["comparison_result"], "baseline_reproduced")
+        self.assertEqual(routing, "comparison_result=baseline_reproduced\n")
+
+    def test_candidate_refuses_when_checkout_consumed_full_observation_margin(self):
+        code, rows, routing, calls = self.run_observation("candidate", "", job_elapsed=421)
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, [])
+        self.assertEqual(routing, "")
+        self.assertTrue(any(row.get("reason") == "second_observation_budget_unavailable" for row in rows))
+
+    def test_candidate_cli_passes_only_with_clean_guard_and_verified_finish(self):
+        code, rows, routing, calls = self.run_observation("candidate", "")
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[:2], [("rev-parse", "HEAD"), ("status", "--porcelain=v1", "--untracked-files=all")])
+        self.assertEqual(routing, "comparison_result=candidate_clean\n")
+        receipt = next(row for row in rows if row["event"] == "diagnostic_stop")
+        self.assertTrue(receipt["prefix_clean"])
+        self.assertEqual(receipt["comparison_result"], "candidate_clean")
+        for mode, status, cleanup, final_error in (
+                ("baseline", "", True, False),
+                ("candidate", ABOutcomeControls.baseline_status, True, False),
+                ("baseline", ABOutcomeControls.baseline_status, False, False),
+                ("baseline", ABOutcomeControls.baseline_status, True, True),
+                ("candidate", "", False, False),
+                ("candidate", "", True, True)):
+            with self.subTest(mode=mode, cleanup=cleanup, final_error=final_error):
+                code, rows, routing, _ = self.run_observation(mode, status, cleanup=cleanup, final_error=final_error)
+                self.assertEqual(code, 2)
+                self.assertEqual(routing, "")
+
+
+class ABWorkflowControls(unittest.TestCase):
+    def test_two_unprimed_checkouts_differ_only_by_pinned_ignore_input(self):
+        workflow = (Path(__file__).resolve().parent.parent / ".github/workflows/ci-parallel-proof.yml").read_text()
+        self.assertNotIn("--mode status-primed", workflow)
+        self.assertNotIn("--mode capture-before", workflow)
+        self.assertIn("--mode baseline", workflow)
+        self.assertIn("--mode candidate", workflow)
+        self.assertIn("timeout-minutes: 10", workflow)
+        self.assertIn("if: github.run_attempt == 1", workflow)
+        self.assertIn("BASELINE_RESULT: ${{ steps.baseline.outputs.comparison_result }}", workflow)
+        self.assertIn("CANDIDATE_RESULT: ${{ steps.candidate.outputs.comparison_result }}", workflow)
+        self.assertIn("$env:BASELINE_RESULT -ne 'baseline_reproduced'", workflow)
+        self.assertIn("$env:CANDIDATE_RESULT -ne 'candidate_clean'", workflow)
+        blocks = workflow.split("      - name:")
+        observer_blocks = [block for block in blocks if "ref: 96a8c794b71184881fbaa9b3df471fecf2f9b331" in block]
+        self.assertEqual(len(observer_blocks), 2)
+        first, second = observer_blocks
+        def options(block):
+            return [line for line in block.split("        with:")[1].splitlines()
+                    if "path: observer" not in line and line.strip() != "/.gitignore"]
+        self.assertEqual(options(first), options(second))
+        self.assertNotIn("/.gitignore", first)
+        self.assertIn("/.gitignore", second)
+
+
 if __name__ == "__main__":
     try:
         diagnostic.bootstrap_command_policy()
