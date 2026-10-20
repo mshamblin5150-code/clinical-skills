@@ -263,7 +263,8 @@ class EntryCopyCommand(unittest.TestCase):
                     step = text[text.index("### 7. Build the Review sheet"):]
                     self.assertIn(check_command, step)
                     self.assertIn("before building the Review sheet", step)
-                    self.assertIn("writing pass never runs it on its own output", step)
+                    self.assertIn("note pass may run the same check on its own note before hand-back", step)
+                    self.assertIn("that author run never substitutes for this non-authoring run", step)
                 self.assertLess(text.index(approval), text.index("python tools/entry_copy.py <", text.index(approval)))
 
     def test_soap_worked_example_removes_clause_and_keeps_sentence(self) -> None:

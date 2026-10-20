@@ -387,7 +387,8 @@ that author run never substitutes for this non-authoring run. Record any refusal
 context run this **Grader handoff** on the correction again before building the Review sheet.
 
 Before building the Review sheet, run `python tools/differential_scan.py <run> --note <note-N.md> --show`
-once per final numbered note as a non-authoring **Grader handoff**. Select each note explicitly;
+once per final numbered note as a non-authoring **Grader handoff** under
+[standing rule 6](../../AGENTS.md). Select each note explicitly;
 `--note` takes one path, and `--submission` resolves only a standalone note. Do not pass
 `shift-summary.md`, `delegated-answers.md`, or `reread.md` as notes. This handoff reports the
 Objective candidates, never graded, separately from the shift's terminal grader.
