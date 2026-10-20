@@ -184,6 +184,13 @@ unchanged and is what ADR 0200 files.** The measurement in this record's own pre
 checkout 130 commits behind `origin/main` — is spent, and ADR 0200 records that it has been spent
 seven times over.
 
+*Figure corrected 2026-09-12, hours after the paragraph above merged: it read **162**, which was the
+reading at `5e519ed4`. `main` moved twice more before publication and every figure was re-derived at
+`1b279ed`, where it is **164** — but only ADR 0200's copy was updated and this neighboring one was
+left. One figure in two files, one refreshed and its twin missed, is the shape `CLAUDE.md` records
+under* Console codec*, arriving inside the record that cites it. Found by the tracker sweep of this
+record's own branch rather than by anything that fails.*
+
 ## Ruling 8 — the protocol is a `--session-start` flag on `skills_mirror.py`
 
 The hook must read its JSON payload from stdin to see whether `agent_id` is present, and must emit
@@ -262,12 +269,3 @@ and nothing prunes it.
 **Whether `SessionStart` fires before the skill listing is built.** The body is read at invocation, so
 a repair at session start reaches it; the description in the listing may come from the pre-repair
 mirror. No clinical rule lives in a description, and this was not measured.
-
-
-
-*Figure corrected 2026-09-12, hours after the paragraph above merged: it read **162**, which was the
-reading at `5e519ed4`. `main` moved twice more before publication and every figure was re-derived at
-`1b279ed`, where it is **164** — but only ADR 0200's copy was updated and this neighboring one was
-left. One figure in two files, one refreshed and its twin missed, is the shape `CLAUDE.md` records
-under* Console codec*, arriving inside the record that cites it. Found by the tracker sweep of this
-record's own branch rather than by anything that fails.*

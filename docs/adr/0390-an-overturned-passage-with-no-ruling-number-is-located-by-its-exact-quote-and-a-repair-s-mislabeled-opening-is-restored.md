@@ -1,6 +1,8 @@
 # An overturned passage with no ruling number is located by its exact quote and a repair's mislabeled opening is restored
 
-**Measured at:** 66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff
+**Measured at:** d64452ae164ba579957110630f96ab3b50757db6
+
+*Re-declared from `66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff` on 2026-10-19, for the correction-note population correction alone. The other measurements below remain dated observations of the 2026-10-17 base and were not re-derived at this one.*
 
 [#1706](https://github.com/mshamblin5150-code/clinical-skills/issues/1706) was filed under
 [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
@@ -30,8 +32,9 @@ neither each note's class nor its layout:
 
 - In ADR 0107 line 67, ADR 0137 line 215 and ADR 0179 line 93, the opening or the reworded marker
   absorbed a `## Superseded in part by …` heading, which no longer renders.
-- Nine notes across eight records that opened `*Corrected` were given the counted opening. Three are
-  ruled below; one of the three was not a supersession at all.
+- Thirteen correction notes across twelve records were given the counted opening. The nine counted
+  by line-opening `*Corrected` omitted ADR 0030's mid-line correction and ADR 0035, 0152 and 0155's
+  bold correction labels. Three are ruled below; one of the three was not a supersession at all.
 - ADR 0002 carries two counted markers for one overturning.
 - ADR 0201 gained a `## Supersedes` section that declares a pair this record classifies as neither.
 
@@ -142,6 +145,8 @@ The six `*Corrected*` openings the #1518 repair swapped that this record does no
 The #976 build's reversal of ADR 0039 ruling 2 with no ADR declaring it is filed as a finding; an
 overturning recorded outside an ADR is outside ADR 0280's binding by that record's own declared limit.
 
+*Population clarified 2026-10-19, under [ADR 0418](0418-the-corrections-the-1518-repair-relabeled-are-classified-and-a-banner-record-keeps-its-existing-pair-markers.md) rulings 1 and 7: the six named above were part of a larger set. That record rules the ten relabeled notes not ruled here, plus ADR 0076's purpose clause. Ruling 9's decision stands.*
+
 ## Supersedes
 
 - [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
@@ -200,3 +205,5 @@ ratified, with markers saying what replaced the words.
 **An overturning nobody recognized.** The blind readings covered the pairs the #1518 population
 derived; a later record that overturns an earlier one while naming it in neither form remains below
 that population's floor, as ADR 0280 states.
+
+*Corrected 2026-10-19, under [ADR 0418](0418-the-corrections-the-1518-repair-relabeled-are-classified-and-a-banner-record-keeps-its-existing-pair-markers.md) ruling 7: the measured sentence read "Nine notes across eight records that opened `*Corrected`". Reading commit `2f109057` with the wider matcher recorded there gives thirteen correction notes in twelve records, including the mid-line and bold labels omitted by that count.*

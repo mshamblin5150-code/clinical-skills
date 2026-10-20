@@ -8,6 +8,7 @@ coordinate. Whitespace is collapsed; the quote occurs exactly once outside
 markers, and its marker sits directly beneath the quoted paragraph.
 A marker is a paragraph beginning ``*Superseded YYYY-MM-DD.*`` beneath a
 recognized ruling heading or numbered ruling item using ``adr_read``'s grammar.
+It may be indented within a numbered ruling's list item.
 It contains a quoted span, the same relative ADR link
 followed by ``ruling N``, and an account of what survives. The account's truth
 is read at review, not inferred from supersession verbs.
@@ -163,6 +164,7 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
         )
         blocks = list(paragraphs(text))
         for index, (line_number, paragraph) in enumerate(blocks):
+            paragraph = re.sub(r"^ {1,3}(?=\*Superseded)", "", paragraph)
             ruling = contexts.get(line_number)
             if first_section is None or line_number < first_section:
                 phrase = WHOLE_PHRASE.search(" ".join(paragraph.splitlines()))
@@ -233,6 +235,15 @@ def supersession_findings(records: dict[str, str], report: dict | None = None, *
 
 
 class SupersessionBindingTests(unittest.TestCase):
+    def test_marker_inside_numbered_ruling_preserves_binding(self):
+        records = {
+            "0135-old.md": '8. Old choice.\n\n   *Superseded 2026-10-19.* The words "Old choice" fall to [ADR 0280](0280-new.md) ruling 1. Other choices stand.\n\n9. Other choice.\n',
+            "0280-new.md": '1. New choice.\n\n## Supersedes\n\n- [ADR 0135](0135-old.md) ruling 8, the words "Old choice". Other choices stand.\n',
+        }
+        self.assertEqual(supersession_findings(records), ())
+        records['0135-old.md'] = records['0135-old.md'].replace('ruling 1.', 'ruling 2.')
+        self.assertTrue(supersession_findings(records))
+
     def quote_records(self):
         return {
             "0014-new.md": '## Decision\n\nNew practice.\n\n## Supersedes\n\n- [ADR 0005](0005-old.md) the words "Old words.", the date rule stands.\n',

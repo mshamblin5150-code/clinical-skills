@@ -294,10 +294,9 @@ new outcome while leaving the reasoning standing.
 `## References` renders bold on the reply's pipeline now, byte-identically, and
 `discussion_reply_scan` rejects it.
 
-**No pattern moves.** The rejection has an independent ground that ADR 0036 could not have stated
-because it predates the renderer: `skills/discussion-reply/SKILL.md:204` says **"Do not add a
-heading."** `## References` is a heading in the source whatever it renders as, so the grader is
-enforcing the no-heading instruction rather than a rendering fact. **That is the ground the
+**No pattern moves.** The rejection has an independent ground already present when ADR 0036 was
+recorded: `skills/discussion-reply/SKILL.md` at `da4fee25` says **"Do not add a heading."**
+`## References` is a heading in the source whatever it renders as, so the grader is enforcing the no-heading instruction rather than a rendering fact. **That is the ground the
 correction records.**
 
 Two things stay straight in the doing. Ruling 1's refusal of *"accept both"* rests on *"blessing
@@ -378,3 +377,5 @@ term exists to retire.
 
 - [ADR 0036](0036-a-references-label-is-a-per-pipeline-source-spelling-for-one-rendered-outcome.md) ruling 1, the ground "Nothing renders a reply, so the artifact's spelling is the board's spelling". Reply accepts bold literal References and rejects headings/plain form; post pattern and recognizer/refusal remain.
 - [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 6, the ground "A reply is short and typed, and a deck upload shows a filename". Reply and course-assignment keep one gate; post keeps two gates and nonclean reading returns to clinician.
+
+*Corrected 2026-10-19, under [ADR 0418](0418-the-corrections-the-1518-repair-relabeled-are-classified-and-a-banner-record-keeps-its-existing-pair-markers.md) ruling 7: ruling 8 said ADR 0036 could not have stated the no-heading ground because it predates the renderer. The instruction already existed at `da4fee25`, which recorded ADR 0036; the ruling's outcome is unchanged.*
