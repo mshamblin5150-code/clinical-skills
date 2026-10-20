@@ -20,9 +20,10 @@ SKILLS = (
 
 class PostingSkillContract(unittest.TestCase):
     def test_case_study_word_edit_and_composer_handoff_are_explicit(self):
+        """Pin practicum-case-study's edit and posting routes."""
         text = (ROOT / "skills" / "practicum-case-study" / "SKILL.md").read_text(encoding="utf-8")
         for sentence in (
-            "A Word edit after the step 9 checks opens a new round of changes.",
+            "Read his saved `.docx`, carry the edit into the Markdown",
             'His "no re-read" means he does not read it again himself.',
             "Stop before re-rendering if the Word writer cannot reproduce any part of the edit.",
             "On the Composer branch, post inline first, always.",
