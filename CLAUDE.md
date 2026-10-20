@@ -1195,6 +1195,13 @@ without requiring Word or PyMuPDF.
 
 ### After-action review
 
+`aar_scan.reversal_candidates_path` resolves the required per-submission, per-round reversal list.
+The extract includes it as `reversal-candidates`, outside transcript cursors. A refused-round
+rebuild requires that same file unchanged. Review records answer each nonblank line through
+`## CANDIDATE: N` / `ANSWER:`; a correction identifier or reasoned rejection is required.
+New rounds also prove a successful issue search before each tracker landing. Historical rounds
+retain their grade under `aar_scan.REVERSAL_CANDIDATES_CUTOFF`.
+
 Transcript and memory discovery report links not entered and unreadable subdirectories.
 Unreadable subdirectories and unread transcripts are named parts of the unread remainder.
 The shared walk's boundary belongs to `tree_walk.DECLARED_LIMITS`.

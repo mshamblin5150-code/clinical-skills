@@ -65,6 +65,7 @@ UNREAD_REMAINDER_CUTOFF = completion_checks.registry()["aar_scan:unread-remainde
 LANDING_OUTPUT_CUTOFF = completion_checks.registry()["aar_scan:landing-output"][0]
 MEMORY_MEASUREMENT_CUTOFF = completion_checks.registry()["aar_scan:memory-measurement"][0]
 SYSTEM_SUBTYPE_CUTOFF = completion_checks.registry()["aar_scan:system-subtype"][0]
+REVERSAL_CANDIDATES_CUTOFF = completion_checks.registry()["aar_scan:reversal-candidates"][0]
 MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
 
 
@@ -115,7 +116,7 @@ CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
 PRIVATE_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json"})
 SUBAGENT_TOOLS = frozenset({"Agent", "Task", "Monitor", "TaskStop"})
 EXTRACTOR_WRITTEN_ENTRY_KINDS = frozenset(
-    {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list"}
+    {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list", "reversal-candidates"}
 )
 
 ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
@@ -146,6 +147,7 @@ ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
         "environment-context": "environment-context envelope",
         "prior-review": "a prior classifier return identified by its review record",
         "departure-list": "recorded departures and their go-ahead from a dated proposal file",
+        "reversal-candidates": "the orchestrator's per-round observed reversals for independent re-derivation",
     }
 )
 ENTRY_KINDS = tuple(ENTRY_KIND_DESCRIPTIONS)
@@ -286,12 +288,17 @@ ROWS: Mapping[str, str] = MappingProxyType(
         "unknown-sustain-event": "a sustain names no extracted candidate",
         "bare-sustain": "a sustain lacks substantive classification",
         "missing-gh-call": "a tracker disposition has no successful GitHub call",
+        "reversal-candidates": "the round's reversal candidates or their answers are missing or invalid",
+        "sustain-on-reversal-candidates": "a sustain rests on the orchestrator's reversal claims",
+        "missing-landing-search": "a tracker landing has no preceding successful issue search",
     }
 )
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
     ("aar_scan-record-coverage", 'aar_scan record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.'),
+    ("reversal candidate completeness", "A careless none or an omitted reversal is not detected; answers establish neither independent discovery nor correct classification."),
+    ("landing search adequacy", "A successful issue search proves neither adequate terms nor a correct landing target; shell_reader bounds recognized commands and transcript result shapes."),
     (
         "withdrawn reply text",
         "A refusal-fallback notice is read, but withdrawn replies not stored by the harness cannot enter the population.",
@@ -435,6 +442,7 @@ class Review:
     sustains: tuple[Sustain, ...]
     corrections_none: bool
     sustains_none: bool
+    candidate_answers: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1208,7 +1216,7 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
     if not root.is_dir():
         return cursors
     for path in sorted(root.glob("*.md")):
-        if path.name.endswith(".extract.md"):
+        if path.name.endswith((".extract.md", ".reversal-candidates.md")):
             continue
         try:
             review = read_review(path)
@@ -1603,6 +1611,23 @@ def _departure_population(run: Path) -> list[Candidate]:
     return population
 
 
+def reversal_candidates_path(run: Path, submission: str, round_number: int) -> Path:
+    return run / "aar" / f"{_round_stem(submission, round_number)}.reversal-candidates.md"
+
+
+def _reversal_population(run: Path, submission: str, round_number: int) -> list[Candidate]:
+    path = reversal_candidates_path(run, submission, round_number)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as failure:
+        raise ValueError("the round needs a readable reversal-candidates file; write none when empty") from failure
+    lines = tuple(line.strip() for line in text.splitlines() if line.strip())
+    if not lines or ("none" in {line.casefold() for line in lines} and lines != ("none",)):
+        raise ValueError("reversal candidates need one reversal per line or exactly none")
+    return [Candidate(f"reversals:{_round_stem(submission, round_number)}", "reversals",
+                      "reversal-candidates", text)]
+
+
 def _check_snapshot_posted_reading(run: Path, submission: str) -> None:
     """Resolve the approved skill; its grader owns every posted-reading rule."""
     import approval_record
@@ -1663,11 +1688,13 @@ def _write_extract(run: Path, transcript: Path | None, submission: str,
     _retire_orphan_pointers(run)
     _check_snapshot_posted_reading(run, submission)
     posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
+    round_number = _next_review_round(run, submission)
+    reversals = (_reversal_population(run, submission, round_number)
+                 if datetime.now(timezone.utc) >= REVERSAL_CANDIDATES_CUTOFF else [])
     population, transcripts, discovery = _collect_population(run, transcript)
     if not population:
         raise ValueError("candidate population is empty")
-    population = _departure_population(run) + population
-    round_number = _next_review_round(run, submission)
+    population = _departure_population(run) + reversals + population
     destination = extract_path(run, submission, round_number)
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1683,7 +1710,7 @@ def _write_extract(run: Path, transcript: Path | None, submission: str,
     links_not_entered = discovery.links_not_entered + memory_walk.links_not_entered
     transcript_watermarks: dict[str, str] = {}
     for candidate in population:
-        if candidate.kind != "departure-list":
+        if candidate.kind not in {"departure-list", "reversal-candidates"}:
             transcript_watermarks[candidate.transcript_id] = candidate.identifier
     lines = [
         "# PRIVATE AAR EXTRACT",
@@ -1773,7 +1800,7 @@ def _rebuild_population(
         raise ValueError("refused extract has no transcript paths")
     recorded_entry_counts: dict[str, int] = {}
     for entry in refused_entries:
-        if entry.kind == "departure-list":
+        if entry.kind in {"departure-list", "reversal-candidates"}:
             continue
         recorded_entry_counts[entry.transcript_id] = (
             recorded_entry_counts.get(entry.transcript_id, 0) + 1
@@ -1782,6 +1809,10 @@ def _rebuild_population(
         raise ValueError("refused extract transcript paths do not match its entries")
     cursors = _review_cursors_before_round(run, submission, round_number)
     rebuilt = _departure_population(run)
+    # A refused round retains its candidate input exactly; an edited or absent
+    # file refuses the rebuild rather than silently replacing the reader's set.
+    if any(entry.kind == "reversal-candidates" for entry in refused_entries):
+        rebuilt += _reversal_population(run, submission, round_number)
     for transcript_path in transcript_paths:
         rows = reduce_transcript(transcript_path)
         selected = _furthest_cursor(rows, cursors.get(transcript_path.stem, ()))
@@ -1814,7 +1845,7 @@ def _render_rebuilt_extract(header: str, population: Iterable[Candidate]) -> str
 def _extract_entry_lines(candidate: Candidate) -> list[str]:
     text_lines = (
         candidate.text.split("\n")
-        if candidate.kind == "departure-list"
+        if candidate.kind in {"departure-list", "reversal-candidates"}
         else candidate.text.splitlines() or [""]
     )
     return [
@@ -1829,7 +1860,7 @@ def _extract_entry_lines(candidate: Candidate) -> list[str]:
 
 
 def _rendered_candidate_text(candidate: Candidate) -> str:
-    if candidate.kind == "departure-list":
+    if candidate.kind in {"departure-list", "reversal-candidates"}:
         return candidate.text.replace("\r\n", "\n")
     return "\n".join(candidate.text.splitlines() or [""])
 
@@ -1930,6 +1961,7 @@ def read_review(path: Path) -> Review:
     header: list[str] = []
     corrections: list[Correction] = []
     sustains: list[Sustain] = []
+    candidate_answers: list[tuple[str, str]] = []
     current_event: str | None = None
     current_lines: list[str] = []
     mode = "header"
@@ -1944,17 +1976,23 @@ def read_review(path: Path) -> Review:
             sustains.append(
                 Sustain(current_event, MappingProxyType(_parse_fields(current_lines)))
             )
+        elif mode == "candidate" and current_event is not None:
+            candidate_answers.append((current_event, _parse_fields(current_lines).get("ANSWER", "")))
         current_event, current_lines = None, []
 
     for line in lines:
         correction = CORRECTION_HEADING.match(line)
         sustain = SUSTAIN_HEADING.match(line)
+        candidate = re.fullmatch(r"## CANDIDATE: ([0-9]+)[ \t]*", line)
         if correction:
             close()
             mode, current_event = "correction", correction.group("event")
         elif sustain:
             close()
             mode, current_event = "sustain", sustain.group("event")
+        elif candidate:
+            close()
+            mode, current_event = "candidate", candidate.group(1)
         elif mode == "header":
             header.append(line)
         else:
@@ -1968,6 +2006,7 @@ def read_review(path: Path) -> Review:
         sustains=tuple(sustains),
         corrections_none=fields.get("CORRECTIONS", "").casefold() == "none",
         sustains_none=fields.get("SUSTAINS", "").casefold() == "none",
+        candidate_answers=tuple(candidate_answers),
     )
 
 
@@ -2136,7 +2175,9 @@ def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
 def _successful_gh_call(
     transcripts: Iterable[Path], landing: str | None = None,
     extracted_at: datetime | None = None,
+    *, require_search: bool = False,
 ) -> bool:
+    search_times = _successful_issue_search_times(transcripts) if require_search else ()
     def proves_landing(row: dict[str, Any], output: object) -> bool:
         if landing is None:
             return True  # Historical rounds retain the any-successful-gh rule.
@@ -2147,7 +2188,8 @@ def _successful_gh_call(
         # Tokenize addresses so a different comment ID or an anchor cannot prove
         # the bare issue address merely by containing its prefix.
         printed_urls = re.findall(r"https://[^\s<>\"']+", _text(output))
-        return extracted_at is not None and timestamp >= extracted_at and landing in printed_urls
+        return (extracted_at is not None and timestamp >= extracted_at and landing in printed_urls
+                and (not require_search or any(search < timestamp for search in search_times)))
 
     for transcript in transcripts:
         rows = read_transcript(transcript)
@@ -2244,6 +2286,78 @@ def _review_content(review: Review) -> tuple[int, int, list[Finding]]:
     return population, unread, findings
 
 
+def _successful_issue_search_times(transcripts: Iterable[Path]) -> tuple[datetime, ...]:
+    """Recognize successful direct issue searches in the same raw evidence as landings."""
+    def searches(command):
+        for tokens, index in shell_reader.executable_calls(command, "gh"):
+            args = tokens[index + 1:]
+            if args[:2] == ["issue", "list"]:
+                searched = any(arg == "--search" or arg.startswith("--search=") for arg in args[2:])
+                if searched and ("--state=all" in args or any(args[i:i + 2] == ["--state", "all"] for i in range(len(args)))):
+                    return True
+            if args[:2] == ["search", "issues"] and not any(arg.startswith("--state") for arg in args[2:]):
+                return True
+            if args[:1] == ["api"] and any(re.search(r"(?:^|/)search/issues(?:\?|$)", arg) for arg in args[1:]):
+                return True
+        return False
+    times = []
+    for transcript in transcripts:
+        rows = read_transcript(transcript)
+        calls = {}
+        for row in rows:
+            if row.get("type") == "assistant":
+                for block in _content_blocks(row.get("message")):
+                    command = block.get("input", {}).get("command") if isinstance(block.get("input"), dict) else None
+                    if block.get("type") == "tool_use" and isinstance(command, str) and searches(command):
+                        calls[_text(block.get("id"))] = True
+            success = False
+            if row.get("type") == "event_msg":
+                payload = row.get("payload", {})
+                item = payload.get("item", {}) if isinstance(payload, dict) and payload.get("type") == "item_completed" else {}
+                if isinstance(item, dict) and item.get("type") == "CommandExecution":
+                    commands = item.get("command", [])
+                    commands = commands if isinstance(commands, list) else [commands]
+                    success = (item.get("status") == "completed" and item.get("exit_code") == 0
+                               and any(isinstance(command, str) and searches(command) for command in commands))
+            elif row.get("type") == "user":
+                success = any(block.get("type") == "tool_result" and block.get("tool_use_id") in calls
+                              and block.get("is_error") is not True for block in _content_blocks(row.get("message")))
+            if success:
+                try:
+                    times.append(_utc_timestamp(_text(row.get("timestamp")), "search timestamp"))
+                except ValueError:
+                    pass
+    return tuple(times)
+
+
+def _grade_reversal_candidates(run: Path, submission: str, round_number: int,
+                               review: Review, entries: tuple[ExtractEntry, ...]):
+    findings = []
+    candidates = [entry for entry in entries if entry.kind == "reversal-candidates"]
+    try:
+        supplied = _reversal_population(run, submission, round_number)[0]
+        if len(candidates) != 1 or candidates[0].text != _rendered_candidate_text(supplied):
+            raise ValueError("candidate file no longer matches this round's extract")
+        lines = tuple(line.strip() for line in supplied.text.splitlines() if line.strip())
+        population = 0 if lines == ("none",) else len(lines)
+    except ValueError as failure:
+        return (Finding("reversal-candidates", str(failure)),), "reversal candidates: not graded - missing or changed input"
+    expected = {str(number) for number in range(1, population + 1)}
+    keys = [key for key, _ in review.candidate_answers]
+    if set(keys) != expected or len(keys) != len(expected):
+        findings.append(Finding("reversal-candidates", "each candidate needs exactly one numbered answer"))
+    corrections = {correction.event for correction in review.corrections}
+    rejected = 0
+    for key, answer in review.candidate_answers:
+        if answer in corrections:
+            continue
+        if answer.startswith("not a correction - ") and _substance(answer[len("not a correction - "):]):
+            rejected += 1
+        else:
+            findings.append(Finding("reversal-candidates", f"candidate {key} needs a correction entry or reasoned rejection"))
+    return tuple(findings), f"reversal candidates: {population}; answered {len(keys)}; not a correction {rejected}"
+
+
 def _survey_round(
     run: Path, submission: str, round_number: int, *, newest_round: bool = True
 ) -> Scan:
@@ -2284,6 +2398,13 @@ def _survey_round(
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-extract", str(exc)),))
 
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
+    reversal_check = bool(extracted_at) and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= REVERSAL_CANDIDATES_CUTOFF
+    if reversal_check:
+        _, entries = _extract_entries_text(extract_path(run, submission, round_number).read_text(encoding="utf-8"))
+        reversal_findings, reversal_report = _grade_reversal_candidates(run, submission, round_number, review, entries)
+        findings.extend(reversal_findings)
+    else:
+        reversal_report = "reversal candidates and landing search: not graded - extract predates check"
     memory_reports, memory_findings = _memory_index_grade(run, submission, round_number, extract_fields)
     findings.extend(memory_findings)
     later_sittings = (
@@ -2330,6 +2451,7 @@ def _survey_round(
             findings.append(Finding("non-numeric-coverage", "UNDECLARED-SYSTEM-SUBTYPES"))
     elif extracted_at:
         system_reports = ("system-subtype count: not measured (extract predates the count)",)
+    system_reports += (reversal_report,)
     if fingerprint_cutoff and newest_round:
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
@@ -2395,6 +2517,10 @@ def _survey_round(
                     findings.append(Finding("missing-gh-call", correction.event))
             elif transcript_paths and not _successful_gh_call(transcript_paths):
                 findings.append(Finding("missing-gh-call", correction.event))
+            if reversal_check and GH_ISSUE.fullmatch(landing) and not _successful_gh_call(
+                transcript_paths, landing, _utc_timestamp(extracted_at, "EXTRACTED-AT"), require_search=True,
+            ):
+                findings.append(Finding("missing-landing-search", correction.event))
         elif disposition == "memory-write":
             if baseline is not None and not _target_changed(target, baseline):
                 findings.append(Finding("unlanded-memory", correction.event))
@@ -2406,6 +2532,8 @@ def _survey_round(
     for sustain in review.sustains:
         if sustain.event not in identifiers:
             findings.append(Finding("unknown-sustain-event", sustain.event))
+        if reversal_check and entry_kinds.get(sustain.event) == "reversal-candidates":
+            findings.append(Finding("sustain-on-reversal-candidates", sustain.event))
     counts: dict[tuple[str, str, str], int] = {}
     for correction in review.corrections:
         key = (
