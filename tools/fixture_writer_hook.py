@@ -11,6 +11,9 @@ from hook_payload import read_payload
 
 
 DECLARED_LIMITS = (
+    "Unreadable payloads refuse when the raw text names scratch/fixture-runs after slash "
+    "normalization; otherwise they allow with a warning. A failed stream read allows "
+    "with a warning, and escaped or split raw triggers may evade that search.",
     "Output outside scratch/fixture-runs is invisible to this launch guard.",
     "Only literal paths in spawn inputs are recognized; computed or split paths evade it.",
     "This checks the requested subagent type, not whether the host honored omitClaudeMd; "
