@@ -11,6 +11,7 @@ import tempfile
 
 from console_codec import require_python_floor, use_utf8
 from hook_payload import read_payload
+from repo_root import scratch_path
 
 
 DECLARED_LIMITS = (
@@ -110,7 +111,7 @@ def handle(payload: dict) -> dict:
                 path = Path(cwd) / path
             path = path.resolve()
             if not path.is_dir() or not any(
-                path != (base := (root / "scratch/sessions").resolve())
+                path != (base := scratch_path(root / "scratch", "sessions").resolve())
                 and path.is_relative_to(base) and path.is_relative_to(root)
                 for root in roots
             ):

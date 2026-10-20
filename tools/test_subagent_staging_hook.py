@@ -8,6 +8,8 @@ import tempfile
 import unittest
 import uuid
 
+from repo_root import scratch_path
+
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND = ROOT / "tools/subagent_staging_hook.py"
@@ -15,7 +17,7 @@ COMMAND = ROOT / "tools/subagent_staging_hook.py"
 
 class SubagentStagingLaunch(unittest.TestCase):
     def setUp(self):
-        parent = ROOT / "scratch/sessions"
+        parent = scratch_path(ROOT / "scratch", "sessions")
         parent.mkdir(parents=True, exist_ok=True)
         self.workspace = tempfile.TemporaryDirectory(prefix="launch-test-", dir=parent)
         self.addCleanup(self.workspace.cleanup)
@@ -77,7 +79,7 @@ class SubagentStagingLaunch(unittest.TestCase):
     def test_file_traversal_root_and_missing_folder_do_not_satisfy_route(self):
         file = self.folder / "file"
         file.write_text("fixture", encoding="utf-8")
-        for path in (file, self.folder / "missing", ROOT / "scratch/sessions",
+        for path in (file, self.folder / "missing", scratch_path(ROOT / "scratch", "sessions"),
                      self.folder / "../../.." / "tools"):
             with self.subTest(path=path):
                 response = self.command('Read output/example/; stage in `' + str(path) + '`')
@@ -95,7 +97,7 @@ class SubagentStagingLaunch(unittest.TestCase):
 
     def test_existing_folder_outside_registered_checkouts_is_refused(self):
         with tempfile.TemporaryDirectory(prefix="launch-unregistered-", dir=ROOT.parent) as directory:
-            path = Path(directory) / "scratch/sessions/pass"
+            path = scratch_path(Path(directory) / "scratch", "sessions") / "pass"
             path.mkdir(parents=True)
             self.assertEqual("deny", self.command(f"Read output/example/; `{path}`")
                              ["hookSpecificOutput"]["permissionDecision"])
@@ -115,7 +117,7 @@ class SubagentStagingLaunch(unittest.TestCase):
         subprocess.run(["git", "worktree", "add", "--detach", "--no-checkout", str(peer), "HEAD"],
                        cwd=ROOT, capture_output=True, check=True)
         try:
-            stage = peer / "scratch/sessions/probe/pass"
+            stage = scratch_path(peer / "scratch", "sessions") / "probe/pass"
             stage.mkdir(parents=True)
             self.assertEqual({}, self.command(f"Read output/example/; `{stage}`"))
             self.assertEqual({}, self.command("Read output/example/; scratch/sessions/probe/pass/", cwd=peer))
