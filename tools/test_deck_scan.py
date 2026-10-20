@@ -23,6 +23,7 @@ import approval_record
 import file_digest
 import render_pass
 import research_ledger
+import repo_root
 import completion_checks
 from datetime import timedelta
 from grader_conformance import (
@@ -397,6 +398,11 @@ class Run:
         )
 
     def terminal(self, *, bind: bool = True, carriers: tuple[Path, ...] | None = None) -> tuple[int, str, str]:
+        if bind:
+            (self.root / "recorded-image-match.json").write_text(json.dumps({"matches": {
+                self.deck.stem: {"central_point": "A bounded synthetic assignment point.",
+                    "image": None, "reason": "No recorded image fits this synthetic point."}
+            }}), encoding="utf-8")
         if bind and not (self.root / "reread.md").is_file():
             self.write_reread()
         if bind:
@@ -415,7 +421,10 @@ class Run:
                     uploaded_carriers=(self.deck,) if carriers is None else carriers,
                     clinician_reply="Submit the synthetic assignment.",
                 )
-        scan.voice_model_identity.write_record(self.root)
+        model = Path(__file__).parent / "testdata" / "voice-model-synthetic.md"
+        resolution = repo_root.VoiceModelResolution(model, hashlib.sha256(model.read_bytes()).hexdigest(), True)
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=resolution):
+            scan.voice_model_identity.write_record(self.root)
         attachments = self.root / "lms-attachments"
         attachments.mkdir(exist_ok=True)
         (attachments / f"{self.deck.stem}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
@@ -436,7 +445,7 @@ class Run:
         canonical = canonical_root / "course-assignments" / self.deck.name
         canonical.parent.mkdir(parents=True, exist_ok=True)
         canonical.write_bytes(self.deck.read_bytes())
-        with mock.patch.object(
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=resolution), mock.patch.object(
             scan.aar_scan,
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
@@ -449,7 +458,7 @@ class Run:
             "output_root",
             return_value=canonical_root,
         ):
-            return self.grade("--submission", self.deck.stem, bind=bind)
+            return self.grade("--submission", self.deck.stem, "--paper-language", "en", bind=bind)
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:

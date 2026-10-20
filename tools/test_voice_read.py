@@ -989,7 +989,7 @@ class PublicCompletionCommand(unittest.TestCase):
             redirect_stderr(stderr),
         ):
             status = peer_critique_scan.main(
-                [str(self.run), "--submission", "critique"]
+                [str(self.run), "--submission", "critique", "--paper-language", "en"]
             )
         return status, stdout.getvalue() + stderr.getvalue()
 
@@ -1072,6 +1072,9 @@ class PublicCompletionCommand(unittest.TestCase):
                 self.test_caught_plant_on_another_pair_is_clean,
                 self.test_missed_plant_is_public,
             ),
+            "protected-image-comparison": (
+                self.test_image_changing_plant_refuses_and_an_intact_image_twin_passes,
+            ),
         }
         behavior_keys = {
             row.key for row in voice_read.DECLARED_LIMITS
@@ -1083,6 +1086,31 @@ class PublicCompletionCommand(unittest.TestCase):
                 with self.subTest(limit=key, control=control.__name__):
                     self.setUp()
                     control()
+
+    def test_image_changing_plant_refuses_and_an_intact_image_twin_passes(self) -> None:
+        model_text = MODEL + "\n> " + self.original + "\n"
+        self.model.write_bytes(model_text.encode("utf-8"))
+        self.resolved = repo_root.VoiceModelResolution(self.model, digest(model_text), True)
+        identity_path = self.run / voice_model_identity.RECORD_NAME
+        identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        identity["sha256"] = digest(model_text)
+        identity_path.write_text(json.dumps(identity), encoding="utf-8")
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["model_sha256"] = digest(model_text)
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        self.assert_public_finding("plant changed a recorded image")
+
+        original = "A real generic control sentence."
+        planted = self.draft.replace(original, self.replacement, 1)
+        (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(planted.encode("utf-8"))
+        planter = self.payload(voice_read.PLANTER_RECORD_NAME)
+        planter["original_sentence"] = original
+        planter["planted_sha256"] = reader["planted_sha256"] = digest(planted)
+        self.write_payload(voice_read.PLANTER_RECORD_NAME, planter)
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        status, output = self.command()
+        self.assertEqual(0, status, output)
+        self.assertNotIn("plant changed a recorded image", output)
 
     def test_caught_plant_also_labeled_his_on_another_pair_is_clean(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)

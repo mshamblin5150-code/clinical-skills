@@ -95,6 +95,7 @@ class RecordedImageHosts(unittest.TestCase):
             # Finish fixture-only identity/render writes before any command or
             # frozen resolver tripwire. The owning command gets an explicit file.
             checks_fixture.run([str(path), "--submission", "synthetic"])
+            (root / images.RECORD_NAME).unlink()
             return root, "synthetic", lambda: self.invoke(module,
                 [str(path), "--submission", "synthetic", "--document", str(root / "output/synthetic.md")])
         fixture = docx_fixture.empty_population_input(root)

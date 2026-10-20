@@ -177,6 +177,7 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     arguments = list(argv)
     output_patch = contextlib.nullcontext()
     voice_patch = contextlib.nullcontext()
+    model_patch = contextlib.nullcontext()
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
         text = checks_path.read_text(encoding="utf-8")
@@ -194,6 +195,18 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
         )
         if "--submission" in arguments:
             submission = arguments[arguments.index("--submission") + 1]
+            (checks_path.parent / "recorded-image-match.json").write_text(
+                json.dumps({"matches": {submission: {
+                    "central_point": "A bounded synthetic case-study point.",
+                    "image": None,
+                    "reason": "No recorded image fits this synthetic point.",
+                }}}), encoding="utf-8",
+            )
+            model = Path(__file__).parent / "testdata" / "voice-model-synthetic.md"
+            resolution = checks.repo_root.VoiceModelResolution(
+                model, hashlib.sha256(model.read_bytes()).hexdigest(), True,
+            )
+            model_patch = mock.patch.object(checks.repo_root, "canonical_voice_model", return_value=resolution)
             attachments = checks_path.parent / "lms-attachments"
             attachments.mkdir(exist_ok=True)
             (attachments / f"{submission}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
@@ -203,7 +216,8 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
                 json.dumps({"kind": "none", "reason": "Synthetic document-only case"}),
                 encoding="utf-8",
             )
-            checks.voice_model_identity.write_record(checks_path.parent)
+            with mock.patch.object(checks.repo_root, "canonical_voice_model", return_value=resolution):
+                checks.voice_model_identity.write_record(checks_path.parent)
             identity_path = checks_path.parent / checks.voice_model_identity.RECORD_NAME
             identity = json.loads(identity_path.read_text(encoding="utf-8"))
             identity["observations"] = {submission: {"paths": []}}
@@ -245,7 +259,7 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
             document.write_bytes(DRAFT_TEXT.encode())
             arguments += ["--document", str(document)]
     out, err = io.StringIO(), io.StringIO()
-    with output_patch, voice_patch, redirect_stdout(out), redirect_stderr(err):
+    with output_patch, voice_patch, model_patch, redirect_stdout(out), redirect_stderr(err):
         status = checks.main(arguments)
     return status, out.getvalue(), err.getvalue()
 
