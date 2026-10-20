@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import completion_checks
 import json
+import os
 import importlib
 from pathlib import Path
 import re
@@ -53,6 +54,7 @@ import browser_tab_hook
 import tree_walk
 from run_record_reader import (
     RecordShapeError, UnreadableRecord, fault_report, object_record, read_tool_record,
+    locked_record, update_tool_record, RecordUpdate,
 )
 
 
@@ -362,6 +364,7 @@ DECLARED_LIMITS = (
         "browser tab ownership",
         "The transcript cannot reveal a clinician handover or prove a conditional tab creation unless the tool result marks it, so ownership is reported conservatively and never graded.",
     ),
+    ("locked record publication", "AAR writers take the allocation resource before round, retirement and archive decisions, then lock each actual record for its shared atomic update. Extract and baseline are separate publications, not a multi-file atomic transaction; an extract may remain if its later baseline publication fails."),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
@@ -977,8 +980,15 @@ def memory_measurement_path(run: Path, submission: str, round_number: int = 1) -
     return run / "aar" / f"{_round_stem(submission, round_number)}.memory-index.json"
 
 
-def measure_memory(run: Path, submission: str, round_number: int) -> Path:
+def measure_memory(run: Path, submission: str, round_number: int | None) -> Path:
     """Retain this round's index counts after its memory writes have landed."""
+    with locked_record(run / "aar" / ".record-allocation"):
+        if round_number is None:
+            round_number = max(_review_round_numbers(run, submission), default=1)
+        return _measure_memory(run, submission, round_number)
+
+
+def _measure_memory(run: Path, submission: str, round_number: int) -> Path:
     extract = extract_path(run, submission, round_number)
     fields, _identifiers = _extract_metadata(extract)
     value = fields.get("MEMORY-INDEX", "")
@@ -1001,7 +1011,8 @@ def measure_memory(run: Path, submission: str, round_number: int) -> Path:
         "unplaced": len(placement.unplaced),
     }
     destination = memory_measurement_path(run, submission, round_number)
-    destination.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    update_tool_record(destination, _memory_measurement_record,
+                       lambda previous: RecordUpdate((json.dumps(record, indent=2) + "\n").encode("utf-8")))
     return destination
 
 
@@ -1137,13 +1148,19 @@ def legacy_orphan_paths(run: Path) -> tuple[Path, ...]:
 
 def retire_orphan_pointers(run: Path) -> None:
     """Move legacy pointer files aside in place; their evidence is never deleted."""
+    with locked_record(run / "aar" / ".record-allocation"):
+        _retire_orphan_pointers(run)
+
+
+def _retire_orphan_pointers(run: Path) -> None:
     for path in legacy_orphan_paths(run):
-        destination = path.with_name(f"retired-{path.name}")
-        suffix = 2
-        while destination.exists():
-            destination = path.with_name(f"retired-{suffix}-{path.name}")
-            suffix += 1
-        path.replace(destination)
+        with locked_record(path):
+            destination = path.with_name(f"retired-{path.name}")
+            suffix = 2
+            while destination.exists():
+                destination = path.with_name(f"retired-{suffix}-{path.name}")
+                suffix += 1
+            path.replace(destination)
 
 
 def _hash(path: Path) -> str | None:
@@ -1632,7 +1649,13 @@ def write_extract(
     submission: str,
     memory_index: Path,
 ) -> tuple[Path, int]:
-    retire_orphan_pointers(run)
+    with locked_record(run / "aar" / ".record-allocation"):
+        return _write_extract(run, transcript, submission, memory_index)
+
+
+def _write_extract(run: Path, transcript: Path | None, submission: str,
+                   memory_index: Path) -> tuple[Path, int]:
+    _retire_orphan_pointers(run)
     _check_snapshot_posted_reading(run, submission)
     posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
     population, transcripts, discovery = _collect_population(run, transcript)
@@ -1704,12 +1727,10 @@ def write_extract(
         lines.extend(_extract_entry_lines(row))
     extract_text = "\n".join(lines)
     _extract_document_text(extract_text)
-    with destination.open("w", encoding="utf-8", newline="") as stream:
-        stream.write(extract_text)
-    baseline_path(run, submission, round_number).write_text(
-        json.dumps(baseline, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    update_tool_record(destination, _tool_extract_entries,
+                       lambda previous: RecordUpdate(extract_text.encode("utf-8")))
+    update_tool_record(baseline_path(run, submission, round_number), _baseline_record,
+                       lambda previous: RecordUpdate((json.dumps(baseline, sort_keys=True) + "\n").encode("utf-8")))
     return destination, len(population)
 
 
@@ -1808,11 +1829,22 @@ def _rendered_candidate_text(candidate: Candidate) -> str:
 def rebuild_extract(
     run: Path, submission: str, round_number: int
 ) -> tuple[Path, int, Path]:
+    with locked_record(run / "aar" / ".record-allocation"):
+        return _rebuild_extract(run, submission, round_number)
+
+
+def _rebuild_extract(run: Path, submission: str, round_number: int) -> tuple[Path, int, Path]:
     destination = extract_path(run, submission, round_number)
     def refused_record(text: str) -> str:
         _tool_extract_entries(text, allow_duplicate_identifiers=True)
         return text
-    refused_text = read_tool_record(destination, refused_record)
+    def change(refused_text):
+        return _rebuilt_update(run, submission, round_number, destination, refused_text)
+    return update_tool_record(destination, refused_record, change)
+
+
+def _rebuilt_update(run: Path, submission: str, round_number: int,
+                    destination: Path, refused_text: str | None) -> RecordUpdate:
     if refused_text is None:
         raise ValueError(f"cannot read refused round {round_number}")
     fields, refused_entries = _extract_entries_text(
@@ -1849,10 +1881,19 @@ def rebuild_extract(
     while archived.exists():
         archived = refused_root / f"{destination.stem}.{suffix}{destination.suffix}"
         suffix += 1
-    destination.replace(archived)
-    with destination.open("w", encoding="utf-8", newline="") as stream:
-        stream.write(rebuilt_text)
-    return destination, len(population), archived
+    created_archive = False
+    try:
+        with archived.open("xb") as stream:
+            created_archive = True
+            stream.write(refused_text.encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        if created_archive:
+            archived.unlink(missing_ok=True)
+        raise
+    return RecordUpdate(rebuilt_text.encode("utf-8"), (destination, len(population), archived),
+                        rollback=lambda: archived.unlink(missing_ok=True))
 
 
 def _parse_fields(lines: list[str]) -> dict[str, str]:
@@ -2777,7 +2818,7 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
     if parsed.enabled("--measure-memory"):
         try:
             round_value = parsed.value("--round")
-            round_number = int(round_value) if round_value else max(_review_round_numbers(run, submission), default=1)
+            round_number = int(round_value) if round_value else None
             destination = measure_memory(run, submission, round_number)
         except UnreadableRecord as exc:
             return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="memory measurement"),))
@@ -2812,10 +2853,12 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                 if review_path(run, submission, rebuilt_round).is_file():
                     rebuilt_scan = survey(run, submission)
             else:
-                record_round = _next_review_round(run, submission)
                 destination, count = write_extract(
                     run, transcript, submission, Path(memory_value).expanduser().resolve()
                 )
+                matched_round = re.fullmatch(re.escape(_safe_submission(submission)) + r"(?:\.round-([1-9][0-9]*))?\.extract\.md", destination.name)
+                assert matched_round is not None
+                record_round = int(matched_round[1] or "1")
             extract_fields, _identifiers = _extract_metadata(destination)
         except UnreadableRecord as exc:
             return run_grader.EarlyExit(2, stdout=(fault_report(exc, check="extract"),))

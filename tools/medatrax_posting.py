@@ -13,17 +13,15 @@ from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
 import argparse
-import os
 import re
 import sys
-import tempfile
 from hashlib import sha256
 from pathlib import Path
 
 from discussion_artifact import PostedReading, read_posted_readings
 from run_grader import EvidenceDisposition, RUN_RECORD_STEMS, is_run_record
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_tool_record, UnreadableRecord, fault_report
+from run_record_reader import read_tool_record, UnreadableRecord, fault_report, RecordUpdate, update_tool_record
 
 
 NOTE_NUMBER = re.compile(r"note-(?P<number>\d+)\.md", re.IGNORECASE)
@@ -50,6 +48,7 @@ DECLARED_LIMITS = (
         "The writer formats supplied readings; it cannot establish that they are what the portal displayed.",
         EvidenceDisposition.DECLARED_READING,
     ),
+    ("locked posted-reading updates", "The owning reread record stays locked across validation, member replacement and same-directory atomic publication; source note files are not locked by this writer.", EvidenceDisposition.DECLARED_READING),
 )
 
 
@@ -246,42 +245,37 @@ def main(argv: list[str]) -> int:
         if args.batch and any(NOTE_NUMBER.fullmatch(path.name) is None for path in paths):
             raise ValueError("batch notes must have numbered filenames")
         target = args.run / "reread.md"
-        # Parse every existing block before a write so damage is never overwritten.
-        existing = read_tool_record(target, lambda text: (decode_posted_readings(text), text))
         if args.action == "check":
+            existing = read_tool_record(target, lambda text: (decode_posted_readings(text), text))
             if existing is None:
                 raise ValueError("posted reading is missing")
             _checked_record(existing[1], args.submission, paths, batch=args.batch)
         else:
             if args.input is None:
                 raise ValueError("write needs --input readback.json")
-            if existing is not None:
-                for record in existing[0]:
-                    problem = portal_record_problem(record, expected_visits=len(record.visits))
-                    if problem:
-                        raise ValueError("existing posted reading is malformed")
-            payload = read_tool_record(args.input, json.loads)
-            text = _record_text(payload, args.submission, paths)
-            _checked_record(text, args.submission, paths, batch=args.batch)
-            if existing is not None:
-                current = existing[1]
-                blocks = tuple(re.finditer(r"(?ms)^## REREAD:([^\n]+)\n.*?(?=^## REREAD:|\Z)", current))
-                selected = [block for block in blocks if block[1].strip() == args.submission]
-                if selected:
-                    if not args.replace:
-                        raise ValueError("record already exists; use --replace for an explicit revision")
-                    block = selected[0]
-                    text = current[:block.start()] + text + current[block.end():]
-                else:
-                    text = current.rstrip() + "\n\n" + text
-            _checked_record(text, args.submission, paths, batch=args.batch)
-            with tempfile.NamedTemporaryFile(dir=args.run, suffix=".building", delete=False) as stream:
-                temporary = Path(stream.name)
-            try:
-                temporary.write_text(text, encoding="utf-8")
-                os.replace(temporary, target)
-            finally:
-                temporary.unlink(missing_ok=True)
+            def change(existing):
+                if existing is not None:
+                    for record in existing[0]:
+                        problem = portal_record_problem(record, expected_visits=len(record.visits))
+                        if problem:
+                            raise ValueError("existing posted reading is malformed")
+                payload = read_tool_record(args.input, json.loads)
+                text = _record_text(payload, args.submission, paths)
+                _checked_record(text, args.submission, paths, batch=args.batch)
+                if existing is not None:
+                    current = existing[1]
+                    blocks = tuple(re.finditer(r"(?ms)^## REREAD:([^\n]+)\n.*?(?=^## REREAD:|\Z)", current))
+                    selected = [block for block in blocks if block[1].strip() == args.submission]
+                    if selected:
+                        if not args.replace:
+                            raise ValueError("record already exists; use --replace for an explicit revision")
+                        block = selected[0]
+                        text = current[:block.start()] + text + current[block.end():]
+                    else:
+                        text = current.rstrip() + "\n\n" + text
+                _checked_record(text, args.submission, paths, batch=args.batch)
+                return RecordUpdate(text.encode("utf-8"))
+            update_tool_record(target, lambda text: (decode_posted_readings(text), text), change)
         print("Medatrax posted reading: clean")
         return 0
     except UnreadableRecord as failure:

@@ -17,7 +17,7 @@ import phi_scan
 import completion_checks
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
-from run_record_reader import read_tool_record, UnreadableRecord
+from run_record_reader import read_tool_record, UnreadableRecord, RecordUpdate, update_tool_record
 
 DECLARED_LIMITS = (
     'outbound_search record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
@@ -25,6 +25,7 @@ DECLARED_LIMITS = (
     "A search typed without the check and without a live-pull record leaves nothing for the grader to find.",
     "Only site strings in the profile's Site or Sites picklist are recognized as account sites.",
     "Whether a recorded difference is clinically accurate remains a reader's judgment.",
+    "Search and pull appends validate existing records under their owning exclusive lock; a partial append or power loss has no rollback guarantee.",
 )
 
 SEARCHES = "outbound-searches.jsonl"
@@ -70,28 +71,30 @@ def refusal(query: str, profile: Path) -> str | None:
     return None
 
 
+def _decode_records(path: Path, text: str) -> list[dict]:
+    from run_record_reader import object_record
+    rows = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.strip():
+            try:
+                rows.append(object_record(line))
+            except json.JSONDecodeError as failure:
+                raise UnreadableRecord(path, f"does not decode at line {number} column {failure.colno}") from failure
+    if any(not isinstance(row, dict) for row in rows):
+        raise ValueError("record line must be an object")
+    for row in rows:
+        if not isinstance(row.get("search_id"), str) or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", row["search_id"]) is None:
+            raise ValueError("record needs a search id")
+        if path.name == SEARCHES:
+            if row.get("passed") is not True or not isinstance(row.get("query"), str) or not row["query"].strip():
+                raise ValueError("search record needs a passed query")
+        elif not valid_outcome(row):
+            raise ValueError("pull record needs a complete outcome")
+    return rows
+
+
 def records(path: Path) -> list[dict]:
-    def decode(text: str) -> list[dict]:
-        from run_record_reader import object_record
-        rows = []
-        for number, line in enumerate(text.splitlines(), 1):
-            if line.strip():
-                try:
-                    rows.append(object_record(line))
-                except json.JSONDecodeError as failure:
-                    raise UnreadableRecord(path, f"does not decode at line {number} column {failure.colno}") from failure
-        if any(not isinstance(row, dict) for row in rows):
-            raise ValueError("record line must be an object")
-        for row in rows:
-            if not isinstance(row.get("search_id"), str) or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", row["search_id"]) is None:
-                raise ValueError("record needs a search id")
-            if path.name == SEARCHES:
-                if row.get("passed") is not True or not isinstance(row.get("query"), str) or not row["query"].strip():
-                    raise ValueError("search record needs a passed query")
-            elif not valid_outcome(row):
-                raise ValueError("pull record needs a complete outcome")
-        return rows
-    return read_tool_record(path, decode) or []
+    return read_tool_record(path, lambda text: _decode_records(path, text)) or []
 
 
 def private_line(value: str) -> str:
@@ -180,15 +183,10 @@ def main(argv: list[str]) -> int:
             reason = refusal(args.query, args.profile)
             if reason:
                 raise ValueError(reason)
-            if any(row.get("search_id") == args.search_id for row in records(args.run / SEARCHES)):
-                raise ValueError("search id already recorded; use a new id")
             path = args.run / SEARCHES
             row = {"search_id": args.search_id, "query": args.query, "passed": True}
         else:
-            if not any(row.get("search_id") == args.search_id and row.get("passed") is True for row in records(args.run / SEARCHES)):
-                raise ValueError("live pull has no passed search-record line")
             path = args.run / PULLS
-            records(path)  # Refuse an unreadable existing log before appending.
             if args.action == "failed-pull":
                 row = {"search_id": args.search_id, "outcome": "failed",
                        "decision": private_line(args.decision), "instrument": private_line(args.instrument)}
@@ -204,8 +202,17 @@ def main(argv: list[str]) -> int:
                         raise ValueError("invalid threshold sheet")
                     row.update(sheet=sheet, row=private_line(args.row),
                                difference=private_line(args.difference), sheet_kept=args.sheet_kept)
-        with path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+        def append(previous):
+            prior_rows, prior_text = previous if previous is not None else ([], "")
+            if args.action == "check":
+                if any(item.get("search_id") == args.search_id for item in prior_rows):
+                    raise ValueError("search id already recorded; use a new id")
+            elif not any(item.get("search_id") == args.search_id and item.get("passed") is True
+                         for item in records(args.run / SEARCHES)):
+                raise ValueError("live pull has no passed search-record line")
+            separator = "\n" if prior_text and not prior_text.endswith("\n") else ""
+            return RecordUpdate((separator + json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"))
+        update_tool_record(path, lambda text: (_decode_records(path, text), text), append, append=True)
         print("Outbound search: recorded pass" if args.action == "check" else "UpToDate pull outcome: recorded")
         return 0
     except UnreadableRecord as error:
