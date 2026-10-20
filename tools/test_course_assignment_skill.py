@@ -138,7 +138,8 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("For `file-upload`, the carrier is the finished `.pptx`", self.skill)
         self.assertIn("For `canvas-composer`, write the exact deck-accompanying text", self.skill)
         self.assertIn("submission-readback.html", self.skill)
-        self.assertIn("This is the existing submission gate", self.skill)
+        self.assertIn("This is **Gate 1**", self.skill)
+        self.assertIn("**Gate 2:** after upload", self.skill)
         self.assertIn("do not switch routes or retry the load", self.skill)
 
     def test_submission_approval_binds_the_filename_population(self):

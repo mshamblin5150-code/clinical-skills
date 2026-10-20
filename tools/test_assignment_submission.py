@@ -124,6 +124,25 @@ class TwoGateUpload(unittest.TestCase):
             self.assertIn("clinician_reply=", text)
             self.assertNotIn("final_confirmation=True", text)
 
+    def test_gate2_historical_cutoff_uses_the_exact_implementation_instant(self):
+        from datetime import timedelta
+        start, _ = assignment_submission.completion_checks.registry()["assignment_submission:gate2-reply"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"synthetic")
+            self.stage(root, deck, artifact_approved=True)
+            record = assignment_submission._read(root)
+            record.update(upload_route="agent", uploaded_files=[deck.name])
+            for observed, expected_failure in ((start - timedelta(microseconds=1), False), (start, True)):
+                with self.subTest(observed=observed):
+                    record["gate1_recorded_at"] = observed.timestamp()
+                    assignment_submission._write(root / assignment_submission.RECORD, record)
+                    failed, report = assignment_submission.completion_gate(root, deck)
+                    self.assertEqual(expected_failure, failed, report)
+                    if not expected_failure:
+                        self.assertIn("not graded", report)
+
     @contextmanager
     def _canonical_copy(
         self, canonical_root: Path, artifact: Path
@@ -140,9 +159,10 @@ class TwoGateUpload(unittest.TestCase):
 
     def _completed_submission(self, root: Path, artifact: Path) -> None:
         staged = self.stage(root, artifact, artifact_approved=True)
-        assignment_submission.confirm(
-            staged, uploaded_carriers=(artifact,), clinician_reply="Submit the synthetic assignment."
-        )
+        with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic Gate 2", 4102444801)):
+            assignment_submission.confirm(
+                staged, uploaded_carriers=(artifact,), clinician_reply="Submit the synthetic assignment."
+            )
         (root / "reread.md").write_text(
             "## REREAD: assignment\n"
             "POST-URL: https://example.test/submission\n"
