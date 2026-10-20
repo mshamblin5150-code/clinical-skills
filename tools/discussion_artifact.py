@@ -27,13 +27,13 @@ from imagery_proposals import WORKING_MARKER
 from run_grader import EvidenceDisposition
 
 
-def _record_views(checked, keys, *, check: str, collect: bool = True):
+def _record_views(checked, keys, *, check: str, collect: bool = True, force: bool = False):
     views = {}
     for key in keys:
         try:
-            views[key] = checked.require_text(artifact=key)
+            views[key] = checked.require_text(artifact=key, force=force)
         except DamagedRecord as failure:
-            damaged_record_result(failure, check=check, artifact=key)
+            damaged_record_result(failure, check=check, artifact=key, force=force)
             if not collect or not collecting_errors():
                 raise
     return views
@@ -515,19 +515,19 @@ def decode_posted_readings(text: str) -> tuple[PostedReading, ...]:
 
 def read_posted_reading_file(path: Path, *, collect: bool = True,
                              artifact: str | None = None,
-                             artifacts: tuple[str, ...] = ()) -> tuple[PostedReading, ...]:
+                             artifacts: tuple[str, ...] = (), force: bool = False) -> tuple[PostedReading, ...]:
     """Keep absence empty; retain a present fault for the command's coverage report."""
     try:
         def decode(text):
             checked = check_handwritten_text(text, path, "raw-text")
             if artifacts:
-                views = _record_views(checked, artifacts, check="the posted reading", collect=collect)
+                views = _record_views(checked, artifacts, check="the posted reading", collect=collect, force=force)
                 return tuple(reading for reading in decode_posted_readings(next(iter(views.values())))
                              if reading.artifact in views) if views else ()
-            return decode_posted_readings(checked.require_text(artifact=artifact))
+            return decode_posted_readings(checked.require_text(artifact=artifact, force=force))
         return read_tool_record(path, decode) or ()
     except DamagedRecord as failure:
-        damaged_record_result(failure, check="the posted reading", artifact=artifact)
+        damaged_record_result(failure, check="the posted reading", artifact=artifact, force=force)
         if not collect or not collecting_errors():
             raise
         return ()

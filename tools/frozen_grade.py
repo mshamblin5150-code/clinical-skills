@@ -103,7 +103,7 @@ def report(run: Path, submission: str, *, adopt_history: bool = True) -> str | N
     except DamagedRecord as failure:
         if not collecting_errors():
             raise
-        damaged_record_result(failure, check="historical adoption", artifact=submission)
+        damaged_record_result(failure, check="historical adoption", artifact=submission, force=True)
         # Existing retained grades remain authoritative; damaged evidence
         # cannot establish a new adoption, nor abort independent fresh checks.
         return _report(run, submission, adopt_history=False)
@@ -170,7 +170,8 @@ def adopt(run: Path) -> Adoption:
         covered = []
     try:
         readings = {reading.artifact: reading for reading in read_posted_reading_file(
-            run / "reread.md", collect=False, artifacts=tuple(item["submission"] for _spec, item in population))}
+            run / "reread.md", collect=False, force=True,
+            artifacts=tuple(item["submission"] for _spec, item in population))}
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError):
@@ -251,7 +252,7 @@ def main(argv: list[str]) -> int:
             try:
                 result = adopt(run)
             except DamagedRecord as failure:
-                print(damaged_record_result(failure, check="historical adoption")[1])
+                print(damaged_record_result(failure, check="historical adoption", force=True)[1])
                 damaged = True
                 continue
             except UnreadableRecord as failure:

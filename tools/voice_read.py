@@ -28,7 +28,7 @@ import run_grader
 import voice_model_identity
 from console_codec import require_python_floor, use_utf8
 from coursework_run import RECORDS_DIRECTORY
-from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
+from run_record_reader import read_handwritten_record, check_handwritten_text, DamagedRecord, damaged_record_result
 
 
 PLANTED_COPY_NAME = "voice-read-planted.txt"
@@ -339,7 +339,7 @@ def _read_supplied_voice(path: Path, artifact: str | None = None) -> tuple[tuple
     """Read one explicit pre-draft capture and bind it to its exact bytes."""
     try:
         raw = path.read_bytes()
-        payload = read_handwritten_record(path, "json").require_json(artifact=artifact)
+        payload = check_handwritten_text(raw.decode("utf-8"), path, "json").require_json(artifact=artifact)
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     digest = hashlib.sha256(raw).hexdigest()

@@ -25,6 +25,8 @@ import approval_record
 import assignment_submission
 import frozen_grade
 import anchor_scan
+import completion_checks
+from datetime import timedelta
 from unittest import mock
 
 
@@ -107,6 +109,25 @@ class HandwrittenHosts(unittest.TestCase):
         output = io.StringIO()
         with redirect_stdout(output):
             status = frozen_grade.main([str(self.run)])
+        self.assertEqual(1, status, output.getvalue())
+        self.assertIn('U+0007', output.getvalue())
+        self.assertFalse((self.run / frozen_grade.RECORD).exists())
+
+    def test_native_first_adoption_forces_damage_refusal_even_for_known_old_approval(self):
+        reply_fixture.Run(self.run)
+        reading = self.run / 'reread.md'
+        reading.write_bytes(reading.read_bytes().replace(b'READ:', b'READ: bad\x07', 1))
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        moment_token = completion_checks.MOMENTS.set({'approval': old})
+        item_token = completion_checks.ITEM_MOMENTS.set({'response-maren.md': old})
+        try:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                status = frozen_grade.main([str(self.run)])
+        finally:
+            completion_checks.ITEM_MOMENTS.reset(item_token)
+            completion_checks.MOMENTS.reset(moment_token)
         self.assertEqual(1, status, output.getvalue())
         self.assertIn('U+0007', output.getvalue())
         self.assertFalse((self.run / frozen_grade.RECORD).exists())

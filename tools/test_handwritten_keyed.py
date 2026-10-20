@@ -33,6 +33,28 @@ def invoke(command):
 
 
 class KeyedRecordDamage(unittest.TestCase):
+    def test_supplied_voice_payload_and_digest_use_the_same_byte_observation(self):
+        case = voice_fixtures.CompletionGate()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        capture = case.records / voice_read.SUPPLIED_VOICE_RECORD_NAME
+        replacement = json.dumps({'status': 'complete', 'items': [
+            {'id': 'changed', 'kind': 'image', 'quote': 'A different captured image.'}]}).encode()
+        read_bytes = Path.read_bytes
+        observations = []
+        def changing_read(path):
+            raw = read_bytes(path)
+            if path == capture:
+                observations.append(raw)
+                capture.write_bytes(replacement)
+            return raw
+        capture.write_bytes(b'{"status":"none"}\r\n')
+        with mock.patch.object(Path, 'read_bytes', autospec=True, side_effect=changing_read):
+            items, digest = voice_read._read_supplied_voice(capture, 'submission')
+        self.assertEqual((), items)
+        self.assertEqual(hashlib.sha256(observations[0]).hexdigest(), digest)
+        self.assertEqual(1, len(observations))
+
     def test_named_voice_artifact_keeps_its_own_historical_remark_window(self):
         case = voice_fixtures.CompletionGate()
         case.setUp()
