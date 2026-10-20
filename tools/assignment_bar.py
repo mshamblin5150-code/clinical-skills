@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report, collecting_errors
+from run_record_reader import (read_tool_record, object_record, RecordShapeError, UnreadableRecord,
+                               fault_report, collecting_errors, update_tool_record, RecordUpdate)
 
 import re
 import argparse
@@ -22,6 +23,7 @@ from console_codec import use_utf8, require_python_floor
 
 
 DECLARED_LIMITS = (
+    'Signing holds the canonical history lock across revision allocation, retained-copy creation and atomic history replacement; sibling bar/copy rollback is best effort, not a cross-file atomic transaction.',
     'assignment_bar record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
 )
 
@@ -117,9 +119,14 @@ def sign(run: Path, clinician_reply: str) -> dict:
     Reply verification inherits approval_record's limit: matching words does
     not establish that the message was about this bar.
     """
+    run = Path(run).resolve()
+    return update_tool_record(run / RECORD, _decode_signatures,
+                              lambda previous: _sign(run, clinician_reply, previous))
+
+
+def _sign(run: Path, clinician_reply: str, previous_record: dict | None) -> RecordUpdate:
     from approval_record import verify_clinician_reply
 
-    run = Path(run).resolve()
     bar = run / "bar.md"
     original = bar.read_bytes()
     text = original.decode("utf-8")
@@ -130,7 +137,7 @@ def sign(run: Path, clinician_reply: str) -> dict:
     content = (signed + text).encode("utf-8")
     envelope = parse(content.decode("utf-8"))
     importlib.import_module(adapter_name(envelope)).validate_bar(envelope)
-    history = _signatures(run)
+    history = previous_record["signatures"] if previous_record is not None else []
     previous = history[-1] if history else {}
     after = previous.get("reply_matched_at") or previous.get("recorded_at")
     boundary = completion_checks.instant(after)
@@ -159,15 +166,17 @@ def sign(run: Path, clinician_reply: str) -> dict:
         "reply_matched_at": verification.matched_at,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
     }
-    try:
-        _replace(bar, content)
-        _replace(run / RECORD, (json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"))
-    except BaseException:
+    def rollback():
         copy.unlink(missing_ok=True)
         if bar.read_bytes() == content:
             _replace(bar, original)
+    try:
+        _replace(bar, content)
+    except BaseException:
+        rollback()
         raise
-    return entry
+    return RecordUpdate((json.dumps({"signatures": [*history, entry]}, indent=2) + "\n").encode("utf-8"),
+                        entry, rollback=rollback)
 
 
 def completion_gate(run: Path) -> tuple[bool, str]:

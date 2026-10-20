@@ -79,7 +79,7 @@ class CaptureGate(unittest.TestCase):
     def save(self):
         case_video.write_json(self.root / "capture.json", self.manifest)
         self.review["manifest_sha256"] = case_video.digest(self.root / "capture.json")
-        case_video.write_json(self.review_path, self.review)
+        self.review_path.write_text(json.dumps(self.review), encoding="utf-8")
 
     def gate(self):
         return case_video.completion_gate(self.run, self.key, {self.key: self.draft})
@@ -149,11 +149,11 @@ class CaptureGate(unittest.TestCase):
         self.review_path.unlink()
         self.assertTrue(self.gate()[0])
         for invalid in ({}, [], {"kind": "none", "reason": ""}, {"kind": "captions"}):
-            case_video.write_json(self.review_path, invalid)
+            self.review_path.write_text(json.dumps(invalid), encoding="utf-8")
             self.assertTrue(self.gate()[0])
 
     def test_explicit_nonvideo_needs_no_media_dependency(self):
-        case_video.write_json(self.review_path, {"kind": "none", "reason": "Document-only faculty case"})
+        self.review_path.write_text(json.dumps({"kind": "none", "reason": "Document-only faculty case"}), encoding="utf-8")
         self.assertFalse(self.gate()[0])
 
     def test_typed_route_needs_clinician_choice_and_unchanged_file(self):

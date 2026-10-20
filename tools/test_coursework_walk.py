@@ -40,7 +40,7 @@ class DraftWalkCommands(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(coursework_run, "scratch_root", return_value=self.root))
         self.stack.enter_context(patch.object(repo_root, "canonical_voice_model", return_value=self.resolved))
-        self.stack.enter_context(patch.object(project_context, "_write_context_record", return_value=project_context.GateResult(0, "context clean")))
+        self.stack.enter_context(patch.object(project_context, "_write_context_record", return_value=project_context.RecordUpdate(None, project_context.GateResult(0, "context clean"))))
         self.stack.enter_context(patch.object(project_context, "retain_heading_context"))
 
     def command(self, module):

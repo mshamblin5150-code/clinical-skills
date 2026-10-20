@@ -47,7 +47,7 @@ class ApplyReturns(unittest.TestCase):
     def test_apply_retry_snapshot_and_one_step_write(self):
         original = self.path.read_bytes()
         text = returned() + f"REMARK: {MARKER} outside the question\n"
-        with mock.patch.object(apply.os, "replace", wraps=apply.os.replace) as replace:
+        with mock.patch.object(apply.records.os, "replace", wraps=apply.records.os.replace) as replace:
             self.assertEqual(0, self.run_return(text)[0])
             replace.assert_called_once()
         self.assertEqual(original, (self.root / "claims-snapshot-1.md").read_bytes())
@@ -149,7 +149,7 @@ class ApplyReturns(unittest.TestCase):
         snapshot = self.root / "claims-snapshot-1.md"
         snapshot.write_bytes(b"previous snapshot")
         original = self.path.read_bytes()
-        with mock.patch.object(apply.os, "replace", side_effect=OSError):
+        with mock.patch.object(apply.records.os, "replace", side_effect=OSError):
             self.assertEqual(2, self.run_return(returned())[0])
         self.assertEqual(original, self.path.read_bytes())
         self.assertEqual(b"previous snapshot", snapshot.read_bytes())

@@ -6,17 +6,17 @@ Default reports contain positions and fixed reasons; --show is private.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 import research_ledger
 import run_grader
+import run_record_reader as records
 from console_codec import require_python_floor, use_utf8
 
 DECLARED_LIMITS = (
+    "The ledger's mixed handwritten content keeps its existing parser; its tool rewrite holds the ledger lock through source/snapshot allocation and atomic replacement. Immutable saved returns and snapshots are separate evidence, not a cross-file transaction.",
     "Recognized blocks are copied without checking verdict completeness or source support.",
     "A saved return does not establish who wrote it or whether its stated route was taken.",
 )
@@ -99,8 +99,8 @@ def merge_record(text: str, block: Block) -> str:
     return "\n".join(kept).rstrip() + "\n"
 
 
-def write_ledger(path: Path, original: bytes, updated: bytes) -> None:
-    """Save an exclusive numbered snapshot, then replace in one step."""
+def _snapshot_ledger(path: Path, original: bytes) -> None:
+    """Retain one immutable prior version while the ledger transaction owns allocation."""
     number = 1
     while True:
         snapshot = path.with_name(f"{path.stem}-snapshot-{number}{path.suffix}")
@@ -110,32 +110,35 @@ def write_ledger(path: Path, original: bytes, updated: bytes) -> None:
             break
         except FileExistsError:
             number += 1
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".refutation-", delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(updated)
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
 
 
 def apply(ledger: Path, returns: list[Path], show: bool = False) -> int:
+    result = (0, 0)
+    def change(text):
+        nonlocal result
+        update = _apply(ledger, returns, show, text)
+        result = update.result
+        return update
+    try:
+        status, unread = records.update_tool_record(ledger, lambda text: text, change)
+    except records.UnreadableRecord as failure:
+        print(records.fault_report(failure, check="the saved refuter application"))
+        status, unread = (1 if result[0] == 1 else 2), result[1] + 1
+    print(run_grader.format_unread_remainder(unread))
+    return status
+
+
+def _apply(ledger: Path, returns: list[Path], show: bool, text: str | None) -> records.RecordUpdate:
     unread = 0
     failed = False
     changed = False
-    try:
-        original = ledger.read_bytes()
-        text = original.decode("utf-8")
-    except (OSError, UnicodeError):
+    if text is None:
         print("ledger could not be read")
-        print(run_grader.format_unread_remainder(1))
-        return 2
+        return records.RecordUpdate(None, (2, 1))
+    original = text.encode("utf-8")
     if not research_ledger.read_records(text):
         print("ledger contains no record")
-        print(run_grader.format_unread_remainder(1))
-        return 2
+        return records.RecordUpdate(None, (2, 1))
     newline = "\r\n" if "\r\n" in text else "\n"
     parts = [""]
     for line in text.replace("\r\n", "\n").splitlines(keepends=True):
@@ -214,14 +217,15 @@ def apply(ledger: Path, returns: list[Path], show: bool = False) -> int:
                 print(block.record.claim)
         report_counts(file_number, len(returns), counts)
     updated = "".join(parts).replace("\n", newline).encode("utf-8")
+    payload = None
     if changed and updated != original:
         try:
-            write_ledger(ledger, original, updated)
+            _snapshot_ledger(ledger, original)
+            payload = updated
         except OSError:
             print("ledger could not be written")
             unread += 1
-    print(run_grader.format_unread_remainder(unread))
-    return 1 if failed else 2 if unread else 0
+    return records.RecordUpdate(payload, (1 if failed else 2 if unread else 0, unread))
 
 
 def main(argv: list[str]) -> int:

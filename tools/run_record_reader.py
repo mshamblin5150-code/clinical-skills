@@ -19,6 +19,7 @@ import uuid
 
 DECLARED_LIMITS = (
     'run_record_reader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
+    'The locked update callback owns history-dependent reads and decisions; one replacement is atomic, append remains append-only, and compound sibling recovery is best effort under the same lock rather than a cross-file transaction.',
 )
 
 T = TypeVar("T")

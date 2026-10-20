@@ -14,26 +14,25 @@ import gc
 import hashlib
 import json
 import math
-import os
 import re
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import time
-import uuid
 from urllib.parse import urlsplit
 
 import completion_checks
-import artifact_lock
 from console_codec import require_python_floor, use_utf8
 import coursework_run
-from run_record_reader import read_tool_record, object_record, RecordShapeError, UnreadableRecord, fault_report, collecting_errors
+from run_record_reader import (read_tool_record, object_record, RecordShapeError, UnreadableRecord,
+                               fault_report, collecting_errors, update_tool_record, RecordUpdate, locked_record)
 
 
 EXPECTED_ROW = "the case video capture"
 MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v2", "large-v3")
 DECLARED_LIMITS = (
+    ("locked-capture-writes", "The parent holds the capture-directory lock across preflight and the worker, whose machine replacements acquire leaf record locks in root-to-leaf order. A worker inherits the parent operation and never reacquires the root lock. Direct --worker use without that parent is outside this command's guarded capture guarantee. File replacement is atomic, not the multi-file media capture."),
     ("case_video-record-coverage", 'case_video record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.'),
     ("shared-engine", "Agreement between passes is not proof; both can mishear alike."),
     ("frame-distinctness-unproven", "Frame count is a floor, not proof every slide was distinct or detected."),
@@ -109,12 +108,8 @@ def _decode_machine(kind: str, text: str):
 
 
 def write_json(path: Path, value) -> None:
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".partial")
-    try:
-        temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    update_tool_record(path, lambda text: _decode_machine(path.name, text),
+                       lambda previous: RecordUpdate((json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")))
 
 
 def inside(root: Path, name: str) -> Path:
@@ -429,11 +424,12 @@ def main(argv: list[str]) -> int:
                 raise ValueError("supply --python from a separate capture environment")
             if args.action == "prepare":
                 root.mkdir(parents=True, exist_ok=False)
-            else:
-                valid_capture(root)
-            # Keep the read/modify/write sequence exclusive, including the
-            # worker. The worker inherits this operation, not a second lock.
-            with artifact_lock.hold(root, "case video capture"):
+            # Root ownership spans preflight and the worker's earlier record reads.
+            # Leaf replacements take their own shared record locks; the worker
+            # inherits this root operation rather than reacquiring the root lock.
+            with locked_record(root):
+                if args.action != "prepare":
+                    valid_capture(root)
                 with (root / f"{args.action}.log").open("w", encoding="utf-8") as log:
                     result = subprocess.run([str(args.python), "-E", "-s", str(Path(__file__).resolve()), *argv, "--worker"], stdout=log, stderr=log)
             if result.returncode:

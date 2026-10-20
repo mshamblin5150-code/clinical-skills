@@ -6,7 +6,6 @@ from __future__ import annotations
 import tree_walk
 
 import json
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +13,6 @@ import re
 import shlex
 import subprocess
 import sys
-import tempfile
 from typing import Any, Mapping
 
 from hook_payload import read_payload
@@ -67,6 +65,7 @@ ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
+    'Status persistence rereads the existing record under its exclusive lock and atomically replaces one file; approval records and terminal grading remain separate observations, not a cross-record transaction.',
     'run_status_stop_hook record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
     'Unreadable hook payloads always allow the stop with a systemMessage warning that the turn was not graded; no raw trigger is applied.',
     "Material reachable only through a link or junction is not entered and does not make a run touched.",
@@ -349,13 +348,9 @@ def _state(run: Path) -> dict[str, object]:
 
 
 def _write_state(run: Path, value: Mapping[str, object]) -> None:
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", newline="", dir=run, delete=False
-    ) as stream:
-        json.dump(value, stream, ensure_ascii=False, indent=2)
-        stream.write("\n")
-        temporary = Path(stream.name)
-    os.replace(temporary, run / STATE_RECORD)
+    from run_record_reader import update_tool_record, RecordUpdate
+    update_tool_record(run / STATE_RECORD, state_record,
+                       lambda previous: RecordUpdate((json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")))
 
 
 def _last_assistant_message(records: tuple[dict[str, object], ...]) -> str:
@@ -510,20 +505,23 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
             continue  # A status reply never authorizes repairing damaged bookkeeping.
         match = by_key[run.name]
         status = match.group("status")
-        if status.startswith("stopped"):
-            _write_state(
-                run,
-                {
-                    "status": "stopped",
-                    "reason": match.group("reason"),
-                    "approval_revision": revision,
-                },
-            )
-        elif status == "complete":
-            _write_state(
-                run,
-                {"status": "complete", "approval_revision": revision},
-            )
+        try:
+            if status.startswith("stopped"):
+                _write_state(
+                    run,
+                    {
+                        "status": "stopped",
+                        "reason": match.group("reason"),
+                        "approval_revision": revision,
+                    },
+                )
+            elif status == "complete":
+                _write_state(
+                    run,
+                    {"status": "complete", "approval_revision": revision},
+                )
+        except UnreadableRecord as failure:
+            return refuse(str(failure) + "; status was not recorded; this run needs stopped - <reason>.")
     return {}
 
 
