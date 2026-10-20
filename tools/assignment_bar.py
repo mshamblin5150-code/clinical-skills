@@ -4,18 +4,12 @@ from __future__ import annotations
 
 import re
 import argparse
-import importlib
-import json
-import os
 import sys
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import date
-from datetime import datetime, timezone
 
 import run_grader
-import completion_checks
-import file_digest
 from console_codec import use_utf8, require_python_floor
 from run_record_reader import UnreadableRecord, fault_report
 

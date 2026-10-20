@@ -54,8 +54,8 @@ def validate(text: str, skill: str) -> None:
             discussion_post_scan._read_bar(text)
         elif skill == "practicum-case-study":
             values = re.findall(r"(?mi)^SUBMISSION-TYPE:[ \t]*([^\r\n]*)", text)
-            if len(values) != 1 or values[0].strip() not in {"canvas-composer", "docx-upload"}:
-                raise run_grader.SourceError("bar.md needs SUBMISSION-TYPE: canvas-composer or docx-upload")
+            if len(values) != 1 or values[0].strip() not in {"canvas-composer", "file-upload"}:
+                raise run_grader.SourceError("bar.md needs SUBMISSION-TYPE: canvas-composer or file-upload")
 
 
 def _signatures(run: Path) -> list[dict]:
@@ -147,14 +147,18 @@ def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
         run = Path(run)
         text = (run / "bar.md").read_text(encoding="utf-8")
         signed = signed_date(text)
-        if skill is not None:
+        if skill == "course-assignment":
             validate(text, skill)
         history = _signatures(run)
         if not history:
-            if not completion_checks.active("assignment_bar:completion_gate" if skill == "course-assignment" else "bar_signatures:completion_gate", signed):
+            check = "assignment_bar:completion_gate" if skill == "course-assignment" else "bar_signatures:completion_gate"
+            moment = signed if skill == "course-assignment" else completion_checks.MOMENTS.get().get("approval") or signed
+            if not completion_checks.active(check, moment):
                 return False, EXPECTED_ROW + ": not graded - bar signed before the command existed"
             raise run_grader.SourceError(f"bar has no recorded signature; {REMEDY}")
         latest = history[-1]
+        if skill is not None:
+            validate(text, skill)
         copy_name = latest.get("copy")
         if not isinstance(copy_name, str):
             raise run_grader.SourceError(f"signed bar copy identity unreadable; {REMEDY}")
@@ -172,8 +176,27 @@ def completion_gate(run: Path, *, skill: str | None = None) -> tuple[bool, str]:
         return True, EXPECTED_ROW + ": not clean - " + str(failure)
 
 
+def latest_digest(run: Path) -> str | None:
+    """Return the verified latest bar identity, or None for a legacy exemption."""
+    failed, report = completion_gate(run)
+    if failed:
+        raise run_grader.SourceError(report)
+    history = _signatures(Path(run))
+    return history[-1]["sha256"] if history else None
+
+
+def apply_completion_gate(grade, run: Path, skill: str, submission: str | None):
+    """Enable the same signature comparison at each coursework completion seam."""
+    from dataclasses import replace
+    if submission is None:
+        return grade
+    failed, report = completion_gate(run, skill=skill)
+    return replace(grade, coverage_failed=grade.coverage_failed or failed,
+                   reports=(*grade.reports, report))
+
+
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Sign a course-assignment bar after clinician confirmation.")
+    parser = argparse.ArgumentParser(description="Sign a coursework bar after clinician confirmation.")
     parser.add_argument("run", type=Path)
     parser.add_argument("--skill", required=True, choices=SKILLS)
     parser.add_argument("--reply", required=True, help="whole confirming clinician message")
@@ -183,7 +206,7 @@ def main(argv: list[str]) -> int:
     except (OSError, UnicodeError, run_grader.SourceError) as failure:
         print(f"bar not signed: {failure}", file=sys.stderr)
         return 2
-    print("assignment bar signed: " + entry["reply_verification"])
+    print("bar signed: " + entry["reply_verification"])
     return 0
 
 

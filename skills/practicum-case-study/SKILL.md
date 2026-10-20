@@ -60,6 +60,10 @@ the assignment's Canvas Composer. The read selects that sheet's first supported 
 `file-upload`, the route is the rendered `.docx`. Show the transcription, precedence, submission
 type, selected route, and its cost to the clinician at the existing bar approval; this adds no gate.
 Do not write the bar's `SIGNED:` ISO date or draft until the clinician explicitly approves it.
+Then run `python tools/bar_signatures.py <run-directory> --skill practicum-case-study --reply "<whole confirming reply>"`
+and require exit 0; the command writes the date and retains the signed bytes. A later conflict
+shows the old and new wording of every changed bar line with its reason and waits for his new
+reply before re-signing through the same command.
 On the Composer branch, follow the shared sheet's Initial-post attachment fallback. This skill
 opts in because its checked `.docx` can become the submission after an observed message-size
 refusal; the signed bar still decides whether a pointer body is allowed.
@@ -1059,7 +1063,10 @@ fit, contraindication), confirm the chosen option meets that same reason, includ
 product that shares a contraindicated ingredient. The decisions reader still runs the same test.
 
 **Before the first reader round, walk every signed bar element against the draft.** Write
-`<run-directory>/bar-walk.json` in the shape below. Each element `bar.md` carries is met in a named
+`<run-directory>/bar-walk.json` in the shape below. Its top-level `bar_sha256` is
+`bar_signatures.latest_digest(run)`, the latest signature of the bar walked. After re-signing,
+walk the changed bar again and record its new fingerprint; a stale walk refuses.
+Each element `bar.md` carries is met in a named
 section or inapplicable with its one-clause explanation under *A wrapper instruction that does not
 fit this patient is reasoned about* and a `### DEPARTURE:` entry. The faculty to-do reader confirms
 this walk; it does not replace it.

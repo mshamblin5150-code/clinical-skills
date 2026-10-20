@@ -255,6 +255,7 @@ def in_a_file(text: str, name: str = "checks.md"):
     directory = tempfile.TemporaryDirectory()
     path = Path(directory.name) / name
     path.write_text(text, encoding="utf-8")
+    (path.parent / "bar.md").write_text("SIGNED: 2000-01-01\nSUBMISSION-TYPE: file-upload\n", encoding="utf-8")
     return directory, path
 
 
@@ -1705,6 +1706,7 @@ class WalksOnlyThroughCommand(unittest.TestCase):
         records["routing-walk.json"] = RoutingWalkThroughCommand().routing_record()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "checks.md"
+            (path.parent / "bar.md").write_text("SIGNED: 2000-01-01\nSUBMISSION-TYPE: file-upload\n", encoding="utf-8")
             path.write_text("FIRST-DRAFT: " + first_draft + "\n" +
                             "## CHECK: differential ordering\n", encoding="utf-8")
             for name, record in records.items():
@@ -1865,7 +1867,7 @@ class ComposerAttachmentOutcome(unittest.TestCase):
 
     def prepare(self, path: Path, outcome: str | None) -> None:
         (path.parent / "bar.md").write_text(
-            "SUBMISSION-TYPE: canvas-composer\n", encoding="utf-8"
+            "SIGNED: 2000-01-01\nSUBMISSION-TYPE: canvas-composer\n", encoding="utf-8"
         )
         run([str(path), "--submission", "case-study"])
         output = path.parent / "output"

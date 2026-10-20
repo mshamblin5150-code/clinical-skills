@@ -117,7 +117,10 @@ RECENCY-WINDOW-YEARS: 5
 ```
 
 Show `bar.md` to the clinician and wait for an explicit confirmation that the transcription and
-precedence are right. Only then write `SIGNED:` and begin drafting. A run that reads, transcribes,
+precedence are right. Then run `python tools/bar_signatures.py <run-directory> --skill discussion-post --reply "<whole confirming reply>"`
+and require exit 0 before drafting. The command writes `SIGNED:`, retains the signed bytes and
+verifies his reply. A later change shows the old and new wording of every changed line with its
+reason, waits for his new reply, and runs the same signing command again. A run that reads, transcribes,
 and grades its own transcription without this checkpoint is grading its own interpretation.
 
 The word floor is graded. The ceiling is counted and never graded: the clinician deliberately

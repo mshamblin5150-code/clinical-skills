@@ -1621,6 +1621,15 @@ Tests in `tools/test_clinical_credentials.py` exercise silence, persistence, and
 
 ### Course assignment artifact grading
 
+`bar_signatures.py` signs all five coursework bars with `--skill <skill-name>` and `--reply`
+carrying the whole clinician answer. Each grammar is checked before the shared mechanism writes
+`SIGNED:`, retains the signed version and records its digest and verified reply. The four additional
+skills' completion graders and the research ledger compare the bar with the latest signature;
+a reused post bar is checked, never re-signed by a reply ranking. `checks_ledger` also binds a
+case-study bar walk's `bar_sha256` to that latest signature. A pre-command hand-dated bar reports
+not graded through the completion-check registry. Changed lines are shown before re-signing;
+the reader-owned reach and current lock posture belong to `bar_signatures.DECLARED_LIMITS`.
+
 `assignment_bar.py` signs a deck or DOCX bar after clinician confirmation:
 `python tools/assignment_bar.py <run-directory> --reply "<whole confirming reply>"`.
 It writes `SIGNED:`, retains every signed version, and binds the signed bytes and reply in
