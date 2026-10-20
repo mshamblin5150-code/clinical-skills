@@ -341,7 +341,10 @@ def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> 
     available = binding.context_available
     try:
         if available and binding.context_run:
-            sources = project_context.recorded_item_sources(binding.context_run, record.value("CONTEXT-DIGEST"))
+            sources = project_context.recorded_item_sources(binding.context_run, record.value("CONTEXT-DIGEST"), artifact=binding.artifact)
+    except DamagedRecord as failure:
+        damaged_record_result(failure, check="heading-read item quotes", artifact=binding.artifact)
+        available = False
     except UnreadableRecord as failure:
         mark_not_graded(failure, check="heading-read item quotes")
         available = False

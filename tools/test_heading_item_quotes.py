@@ -7,6 +7,7 @@ import mechanics_test_support
 import hashlib
 import importlib
 import io
+import json
 import tempfile
 import struct
 import unittest
@@ -60,6 +61,11 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
     def command(self):
         code, output, error = self.run.grade(bind_heading_read=False)
         return code, output + error
+
+    def context_with_escaped_damage(self, text):
+        row = {"submission": "synthetic", "report": "synthetic\tline", "digest": "none",
+               "finding": False, "coverage": False, "moved_places": [], "added_lines": []}
+        return text.replace("## PLACE:", "GO-AHEAD: " + json.dumps(row) + "\n## PLACE:", 1)
 
     def test_real_committed_item_and_case_whitespace_normalization(self):
         self.item = Path(__file__).resolve().parents[1] / "AGENTS.md"
@@ -220,6 +226,64 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
         self.assertIn(heading_read.CONTEXT_DIGEST_MISMATCH + ": 1", output)
         self.assertIn(heading_read.ITEM_QUOTE_ABSENT + ": 0", output)
         self.assertIn("unread remainder 0", output)
+
+    def test_damaged_current_context_keeps_independent_missing_quote_and_draft_checks(self):
+        for service in (False, True):
+            with self.subTest(service=service):
+                self.prepare("", service=service)
+                path = self.root / "project-context.md"
+                path.write_text(self.context_with_escaped_damage(path.read_text(encoding="utf-8")), encoding="utf-8")
+                self.run.draft.write_text(self.run.draft.read_text(encoding="utf-8") + "\nSynthetic revision.\n", encoding="utf-8")
+                code, output = self.command()
+                self.assertEqual(1, code, output)
+                self.assertIn("heading-read context comparisons: not graded", output)
+                self.assertIn(heading_read.ITEM_QUOTE_MISSING + ": 1", output)
+                self.assertIn(heading_read.DRAFT_MISMATCH + ": 1", output)
+                self.assertIn(heading_read.ITEM_QUOTE_ABSENT + ": 0", output)
+                self.assertNotIn("service-item quotes:", output)
+                self.assertNotIn("unread item sources:", output)
+                self.assertEqual(1, sum(line.startswith("unread remainder ") for line in output.splitlines()), output)
+
+    def test_retained_context_damage_uses_each_items_own_moment_and_continues(self):
+        from datetime import timedelta
+        self.prepare()
+        current = self.root / "project-context.md"
+        text = current.read_text(encoding="utf-8")
+        digest = project_context.read_record(text).value("CONTEXT-DIGEST")
+        retained = self.root / "private" / "heading-contexts" / (digest + ".md")
+        retained.parent.mkdir(parents=True)
+        retained.write_text(self.context_with_escaped_damage(text), encoding="utf-8")
+        current.write_text(text.replace(digest, "a" * 64), encoding="utf-8")
+        start = completion_checks.registry()["run_record_reader:handwritten-damage"][0]
+        before = start - timedelta(microseconds=1)
+        for moment, status in ((before, 0), (start, 1), (None, 1)):
+            with self.subTest(moment=moment):
+                @contextmanager
+                def item_context(_run, _submission):
+                    token = completion_checks.MOMENTS.set({"approval": before})
+                    items = completion_checks.ITEM_MOMENTS.set({"old.md": before, "current.md": start,
+                                                               self.run.draft.name: moment})
+                    try:
+                        yield
+                    finally:
+                        completion_checks.ITEM_MOMENTS.reset(items)
+                        completion_checks.MOMENTS.reset(token)
+                with mock.patch.object(completion_checks, "grading", item_context):
+                    code, output = self.command()
+                self.assertEqual(status, code, output)
+                self.assertIn(heading_read.ITEM_QUOTE_ABSENT + ": 0", output)
+                self.assertNotIn("unread item sources:", output)
+                self.assertEqual(1, sum(line.startswith("unread remainder ") for line in output.splitlines()), output)
+                if status:
+                    self.assertIn("heading-read item quotes: not graded", output)
+                else:
+                    self.assertNotIn("damaged text", output)
+        # A current damaged member must not prevent an independent draft refusal.
+        self.run.draft.write_text(self.run.draft.read_text(encoding="utf-8") + "\nSynthetic revision.\n", encoding="utf-8")
+        code, output = self.command()
+        self.assertEqual(1, code, output)
+        self.assertIn(heading_read.DRAFT_MISMATCH + ": 1", output)
+        self.assertIn("heading-read item quotes: not graded", output)
 
 
 class EveryNativeHostCarriesItemCoverage(unittest.TestCase):

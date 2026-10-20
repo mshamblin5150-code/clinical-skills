@@ -690,18 +690,18 @@ class ItemSource:
     digest: str
 
 
-def recorded_item_sources(run: Path, digest: str) -> tuple[ItemSource, ...]:
+def recorded_item_sources(run: Path, digest: str, *, artifact: str | None = None) -> tuple[ItemSource, ...]:
     """Resolve the exact strict context population named by a heading read.
 
     A service identifier has no retained text or filesystem path. No file is
     opened here; the quote reader verifies its recorded digest before reading.
     """
-    current = _read_context(run / RECORD_NAME)
+    current = _read_context(run / RECORD_NAME, artifact=artifact)
     record = current
     if digest != current.value("CONTEXT-DIGEST"):
         if not _SHA256.fullmatch(digest):
             return ()
-        record = _read_context(run / "private" / "heading-contexts" / (digest + ".md"))
+        record = _read_context(run / "private" / "heading-contexts" / (digest + ".md"), artifact=artifact)
     if record.value("CONTEXT-DIGEST") != digest:
         return ()
     return tuple(
