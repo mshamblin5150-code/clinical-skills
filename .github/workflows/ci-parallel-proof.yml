@@ -1,0 +1,63 @@
+# One separately approved proof push; no rerun, PR, or adoption.
+# Publication requires the lazy proof, budget plan, observer, owner source,
+# and both independent review axes to pass. Native controls gate measurement.
+name: reader parallelism preliminary proof
+
+on:
+  push:
+    branches: [diagnostic/2013-parallel-proof-20261020]
+
+permissions:
+  contents: read
+
+jobs:
+  parallel-proof:
+    if: github.run_attempt == 1
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - name: Record whole-job budget origin
+        shell: pwsh
+        run: |
+          "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Observer and reviewed lazy candidate only
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: observer
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /diagnostics/
+            /.github/workflows/ci-parallel-proof.yml
+            /tools/test_suite_ids.py
+            /tools/console_codec.py
+            /tools/python_floor.py
+            /tools/git_paths.py
+
+      - name: Immutable full source seed
+        uses: actions/checkout@v7
+        with:
+          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          path: source-seed
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact maintainer interpreter without installation of packages
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+
+      - name: Qualify owned trees and budget, then compare full populations
+        shell: pwsh
+        run: |
+          # LF-normalized SHA-256 of the independently reviewed planning artifact.
+          # Only CRLF/CR -> LF normalization is allowed; runtime admission still gates.
+          $reviewedBudgetSha256 = 'a50ca5d8e7d73797b03330e23b57b6354bae95cdbd42f4f526bd4fab9ac65a59'
+          python observer/diagnostics/measure_parallel_readers.py --observer observer --seed source-seed --budget-plan observer/diagnostics/parallel-proof-budget.json --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          exit $LASTEXITCODE
+
+# No artifact upload, workflow_dispatch, PR event, matrix, secret, package install,
+# write token, retry, changed production scheduler, or change to checks.yml.

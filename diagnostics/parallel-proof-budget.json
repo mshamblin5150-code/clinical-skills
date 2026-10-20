@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "status": "reviewed-complete-lazy-proof",
+  "base": "38c431b15b7fafb0f5f89a67ecb501de318c47a1",
+  "candidate_sha256": "f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275",
+  "lazy_proof_complete": true,
+  "all_lazy_controls_passed": true,
+  "evidence_run_url": "https://github.com/mshamblin5150-code/clinical-skills/actions/runs/39497210434",
+  "evidence_job_id": 118885243322,
+  "evidence_completed_at_utc": "2026-10-20T21:34:31Z",
+  "baseline_audit_run_url": "https://github.com/mshamblin5150-code/clinical-skills/actions/runs/39485799336",
+  "approved_job_seconds": 9000,
+  "preflight_budget_seconds": 900,
+  "measurement_budget_seconds": 7800,
+  "cleanup_reserve_seconds": 300,
+  "per_pass_upper_seconds": 1700,
+  "clone_setup_upper_seconds": 60,
+  "receipt_cleanup_upper_seconds": 45,
+  "per_pass_retained_disk_upper_bytes": 2147483648,
+  "minimum_free_disk_reserve_bytes": 1073741824,
+  "measured": {
+    "scope": "Historical measurements on 2026-10-20, from the immutable audit and lazy-screening run/job URLs above; not current runtime claims.",
+    "older_complete_audit_seconds": 1740.180762,
+    "older_suite_id_pair_seconds": 535.7366627,
+    "matched_baseline_paired_median_seconds": 625.7921827999999,
+    "matched_candidate_paired_median_seconds": 9.869993500000078,
+    "completed_valid_lazy_probes": 8,
+    "unexpected_lazy_errors": 0,
+    "unread_lazy_probes": 0,
+    "matching_discovered_ids": 8300
+  },
+  "planning_calculation": {
+    "formula": "(older_complete_audit - older_suite_id_pair) * (matched_baseline_pair / older_suite_id_pair) + matched_candidate_pair",
+    "serial_equivalent_passes": 4,
+    "assumed_parallel_speedup": 1
+  },
+  "limitations": [
+    "These are admission-planning allowances, not measured full-candidate audit durations or guaranteed upper bounds.",
+    "The host scaling uses one module and may not predict other tests; runtime reserve checks and deadlines must fail closed if the comparison no longer fits.",
+    "All four complete populations are required; a partial population permits no comparative speed claim.",
+    "Two independent clones per pass are retained; the disk allowance is a conservative planning reservation, not a proved bound on all test output.",
+    "No parallel performance gain is assumed for admission. A slower parallel side may make the complete comparison infeasible.",
+    "Two samples per side remain preliminary screening, not the five-sample minimum or end-to-end production qualification.",
+    "All raw reports, temporary files and clones remain until disposable-runner teardown; no artifact upload or private clinical corpus."
+  ]
+}

@@ -63,8 +63,10 @@ class EveryDiscoveredTestIdReruns(unittest.TestCase):
             with self.subTest(test_id=test_id):
                 self.assertTrue(
                     same_test,
-                    f"{test_id} did not re-run from {denominator} discovered tests; "
-                    f"{_describe_test_bindings(test)}",
+                    None if same_test else (
+                        f"{test_id} did not re-run from {denominator} discovered tests; "
+                        f"{_describe_test_bindings(test)}"
+                    ),
                 )
 
 
