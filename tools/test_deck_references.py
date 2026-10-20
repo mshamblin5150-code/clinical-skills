@@ -265,6 +265,25 @@ class DeckReferenceCommand(unittest.TestCase):
                     completion_checks.MOMENTS.reset(token)
                 self.assertEqual(expected, found)
 
+    def test_empty_reference_population_still_requires_an_answered_supported_language(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run = Run(root)
+            run.write_deck((slide_xml('Purpose', 'A finding.'),))
+            profile = root / 'profile.md'
+            profile.write_text('', encoding='utf-8')
+            for options, language, status in (
+                ((), 'unspecified', 2),
+                (('--paper-language', 'unlisted'), 'unlisted', 2),
+                (('--paper-language', 'English'), 'en', 0),
+            ):
+                with self.subTest(language=language):
+                    actual, report, errors = run.grade('--profile', str(profile), *options)
+                    self.assertEqual(status, actual, report + errors)
+                    self.assertIn('references read   0', report)
+                    expected = 'graded' if status == 0 else 'not graded'
+                    self.assertIn(f'reference order ({language}): {expected}', report)
+
 
 if __name__ == '__main__':
     unittest.main()

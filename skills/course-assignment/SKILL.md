@@ -252,7 +252,7 @@ Put each source's author-year citation on the slide face or in its speaker notes
 entry must be cited, and every citation must resolve to an entry. Face citations count toward the
 signed words-per-bullet limit.
 
-The reference reader uses the second reader's `REFERENCE-SLIDES` order in `intent.md`. A disagreement
+Reference entries follow the recorded `REFERENCE-SLIDES` order in `intent.md`. A disagreement
 with a slide's opening `Reference` heading enters the unread remainder. Put each whole entry in one
 paragraph on one slide, with its own positive left margin and negative first-line indent. Set
 reference italics on the runs themselves. The grader reads boxes top to bottom, left to right on a

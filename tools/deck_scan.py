@@ -1418,7 +1418,7 @@ def survey(source: Source) -> Scan:
         reference_grade.citation_coverage.unread,
         reference_grade.citation_coverage,
         reference_grade.paper_language,
-        not document.entries or reference_grade.paper_language in reference_alphabets.TABLE["languages"],
+        reference_grade.paper_language in reference_alphabets.TABLE["languages"],
     )
 
 
