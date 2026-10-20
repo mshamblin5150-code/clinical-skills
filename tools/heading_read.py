@@ -369,7 +369,7 @@ def _item_quotes(record: Record, binding: Binding, cache: dict, unread: set) -> 
         if key not in cache:
             try:
                 cache[key] = _item_text(source)
-            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, KeyError, ParseError):
+            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile, KeyError, ParseError, NotImplementedError, RuntimeError):
                 cache[key] = None
         text = cache[key]
         if text is None:

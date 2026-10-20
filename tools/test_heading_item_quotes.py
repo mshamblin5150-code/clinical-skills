@@ -8,6 +8,7 @@ import hashlib
 import importlib
 import io
 import tempfile
+import struct
 import unittest
 import zipfile
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
@@ -134,6 +135,25 @@ class ItemQuotesThroughThePostCommand(unittest.TestCase):
             code, output = self.command()
         self.assertNotEqual(0, code, output)
         self.assertIn("unread item sources: 1", output)
+
+    def test_unsupported_or_encrypted_word_package_is_unread_at_matching_digest(self):
+        self.item = self.root / "item.docx"
+        self.identifier = "item.docx"
+        for unsupported in (True, False):
+            with self.subTest(unsupported=unsupported):
+                with zipfile.ZipFile(self.item, "w") as package:
+                    package.writestr("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Alpha beta gamma.</w:t></w:r></w:p></w:body></w:document>')
+                raw = bytearray(self.item.read_bytes())
+                local, central = raw.index(b"PK\x03\x04"), raw.index(b"PK\x01\x02")
+                for offset in ((local + 8, central + 10) if unsupported else (local + 6, central + 8)):
+                    struct.pack_into("<H", raw, offset, 99 if unsupported else 1)
+                self.item.write_bytes(raw)
+                self.prepare()
+                code, output = self.command()
+                self.assertEqual(2, code, output)
+                self.assertIn("unread item sources: 1", output)
+                self.assertIn("unread remainder 1", output)
+                self.assertIn("findings: 0", output)
 
     def test_context_fault_preserves_independent_quote_shape_and_draft_findings(self):
         for suffix, change in (("", False), (' | rests on "Alpha beta gamma."', True)):
