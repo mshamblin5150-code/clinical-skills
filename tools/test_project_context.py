@@ -1072,7 +1072,8 @@ class GoAheadRechecks(ProjectContextFixture):
             staged = assignment_submission.stage(self.run, artifact, artifact_approved=True, clinician_reply="Approve the synthetic artifact.")
         payload = json.loads((self.run / assignment_submission.RECORD).read_text(encoding="utf-8"))
         self.assertEqual(payload["pregrade_status"], "incomplete")
-        assignment_submission.confirm(staged, uploaded_carriers=(artifact,), final_confirmation=True)
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic Gate 2", 4102444801)):
+            assignment_submission.confirm(staged, uploaded_carriers=(artifact,), clinician_reply="Submit the synthetic assignment.")
         self.plan.unlink()
         result = self.complete()
         self.assertFalse(result.finding, result.report)

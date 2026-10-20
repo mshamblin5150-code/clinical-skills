@@ -50,6 +50,7 @@ DECLARED_LIMITS = (
     "The MDM sheet's book, edition, and ISBN header lines are copied from the database; only the edition year is read from the book by both readers, and the reader's ISBN confirmation is unrecorded.",
     "Code identity, completeness, billability, and date status do not establish medical necessity, descriptor agreement with the note, CPT instructions, or the E/M level.",
     "The MDM sheet gate checks agreement digests and edition coverage, not the clinical support for a selected level or whether its readers viewed the book.",
+    "Clinician-answer verification proves a later whole human message, not what its words refer to or whether the caller is a delegated run. The manifest supplies the day-file or shorthand source path.",
 )
 
 
@@ -249,6 +250,25 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
     return encounters
 
 
+def validate_status_replies(run: Path, encounters: list[dict[str, object]], findings: list[str]) -> None:
+    """Bind clinician-answer evidence to a whole reply after its source."""
+    from approval_record import verify_clinician_reply
+    for position, encounter in enumerate(encounters, 1):
+        status = encounter["patient_status"]
+        if status.get("evidence") != "clinician-answer":
+            continue
+        reply, source = status.get("clinician_reply"), status.get("source_path")
+        if not isinstance(reply, str) or not isinstance(source, str) or not source.strip():
+            findings.append(f"encounter {position} clinician-answer needs its whole reply and source_path")
+            continue
+        path = Path(source)
+        if not path.is_absolute():
+            path = run / path
+        verification = verify_clinician_reply(run, reply, (path,))
+        if verification.state != "verified":
+            findings.append(f"encounter {position} clinician-answer reply is not verified: {verification.reason}")
+
+
 def validate_icd(
     connection: sqlite3.Connection,
     codes: set[str],
@@ -398,6 +418,7 @@ def main(argv: list[str]) -> int:
     findings: list[str] = []
     try:
         encounters = read_encounters(manifest, findings)
+        validate_status_replies(args.manifest.resolve().parent, encounters, findings)
         icd_codes = {
             code
             for encounter in encounters
