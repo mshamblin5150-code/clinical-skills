@@ -325,6 +325,15 @@ def completion_gate(
         text = read_handwritten_record(path, RECORD_KIND).require_text(artifact=submission, force=pre_approval)
     except DamagedRecord as failure:
         finding, report = damaged_record_result(failure, check=EXPECTED_ROW, artifact=submission, force=pre_approval)
+        # The unavailable answer population withholds binding/count comparisons,
+        # but the separate reader's own text is still independently observable.
+        try:
+            read_handwritten_record(run / READER_RECORD, "json").require_text(artifact=submission, force=pre_approval)
+        except DamagedRecord as reader_failure:
+            _, reader_report = damaged_record_result(reader_failure, check="the delegated answer reader", artifact=submission, force=pre_approval)
+            report += "\n" + reader_report
+        except (OSError, UnicodeError, ValueError):
+            pass  # No answer population exists to count missing/stale verdicts.
         return finding, report, 0
     total, settled, none, findings = grade_text(
         text,

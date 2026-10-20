@@ -139,6 +139,26 @@ class HandwrittenClinical(unittest.TestCase):
             completion_checks.ITEM_MOMENTS.reset(item)
             completion_checks.MOMENTS.reset(token)
 
+    def test_native_dual_answer_record_damage_observes_both_without_inventing_answers(self):
+        source = self.run / delegated_answers.RECORD
+        source.write_text(ANSWER, encoding='utf-8')
+        path = delegated_tests.write_reader(self.run)
+        source.write_bytes(source.read_bytes() + b'\x07')
+        path.write_bytes(path.read_bytes() + b'\x0b')
+        finding, report, unread = delegated_answers.completion_gate(self.run, 'synthetic')
+        self.assertTrue(finding, report)
+        self.assertEqual(0, unread)
+        self.assertIn('U+0007', report)
+        self.assertIn('U+000B', report)
+        for command in (differential_scan, filled_vitals_census):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                status = command.main([str(self.run), '--submission', 'synthetic'])
+            self.assertEqual(1, status, output.getvalue())
+            self.assertIn('U+0007', output.getvalue())
+            self.assertIn('U+000B', output.getvalue())
+            self.assertIn('unread remainder 0', output.getvalue())
+
     def test_json_key_and_nested_string_damage_precedes_schema_in_each_reader(self):
         path = self.run / 'read.json'
         for character in CONTROLS:
