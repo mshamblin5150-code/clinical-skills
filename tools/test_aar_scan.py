@@ -9,6 +9,7 @@ import importlib
 import ast
 from hashlib import sha256
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 import json
 import os
@@ -1322,6 +1323,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
                 self.assertEqual((status, stderr), (0, ""), stdout)
                 record_lines = [line for line in stdout.splitlines() if line.endswith("response-x.md.md")]
                 self.assertEqual(len(record_lines), 1, stdout)
+                self.assertEqual(stdout.splitlines().count("unread remainder 0"), 1, stdout)
                 self.assertIn("response-x.md.extract.md", stdout)
         self.write_clean(extract=False)
         with self.transcript.open("a", encoding="utf-8") as stream:
@@ -1874,6 +1876,58 @@ class SubmissionRecord(SyntheticSnapshotCase):
         self.assertFalse(aar_scan.extract_path(self.run, self.submission).exists())
         self.assertFalse(aar_scan.baseline_path(self.run, self.submission).exists())
 
+    def test_rebuilt_grade_prints_the_nonzero_remainder_once(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            .replace("UNREAD-REMAINDER: 0", "UNREAD-REMAINDER: 2")
+            .replace("UNDECLARED-SYSTEM-SUBTYPES: 0", "UNDECLARED-SYSTEM-SUBTYPES: 2"),
+            encoding="utf-8",
+        )
+
+        status, stdout, stderr = invoke_main([
+            str(self.run), "--submission", self.submission,
+            "--memory-index", str(self.memory), "--extract", "--rebuild-round", "1",
+        ])
+
+        self.assertEqual((status, stderr), (2, ""), stdout)
+        self.assertEqual(
+            [line for line in stdout.splitlines() if line.startswith("unread remainder")],
+            ["unread remainder 2"],
+        )
+        self.assertIn("undeclared system subtypes 2", stdout)
+
+    def test_rebuilding_a_legacy_extract_reports_an_unmeasured_remainder(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        legacy_time = (aar_scan.UNREAD_REMAINDER_CUTOFF - timedelta(seconds=1)).isoformat()
+        path.write_text(
+            "\n".join(
+                f"EXTRACTED-AT: {legacy_time}"
+                if line.startswith("EXTRACTED-AT:") else line
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if not line.startswith("UNREAD-REMAINDER:")
+            ) + "\n",
+            encoding="utf-8",
+        )
+        aar_scan.memory_measurement_path(self.run, self.submission).unlink()
+
+        for has_review in (True, False):
+            with self.subTest(has_review=has_review):
+                if not has_review:
+                    aar_scan.review_path(self.run, self.submission).unlink()
+                status, stdout, stderr = invoke_main([
+                    str(self.run), "--submission", self.submission,
+                    "--memory-index", str(self.memory), "--extract", "--rebuild-round", "1",
+                ])
+
+                self.assertEqual((status, stderr), (0, ""), stdout)
+                self.assertEqual(
+                    [line for line in stdout.splitlines() if line.startswith("unread remainder")],
+                    ["unread remainder: not measured (extract predates the count)"],
+                )
+
     def test_rebuild_round_repairs_only_notification_identifiers(self) -> None:
         notification = (
             "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
@@ -1966,6 +2020,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
         self.assertIn("review records                  1", stdout)
         self.assertIn("findings                        0", stdout)
         _fields, rebuilt_identifiers = aar_scan._extract_metadata(destination)
+        self.assertEqual(stdout.splitlines().count("unread remainder 0"), 1, stdout)
         self.assertEqual(rebuilt_identifiers, set(identifiers))
         self.assertEqual(
             (self.run / "aar" / "refused" / destination.name).read_text(encoding="utf-8"),
