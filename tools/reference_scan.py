@@ -1468,7 +1468,8 @@ def _evidenced_parenthetical(
             if (
                 normalize(written) != normalize(author)
                 or "\n" in written
-                or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
+                or (not author[:1].islower()
+                    and re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written))
                 or _inside_code(body, start, start + len(part))
             ):
                 continue
@@ -1553,7 +1554,8 @@ def _evidenced_narratives(
                     author_start = prefix_initials.start()
                 if (
                     "\n" in written
-                    or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
+                    or (not author[:1].islower()
+                        and re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written))
                     or _inside_code(body, author_start, block.end())
                 ):
                     break
@@ -2149,6 +2151,8 @@ def _clear_sentence_opening(body: str, start: int) -> bool:
     # common abbreviations need the same conservative treatment (ADR 0402).
     return len(word) > 3 and "." not in word and word not in {
         "approx", "dept", "prof", "assoc", "resp", "vols", "chap",
+        "ibid", "idem", "cont", "trans", "repr", "univ", "bros", "corp",
+        "figs", "para", "paras", "pseud",
     }
 
 

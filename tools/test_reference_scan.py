@@ -84,10 +84,18 @@ class LowercaseAuthors(unittest.TestCase):
 
     def test_abbreviation_and_soft_line_break_positions_stay_silent(self):
         for body in ("See e.g. zentrova Labs (2025) for a label.",
+                     "See ibid. zentrova Labs (2025) for context.",
                      "See Dr. zentrova Labs (2025) for a label.",
                      "See the label from\nzentrova Labs (2025)."):
             with self.subTest(body=body):
                 self.assertEqual(self.findings_for(body), ())
+
+    def test_a_listed_group_with_periods_resolves_in_both_forms(self):
+        entry = "e.l.f. Beauty. (2025). A label. https://example.org/label"
+        for body in ("The label from e.l.f. Beauty (2025) applies.",
+                     "A label applies (e.l.f. Beauty, 2025)."):
+            with self.subTest(body=body):
+                self.assertEqual(self.findings_for(body, entry), ())
 
     def test_lowercase_people_keep_the_person_exception(self):
         for author, citation in (("hooks, b.", "hooks"),
