@@ -3,7 +3,8 @@
 Recognizes JSON parser/read_text compositions through the existing shared
 classification, and literal handwritten filenames flowing through simple local
 assignments to read_text/read_bytes/open. Aliases, computed names, callbacks,
-interprocedural flow and external inputs are outside this floor. The full
+interprocedural flow and external inputs are outside this floor, except the
+explicit reversal_candidates_path constructor below. The full
 population is also reviewed by writer/source ownership; a basename alone never
 establishes ownership.
 """
@@ -55,6 +56,8 @@ def direct_literal_reads(root: Path) -> Counter:
                     return filename(node.right, seen)
                 if isinstance(node, ast.Call) and node.args and isinstance(node.func, ast.Name) and node.func.id == 'Path':
                     return filename(node.args[0], seen)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'reversal_candidates_path':
+                    return '<round>.reversal-candidates.md'
                 return None
             for node in ast.walk(owner):
                 if not isinstance(node, ast.Call):
@@ -92,3 +95,12 @@ class HandwrittenReadRoutes(unittest.TestCase):
                 "def stream(run):\n return open(run / 'heading-read.md').read()\n", encoding='utf-8')
             self.assertEqual(Counter({'synthetic.read:claims.md': 1,
                 'synthetic.bytes:reread.md': 1, 'synthetic.stream:heading-read.md': 1}), direct_literal_reads(root))
+
+    def test_explicit_computed_candidate_constructor_enters_the_bounded_floor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'synthetic.py').write_text(
+                "def read(run):\n path = reversal_candidates_path(run, 'key', 1)\n return path.read_text()\n",
+                encoding='utf-8')
+            self.assertEqual(Counter({'synthetic.read:<round>.reversal-candidates.md': 1}),
+                             direct_literal_reads(root))

@@ -26,6 +26,7 @@ import test_encounter_openers as opener_tests
 import test_medatrax_readback_command as portal_tests
 import test_specificity_scan as specificity_tests
 import test_delegated_answers as delegated_tests
+import test_aar_reversal_candidates as reversal_tests
 import visit_times
 
 CONTROLS = ('\t', '\a', '\0', '\f', '\v', '\r')
@@ -41,6 +42,153 @@ class HandwrittenClinical(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)
         (self.run / 'note-1.md').write_text(NOTE, encoding='utf-8')
+
+    def reversal_fixture(self):
+        fixture = reversal_tests.ReversalCandidates()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        return fixture
+
+    def test_reversal_candidate_damage_is_local_and_preserves_independent_findings(self):
+        fixture = self.reversal_fixture()
+        fixture.extract()
+        fixture.correction('unknown-event')
+        for character in CONTROLS:
+            for text in (character + 'x\nnone\n', '## ' + character + 'x\nnone\n',
+                         'none' + character + 'x\n', 'A free' + character + ' line\n'):
+                with self.subTest(character=ord(character), text=text):
+                    fixture.input.write_bytes(text.encode())
+                    status, report = fixture.command('--show')
+                    self.assertEqual(1, status, report)
+                    self.assertIn(f'U+{ord(character):04X}', report)
+                    self.assertIn('not graded — damaged text', report)
+                    self.assertIn('unknown-event', report)
+                    self.assertIn('unread remainder 0', report)
+
+    def test_reversal_candidate_crlf_historical_and_unknown_item_views(self):
+        fixture = self.reversal_fixture()
+        fixture.extract()
+        fixture.input.write_bytes(b'none\r\n')
+        self.assertEqual(0, fixture.command()[0])
+        fixture.input.write_bytes(b'none\x07\n')
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        global_token = completion_checks.MOMENTS.set({'approval': old})
+        try:
+            for moment in (old, start, None):
+                token = completion_checks.ITEM_MOMENTS.set({'synthetic': moment} if moment else {})
+                try:
+                    with patch.object(completion_checks, 'approval_moment', return_value=moment):
+                        status, report = fixture.command('--show')
+                    self.assertEqual(1, status, report)
+                    self.assertEqual(moment != old, 'U+0007' in report, report)
+                    if moment == old:
+                        self.assertIn('no longer matches', report)
+                finally:
+                    completion_checks.ITEM_MOMENTS.reset(token)
+        finally:
+            completion_checks.MOMENTS.reset(global_token)
+
+    def test_paired_review_and_candidate_damage_are_both_observed(self):
+        fixture = self.reversal_fixture()
+        fixture.extract()
+        fixture.record.write_bytes(fixture.record.read_bytes() + b'\x07')
+        fixture.input.write_bytes(b'none\x0b\n')
+        status, report = fixture.command('--show')
+        self.assertEqual(1, status, report)
+        self.assertIn('U+0007', report)
+        self.assertIn('U+000B', report)
+        self.assertNotIn('unread remainder 1', report)
+        aar_scan.extract_path(fixture.run, 'synthetic').write_bytes(b'{')
+        status, report = fixture.command('--show')
+        self.assertEqual(1, status, report)
+        self.assertIn('U+0007', report)
+        self.assertNotIn('U+000B', report)
+        self.assertIn('unread remainder 1', report)
+
+    def test_candidate_damage_does_not_hide_a_later_round_sustain(self):
+        fixture = self.reversal_fixture()
+        fixture.extract()
+        second = aar_scan.reversal_candidates_path(fixture.run, 'synthetic', 2)
+        second.write_text('none\n', encoding='utf-8')
+        with fixture.transcript.open('a', encoding='utf-8') as stream:
+            stream.write(json.dumps({'type': 'user', 'uuid': 'user-2',
+                                     'message': {'content': 'Review the next workflow.'}}) + '\n')
+        status, report = fixture.command('--extract', '--memory-index', str(fixture.memory))
+        self.assertEqual(0, status, report)
+        fields, _entries = aar_scan._extract_entries_text(
+            aar_scan.extract_path(fixture.run, 'synthetic', 2).read_text(encoding='utf-8'))
+        record = aar_scan.review_path(fixture.run, 'synthetic', 2)
+        record.write_text('\n'.join((
+            'SUBMISSION: synthetic', 'TRANSCRIPTS: ' + fields['TRANSCRIPTS'],
+            'POPULATION: ' + fields['POPULATION'], 'UNREAD: 0', 'WATERMARK: ' + fields['WATERMARK'],
+            'MEMORY-INDEX: ' + str(fixture.memory), 'CLASSIFIER: fresh reader', 'CLASSIFIER-ENTRY: reader-2',
+            'DISAGREEMENTS: none recorded', 'CORRECTIONS: none',
+            '## SUSTAIN: unknown-sustain', 'SUMMARY: Retain the independent workflow.', '')),
+            encoding='utf-8')
+        aar_scan.measure_memory(fixture.run, 'synthetic', 2)
+        fixture.input.write_bytes(b'none\x07\n')
+        status, report = fixture.command('--show')
+        self.assertEqual(1, status, report)
+        self.assertIn('U+0007', report)
+        self.assertIn('unknown-sustain-event', report)
+        self.assertIn('round 2 corrections', report)
+        self.assertIn('unread remainder 0', report)
+
+    def test_candidate_damage_and_machine_baseline_have_distinct_accounting(self):
+        fixture = self.reversal_fixture()
+        fixture.extract()
+        fixture.input.write_bytes(b'none\x07\n')
+        baseline = aar_scan.baseline_path(fixture.run, 'synthetic')
+        intact_baseline = baseline.read_bytes()
+        baseline.write_bytes(b'{')
+        status, report = fixture.command('--show')
+        self.assertEqual(1, status, report)
+        self.assertIn('U+0007', report)
+        self.assertIn('unread remainder 1', report)
+        self.assertNotIn('unread remainder 2', report)
+        baseline.write_bytes(intact_baseline)
+        aar_scan.extract_path(fixture.run, 'synthetic').write_bytes(b'{')
+        status, report = fixture.command('--show')
+        self.assertEqual(2, status, report)
+        self.assertNotIn('U+0007', report)
+        self.assertIn('unread remainder 1', report)
+
+    def test_candidate_writers_force_damage_refusal_inside_allocation(self):
+        fixture = self.reversal_fixture()
+        fixture.extract('Corrected the workflow.\n')
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        token = completion_checks.ITEM_MOMENTS.set({'synthetic': old})
+        global_token = completion_checks.MOMENTS.set({'approval': old})
+        original = aar_scan._reversal_population
+        observed = []
+        def under_lock(*args, **kwargs):
+            with self.assertRaises(records.UnreadableRecord):
+                with records.locked_record(fixture.run / 'aar' / '.record-allocation'):
+                    pass
+            observed.append(kwargs.get('force'))
+            return original(*args, **kwargs)
+        try:
+            fixture.input.write_bytes(fixture.input.read_bytes() + b'\x07')
+            prior = {path: path.read_bytes() for path in fixture.input.parent.iterdir() if path.is_file()}
+            with patch.object(aar_scan, '_reversal_population', side_effect=under_lock), patch.object(completion_checks, 'approval_moment', return_value=old):
+                status, report = fixture.command('--extract', '--rebuild-round', '1', '--memory-index', str(fixture.memory))
+            self.assertEqual(1, status, report)
+            self.assertIn('U+0007', report)
+            self.assertEqual(prior, {path: path.read_bytes() for path in fixture.input.parent.iterdir() if path.is_file()})
+            second = aar_scan.reversal_candidates_path(fixture.run, 'synthetic', 2)
+            second.write_bytes(b'none\x0b\n')
+            prior = {path: path.read_bytes() for path in fixture.input.parent.iterdir() if path.is_file()}
+            with patch.object(aar_scan, '_reversal_population', side_effect=under_lock), patch.object(completion_checks, 'approval_moment', return_value=old):
+                status, report = fixture.command('--extract', '--memory-index', str(fixture.memory))
+            self.assertEqual(1, status, report)
+            self.assertIn('U+000B', report)
+            self.assertEqual(prior, {path: path.read_bytes() for path in fixture.input.parent.iterdir() if path.is_file()})
+            self.assertEqual([True, True], observed)
+        finally:
+            completion_checks.ITEM_MOMENTS.reset(token)
+            completion_checks.MOMENTS.reset(global_token)
 
     def test_text_populations_refuse_damage_including_before_the_first_question(self):
         for character in CONTROLS:

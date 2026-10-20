@@ -1617,10 +1617,11 @@ def reversal_candidates_path(run: Path, submission: str, round_number: int) -> P
     return run / "aar" / f"{_round_stem(submission, round_number)}.reversal-candidates.md"
 
 
-def _reversal_population(run: Path, submission: str, round_number: int) -> list[Candidate]:
+def _reversal_population(run: Path, submission: str, round_number: int, *,
+                         artifact: str | None = None, force: bool = False) -> list[Candidate]:
     path = reversal_candidates_path(run, submission, round_number)
     try:
-        text = path.read_text(encoding="utf-8")
+        text = read_handwritten_record(path).require_text(artifact=artifact, force=force)
     except (OSError, UnicodeError) as failure:
         raise ValueError("the round needs a readable reversal-candidates file; write none when empty") from failure
     lines = tuple(line.strip() for line in text.splitlines() if line.strip())
@@ -1691,7 +1692,7 @@ def _write_extract(run: Path, transcript: Path | None, submission: str,
     _check_snapshot_posted_reading(run, submission)
     posted_reading_fingerprint = _posted_reading_fingerprint(run, submission, force=True)
     round_number = _next_review_round(run, submission)
-    reversals = (_reversal_population(run, submission, round_number)
+    reversals = (_reversal_population(run, submission, round_number, force=True)
                  if datetime.now(timezone.utc) >= REVERSAL_CANDIDATES_CUTOFF else [])
     population, transcripts, discovery = _collect_population(run, transcript)
     if not population:
@@ -1814,7 +1815,7 @@ def _rebuild_population(
     # A refused round retains its candidate input exactly; an edited or absent
     # file refuses the rebuild rather than silently replacing the reader's set.
     if any(entry.kind == "reversal-candidates" for entry in refused_entries):
-        rebuilt += _reversal_population(run, submission, round_number)
+        rebuilt += _reversal_population(run, submission, round_number, force=True)
     for transcript_path in transcript_paths:
         rows = reduce_transcript(transcript_path)
         selected = _furthest_cursor(rows, cursors.get(transcript_path.stem, ()))
@@ -2337,11 +2338,14 @@ def _grade_reversal_candidates(run: Path, submission: str, round_number: int,
     findings = []
     candidates = [entry for entry in entries if entry.kind == "reversal-candidates"]
     try:
-        supplied = _reversal_population(run, submission, round_number)[0]
+        supplied = _reversal_population(run, submission, round_number, artifact=submission)[0]
         if len(candidates) != 1 or candidates[0].text != _rendered_candidate_text(supplied):
             raise ValueError("candidate file no longer matches this round's extract")
         lines = tuple(line.strip() for line in supplied.text.splitlines() if line.strip())
         population = 0 if lines == ("none",) else len(lines)
+    except DamagedRecord as failure:
+        finding, report = damaged_record_result(failure, check="reversal candidates", artifact=submission)
+        return ((Finding("reversal-candidates", report),) if finding else ()), report
     except ValueError as failure:
         return (Finding("reversal-candidates", str(failure)),), f"reversal candidates: {NOT_GRADED} - missing or changed input"
     expected = {str(number) for number in range(1, population + 1)}
@@ -2372,9 +2376,30 @@ def _survey_round(
         review = read_review(record_path, artifact=submission)
     except DamagedRecord as failure:
         finding, report = damaged_record_result(failure, check="the after-action review", artifact=submission)
+        findings = [Finding("unscannable-review", report)] if finding else []
+        reports = [report]
+        # The damaged review cannot establish a population. Only the strict
+        # retained extract may establish that this round owes the sibling input.
+        try:
+            fields, _ids, _kinds, _aliases, _entries = _extract_document(
+                extract_path(run, submission, round_number)
+            )
+            if _utc_timestamp(fields["EXTRACTED-AT"], "EXTRACTED-AT") >= REVERSAL_CANDIDATES_CUTOFF:
+                _reversal_population(run, submission, round_number, artifact=submission)
+        except DamagedRecord as sibling:
+            sibling_finding, sibling_report = damaged_record_result(
+                sibling, check="reversal candidates", artifact=submission
+            )
+            reports.append(sibling_report)
+            if sibling_finding:
+                findings.append(Finding("reversal-candidates", sibling_report))
+        except UnreadableRecord as sibling:
+            reports.append(fault_report(sibling, check="extract-dependent checks"))
+        except (KeyError, ValueError):
+            # No trustworthy candidate joins can be graded without the review.
+            pass
         return Scan(submission, 1, 0, 0, 0, 0,
-                    (Finding("unscannable-review", report),) if finding else (),
-                    memory_reports=(report,))
+                    tuple(findings), memory_reports=tuple(reports))
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
     record_reports: list[str] = []

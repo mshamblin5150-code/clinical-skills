@@ -227,8 +227,11 @@ start belongs to `run_record_reader:handwritten-damage`; a known older item reta
 reader behavior, an unknown keyed item is current, and writers force refusal. Existing context
 control refusals and retained frozen grades keep their original boundaries. Manual Medatrax
 readings remain a supported mixed-content route even when a producer can write the same target.
+The AAR round's handwritten reversal-candidates input uses the same per-item boundary;
+extraction and rebuild force its check under the existing allocation transaction before publication.
 The direct-read floor in `test_handwritten_record_routes.py` scans non-test tools and declares
-the source shapes it recognizes; its exceptions distinguish source, deliverable, digest-only
+the source shapes it recognizes, including the explicit computed candidate-path constructor;
+its exceptions distinguish source, deliverable, digest-only
 and machine ownership. The complete policy boundary stays in `run_record_reader.DECLARED_LIMITS`.
 
 `run_record_reader.update_tool_record` owns mutable run-record transactions: the exclusive bounded
