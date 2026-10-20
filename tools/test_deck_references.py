@@ -85,6 +85,21 @@ class DeckReferenceCommand(unittest.TestCase):
         self.assertEqual(1, status, report)
         self.assertIn('uncited-entry: 1', report)
 
+    def test_heading_and_numeric_page_boxes_match_visible_text_across_italic_runs(self):
+        slide = reference_slide(ENTRY, heading='Ref*erences* | Sources').replace(box('2', 99999), box('1*2*', 99999))
+        # A visually empty italic paragraph is not a heading or an entry.
+        slide = slide.replace('<p:spTree>', '<p:spTree>' + box('* *', -100))
+        with tempfile.TemporaryDirectory() as temp:
+            run = prepare(Path(temp), references=(slide,))
+            claims = run.root / 'claims.md'
+            claims.write_text(claims.read_text(encoding='utf-8') + trusted_claim('12'), encoding='utf-8')
+            run.write_adversarial()
+            status, report, errors = run.grade('--show')
+            self.assertEqual(0, status, report + errors)
+            self.assertIn('references read   1', report)
+            self.assertIn('reference slides unread 0', report)
+            self.assertIn('entry-has-no-year: 0', report)
+
     def test_unlisted_and_wrong_year_citations_are_refused(self):
         for body, kind in (('A finding (Other Group, 2026).', 'unlisted-citation'), ('A finding (Example Group, 2025).', 'intext-year-mismatch')):
             status, report = self.command(body=body)

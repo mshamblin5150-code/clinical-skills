@@ -276,9 +276,16 @@ class Slide:
 
 
 @dataclass(frozen=True)
+class ReferenceParagraph:
+    text: str
+    plain: str
+    hanging: bool
+
+
+@dataclass(frozen=True)
 class ReferenceBox:
     position: tuple[int, int] | None
-    paragraphs: tuple[tuple[str, bool], ...]
+    paragraphs: tuple[ReferenceParagraph, ...]
 
 
 @dataclass(frozen=True)
@@ -446,8 +453,9 @@ def _paragraph_font_points(
     return tuple(points)
 
 
-def _reference_paragraph(paragraph: ElementTree.Element) -> tuple[str, bool]:
+def _reference_paragraph(paragraph: ElementTree.Element) -> ReferenceParagraph:
     pieces: list[str] = []
+    plain: list[str] = []
     italic = False
     for child in paragraph:
         if child.tag == A + "br":
@@ -460,6 +468,7 @@ def _reference_paragraph(paragraph: ElementTree.Element) -> tuple[str, bool]:
             continue
         if not text:
             continue
+        plain.append(text)
         if styled != italic:
             pieces.append("*")
             italic = styled
@@ -471,7 +480,7 @@ def _reference_paragraph(paragraph: ElementTree.Element) -> tuple[str, bool]:
         hanging = properties is not None and int(properties.get("marL", "0")) > 0 and int(properties.get("indent", "0")) < 0
     except ValueError:
         hanging = False
-    return "".join(pieces).strip(), hanging
+    return ReferenceParagraph("".join(pieces).strip(), "".join(plain).strip(), hanging)
 
 
 def _reference_boxes(root: ElementTree.Element) -> tuple[ReferenceBox, ...]:
@@ -480,7 +489,7 @@ def _reference_boxes(root: ElementTree.Element) -> tuple[ReferenceBox, ...]:
     for shape in root.iter(P + "sp"):
         paragraphs = tuple(
             item for paragraph in shape.findall("./" + P + "txBody/" + A + "p")
-            if (item := _reference_paragraph(paragraph))[0]
+            if (item := _reference_paragraph(paragraph)).plain
         )
         if not paragraphs:
             continue
@@ -495,7 +504,7 @@ def _reference_boxes(root: ElementTree.Element) -> tuple[ReferenceBox, ...]:
     for frame in root.iter(P + "graphicFrame"):
         paragraphs = tuple(
             item for paragraph in frame.iter(A + "p")
-            if (item := _reference_paragraph(paragraph))[0]
+            if (item := _reference_paragraph(paragraph)).plain
         )
         if paragraphs:
             boxes.append(ReferenceBox(None, paragraphs))
@@ -1223,7 +1232,7 @@ def _reference_document(source: Source) -> tuple[reference_scan.Document, int, t
     found: list[Finding] = []
     disputed: set[int] = set()
     for slide in source.slides:
-        first = slide.reference_boxes[0].paragraphs[0][0].strip("*") if slide.reference_boxes else slide.text.split("\n")[0]
+        first = slide.reference_boxes[0].paragraphs[0].plain if slide.reference_boxes else slide.text.split("\n")[0]
         if first.casefold().startswith("reference") != (slide.number in selected):
             unread += 1
             disputed.add(slide.number)
@@ -1234,7 +1243,7 @@ def _reference_document(source: Source) -> tuple[reference_scan.Document, int, t
         before = len(entries)
         unread += slide.diagram_text_read + slide.chart_text_read
         for index, box in enumerate(slide.reference_boxes):
-            text = " ".join(paragraph[0] for paragraph in box.paragraphs).strip("*")
+            text = " ".join(paragraph.plain for paragraph in box.paragraphs)
             if index == 0:
                 if box.position is None:
                     unread += 1
@@ -1243,9 +1252,9 @@ def _reference_document(source: Source) -> tuple[reference_scan.Document, int, t
                 continue
             if box.position is None:
                 unread += 1
-            for text, hanging in box.paragraphs:
-                entries.append(reference_scan.Entry(len(entries) + 1, text, paragraph=True))
-                if not hanging:
+            for paragraph in box.paragraphs:
+                entries.append(reference_scan.Entry(len(entries) + 1, paragraph.text, paragraph=True))
+                if not paragraph.hanging:
                     found.append(Finding(REFERENCE_HANGING_INDENT, number, f"entry {len(entries)} needs its own positive marL and negative indent"))
         if len(entries) == before:
             unread += 1
