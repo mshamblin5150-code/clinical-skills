@@ -5,6 +5,7 @@ phi-scan: synthetic
 import artifact_lock_test_support
 from contextlib import redirect_stdout
 import io
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -21,6 +22,10 @@ import discussion_reply_scan
 import assignment_docx_scan
 import repo_root
 import assignment_bar
+import bar_signatures
+import test_bar_signatures as signature_fixture
+import test_checks_ledger as checks_fixture
+import checks_ledger
 import approval_record
 import assignment_submission
 import frozen_grade
@@ -36,6 +41,95 @@ class HandwrittenHosts(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)
+
+    def test_canonical_signer_forces_content_refusal_for_every_skill_before_mutation(self):
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        for skill in bar_signatures.SKILLS:
+            with self.subTest(skill=skill):
+                root = self.run / skill
+                root.mkdir()
+                text = deck_fixture.BAR if skill == 'course-assignment' else (
+                    'SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n')
+                if skill == 'discussion-post':
+                    text += 'TOPIC: Synthetic\nSYLLABUS: Synthetic\nWORD-FLOOR: 100\nWORD-CEILING: none\nREFERENCE-MINIMUM: 1\n'
+                if skill == 'practicum-case-study':
+                    text += 'SUBMISSION-TYPE: file-upload\nRequired: synthetic assessment.\n'
+                signature_fixture.SharedBarSigning().sign(root, skill, text)
+                bar = root / 'bar.md'
+                # The locked same-byte consumer must not normalize retained CRLF.
+                if skill != 'course-assignment':
+                    self.assertIn(b'\r\n', bar.read_bytes())
+                bar.write_bytes(bar.read_bytes() + b'DETAIL: damaged\x07text\n')
+                paths = (bar, root / bar_signatures.RECORD, root / 'signed-bars/bar-1.md')
+                before = tuple(path.read_bytes() for path in paths)
+                token = completion_checks.MOMENTS.set({'approval': start - timedelta(microseconds=1)})
+                try:
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        status = bar_signatures.main([str(root), '--skill', skill, '--reply', 'yes'])
+                    self.assertEqual(1, status, output.getvalue())
+                    self.assertIn('U+0007', output.getvalue())
+                    self.assertEqual(before, tuple(path.read_bytes() for path in paths))
+                    self.assertFalse((root / 'signed-bars/bar-2.md').exists())
+                finally:
+                    completion_checks.MOMENTS.reset(token)
+
+    def test_damaged_bar_and_history_keep_distinct_record_populations(self):
+        signature_fixture.SharedBarSigning().sign(self.run, 'peer-critique',
+            'SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n')
+        bar = self.run / 'bar.md'
+        bar.write_bytes(bar.read_bytes() + b'DETAIL: bad\x07text\n')
+        history = self.run / bar_signatures.RECORD
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        token = completion_checks.MOMENTS.set({'approval': old})
+        item = completion_checks.ITEM_MOMENTS.set({'old': old, 'exact': start})
+        try:
+            for key in ('old', 'exact', 'unknown'):
+                finding, report = bar_signatures.completion_gate(self.run, skill='peer-critique', artifact=key)
+                self.assertTrue(finding, report)
+                self.assertEqual(key != 'old', 'U+0007' in report)
+                if key == 'old':
+                    self.assertIn('does not match its latest signature', report)
+        finally:
+            completion_checks.ITEM_MOMENTS.reset(item)
+            completion_checks.MOMENTS.reset(token)
+        for damaged_history in (False, True):
+            with self.subTest(damaged_history=damaged_history):
+                if damaged_history:
+                    history.write_bytes(b'{')
+                def grade():
+                    finding, report = bar_signatures.completion_gate(self.run, skill='peer-critique')
+                    print(report)
+                    return 1 if finding else 0
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(1, run_grader.collect_record_errors(grade))
+                self.assertIn('U+0007', output.getvalue())
+                self.assertEqual(damaged_history, 'unread tool-written records 1' in output.getvalue())
+
+    def test_native_walk_bar_damage_withholds_only_signature_join(self):
+        first = signature_fixture.SharedBarSigning().sign(self.run, 'practicum-case-study',
+            'SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\nSUBMISSION-TYPE: file-upload\n')
+        walks = checks_fixture.PreReviewWalksThroughCommand().records()
+        walks['routing-walk.json'] = {'entries': [], 'none': 'No synthetic routing subjects'}
+        walks['bar-walk.json']['bar_sha256'] = first['sha256']
+        for name, value in walks.items():
+            (self.run / name).write_text(json.dumps(value), encoding='utf-8')
+        checks = self.run / 'checks.md'
+        checks.write_text('FIRST-DRAFT: 2099-01-01T00:00:00Z\n', encoding='utf-8')
+        bar = self.run / 'bar.md'
+        bar.write_bytes(bar.read_bytes() + b'DETAIL: bad\x07text\n')
+        for independent_fault in (False, True):
+            with self.subTest(independent_fault=independent_fault):
+                if independent_fault:
+                    walks['bar-walk.json']['entries'][0]['outcome'] = 'invented'
+                    (self.run / 'bar-walk.json').write_text(json.dumps(walks['bar-walk.json']), encoding='utf-8')
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(1, checks_ledger.main([str(checks), '--walks-only', '--show']))
+                self.assertIn('U+0007', output.getvalue())
+                self.assertEqual(independent_fault, 'missing or malformed pre-review walk' in output.getvalue())
 
     def test_native_damaged_bars_do_not_hide_sibling_damage_or_docx_package_checks(self):
         import zipfile

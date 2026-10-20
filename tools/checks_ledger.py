@@ -1099,7 +1099,11 @@ def pre_review_walks(run: Path, checks_text: str, *, artifact: str | None = None
             entries = record["entries"]
             if filename == "bar-walk.json":
                 import bar_signatures
-                digest = bar_signatures.latest_digest(run)
+                try:
+                    digest = bar_signatures.latest_digest(run)
+                except record_reader.DamagedRecord as failure:
+                    record_reader.damaged_record_result(failure, check="bar-walk signature", artifact=artifact)
+                    digest = None
                 if digest is not None and completion_checks.active("checks_ledger:bar-walk-signature"):
                     if record.get("bar_sha256") != digest:
                         raise ValueError("bar walk does not match the latest signature")

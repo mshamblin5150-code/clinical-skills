@@ -20,6 +20,8 @@ import refutation_apply
 import research_ledger
 import run_record_reader
 import run_grader
+import approval_record
+import bar_signatures
 import mechanics_test_support
 import test_discussion_post_scan as post_fixtures
 import test_discussion_reply_scan as reply_fixtures
@@ -290,8 +292,15 @@ class CourseworkDamage(unittest.TestCase):
                     root = Path(name)
                     checks = root / "checks.md"
                     checks.write_text("FIRST-DRAFT: 2099-01-01T00:00:00Z\n", encoding="utf-8")
+                    (root / 'bar.md').write_text(
+                        'SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\nSUBMISSION-TYPE: file-upload\n',
+                        encoding='utf-8')
+                    with mock.patch.object(approval_record, 'verify_clinician_reply', return_value=
+                            approval_record.ReplyVerification('not verified', 'synthetic transcript unavailable')):
+                        signature = bar_signatures.sign(root, 'synthetic confirmation', skill='practicum-case-study')
                     for member in names:
-                        (root / member).write_text(json.dumps({"entries": [], "none": "synthetic", "sources": ["synthetic"]}), encoding="utf-8")
+                        (root / member).write_text(json.dumps({"entries": [], "none": "synthetic", "sources": ["synthetic"],
+                            **({'bar_sha256': signature['sha256']} if member == 'bar-walk.json' else {})}), encoding="utf-8")
                     path = root / filename
                     path.write_bytes(path.read_bytes().replace(b'"none"', ('"no' + character + 'ne"').encode()))
                     status, report = self.invoke(checks_ledger, [str(checks), "--walks-only"])

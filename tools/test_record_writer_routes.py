@@ -62,7 +62,7 @@ GUARDED_SIBLINGS = {
     ('bar_signatures', '_replace'): 'Signed bar and rollback under canonical history transaction.',
     ('bar_signatures', '_sign'): 'Exclusive new retained copy under canonical history transaction.',
     ('case_video', 'transcribe'): 'Transcript artifact under parent-owned capture-directory lock.',
-    ('case_video', 'main'): 'Private worker log under parent-owned capture-directory lock.',
+    ('case_video', '_main'): 'Private worker log under parent-owned capture-directory lock; main wraps record-fault collection.',
     ('encounter_openers', 'atomic_write'): 'Encounter artifacts or account identity-map replacement under existing owner lock.',
     ('refutation_apply', '_snapshot_ledger'): 'Exclusive immutable prior ledger snapshot under ledger transaction.',
     ('refutation_apply', '_apply'): 'Exclusive immutable saved return under ledger transaction.',

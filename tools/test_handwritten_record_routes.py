@@ -26,7 +26,7 @@ RECORD_NAMES = frozenset({
 # Counts preserve each reviewed occurrence; an extra raw read in the same
 # function still enters the floor rather than inheriting a blanket exemption.
 RAW_ROUTES = {
-    'assignment_bar._sign:bar.md': (2,
+    'bar_signatures._sign:bar.md': (2,
         'Canonical callback reads bytes once for shared same-owned-text validation '
         'before mutation, then compares raw bytes to detect a concurrent source change.'),
 }
