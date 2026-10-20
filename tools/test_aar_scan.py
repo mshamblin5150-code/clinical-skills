@@ -480,10 +480,38 @@ class CommandModes(SyntheticSnapshotCase):
             "  transcripts unread              0\n"
             "  unreadable directories          0\n"
             "  links not entered               0\n"
+            "  agents instructions recognized  0\n"
             "  private extract written         post-1.extract.md\n"
             "  review record filename          post-1.md\n"
             "unread remainder 0\n",
         )
+
+    def test_instructions_header_mutant_changes_the_printed_recognized_count(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            transcript = root / "synthetic.jsonl"
+            memory = root / "MEMORY.md"
+            memory.write_text("# Index\n", encoding="utf-8")
+            (run / "reread.md").write_text(
+                "## REREAD: post-1\nPOST-URL: https://example.org/submissions/1\n"
+                "POSTED: 2026-09-13T12:00:00Z\nREAD: 2026-09-13\n"
+                "VERDICT: matches - the posted artifact was read back\n", encoding="utf-8",
+            )
+            for header, count in (("# AGENTS.md instructions", 1), ("# Changed header", 0)):
+                transcript.write_text(json.dumps(codex_row({
+                    "type": "message", "role": "user", "content": [
+                        {"type": "input_text", "text": "<environment_context>Machine.</environment_context>"},
+                        {"type": "input_text", "text": header + "\nMachine instructions."},
+                    ],
+                })), encoding="utf-8")
+                status, stdout, stderr = invoke_main([
+                    str(run), "--submission", "post-1", "--transcript", str(transcript),
+                    "--memory-index", str(memory), "--extract",
+                ])
+                self.assertEqual((status, stderr), (0, ""), stdout)
+                self.assertIn(f"  agents instructions recognized  {count}\n", stdout)
 
     def test_a_refused_review_open_is_a_finding_without_a_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -552,6 +580,7 @@ class ReductionByEntryShape(unittest.TestCase):
                     "user",
                     "notification",
                     {"content": "[SYSTEM NOTIFICATION — NOT USER INPUT]\n<task-notification>done</task-notification>"},
+                    isMeta=True,
                 ),
                 row(
                     "user",
@@ -719,7 +748,7 @@ class ReductionByEntryShape(unittest.TestCase):
             transcript.write_text(
                 "\n".join(
                     json.dumps(
-                        row("user", f"notification-{index}", {"content": notification})
+                        row("user", f"notification-{index}", {"content": notification}, isMeta=True)
                     )
                     for index, notification in enumerate(notifications, 1)
                 )
@@ -934,7 +963,7 @@ class EntryKindsAreBound(unittest.TestCase):
 
     def test_the_envelope_table_and_envelope_kind_vocabulary_match_both_ways(self) -> None:
         self.assertEqual(
-            set(aar_scan.ENVELOPE_KINDS.values()),
+            set(aar_scan.ENVELOPE_KINDS.values()) | {"agents-instructions"},
             set(aar_scan.ENVELOPE_ENTRY_KINDS),
         )
         self.assertLessEqual(
@@ -946,7 +975,7 @@ class EntryKindsAreBound(unittest.TestCase):
                 aar_scan._envelope_kind(f"prefix <{tag}>body</{tag}>")
                 for tag in aar_scan.ENVELOPE_KINDS
             },
-            set(aar_scan.ENVELOPE_ENTRY_KINDS),
+            set(aar_scan.ENVELOPE_ENTRY_KINDS) - {"agents-instructions"},
         )
 
     def test_the_measured_codex_row_type_vocabulary_is_declared(self) -> None:
@@ -1793,7 +1822,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
                         "operation": "enqueue",
                         "content": notification,
                     },
-                    row("user", "notification-delivery", {"content": notification}),
+                    row("user", "notification-delivery", {"content": notification}, isMeta=True),
                     {
                         "type": "queue-operation",
                         "uuid": "notification-remove",
@@ -1866,7 +1895,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
                         "operation": "enqueue",
                         "content": notification,
                     },
-                    row("user", identifiers[1], {"content": notification}),
+                    row("user", identifiers[1], {"content": notification}, isMeta=True),
                     {
                         "type": "queue-operation",
                         "uuid": identifiers[2],

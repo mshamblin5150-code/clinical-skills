@@ -210,8 +210,8 @@ def verify_clinician_reply(
     matches: list[float] = []
     for rows in transcripts:
         for row in rows:
-            value = aar_scan.clinician_text(row)
-            if " ".join(value.split()) != normalized:
+            values = aar_scan.clinician_pieces(row)
+            if not any(" ".join(value.split()) == normalized for value in values):
                 continue
             try:
                 written_at = _message_time(row)
