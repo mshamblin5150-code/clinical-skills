@@ -354,6 +354,7 @@ class Scan:
     citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
     paper_language: str = "unspecified"
     reference_order_graded: bool = True
+    reader_records_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1447,17 +1448,19 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes without a record {scan.unrecorded_passes}",
         f"  heading-read records {scan.heading_reads}",
         f"  references read   {scan.references_read}",
-        f"  reference slides unread {scan.reference_slides_unread}",
+        *([f"  reference slides unread {scan.reference_slides_unread}"] if scan.reference_slides_unread else []),
         f"  reference order ({scan.paper_language}): " + ("graded" if scan.reference_order_graded else run_grader.NOT_GRADED),
         f"  citation candidates {scan.citation_coverage.candidates}",
         f"  citation evidence {scan.citation_coverage.evidenced}",
         f"  citation grammar  {scan.citation_coverage.grammar}",
-        f"  citation unread   {scan.citation_unread}",
+        *([f"  citation unread   {scan.citation_unread}"] if scan.citation_unread else []),
         f"  citation key disagreement {len(scan.citation_coverage.disagreements)}",
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.unread_members + scan.slide_limit_unread
-            + scan.reference_slides_unread + scan.citation_unread
+            + scan.reference_slides_unread + scan.citation_unread + scan.reader_records_unread
         ),
+        *([f"unread slide-limit candidates: {scan.slide_limit_unread}"] if scan.slide_limit_unread else []),
+        *([f"unread referenced diagram or chart members: {scan.unread_members}"] if scan.unread_members else []),
         "",
     ]
     for row in ROWS:
@@ -1546,7 +1549,8 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
     )
-    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.deck.name,), _rendered_records(source.rendered_text or "") + _read_records(source.adversarial_text or "", ADVERSARIAL_HEADER, ADVERSARIAL_FIELD) + _presentation_intent_records(source))
+    grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.deck.name,), _rendered_records(source.rendered_text or "") + _read_records(source.adversarial_text or "", ADVERSARIAL_HEADER, ADVERSARIAL_FIELD) + _presentation_intent_records(source), heading_unread=scanned.heading_read_unread)
+    grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
     return lms_attachments.apply_completion_gate(grade, source.root, submission)
 
 

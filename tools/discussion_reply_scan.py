@@ -337,6 +337,7 @@ class Scan:
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
+    reader_records_unread: int = 0
 
 
 def _split_reply(path: Path) -> Reply:
@@ -984,7 +985,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             + scan.reference_unread
             + scan.posts_total
             - scan.posts_read
+            + scan.reader_records_unread
         ),
+        *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
+        *([f"unread reference entries: {scan.reference_unread}"] if scan.reference_unread else []),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
@@ -1096,7 +1100,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         grade, source.path, submission if submissions else None
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, submission if submissions else None)
-    grade = reader_remarks.apply_readers(grade, tuple(r for r in research_ledger.read_records(source.claims) if any(f"[REPLY: {reply.path.stem.removeprefix('response-')}]" in r.claim for reply in source.replies)), heading_read.read_records(source.heading_read_text), tuple(reply.path.name for reply in source.replies))
+    grade, reader_unread = reader_remarks.apply_readers(grade, tuple(r for r in research_ledger.read_records(source.claims) if any(f"[REPLY: {reply.path.stem.removeprefix('response-')}]" in r.claim for reply in source.replies)), heading_read.read_records(source.heading_read_text), tuple(reply.path.name for reply in source.replies), heading_unread=scanned.heading_read_unread)
+    grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
     grade = approval_record.apply_completion_gate(
         grade,
         source.path,

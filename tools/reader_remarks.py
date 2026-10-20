@@ -50,22 +50,26 @@ def report(remarks: tuple[Remark, ...]) -> str:
     return "\n".join(PREFIX + json.dumps({"origin": r.origin, "text": r.text}, ensure_ascii=True) for r in remarks)
 
 
-def apply_readers(grade, claims, headings, artifacts: tuple[str, ...], visuals=(), *, coverage_limb=None):
-    """Carry only the caller's bound records to its completion report."""
+def apply_readers(grade, claims, headings, artifacts: tuple[str, ...], visuals=(), *, coverage_limb=None, heading_unread=None):
+    """Return the grade and unread members outside the host's heading survey."""
     from dataclasses import replace
-    import run_grader
     records = tuple(("CLAIM", r.claim, r) for r in claims)
     records += tuple(("HEADING-READ", r.artifact, r) for r in headings if r.artifact in artifacts)
     records += tuple(("RENDERED", name, r) for r in visuals for name in (getattr(r, "deck", getattr(r, "artifact", "")),) if name in artifacts)
     remarks = tuple(Remark(f"{kind}: {name}", text) for kind, name, r in records for text in r.remarks)
-    unread = sum(r.unread for _, _, r in records)
+    bound_heading_unread = sum(r.unread for kind, _, r in records if kind == "HEADING-READ")
+    unread = sum(r.unread for kind, _, r in records if kind != "HEADING-READ")
     import completion_checks
     if not completion_checks.active("reader_remarks:unread-reader-record"):
         unread = 0
-    details = tuple(f"unread reader record: {kind}: {name}" for kind, name, r in records if r.unread)
+    details = tuple(f"unread reader record: {kind}: {name}; unread lines {r.unread}"
+                    for kind, name, r in records if r.unread
+                    and (kind == "HEADING-READ" or completion_checks.active("reader_remarks:unread-reader-record")))
+    if heading_unread is not None and heading_unread > bound_heading_unread:
+        details += (f"unread heading-read headings: {heading_unread - bound_heading_unread}",)
     limbs = grade.coverage_limbs + ((coverage_limb,) if unread and coverage_limb and coverage_limb not in grade.coverage_limbs else ())
-    return replace(grade, coverage_failed=grade.coverage_failed or bool(unread), coverage_limbs=limbs,
-                   reports=grade.reports + (report(remarks), run_grader.format_unread_remainder(unread), *details))
+    return (replace(grade, coverage_failed=grade.coverage_failed or bool(unread), coverage_limbs=limbs,
+                    reports=grade.reports + (report(remarks), *details)), unread)
 
 
 def voice_remarks(run: Path, artifacts: tuple[str, ...]) -> tuple[Remark, ...]:

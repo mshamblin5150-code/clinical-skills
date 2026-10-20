@@ -55,21 +55,22 @@ class OwnWorkLedger(unittest.TestCase):
         self.document.rename(self.root / "Moved.md")
         result = self.run_command()
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertIn("unread remainder 1", result.stderr + result.stdout)
+        self.assertEqual(["unread remainder 1"], [line for line in (result.stdout + result.stderr).splitlines() if line.startswith("unread remainder ")])
+        self.assertIn("unread local documents: 1", result.stdout)
         self.assertRegex(result.stdout, r"records at fault\s+0")
 
     def test_changed_document_is_unread(self):
         self.document.write_bytes(b"A different policy.")
         result = self.run_command()
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertIn("unread remainder 1", result.stderr + result.stdout)
+        self.assertEqual(["unread remainder 1"], [line for line in (result.stdout + result.stderr).splitlines() if line.startswith("unread remainder ")])
 
     def test_finding_wins_over_changed_document(self):
         self.document.write_bytes(b"A different policy.")
         self.record = replace_field(self.record, "RECENCY", "current")
         result = self.run_command()
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("unread remainder 1", result.stderr + result.stdout)
+        self.assertEqual(["unread remainder 1"], [line for line in (result.stdout + result.stderr).splitlines() if line.startswith("unread remainder ")])
 
     def test_unsigned_class_is_a_finding(self):
         (self.root / "bar.md").write_text(

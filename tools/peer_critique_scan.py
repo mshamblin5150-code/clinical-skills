@@ -32,7 +32,7 @@ from discussion_artifact import PostedReading, read_posted_readings
 import completion_checks
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from discussion_artifact import (
@@ -293,6 +293,7 @@ class Scan:
     heading_read_unread: int
     findings: tuple[Finding, ...] = ()
     posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
+    reader_records_unread: int = 0
 
 
 def _heading_lines(text: str) -> list[str]:
@@ -606,8 +607,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ),
         f"heading-read records: {scan.heading_reads}",
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posts_total - scan.posts_read
+            scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread
         ),
+        *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
         f"findings: {len(scan.findings)}",
     ]
     reference_rows = {
@@ -780,7 +782,8 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         grade, source.path, submission,
         {submission: (source.path / "critique.md").read_bytes()} if submission is not None else {},
     )
-    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER)
+    grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER, heading_unread=scanned.heading_read_unread)
+    grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
     grade = approval_record.apply_completion_gate(
         grade, source.path, "peer-critique", parsed.value("--submission")
     )

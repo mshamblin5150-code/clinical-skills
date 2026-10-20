@@ -174,6 +174,9 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
             "heading-read records: 1\nheading-read records for other files: 0\nunread remainder 1",
             heading_read.format_coverage(result),
         )
+        composed = heading_read.format_coverage(result, include_remainder=False)
+        self.assertIn("unread heading-read headings: 1", composed)
+        self.assertNotIn("unread remainder", composed)
 
     def test_only_a_separate_context_route_is_recognized(self):
         for route in ("same context", "orchestrator" + " walk", ""):

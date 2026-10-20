@@ -31,7 +31,7 @@ import completion_checks
 import re
 import sys
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
@@ -492,6 +492,7 @@ class Scan:
     rendered_pages_state: str = "graded"
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
+    reader_records_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1701,9 +1702,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ),
         f"heading-read records: {scan.heading_reads}",
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posted_reading_unread
+            scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread
         ),
-        *(["posted reading: incomplete coverage - posting is not recorded"] if scan.posted_reading_unread else []),
+        *([f"posted reading: incomplete coverage - posting is not recorded; unread {scan.posted_reading_unread}"] if scan.posted_reading_unread else []),
         (
             f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, {NOT_GRADED})"
             if scan.docx_graded
@@ -1825,7 +1826,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         grade, source.path, _parsed.value("--submission")
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, _parsed.value("--submission"))
-    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.draft.name,), source.rendered_readings)
+    grade, reader_unread = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.draft.name,), source.rendered_readings, heading_unread=scanned.heading_read_unread)
+    grade = replace(grade, scan=replace(grade.scan, reader_records_unread=reader_unread))
     grade = approval_record.apply_completion_gate(
         grade, source.path, "discussion-post", _parsed.value("--submission")
     )

@@ -76,7 +76,8 @@ class DeckReferenceCommand(unittest.TestCase):
             self.assertEqual(0, status, report)
             self.assertIn('references read   1', report)
             self.assertIn('citation candidates 1', report)
-            self.assertIn('citation unread   0', report)
+            self.assertNotIn('citation unread   0', report)
+            self.assertIn('unread remainder 0', report)
             self.assertNotIn('heading-not-apa:', report)
             self.assertNotIn('entry-not-a-paragraph:', report)
 
@@ -97,7 +98,8 @@ class DeckReferenceCommand(unittest.TestCase):
             status, report, errors = run.grade('--show')
             self.assertEqual(0, status, report + errors)
             self.assertIn('references read   1', report)
-            self.assertIn('reference slides unread 0', report)
+            self.assertNotIn('reference slides unread 0', report)
+            self.assertIn('unread remainder 0', report)
             self.assertIn('entry-has-no-year: 0', report)
 
     def test_unlisted_and_wrong_year_citations_are_refused(self):
