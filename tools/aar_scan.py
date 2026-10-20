@@ -2775,11 +2775,15 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                 ),
                 f"  private extract written         {destination.name}",
                 f"  review record filename          {review_path(run, submission, record_round).name}",
-                run_grader.format_unread_remainder(int(extract_fields["UNREAD-REMAINDER"])),
         )
-        remainder = int(extract_fields["UNREAD-REMAINDER"])
+        recorded_remainder = extract_fields.get("UNREAD-REMAINDER")
+        remainder = int(recorded_remainder) if recorded_remainder is not None else None
         if rebuilt_scan is not None:
             stdout = (*stdout, "", format_report(rebuilt_scan, run.name))
+        elif remainder is None:
+            stdout = (*stdout, "unread remainder: not measured (extract predates the count)")
+        else:
+            stdout = (*stdout, run_grader.format_unread_remainder(remainder))
         if rebuilt_scan is not None and rebuilt_scan.findings:
             status = 1
         elif remainder or (rebuilt_scan is not None and rebuilt_scan.unread_remainder):
