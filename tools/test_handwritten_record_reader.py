@@ -66,7 +66,13 @@ class HandwrittenRecords(unittest.TestCase):
     def test_only_copied_post_body_allows_tab_and_crlf_stays_intact(self):
         clean = 'AUTHOR: Synthetic Author\r\nPOST-URL: https://example.org\r\n\r\nCopied\tbody\x7f\x85\r\n'
         self.path.write_bytes(clean.encode('utf-8'))
-        self.assertEqual(clean, records.read_handwritten_record(self.path, 'copied-post').text)
+        self.assertEqual(clean.replace('\r\n', '\n'), records.read_handwritten_record(self.path, 'copied-post').text)
+        raw = clean.replace('\t', ' ')
+        self.assertEqual(raw, records.check_handwritten_text(raw, self.path, 'raw-text').text)
+        import research_ledger
+        self.path.write_bytes(b'DATE: 2026-10-20\r\n\r\n')
+        self.assertEqual('2026-10-20', research_ledger.ledger_date(
+            records.read_handwritten_record(self.path).text).isoformat())
         for value, kind in ((clean.replace('AUTHOR:', 'AUTHOR:\t'), 'copied-post'),
                             (clean, 'text'), (clean.replace('Copied', '\x07Copied'), 'copied-post')):
             with self.subTest(kind=kind, value=repr(value)):

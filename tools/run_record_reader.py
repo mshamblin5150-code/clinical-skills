@@ -187,9 +187,9 @@ class HandwrittenRead:
         applies = force or _handwritten_check_applies(artifact)
         if self.diagnostics and applies:
             raise DamagedRecord(self.path, self.diagnostics, raw_damage=self._raw_damage)
-        if not applies and self._legacy_newlines:
-            # Inactive enforcement retains the former Path.read_text view,
-            # including bare-CR handling, so existing checks do not change.
+        if self._legacy_newlines:
+            # Validate original bytes first, then retain Path.read_text's
+            # consumer view at either approval age. Raw decoders opt out.
             return self._text.replace("\r\n", "\n").replace("\r", "\n")
         return self._text
 
