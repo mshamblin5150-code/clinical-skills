@@ -223,6 +223,57 @@ class PublicRapidScreens(unittest.TestCase):
             self.assertEqual(before, damaged.read_bytes())
 
 
+    def test_handwritten_damage_and_rapid_findings_keep_each_items_approval_boundary(self):
+        start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
+        old = start - timedelta(microseconds=1)
+        original_grading = completion_checks.grading
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            note = run / 'note-1.md'
+            note.write_text(NOTE.format(screen='Rapid strep pending.'), encoding='utf-8')
+            profile = run / 'profile.txt'
+            profile.write_text(rapid_screens.DECLARATION, encoding='utf-8')
+            (run / 'shift-values.json').write_text(json.dumps({
+                'start': '0800', 'duration': {'hours': 8, 'minutes': 0}}), encoding='utf-8')
+            answers = run / 'delegated-answers.md'
+            answers.write_bytes(b'\x07\n## QUESTION: Synthetic question\nRULE: none found\n'
+                                b'ANSWER: Follow up.\nNOTE: note-1.md\nSECTIONS: P\n')
+            before = answers.read_bytes()
+            for module in (differential_scan, filled_vitals_census):
+                for label, moment in (('old', old), ('exact', start), ('unknown', None)):
+                    @contextlib.contextmanager
+                    def dated_grading(path, submission):
+                        with original_grading(path, submission):
+                            global_token = completion_checks.MOMENTS.set({'approval': old})
+                            items_token = completion_checks.ITEM_MOMENTS.set({
+                                'old-sibling': old,
+                                **({'synthetic': moment} if moment is not None else {}),
+                            })
+                            try:
+                                yield
+                            finally:
+                                completion_checks.ITEM_MOMENTS.reset(items_token)
+                                completion_checks.MOMENTS.reset(global_token)
+                    args = [str(run), '--submission', 'synthetic', '--profile', str(profile)]
+                    if module is differential_scan:
+                        args += ['--note', str(note)]
+                    output = io.StringIO()
+                    with self.subTest(module=module.__name__, moment=label), contextlib.ExitStack() as stack:
+                        stack.enter_context(patch.object(completion_checks, 'grading', dated_grading))
+                        for sibling in (module.aar_scan, module.medatrax_posting,
+                                        module.artifact_repairs, module.outbound_search):
+                            stack.enter_context(patch.object(sibling, 'completion_gate', return_value=(False, 'synthetic: clean')))
+                        stack.enter_context(patch.object(module.approval_record, 'apply_completion_gate', side_effect=lambda grade, *args: grade))
+                        stack.enter_context(contextlib.redirect_stdout(output))
+                        stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                        self.assertEqual(1, module.main(args), output.getvalue())
+                    report = output.getvalue()
+                    self.assertIn('pending findings 1', report)
+                    self.assertEqual(label != 'old', 'U+0007' in report)
+                    self.assertEqual(1, sum(line.startswith('unread remainder ') for line in report.splitlines()))
+                    self.assertEqual(before, answers.read_bytes())
+
+
 class SkillAgreement(unittest.TestCase):
     def test_skill_names_the_reading_boundary_without_copying_its_limits(self):
         clinical = (ROOT / 'skills/clinical-note/SKILL.md').read_text(encoding='utf-8')
