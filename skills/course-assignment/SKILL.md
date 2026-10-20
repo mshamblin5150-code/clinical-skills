@@ -55,7 +55,8 @@ standing rule 6 governs independent checks and cleanup.
 Before first prose in either branch, follow
 [Paper language](../_shared/reference/paper-language.md): reuse the saved account
 answer or ask once and save it when missing. Retain an individual-paper override
-in `bar.md`; the DOCX grader also accepts `--paper-language "<language>"`.
+in `bar.md`; both artifact graders also accept `--paper-language "<language>"`
+and `--profile <path>` to select another account profile.
 
 Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
 
@@ -247,6 +248,30 @@ python tools/deck_scan.py scratch/runs/<course>-<module>-course-assignment --ppt
 
 The container population is the slide face alone. A title is not a bullet; every non-title text
 paragraph is counted as one. The claim population is the slide face and speaker notes together.
+Put each source's author-year citation on the slide face or in its speaker notes. Every reference
+entry must be cited, and every citation must resolve to an entry. Face citations count toward the
+signed words-per-bullet limit.
+
+The reference reader uses the second reader's `REFERENCE-SLIDES` order in `intent.md`. A disagreement
+with a slide's opening `Reference` heading enters the unread remainder. Put each whole entry in one
+paragraph on one slide, with its own positive left margin and negative first-line indent. Set
+reference italics on the runs themselves. The grader reads boxes top to bottom, left to right on a
+tie; a forced line break becomes a space, and entries split across slides are not rejoined. It
+applies `reference_scan`'s APA rows except the Word renderer's `heading-not-apa` and
+`entry-not-a-paragraph`, and adds `reference-hanging-indent`. The report carries citation candidates,
+unread citations, and the shared unread remainder. Earlier approvals use each new check's dated
+start in `reference/completion-check-starts.tsv`.
+
+The shared APA rows retain `reference_scan`'s definitions: `entry-has-no-year`,
+`canvas-artifact`, `list-not-sorted`, `missing-ab`, `ab-out-of-title-order`,
+`requires-retrieval-date`, `retrieval-date-on-archived`, `retrieval-date-before-exam`,
+`malformed-date`, `uptodate-italics`, `intext-year-mismatch`, `legal-reference-lacks-name`,
+`uncited-entry`, `unlisted-citation`, `missing-first-author-initials`,
+`citation-author-spelling`, `lowercase-group-sentence-opening`, `legal-citation-section-form`,
+`missing-article`, `format-bracket`, `italic-identifier`, `site-repeats-author`,
+`missing-drug-description`, `parent-first-author`, `bracketed-document-number`, and
+`hyphenated-range`.
+
 The rows are:
 
 - `slide-count`: one finding when the population named by `SLIDE-LIMIT-SCOPE` exceeds `SLIDE-MAX`.

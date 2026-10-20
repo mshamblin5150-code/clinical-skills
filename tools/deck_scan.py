@@ -11,6 +11,7 @@ print by default because a course artifact can contain private material;
 The shared completion rows' ceilings belong to
 ``project_context.DECLARED_LIMITS`` and ``voice_read.DECLARED_LIMITS``; this
 module copies no row.
+The shared APA reader's boundaries belong to ``reference_scan.DECLARED_LIMITS``.
 """
 
 from __future__ import annotations
@@ -42,6 +43,8 @@ import voice_read
 import imagery_proposals
 import project_context
 import lms_attachments
+import reference_scan
+import reference_alphabets
 from discussion_artifact import (
     CLAIM_BLOCK,
     PostedReading,
@@ -100,6 +103,10 @@ RENDERED_RECORD = "rendered-record"
 ADVERSARIAL_RECORD = "adversarial-record"
 PRESENTATION_INTENT_RECORD = "presentation-intent-record"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
+REFERENCE_HANGING_INDENT = "reference-hanging-indent"
+REFERENCE_ROWS = {kind: kind for kind in reference_scan.KINDS if kind not in {
+    reference_scan.HEADING_NOT_APA, reference_scan.ENTRY_NOT_A_PARAGRAPH,
+}}
 ROWS = (
     SLIDE_COUNT,
     BULLETS_PER_SLIDE,
@@ -110,7 +117,7 @@ ROWS = (
     ADVERSARIAL_RECORD,
     PRESENTATION_INTENT_RECORD,
     SUBMISSION_FINGERPRINT,
-) + heading_read.KINDS
+) + heading_read.KINDS + (REFERENCE_HANGING_INDENT,) + tuple(REFERENCE_ROWS)
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
 HEADING_READ_ROWS[heading_read.VERDICT_SHAPE] = "a heading-read verdict line is malformed"
@@ -163,6 +170,11 @@ SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
 )
 
 DECLARED_LIMITS = (
+    DeclaredLimit("reference-explicit-italics", "Reference italics are read only from each run's own properties; inherited italics are unread and an inherited-only italic UpToDate is refused as roman."),
+    DeclaredLimit("reference-explicit-indent", "Reference hanging indents are read only from each paragraph's own positive left margin and negative first-line indent; inherited indents are unread and refused."),
+    DeclaredLimit("reference-bullets-ungraded", "Reference-entry bullets are not graded, including bullets inherited from a layout."),
+    DeclaredLimit("reference-word-rows-excluded", "The Word renderer rows heading-not-apa and entry-not-a-paragraph do not apply to slides; reference_scan owns the remaining APA reader limits."),
+    DeclaredLimit("reference-position-unread", "Reference heading and entry boxes without explicit positions, or inside a group, enter the unread remainder; layout and group positions are not resolved. Reference text in tables, SmartArt, and charts also enters that remainder. Numeric-only page boxes are skipped."),
     DeclaredLimit("reader-remark-free-text", "A visual verdict reason cannot distinguish a concealed reader remark from ordinary text."),
     DeclaredLimit(
         "presentation-intent-is-not-voice",
@@ -260,6 +272,13 @@ class Slide:
     diagram_text_read: int = 0
     chart_text_read: int = 0
     unread_members: int = 0
+    reference_boxes: tuple[ReferenceBox, ...] = ()
+
+
+@dataclass(frozen=True)
+class ReferenceBox:
+    position: tuple[int, int] | None
+    paragraphs: tuple[tuple[str, bool], ...]
 
 
 @dataclass(frozen=True)
@@ -297,6 +316,8 @@ class Source:
     intent_text: str | None
     heading_read_text: str
     readings: tuple[PostedReading, ...]
+    paper_language: str | None = None
+    signed: date | None = None
 
 
 @dataclass(frozen=True)
@@ -320,6 +341,12 @@ class Scan:
     diagram_text_read: int = 0
     chart_text_read: int = 0
     unread_members: int = 0
+    references_read: int = 0
+    reference_slides_unread: int = 0
+    citation_unread: int = 0
+    citation_coverage: reference_scan.CitationCoverage = reference_scan.CitationCoverage()
+    paper_language: str = "unspecified"
+    reference_order_graded: bool = True
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -419,6 +446,62 @@ def _paragraph_font_points(
     return tuple(points)
 
 
+def _reference_paragraph(paragraph: ElementTree.Element) -> tuple[str, bool]:
+    pieces: list[str] = []
+    italic = False
+    for child in paragraph:
+        if child.tag == A + "br":
+            text, styled = " ", False
+        elif child.tag in {A + "r", A + "fld"}:
+            text = "".join(item.text or "" for item in child.iter(A + "t"))
+            properties = child.find(A + "rPr")
+            styled = properties is not None and properties.get("i") in {"1", "true"}
+        else:
+            continue
+        if not text:
+            continue
+        if styled != italic:
+            pieces.append("*")
+            italic = styled
+        pieces.append(text)
+    if italic:
+        pieces.append("*")
+    properties = paragraph.find(A + "pPr")
+    try:
+        hanging = properties is not None and int(properties.get("marL", "0")) > 0 and int(properties.get("indent", "0")) < 0
+    except ValueError:
+        hanging = False
+    return "".join(pieces).strip(), hanging
+
+
+def _reference_boxes(root: ElementTree.Element) -> tuple[ReferenceBox, ...]:
+    grouped = {id(shape) for group in root.iter(P + "grpSp") for shape in group.iter(P + "sp")}
+    boxes = []
+    for shape in root.iter(P + "sp"):
+        paragraphs = tuple(
+            item for paragraph in shape.findall("./" + P + "txBody/" + A + "p")
+            if (item := _reference_paragraph(paragraph))[0]
+        )
+        if not paragraphs:
+            continue
+        offset = shape.find("./" + P + "spPr/" + A + "xfrm/" + A + "off")
+        position = None
+        if offset is not None and id(shape) not in grouped:
+            try:
+                position = (int(offset.attrib["y"]), int(offset.attrib["x"]))
+            except (KeyError, ValueError):
+                pass
+        boxes.append(ReferenceBox(position, paragraphs))
+    for frame in root.iter(P + "graphicFrame"):
+        paragraphs = tuple(
+            item for paragraph in frame.iter(A + "p")
+            if (item := _reference_paragraph(paragraph))[0]
+        )
+        if paragraphs:
+            boxes.append(ReferenceBox(None, paragraphs))
+    return tuple(sorted(boxes, key=lambda box: box.position or (0, 0)))
+
+
 def _read_slide(number: int, payload: bytes) -> Slide:
     try:
         root = ElementTree.fromstring(payload)
@@ -450,7 +533,7 @@ def _read_slide(number: int, payload: bytes) -> Slide:
             all_text.append(text)
             bullets.append(text)
             font_sizes.extend(_paragraph_font_sizes(paragraph))
-    return Slide(number, "\n".join(all_text), tuple(bullets), tuple(font_sizes))
+    return Slide(number, "\n".join(all_text), tuple(bullets), tuple(font_sizes), reference_boxes=_reference_boxes(root))
 
 
 def _read_notes(payload: bytes, number: int) -> str:
@@ -727,6 +810,7 @@ def _read_slide_objects(
         len(diagram_text),
         len(chart_text),
         unread,
+        slide.reference_boxes,
     )
 
 
@@ -750,7 +834,8 @@ def load(
     if not deck.is_file():
         raise run_grader.SourceError(f"no PowerPoint file at {deck}")
     try:
-        bar = _read_bar(bar_path.read_text(encoding="utf-8"), envelope)
+        bar_text = bar_path.read_text(encoding="utf-8")
+        bar = _read_bar(bar_text, envelope)
         claims = claims_path.read_text(encoding="utf-8")
         deck_bytes = deck.read_bytes()
         heading_read_path = root / "heading-read.md"
@@ -805,6 +890,12 @@ def load(
         intent_text,
         heading_read_text,
         readings,
+        reference_alphabets.paper_language(
+            parsed.value("--paper-language") if parsed.value("--paper-language") is not None
+            else (envelope or assignment_bar.parse(bar_text)).fields.get("PAPER-LANGUAGE"),
+            Path(parsed.value("--profile")) if parsed.value("--profile") else None,
+        ),
+        date.fromisoformat((envelope or assignment_bar.parse(bar_text)).fields["SIGNED"]),
     )
 
 
@@ -1118,6 +1209,57 @@ def _figures(text: str) -> set[str]:
     return set(traceable_numeric_values(text))
 
 
+def _reference_document(source: Source) -> tuple[reference_scan.Document, int, tuple[Finding, ...]]:
+    records = _presentation_intent_records(source)
+    population = (
+        _slide_population(records[0], "REFERENCE-SLIDES")
+        if len(records) == 1 and records[0].counts.get("REFERENCE-SLIDES") == 1
+        else None
+    )
+    slides = {slide.number: slide for slide in source.slides}
+    selected = set(population or ())
+    unread = len(source.slides) if population is None else len(selected - slides.keys())
+    entries: list[reference_scan.Entry] = []
+    found: list[Finding] = []
+    disputed: set[int] = set()
+    for slide in source.slides:
+        first = slide.reference_boxes[0].paragraphs[0][0].strip("*") if slide.reference_boxes else slide.text.split("\n")[0]
+        if first.casefold().startswith("reference") != (slide.number in selected):
+            unread += 1
+            disputed.add(slide.number)
+    for number in population or ():
+        slide = slides.get(number)
+        if slide is None or number in disputed:
+            continue
+        before = len(entries)
+        unread += slide.diagram_text_read + slide.chart_text_read
+        for index, box in enumerate(slide.reference_boxes):
+            text = " ".join(paragraph[0] for paragraph in box.paragraphs).strip("*")
+            if index == 0:
+                if box.position is None:
+                    unread += 1
+                continue
+            if text.isdigit():
+                continue
+            if box.position is None:
+                unread += 1
+            for text, hanging in box.paragraphs:
+                entries.append(reference_scan.Entry(len(entries) + 1, text, paragraph=True))
+                if not hanging:
+                    found.append(Finding(REFERENCE_HANGING_INDENT, number, f"entry {len(entries)} needs its own positive marL and negative indent"))
+        if len(entries) == before:
+            unread += 1
+    body = "\n".join([*(slide.text for slide in source.slides if slide.number not in selected | disputed), *source.notes])
+    parsed = tuple(entries)
+    # Build plain entries directly: Markdown punctuation in a PowerPoint paragraph
+    # cannot turn it into a heading, list, or table and drop the rest of the list.
+    document = reference_scan.Document(
+        "References", body, parsed, reference_scan.read_citations(body, parsed),
+        reference_scan.citation_coverage(body, parsed),
+    )
+    return document, unread, tuple(found)
+
+
 def _claim_figures(text: str) -> tuple[set[str], set[str]]:
     traced: set[str] = set()
     mentioned: set[str] = set()
@@ -1131,6 +1273,8 @@ def _claim_figures(text: str) -> tuple[set[str], set[str]]:
 
 @completion_checks.dated_scan
 def survey(source: Source) -> Scan:
+    document, reference_unread, indent_findings = _reference_document(source)
+    reference_grade = reference_scan.survey(document, source.signed, source.paper_language)
     heading = heading_read.scan(
         source.heading_read_text,
         (
@@ -1151,6 +1295,11 @@ def survey(source: Source) -> Scan:
         for finding in heading.findings
         if finding.kind == kind
     ]
+    findings.extend(indent_findings)
+    findings.extend(
+        Finding(REFERENCE_ROWS[finding.kind], None, f"{finding.where}: {finding.detail}")
+        for finding in reference_grade.findings if finding.kind in REFERENCE_ROWS
+    )
     slide_limit_denominator = len(source.slides)
     counted_slides: int | None = slide_limit_denominator
     slide_limit_matcher = "PowerPoint slide parts"
@@ -1255,6 +1404,12 @@ def survey(source: Source) -> Scan:
         sum(slide.diagram_text_read for slide in source.slides),
         sum(slide.chart_text_read for slide in source.slides),
         sum(slide.unread_members for slide in source.slides),
+        len(document.entries),
+        reference_unread,
+        reference_grade.citation_coverage.unread,
+        reference_grade.citation_coverage,
+        reference_grade.paper_language,
+        not document.entries or reference_grade.paper_language in reference_alphabets.TABLE["languages"],
     )
 
 
@@ -1282,8 +1437,17 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
         f"  heading-read records {scan.heading_reads}",
+        f"  references read   {scan.references_read}",
+        f"  reference slides unread {scan.reference_slides_unread}",
+        f"  reference order ({scan.paper_language}): " + ("graded" if scan.reference_order_graded else run_grader.NOT_GRADED),
+        f"  citation candidates {scan.citation_coverage.candidates}",
+        f"  citation evidence {scan.citation_coverage.evidenced}",
+        f"  citation grammar  {scan.citation_coverage.grammar}",
+        f"  citation unread   {scan.citation_unread}",
+        f"  citation key disagreement {len(scan.citation_coverage.disagreements)}",
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.unread_members + scan.slide_limit_unread
+            + scan.reference_slides_unread + scan.citation_unread
         ),
         "",
     ]
@@ -1342,6 +1506,9 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
             or scanned.unread_members > 0
             or scanned.heading_read_unread > 0
             or scanned.slide_limit_unread > 0
+            or scanned.reference_slides_unread > 0
+            or scanned.citation_unread > 0
+            or not scanned.reference_order_graded
         ),
         diagnostics=tuple(diagnostics),
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.deck.name,)), rendered.report, gate_report, aar_report),
@@ -1375,7 +1542,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
 
 
 GRADER = run_grader.Grader(
-    usage="usage: deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>]",
+    usage="usage: deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>] [--paper-language <language>] [--profile <path>]",
     load=load,
     grade=grade,
     format_report=format_report,
@@ -1383,6 +1550,8 @@ GRADER = run_grader.Grader(
         run_grader.Option("--pptx", takes_value=True, missing_value="--pptx needs a PowerPoint file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
+        run_grader.Option("--paper-language", takes_value=True, missing_value="--paper-language needs a language", repeatable=False),
+        run_grader.Option("--profile", takes_value=True, missing_value="--profile needs a path", repeatable=False),
     ),
 )
 
