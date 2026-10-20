@@ -26,6 +26,7 @@ DECLARED_LIMITS = (
     "A fixed outcome records the change shown and accepted; it does not mechanically establish that the change resolves the remark.",
     "Explicit leaves recognize leave, keep, or accept followed by remark numbers or all remarks; other wording requires a new explicit reply.",
     "The printed reply forms must appear before the reply; another question asked beside them is not detected.",
+    "Coverage selection is a wording floor: gap lines outside the selector vocabulary are not selected.",
 )
 
 
@@ -95,7 +96,8 @@ def read_report(text: str) -> tuple[Remark, ...]:
 
 
 def coverage_lines(report_text: str) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(line for line in report_text.splitlines() if not line.startswith(PREFIX) and re.search(r"\bunread\b|not[ -]graded|not scanned|incomplete coverage", line, re.I)))
+    return tuple(dict.fromkeys(line for line in report_text.splitlines() if not line.startswith(PREFIX) and re.search(
+        r"\bunread\b|not[ -](?:graded|scanned|checked|compared|run|verified)|never[ -]graded|incomplete coverage", line, re.I)))
 
 
 def _receipt_path(run: Path, skill: str, key: str) -> Path:
@@ -118,19 +120,20 @@ class Prepared:
     coverage: tuple[str, ...]
 
 
-def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str) -> Prepared:
+def prepare(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
+            *, coverage_only: bool = False) -> Prepared:
     import approval_record
     path = _receipt_path(run, skill, key)
-    current = read_report(report_text)
+    current = () if coverage_only else read_report(report_text)
     previous = ()
-    if path.exists():
+    if path.exists() and not coverage_only:
         try:
             previous = read_report(json.loads(path.read_text(encoding="utf-8"))["report"])
         except (OSError, ValueError, KeyError, TypeError) as failure:
             raise RemarkError("the preceding pre-ask remark receipt is unreadable") from failure
     retained = tuple(r for r in previous if r not in current)
     complete_report = report_text + ("\n" + report(retained) if retained else "")
-    prepared = Prepared(complete_report, read_report(complete_report), coverage_lines(complete_report))
+    prepared = Prepared(complete_report, () if coverage_only else read_report(complete_report), coverage_lines(complete_report))
     path.parent.mkdir(parents=True, exist_ok=True)
     approval_record._write(path, {"prepared_at": time.time(), "source_digest": _digest(sources),
                                   "grader_report": report_text, "report": complete_report})
@@ -171,22 +174,53 @@ def _left_numbers(reply: str, population: int) -> set[int]:
     return result
 
 
-def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
-           reply: str, reply_at: float | None, outcomes: tuple[Outcome, ...],
-           *, accepted: list[dict] | None = None) -> list[dict]:
-    import approval_record
+def _prepared_receipt(run: Path, skill: str, key: str, sources: tuple[Path, ...],
+                      report_text: str, reply_at: float | None, *, accepted: bool = False,
+                      transcript_unread: bool = False):
+    """Keep the same grade, source and ordering comparison for every go-ahead."""
     try:
         receipt = json.loads(_receipt_path(run, skill, key).read_text(encoding="utf-8"))
         boundary = max(path.stat().st_mtime for path in sources)
         prepared_at = receipt["prepared_at"]
-        if receipt["source_digest"] != _digest(sources) or (accepted is None and receipt["grader_report"] != report_text):
+        if receipt["source_digest"] != _digest(sources) or (not accepted and receipt["grader_report"] != report_text):
             raise RemarkError("the prepared grade or source changed; prepare and show the approval again")
-        if reply_at is None or not boundary < prepared_at < reply_at:
+        if not boundary < prepared_at or (reply_at is None and not transcript_unread) or (reply_at is not None and not prepared_at < reply_at):
             raise RemarkError("the paired grader must run after the last source change and before the approval reply")
     except (OSError, ValueError, KeyError, TypeError) as failure:
         if isinstance(failure, RemarkError):
             raise
         raise RemarkError("approval needs a readable pre-ask grade receipt") from failure
+    return receipt, boundary, prepared_at
+
+
+def _missing_lines(required, shown):
+    shown_lines = {" ".join(line.split()) for message in shown for line in message.splitlines()}
+    return [line for line in required if " ".join(line.split()) not in shown_lines]
+
+
+def verify_coverage(run: Path, skill: str, key: str, sources: tuple[Path, ...],
+                    report_text: str, reply_at: float | None, *, transcripts):
+    """Verify clinical coverage without inheriting coursework reader remarks."""
+    import approval_record
+    _, _, prepared_at = _prepared_receipt(run, skill, key, sources, report_text, reply_at,
+                                          transcript_unread=reply_at is None)
+    if reply_at is None:
+        return approval_record.ReplyVerification("unreadable", "coverage-line transcript unreadable")
+    shown, unread = approval_record.assistant_text(run, after=prepared_at, before=reply_at,
+                                                  transcripts=transcripts)
+    if unread:
+        return approval_record.ReplyVerification("unreadable", "coverage-line transcript unreadable")
+    if _missing_lines(coverage_lines(report_text), shown):
+        raise RemarkError("coverage lines were not shown before approval")
+    return approval_record.ReplyVerification("verified", "paired-grader coverage lines shown")
+
+
+def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
+           reply: str, reply_at: float | None, outcomes: tuple[Outcome, ...],
+           *, accepted: list[dict] | None = None) -> list[dict]:
+    import approval_record
+    receipt, boundary, prepared_at = _prepared_receipt(run, skill, key, sources, report_text,
+                                                      reply_at, accepted=accepted is not None)
     prepared = Prepared(receipt["report"], read_report(receipt["report"]), coverage_lines(report_text))
     inherited_leaves = set()
     if accepted is not None:
@@ -200,8 +234,7 @@ def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_te
     # A posting inherits answered leaves, so only the content ask must carry the reply forms.
     required = surface(prepared, outcomes, request_leaves=accepted is None).splitlines()
     shown, unread = approval_record.assistant_text(run, after=boundary if accepted is not None else prepared_at, before=reply_at)
-    shown_lines = {" ".join(line.split()) for message in shown for line in message.splitlines()}
-    missing = [line for line in required if " ".join(line.split()) not in shown_lines]
+    missing = _missing_lines(required, shown)
     if missing:
         raise RemarkError("reader remarks or coverage lines were not shown before approval" + ("; transcript unreadable" if unread else "") + ": " + " | ".join(missing))
     leaves = _left_numbers(reply, len(prepared.remarks)) | inherited_leaves
