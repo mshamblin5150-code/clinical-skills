@@ -708,6 +708,25 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_skill_sends_the_pediatric_band_to_the_cdc_tool(self):
         self.assertIn("cdc_percentile.py", self.text)
 
+    def test_the_writer_traces_site_cause_and_type_before_handing_back_any_code(self):
+        after_z03 = self.text.split("**`Z03.-` is not proposed here**", 1)[1]
+        paragraph = " ".join(after_z03.split("\n\n")[1].split())
+        for phrase in (
+            "Before handing back any code, entry or refusal",
+            "site", "cause", "type", "due to", "from", "secondary to", "with",
+            "python tools/icd10_lookup.py --index", "each such word",
+            "complaint's general word", "both codes", "Excludes1", "one side only",
+            "R19.00", "R22.2", "Mass > abdominal",
+            "Mass > localized (skin) > trunk", "Swelling (of) > localized (skin) > trunk",
+            "K56.609", "K56.50", "Small bowel obstruction due to adhesions",
+            "Obstruction, obstructed, obstructive > intestine",
+            "Adhesions, adhesive (postinfective) > intestine > with obstruction",
+            "blind reader's descriptor-agreement judgment", "writer's own reading",
+            "not the grader",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, paragraph)
+
     def test_the_skill_pins_the_narrow_listing_and_line_boundaries(self):
         self.assertIn("carries no code-system token, bullet, or bold markers", self.text)
         self.assertIn("Every field value owns one physical line", self.text)
@@ -1009,6 +1028,19 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         for phrase in ("start is the only step the scanner checks against the note",
                        "Every later step", "note words that reach it", "judgment is the reader's"):
             self.assertIn(phrase, instructions)
+
+    def test_both_adhesions_routes_pass_the_route_start_test(self):
+        words = "Small bowel obstruction due to adhesions"
+        for code, path in (
+            ("K56.609", "Obstruction, obstructed, obstructive > intestine"),
+            ("K56.50", "Adhesions, adhesive (postinfective) > intestine > with obstruction"),
+        ):
+            with self.subTest(code=code):
+                subject = scan.AgreementSubject("ICD-10", code, "", "entry", words)
+                self.assertEqual(
+                    scan.RouteStatus.VALID,
+                    scan._route_status(subject, f"{path} -> code {code}", words),
+                )
 
     def test_brief_output_is_bom_free_and_replaces_existing_file(self):
         args = [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
