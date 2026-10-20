@@ -1,8 +1,8 @@
 # An overturned passage with no ruling number is located by its exact quote and a repair's mislabeled opening is restored
 
-**Measured at:** d64452ae164ba579957110630f96ab3b50757db6
+**Measured at:** 68899131682934395a13ec49267ad2f2e1bbad33
 
-*Re-declared from `66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff` on 2026-10-19, for the correction-note population correction alone. The other measurements below remain dated observations of the 2026-10-17 base and were not re-derived at this one.*
+*Re-declared from `66aaf05b1bcf7ee185f7f7010af35d1e66ac5eff` on 2026-10-19, for the correction-note population correction alone. That correction was declared at `d64452ae164ba579957110630f96ab3b50757db6`, which PR #1957's squash merge discarded from `main`'s history. Re-declared on 2026-10-19 after re-reading commit `2f109057` with ADR 0418 ruling 7's wider matcher, confirming thirteen correction notes in twelve records. The other measurements below remain dated observations of the 2026-10-17 base and were not re-derived at this one.*
 
 [#1706](https://github.com/mshamblin5150-code/clinical-skills/issues/1706) was filed under
 [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)

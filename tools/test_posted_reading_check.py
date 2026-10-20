@@ -54,7 +54,7 @@ class PostedReadingCheck(unittest.TestCase):
                            entry_link=True, composer=True, html_bytes=42,
                            run=run, docx=docx, expected_visits=1, legacy_display=True,
                            expected_submitted_files=('example.docx',),
-                           saved_post_url=reading.post_url, saved_posted='today')
+                           saved_post_url=reading.post_url)
             self.assertEqual((), artifact.check_posted_reading(reading, 'a' * 64, **options))
             cases = {
                 'posted-fields': dict(posted=''),
@@ -86,7 +86,7 @@ class PostedReadingCheck(unittest.TestCase):
                     self.assertIn(code, [item.code for item in results])
                     observed.update(item.code for item in results)
                     self.assertTrue(all(item.message for item in results))
-            metadata_options = dict(options, saved_posted='')
+            metadata_options = dict(options, saved_post_url='')
             results = artifact.check_posted_reading(reading, 'a' * 64, **metadata_options)
             self.assertEqual(['post-metadata'], [item.code for item in results])
             observed.update(item.code for item in results)

@@ -592,7 +592,7 @@ That clinician-posting route skips the second read of the loaded Canvas box befo
 error is found only after the board stores it and may have to remain there; the posted reading below
 is still required.
 Then read the initial entry's Copy Link and the board's posted timestamp. Append a
-`## POSTING: post.md` block holding `POST-URL:` and `POSTED:` to the private `post.md`;
+`## POSTING: post.md` block holding `POST-URL:` alone to the private `post.md`;
 this working record is not the graded output artifact.
 Append this record to the run's one `reread.md`, preserving any reply records:
 
