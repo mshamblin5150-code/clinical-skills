@@ -48,7 +48,7 @@ class HandwrittenHosts(unittest.TestCase):
                     fixture = deck_fixture.Run(root)
                     fixture.write_deck((deck_fixture.slide_xml('Plan', 'Plain synthetic text', points=99),))
                     artifact = fixture.deck
-                    direct = lambda: fixture.grade('--show')[:2]
+                    direct = lambda: fixture.grade('--show', '--paper-language', 'en')[:2]
                     run = root
                 else:
                     fixture = docx_fixture.empty_population_input(root)
