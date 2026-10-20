@@ -19,6 +19,17 @@ SKILLS = (
 
 
 class PostingSkillContract(unittest.TestCase):
+    def test_case_study_word_edit_and_composer_handoff_are_explicit(self):
+        text = (ROOT / "skills" / "practicum-case-study" / "SKILL.md").read_text(encoding="utf-8")
+        for sentence in (
+            "A Word edit after the step 9 checks opens a new round of changes.",
+            'His "no re-read" means he does not read it again himself.',
+            "Stop before re-rendering if the Word writer cannot reproduce any part of the edit.",
+            "On the Composer branch, post inline first, always.",
+            "If he repeats the direction, hand him the checked re-rendered `.docx` to attach and post himself.",
+        ):
+            self.assertTrue(sentence in " ".join(text.replace("**", "").split()), sentence)
+
     def test_text_posting_approval_asks_show_every_revision_and_reference(self):
         for skill in ("discussion-post", "discussion-reply", "peer-critique"):
             text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")

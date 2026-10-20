@@ -893,6 +893,7 @@ class BoundChecksSource:
     readings: tuple[PostedReading, ...]
     composer_run: bool = False
     claims_text: str = ""
+    posting_route: str | None = None
 
 
 def _submission_document(submission: str) -> Path:
@@ -929,17 +930,27 @@ def posted_reading_check(
     ) is not None
     reread = run / 'reread.md'
     readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
-    return _posted_reading_outcomes(run, submission, document, composer, readings)
+    route = _posting_route(run, submission) if composer else None
+    return _posted_reading_outcomes(run, submission, document, composer, readings, route)
+
+
+def _posting_route(run: Path, submission: str) -> str | None:
+    try:
+        return approval_record.posting_route(
+            run, skill="practicum-case-study", submission=submission
+        )
+    except approval_record.ApprovalRecordError as failure:
+        raise run_grader.SourceError(str(failure)) from failure
 
 
 def _posted_reading_outcomes(
     run: Path, submission: str, document: Path, composer: bool,
-    readings: tuple[PostedReading, ...],
+    readings: tuple[PostedReading, ...], route: str | None,
 ) -> tuple[PostedReadingOutcome, ...]:
     html = document.with_suffix('.html')
     return check_posted_reading(
         next((item for item in readings if item.artifact == submission), None),
-        file_digest.sha256(document), composer=composer,
+        file_digest.sha256(document), composer=composer, posting_route=route,
         html_bytes=html.stat().st_size if html.is_file() else -1,
         run=run, docx=document.with_suffix('.docx'),
     )
@@ -1011,6 +1022,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         readings,
         composer_run,
         claims_text,
+        _posting_route(path.parent, document.stem) if composer_run else None,
     )
 
 
@@ -1245,7 +1257,7 @@ def _grade(
             local_docx = source.document.with_suffix(".docx")
             outcomes = _posted_reading_outcomes(
                 source.path.parent, submission, source.document,
-                source.composer_run, source.readings,
+                source.composer_run, source.readings, source.posting_route,
             )
             extra.extend(
                 Finding(POSTED_READING_KINDS[item.code], "the posted reading", item.message)
