@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, TypeVar
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 import re
@@ -79,6 +79,60 @@ class RecordShapeError(ValueError):
 
 class RecordContentError(Exception):
     """Content damage retains the handwritten-record finding meaning, exit 1."""
+
+
+class DamagedRecord(RecordContentError):
+    """A fully read handwritten record has damaged content, not a shape fault."""
+    def __init__(self, path: Path, diagnostics: tuple[str, ...]):
+        self.path = _record_key(path)
+        self.diagnostics = diagnostics
+        super().__init__(f"{checked_label(path)}: not graded — damaged text\n" + "\n".join(diagnostics))
+
+
+@dataclass(frozen=True)
+class HandwrittenRead:
+    """Only checked text is public; diagnostics remain available for local refusal."""
+    path: Path
+    _text: str = field(repr=False)
+    diagnostics: tuple[str, ...] = ()
+
+    @property
+    def text(self) -> str:
+        return self.require_text()
+
+    def require_text(self) -> str:
+        if self.diagnostics:
+            raise DamagedRecord(self.path, self.diagnostics)
+        return self._text
+
+
+# Unlike tracker-body #723, tabs and bare CR are damage: Windows path
+# escapes can produce them. Only LF and CR immediately before LF are safe.
+# This is deliberately separate from ADR 0421's wider outbound DEL/C1 set.
+HANDWRITTEN_CONTROL_CHARACTERS = frozenset(chr(code) for code in range(32) if code != 10)
+
+
+def check_handwritten_text(text: str, path: Path, kind: str = "text") -> HandwrittenRead:
+    """Check already-owned text without reopening a locked writer's record."""
+    if kind != "text":
+        raise ValueError("unknown handwritten record kind")
+    diagnostics = []
+    lines = text.split("\n")
+    for number, line in enumerate(lines, 1):
+        for offset, character in enumerate(line):
+            if character not in HANDWRITTEN_CONTROL_CHARACTERS:
+                continue
+            if character == "\r" and offset == len(line) - 1 and number < len(lines):
+                continue
+            diagnostics.append(f"{checked_label(path)}: line {number}: U+{ord(character):04X}")
+    return HandwrittenRead(path, text, tuple(diagnostics))
+
+
+def read_handwritten_record(path: Path, kind: str = "text") -> HandwrittenRead:
+    """Open and check together; callers retain their missing/unreadable meanings."""
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        text = stream.read()
+    return check_handwritten_text(text, path, kind)
 
 
 def _record_key(path: Path) -> Path:
