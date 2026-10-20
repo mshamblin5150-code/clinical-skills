@@ -21,6 +21,20 @@ Present in the shorthand or the Medatrax entry. Passes through unchanged: number
 
 Correct obvious misspellings of clinical terms as you read: `endometroises` → endometriosis, `oorphectomy` → oophorectomy, `prednisolono` → prednisolone, `tympansotomy` → tympanostomy. Transcription noise is not content. **Never "correct" a number.**
 
+#### A relationship is stated only when the clinician stated it
+
+A note never writes that one condition caused, complicated, or is unrelated to another unless
+the clinician's shorthand or recorded answer says so. List the conditions side by side. A
+relationship the index presumes is carried only by the code and the worksheet's recorded index
+path; the Assessment label may use the code's official descriptor. That permission does not
+authorize a separate clinical claim about the relationship.
+
+For paronychia in a patient with type 2 diabetes, no applicable index `with` path means separate
+codes and no link sentence unless the clinician stated the link. Documented diabetes and
+osteomyelitis take `E11.69` through the applicable index `with` path, still without a link sentence
+the clinician never stated. Follow [the coding skill's linked-condition rule](../icd10-cpt/SKILL.md#linked-conditions-take-the-with-combination-code)
+for the index trace and link-source record.
+
 #### An impossible given stays given
 
 **A number can be faithfully transcribed and still be unusable.** *Impossible* means the token cannot represent the thing its label says it represents: no patient could have the recorded measurement, or the stated product strength does not exist. *Implausible* is not the same class. An unusual but possible height, weight, pressure or dose stays available to the note and is questioned on the ordinary clinical reading; this rule fires only when the value cannot be true as labeled.
