@@ -47,6 +47,7 @@ DECLARED_LIMITS = (
     "The declaration is opt-in; a record with no own-line Measured at label is not graded.",
     "The staged-ADR reader accepts pre-commit HEAD or its first parent because no hook signal distinguishes an amend; it still fires on branch drift and leaves which value is correct to the post-commit and committed-ADR audits.",
     "The post-commit mode reads only ADRs the named commit touched; whether the hook runs during a rebase is not established.",
+    "Local hooks and PR-time checks cannot detect a later server-side squash or rebase merge that discards the declared base; the committed-ADR audit reports that drift after integration.",
     "Docstrings and CLAUDE.md prose are outside the tracker-record and staged-ADR readers.",
     "The ADR annotation-only exception proves preservation and supersession binding, not the semantic truth of an annotation's account.",
 )
