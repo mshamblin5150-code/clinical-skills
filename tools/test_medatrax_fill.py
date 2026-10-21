@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import artifact_lock_test_support
 import json
+import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import sys
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import approval_record
 import encounter_openers
+import medatrax_fill
 import review_manifest
 from test_review_manifest import synthetic_run, passing_receipt
 
@@ -81,6 +85,27 @@ class FillCommand(unittest.TestCase):
         result = self.invoke()
         self.assertEqual(2, result.returncode)
         self.assertIn("recorded approval", result.stdout)
+        self.assertFalse((self.run / "medatrax-fill").exists())
+
+    def test_field_change_between_approval_validation_and_exact_fill_read_refuses(self):
+        note = self.run / "note-1.md"
+        changed = note.read_text(encoding="utf-8").replace("Level 2", "Level 3")
+        original_open = Path.open
+        note_reads = 0
+        def source_open(path, *args, **kwargs):
+            nonlocal note_reads
+            if path == note and (not args or args[0] == "r"):
+                note_reads += 1
+                if note_reads == 2:
+                    with original_open(path, "w", encoding="utf-8") as stream:
+                        stream.write(changed)
+            return original_open(path, *args, **kwargs)
+        output = io.StringIO()
+        with patch.object(Path, "open", source_open), redirect_stdout(output):
+            status = medatrax_fill.main(["--run", str(self.run), "--submission", "synthetic",
+                "--profile", str(self.profile), "--batch"])
+        self.assertEqual(2, status, output.getvalue())
+        self.assertIn("field fingerprint", output.getvalue())
         self.assertFalse((self.run / "medatrax-fill").exists())
 
     def test_exact_source_checks_refuse_without_output(self):

@@ -236,6 +236,9 @@ def _build(run: Path, *, submission: str, batch: bool, profile: Path, notes: tup
             if review_manifest.section_kind(heading.group(1) or heading.group(2)) == "fields":
                 require_outbound_text(raw[heading.start():headings[index + 1].start() if index + 1 < len(headings) else len(raw)].replace("\r\n", "\n"))
         _, block = review_manifest.split_note(source)
+        block_sha256 = digest(block.encode("utf-8"))
+        if block_sha256 != item["field_block_sha256"]:
+            raise ValueError("exact fill-read field fingerprint differs from approved manifest")
         values = field_values(block)
         check_demographics(values, opener)
         supplied_date = values["Visit Date"]
@@ -256,7 +259,7 @@ def _build(run: Path, *, submission: str, batch: bool, profile: Path, notes: tup
             if not re.fullmatch(r"\d{4}", values[field]):
                 raise ValueError("visit time must be HHMM")
         pairs.append(tuple(visit_times.clock(values[field]) for field in ("Start time", "End time")))
-        encounters.append(dict(note=item["order"], field_block_sha256=digest(block.encode("utf-8")),
+        encounters.append(dict(note=item["order"], field_block_sha256=block_sha256,
             fields=[dict(field=field, value=values[field], kind="select" if field in PICKLISTS else "text") for field in FIELDS]))
     window = visit_times.read_window(run)
     if window is None:
