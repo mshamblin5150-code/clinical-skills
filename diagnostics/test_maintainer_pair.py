@@ -93,14 +93,14 @@ class PairControls(unittest.TestCase):
             with self.assertRaises(m.q.Refused):m.explicit_controls(session,Path('seed'),Path('repo'))
         self.assertEqual(session.run.call_count,1)
 
-    def test_pair_workflow_is_two_sequential_bounded_jobs(self):
+    def test_full_pair_is_dormant_under_active_narrow_workflow(self):
         root=Path(m.__file__).resolve().parent.parent
         flow=(root/'.github/workflows/ci-parallel-proof.yml').read_text()
-        self.assertEqual(flow.count('timeout-minutes: 90'),2)
-        self.assertIn('needs: baseline',flow)
-        self.assertIn("needs.baseline.outputs.safe == 'true'",flow)
-        self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),4)
-        self.assertEqual(flow.count('python-version: \'3.14.4\''),2)
+        self.assertEqual(flow.count('timeout-minutes: 10'),1)
+        self.assertNotIn('needs: baseline',flow)
+        self.assertIn('github.run_attempt == 1',flow)
+        self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),2)
+        self.assertEqual(flow.count('python-version: \'3.14.4\''),1)
         self.assertNotIn('measure_lazy_suite_ids.py --observer',flow)
         self.assertNotIn('upload-artifact',flow)
 

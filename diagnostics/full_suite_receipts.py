@@ -70,3 +70,21 @@ def allowed_retained(name, expected):
         return False
     source = (path.parent.parent / (match[1] + '.py')).as_posix()
     return source in expected
+
+
+def failure_target_receipt(stdout):
+    """Tokens from native failure-target lines only; never raw output or paths."""
+    prefix = 're-run (from tools/): python -m unittest '
+    tokens, total, unread = [], 0, 0
+    for line in stdout.splitlines():
+        if not line.startswith(prefix):
+            continue
+        total += 1
+        target = line[len(prefix):]
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*){1,8}', target) or len(target) > 512:
+            unread += 1
+        elif len(tokens) < 100:
+            tokens.append(digest(target.encode('ascii')))
+    return {'failure_target_line_count': total, 'failure_target_tokens': tokens,
+            'unread_target_count': unread, 'truncated': total > 100,
+            'independent_failure_manifest': False}

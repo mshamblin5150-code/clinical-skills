@@ -104,3 +104,18 @@ class RetainedOutputTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class DiagnosticReceiptTests(unittest.TestCase):
+    def test_native_failure_targets_are_bounded_tokens_not_payloads(self):
+        from full_suite_receipts import failure_target_receipt
+        output=('private assertion contents\nre-run (from tools/): python -m unittest test_public.Class.test_case\n'
+                're-run (from tools/): python -m unittest /private/path\n')
+        row=failure_target_receipt(output)
+        self.assertEqual(row['failure_target_line_count'],2)
+        self.assertEqual(row['unread_target_count'],1)
+        self.assertEqual(len(row['failure_target_tokens']),1)
+        self.assertNotIn('private',str(row))
+        self.assertNotIn('test_public',str(row))
+        row=failure_target_receipt('re-run (from tools/): python -m unittest test_a.C.t\n'*101)
+        self.assertEqual(len(row['failure_target_tokens']),100)
+        self.assertTrue(row['truncated'])

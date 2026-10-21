@@ -148,9 +148,9 @@ class RegistryControls(unittest.TestCase):
                     if line.strip().startswith("timeout-minutes:")]
         # The old planner is retained as dormant source; the shared trigger now
         # funds only the separately approved replacement lazy qualification.
-        self.assertEqual(timeouts, ["timeout-minutes: 90", "timeout-minutes: 90"])
+        self.assertEqual(timeouts, ["timeout-minutes: 10"])
         self.assertNotIn("python observer/diagnostics/diagnose_lazy_setup.py", workflow.read_text(encoding="utf-8"))
-        self.assertIn("python observer/diagnostics/measure_maintainer_pair.py", workflow.read_text(encoding="utf-8"))
+        self.assertIn("python observer/diagnostics/diagnose_staging_layout.py", workflow.read_text(encoding="utf-8"))
         self.assertNotIn("python observer/diagnostics/measure_parallel_readers.py", workflow.read_text(encoding="utf-8"))
 
     def test_inventory_slow_read_cannot_cross_experiment_deadline_and_return_success(self):
