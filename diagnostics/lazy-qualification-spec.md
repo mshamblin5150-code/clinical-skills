@@ -1,3 +1,13 @@
+# Active current-source lazy requalification
+
+Current main was read once at 15:41 UTC October 21, 2026 and frozen as 104ee03cd4d37519b12b3edbc4da5fbf31b631cf (tree c9dfa8a25b3b8d221c46647359a892a1e7175ccd). Later main drift is not chased. This is the separately approved current-source20-sample/90-minute requalification, not reuse of the completed earlier-source allowance. Observer ancestry remains 38c431b15b7fafb0f5f89a67ecb501de318c47a1; raw seed identity and all measured clones use the new source pin. No production change or adoption is authorized.
+
+The pinned target module and refusal audit are byte-identical to the prior originals: SHA-256 b3f804165e04ae0534c36882de699b7ae84e7ebb1df899539497ef1f6a97900c and 386758808f5b6479ca3d2dad0bf35671e5a4db39651d5a0c2c83b064bd819d08 respectively. Therefore the same minimal lazy-only candidate bytes f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275 and original payload identity remain applicable; no candidate rewrite or semantic adjustment is made. The eleven intervening commits include other source/test changes, so previous population/timing outcomes do not establish this pin's qualification. Discovery identities and exact target-module counts are freshly checked at runtime rather than frozen to old counts.
+
+Only active source pin, matching budget source identity, its workflow SHA-256 c8a0195e46b954adad9624ad48baa0c70687d8db6a0c7cde3213e0c4c7c550a7, and the budget contract expectation change. The short randomized sibling clone root, first-status/raw-object checks, all controls and test/lock timeouts, five alternating baseline/candidate samples per lookup, hard90-minute cap,300-second cleanup reserve, estimates, ownership, and no-rerun policy remain unchanged. Existing bounded writer selectors run from this fresh source, not historical fixtures. Incomplete work remains inconclusive, with no full-suite/end-to-end spending or claim. Independent fixed-tree Spec and Standards reviews precede coordinator publication/run.
+
+# Previous-source replacement specification (historical source pin)
+
 # Active replacement lazy qualification: short disposable clone root
 
 Approved October 21, 2026 after the terminal two-root diagnostic and independent evidence review. Restore exactly twenty alternating full-module probes: five baseline/candidate samples per refusal lookup, using the unchanged fixed plan. One first-attempt temporary-branch Windows/Python3.14.4 job, hard90minutes,300second owned-cleanup reserve from the recorded job origin, unchanged measured-estimate admission and test/lock timeouts. No automatic rerun, full-suite/end-to-end claim, production/main/PR/merge/adoption or issue change.

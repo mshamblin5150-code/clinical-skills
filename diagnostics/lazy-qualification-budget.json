@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "admission_mode": "estimate-not-completion-guarantee",
-  "source_sha": "cb0507279e4e6b66ad40d10bc746b0e0b699291e",
+  "source_sha": "104ee03cd4d37519b12b3edbc4da5fbf31b631cf",
   "approved_job_seconds": 5400,
   "setup_controls_estimate_seconds": 900,
   "measurement_estimate_seconds": 3900,

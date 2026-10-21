@@ -30,7 +30,7 @@ from raw_source_inventory import raw_source_inventory, RawIdentityMismatch
 from windows_job_probe import WindowsJobProbe
 from windows_job_probe_controls import DECLARED_CONTROL_IDS
 
-BASE = 'cb0507279e4e6b66ad40d10bc746b0e0b699291e'
+BASE = '104ee03cd4d37519b12b3edbc4da5fbf31b631cf'
 OBSERVER_BASE = '38c431b15b7fafb0f5f89a67ecb501de318c47a1'
 BRANCH = 'refs/heads/diagnostic/2013-parallel-proof-20261020'
 SUITE_PATH = 'tools/test_suite_ids.py'

@@ -257,7 +257,7 @@ def budget_plan():
     return {
         "schema_version": 1,
         "admission_mode": "estimate-not-completion-guarantee",
-        "source_sha": "cb0507279e4e6b66ad40d10bc746b0e0b699291e",
+        "source_sha": "104ee03cd4d37519b12b3edbc4da5fbf31b631cf",
         "approved_job_seconds": 5400,
         "setup_controls_estimate_seconds": 900,
         "measurement_estimate_seconds": 3900,
@@ -272,6 +272,17 @@ def budget_plan():
 
 
 class BudgetAdmissionContracts(unittest.TestCase):
+    def test_current_pin_and_raw_budget_are_bound_in_active_workflow(self):
+        root = Path(subject.__file__).resolve().parent.parent
+        workflow = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
+        budget = (root / 'diagnostics/lazy-qualification-budget.json').read_bytes()
+        expected_pin = '104ee03cd4d37519b12b3edbc4da5fbf31b631cf'
+        self.assertEqual(subject.BASE, expected_pin)
+        self.assertEqual(subject.BUDGET['source_sha'], expected_pin)
+        self.assertIn('ref: ' + expected_pin, workflow)
+        self.assertIn("$reviewedBudgetSha256 = '" + subject.digest(budget) + "'", workflow)
+        self.assertNotIn('cb0507279e4e6b66ad40d10bc746b0e0b699291e', workflow)
+
     def test_measurement_and_cleanup_reserve_fit_exactly_after_preflight(self):
         subject.admit_budget(budget_plan(), 4200)
         subject.admit_budget(budget_plan(), 4500)

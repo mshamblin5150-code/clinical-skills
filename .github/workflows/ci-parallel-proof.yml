@@ -47,7 +47,7 @@ jobs:
           GIT_CONFIG_KEY_0: 'core.autocrlf'
           GIT_CONFIG_VALUE_0: 'false'
         with:
-          ref: cb0507279e4e6b66ad40d10bc746b0e0b699291e
+          ref: 104ee03cd4d37519b12b3edbc4da5fbf31b631cf
           path: source-seed
           fetch-depth: 0
           persist-credentials: false
@@ -60,7 +60,7 @@ jobs:
       - name: Qualify controls then twenty alternating module probes
         shell: pwsh
         run: |
-          $reviewedBudgetSha256 = 'ae23ebfc010736b0c942ea66f496e0edeb92bb15efe2d0b0275b6bb9a5799b70'
+          $reviewedBudgetSha256 = 'c8a0195e46b954adad9624ad48baa0c70687d8db6a0c7cde3213e0c4c7c550a7'
           python observer/diagnostics/measure_lazy_suite_ids.py --observer observer --seed source-seed --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
