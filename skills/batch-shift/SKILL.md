@@ -364,6 +364,8 @@ The glossary candidates are the compounding part. Tokens that appeared more than
 
 ### 7. Build the Review sheet
 
+Give every UpToDate puller the complete [shared puller brief](../_shared/reference/uptodate-pull.md)
+word for word, including its adult and pediatric drug-page route.
 At the go-ahead, run the Required command
 `python tools/uptodate_block.py --run <run-directory> --batch` and show its output word for word:
 `UPTODATE CONFLICTS`, `UPTODATE FAILED PULLS`, and `UPTODATE MISMATCHED SEARCHES` in chat beside

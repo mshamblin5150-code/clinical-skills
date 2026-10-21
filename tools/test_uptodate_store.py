@@ -344,7 +344,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         manifest["literature_review_current_through"] = "recent"
         report.manifest.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with self.assertRaisesRegex(ValueError, "currency stamp"):
+        with self.assertRaisesRegex(ValueError, "wrong shape"):
             store.entitled_topics(self.store)
 
     def test_a_manifest_source_name_cannot_escape_its_dump_directory(self):
@@ -360,7 +360,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         manifest["source_file"] = "../source.txt"
         report.manifest.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with self.assertRaisesRegex(ValueError, "source file"):
+        with self.assertRaisesRegex(ValueError, "wrong shape"):
             store.entitled_topics(self.store)
 
     def test_a_manifest_without_its_matching_raw_source_grants_no_entitlement(self):
@@ -374,7 +374,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         )
         (report.manifest.parent / store.SOURCE_NAME).unlink()
 
-        with self.assertRaisesRegex(ValueError, "source does not match"):
+        with self.assertRaisesRegex(ValueError, "wrong shape"):
             store.entitled_topics(self.store)
 
     def test_an_independent_metadata_marker_cannot_disappear_from_ingest(self):

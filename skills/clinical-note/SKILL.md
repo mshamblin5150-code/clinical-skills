@@ -831,6 +831,9 @@ Guideline artifacts ship in this repo, and where one covers what a Plan item ass
 
 ### UpToDate at the gaps
 
+Give every puller the complete [shared UpToDate puller brief](../_shared/reference/uptodate-pull.md)
+word for word. It governs query readback, failed-pull evidence, and adult and pediatric drug pages.
+
 [ADR 0347](../../docs/adr/0347-a-real-encounter-consults-uptodate-at-the-gaps-and-a-live-search-carries-clinical-terms-only.md)
 adds the **Evidence store** beside the sheets: at every routed Plan decision run
 `python tools/uptodate_store.py search <clinical terms>` and read each relevant filed topic.
@@ -855,7 +858,7 @@ picklist. It cannot certify clinical vocabulary or detect unrecorded activity. I
 ceiling belongs to `outbound_search.DECLARED_LIMITS`.
 
 Record every successful live pull with
-`python tools/outbound_search.py pull --run <run-directory> --search-id <passed-id> --dump-id <dump-id>`.
+`python tools/outbound_search.py pull --run <run-directory> --search-id <passed-id> --dump-id <dump-id> --query-readback "<received query>"`.
 For a threshold conflict add `--sheet <sheet-stem> --row <row-locator> --difference "<what differs>"`.
 The difference may contain clinical numbers but no corpus identifier or date literal. It must
 bind the same sheet, row and dump id as the note's conflict tail. Use `--sheet-kept` when the
@@ -865,7 +868,9 @@ File its topic through ordinary
 The topic copy contains publisher text, never the encounter or the query. Both note and shift
 completion graders refuse a recorded live pull lacking its passed search-record line.
 
-**UpToDate wins a conflict with a threshold sheet.** If a store copy disagrees, obtain a fresh
+**An UpToDate clinical topic wins a conflict with a threshold sheet.** A drug page never
+overrides a sheet: pull the clinical topic to settle it, or retain the sheet and record
+the drug pull as `--sheet-kept`. If a store topic copy disagrees, obtain a fresh
 live copy through the same pretyping check. Read the live position, which wins; ingest with
 `--supersedes <old-dump-id>` for each conflicting prior copy of that topic. Later searches and
 current evidence joins then use the fresh topic while the old source remains reopenable for
@@ -876,16 +881,20 @@ An UpToDate-backed item carries one of these same-line `FILLED·proposed` tails:
 ```text
 [uptodate: <topic title>, updated <month year>, <dump id>]
 [uptodate over thresholds/<sheet> <row>: <topic title>, updated <month year>, <dump id>]
+[uptodate drug: <page title>, version <N>, <dump id>]
 ```
 
 Use the full month name. The dump id resolves the topic that was read; the second form names the
-sheet stem and its row locator. The first replaces the gap verdict. Neither form puts a citation
+sheet stem and its row locator. The first replaces the gap verdict. The drug form names the
+filed version; its read date comes from the dump record and its one-year term applies on use.
+None of these forms puts a citation
 in the note body, and neither proves that the topic's position applies to this patient.
 
 **A failed live pull keeps the run going.** A gap retains its existing `recalled, no shipped sheet`
 or `sheet does not settle it` verdict. A conflict falls back to the threshold sheet, never the
 stale store copy, and its sheet tail ends `; uptodate pull failed`. Record the failure through
-`python tools/outbound_search.py failed-pull --run <run-directory> --search-id <passed-id> --decision "<decision>" --instrument "<instrument tried>"`.
+`python tools/outbound_search.py failed-pull --run <run-directory> --search-id <passed-id> --query-readback "<received query>" --decision "<decision>" --instrument "<instrument tried>" --reason <reason>`
+with the shared brief's reason-specific evidence.
 Every passed search needs a recorded outcome; a gap failure is recorded even though it leaves
 no mark in the note. If the pretyping check itself could not run, do not invent a passed id;
 keep that coverage failure private and report it as unverified.

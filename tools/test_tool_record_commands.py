@@ -201,6 +201,7 @@ class ToolRecordCommands(unittest.TestCase):
         searches.write_text(json.dumps({'search_id': 'synthetic', 'query': 'synthetic', 'passed': True}) + '\n', encoding='utf-8')
         self.damaged(self.root / outbound_search.PULLS, lambda: outbound_search.main([
             'pull', '--run', str(self.root), '--search-id', 'synthetic', '--dump-id', 'synthetic',
+            '--query-readback', 'synthetic',
         ]))
         note = self.root / 'synthetic.md'
         note.write_text('Synthetic note.', encoding='utf-8')

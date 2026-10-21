@@ -934,6 +934,10 @@ exact ingested file.
 
 **An untitled dump takes the Titled copy route.** Write a titled copy in the run directory, keep the
 block-to-title mapping there, ingest the copy, and name that exact copy in `--evidence`.
+Leave every drug page out of that copy, recording its title and why it was dropped in
+the mapping. A titled handover containing a drug page also takes this Titled copy route.
+If needed, pull the page live with the complete [shared puller brief](../_shared/reference/uptodate-pull.md),
+handed over word for word; the handover supplies neither a live read date nor expanded doses.
 `uptodate_store.py ingest` merges byte-identical authored blocks and reports the merge, but refuses
 an untitled layout or one candidate title over different bodies. When one topic appears twice and
 the copies differ only in page chrome (a trailing navigation line, a print footer), keep one copy,

@@ -129,7 +129,8 @@ class WriterTransactions(unittest.TestCase):
                 self.assertEqual(2, status, output)
                 self.assertEqual(b'{', target.read_bytes())
                 self.assertEqual(2, self.capture(lambda: outbound_search.main([
-                    'pull', '--run', str(root), '--search-id', 'missing', '--dump-id', 'synthetic']))[0])
+                    'pull', '--run', str(root), '--search-id', 'missing', '--dump-id', 'synthetic',
+                    '--query-readback', 'synthetic']))[0])
                 self.assertFalse((root / outbound_search.PULLS).exists())
 
     def test_aar_allocation_and_actual_records_refuse_held_locks(self):
@@ -170,8 +171,9 @@ class WriterTransactions(unittest.TestCase):
     def test_every_native_append_refuses_held_lock_and_failure_before_open(self):
         routes = (
             ('check', ['check', 'synthetic'], outbound_search.SEARCHES),
-            ('pull', ['pull', '--dump-id', 'synthetic'], outbound_search.PULLS),
-            ('failed-pull', ['failed-pull', '--decision', 'synthetic', '--instrument', 'synthetic'], outbound_search.PULLS),
+            ('pull', ['pull', '--dump-id', 'synthetic', '--query-readback', 'synthetic'], outbound_search.PULLS),
+            ('failed-pull', ['failed-pull', '--decision', 'synthetic', '--instrument', 'synthetic',
+                             '--query-readback', 'synthetic', '--reason', 'no-match', '--results-read', '0'], outbound_search.PULLS),
         )
         for name, command, filename in routes:
             with self.subTest(route=name), tempfile.TemporaryDirectory() as directory:

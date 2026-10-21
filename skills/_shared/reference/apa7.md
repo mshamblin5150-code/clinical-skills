@@ -681,6 +681,16 @@ The bracket may say `[Drug information]` **or other wording as appropriate**, in
 the scanner recognizes that host, while drug information from other hosts stays a reading
 (ADR 0367, #1580).
 
+**UpToDate-hosted drug page:** UpToDate Lexidrug. (n.d.). *Example medicine: Drug information*
+[Drug information]. UpToDate. Retrieved October 21, 2026, from
+https://www.uptodate.com/contents/example-medicine-drug-information
+
+This synthesized title and URL illustrate the form only. Copy the filed page's exact
+title, including `Pediatric drug information` for that separate profile. The page
+has no publisher update date or named author; use `n.d.` and a retrieval date,
+never its read date as a publication date. Coursework joins the filed drug page
+and requires a copy within one year of its read date (ADR 0409).
+
 **Declared limit:** The synthesized example is not string-checkable against APA's page; it supplies
 no evidence about a real product, manufacturer, revision date, or DailyMed record.
 
