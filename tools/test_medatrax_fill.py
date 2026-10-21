@@ -110,6 +110,23 @@ class FillCommand(unittest.TestCase):
             self.approve()
             self.assertEqual(2, self.invoke().returncode)
 
+    def test_given_us_date_is_compared_without_rewriting_and_bare_age_does_not_infer_unit(self):
+        self.values = {**VALUES, "Visit Date": "10/01/2026", "Age unit": "Months"}
+        self.approve()
+        result = self.invoke()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        record = json.loads((self.run / "medatrax-fill/fill-fields.json").read_text(encoding="utf-8"))
+        values = {row["field"]: row["value"] for row in record["encounters"][0]["fields"]}
+        self.assertEqual("10/01/2026", values["Visit Date"])
+        self.assertEqual("Months", values["Age unit"])
+
+    def test_handwritten_content_damage_is_a_finding_not_unread_machine_evidence(self):
+        self.profile.write_bytes(self.profile.read_bytes() + b"\x01")
+        result = self.invoke()
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("unread remainder", result.stdout)
+        self.assertNotIn("Synthetic site", result.stdout)
+
     def test_damaged_records_are_preserved_and_refuse(self):
         for relative in (approval_record.RECORD, review_manifest.MANIFEST, review_manifest.RECEIPT,
                          "openers.json", "medatrax-fill/fill-fields.json"):

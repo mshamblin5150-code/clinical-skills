@@ -23,7 +23,7 @@ from run_record_reader import (DamagedRecord, RecordUpdate, UnreadableRecord,
 DECLARED_LIMITS = (
     "Field blocks use complete named Markdown table or colon rows. Unknown, repeated, absent or empty fields refuse; clinical correctness of a supplied value remains the clinician's reading.",
     "Profile choices use named Course, Site and Preceptor sections with bullet, code-span or table values, or named rows in a Picklists table. Unsupported prose refuses rather than guessing a choice.",
-    "An omitted opener age or sex cannot be compared and refuses; the builder never infers a demographic replacement. It compares the explicit age/unit spelling and sex-to-Gender reading only.",
+    "An omitted opener age or sex cannot be compared and refuses; the builder never infers a demographic replacement. It compares the explicit age, any stated unit and sex-to-Gender reading only; a bare age attests no unit.",
     "The generated script resolves associated visible labels and exact select-option text, preflights the whole list and reads back assigned values. Synthetic DOM proof does not establish live Medatrax control compatibility or saved values; Patient Detail readback remains required.",
     "Checked bookkeeping uses the shared locked strict-read/atomic-replace transaction. Scripts are derived from that retained record under its artifact lock, but output files are not a cross-file transaction and later source edits require a new build.",
 )
@@ -141,8 +141,8 @@ def check_demographics(values: dict, opener: dict) -> None:
         raise ValueError("opener demographics omitted; source comparison unavailable")
     match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(days?|weeks?|months?|years?|[dwmy])?", age, re.I)
     units = {"d": "Days", "w": "Weeks", "m": "Months", "y": "Years"}
-    unit = "Years" if match and not match[2] else units.get(match[2].lower()[0]) if match else None
-    if match is None or values["Age"] != match[1] or values["Age unit"] != unit:
+    unit = units.get(match[2].lower()[0]) if match and match[2] else None
+    if match is None or values["Age"] != match[1] or unit is not None and values["Age unit"] != unit:
         raise ValueError("field age disagrees with opener")
     genders = {"f": "Female", "female": "Female", "m": "Male", "male": "Male",
                "transgender": "Transgender", "non-binary": "Non-binary"}
@@ -238,9 +238,17 @@ def _build(run: Path, *, submission: str, batch: bool, profile: Path, notes: tup
         _, block = review_manifest.split_note(source)
         values = field_values(block)
         check_demographics(values, opener)
-        if values["Visit Date"] != manifest["service_date"]:
+        supplied_date = values["Visit Date"]
+        if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", supplied_date):
+            month, day, year = map(int, supplied_date.split("/"))
+            visit_date = date(year, month, day)
+        else:
+            try:
+                visit_date = date.fromisoformat(supplied_date)
+            except ValueError:
+                raise ValueError("visit date needs ISO or US month/day/year form") from None
+        if visit_date.isoformat() != manifest["service_date"]:
             raise ValueError("visit date differs from run service date")
-        date.fromisoformat(values["Visit Date"])
         for field, permitted in allowed.items():
             if values[field] not in permitted:
                 raise ValueError(f"field outside exact {field} choices")
@@ -290,9 +298,9 @@ def main(argv=None) -> int:
         print("unread remainder 1")
         return 2
     except DamagedRecord as failure:
-        _, report = damaged_record_result(failure, check="Medatrax fill")
+        _, report = damaged_record_result(failure, check="Medatrax fill", force=True)
         print(report)
-        return 2
+        return 1
     except (OSError, UnicodeError, ValueError) as failure:
         # Exception texts are fixed labels, never patient field values.
         print(f"Medatrax fill: refused - {failure}" if isinstance(failure, ValueError) else "Medatrax fill: refused - source or output unavailable")
