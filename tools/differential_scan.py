@@ -229,9 +229,12 @@ from __future__ import annotations
 
 import completion_checks
 import visit_times
+import rapid_screens
 
 # The shared visit-times row adds an exit-2 limb on every invocation: visit times
 # not fully checked. Its complete reading boundary is visit_times.DECLARED_LIMITS.
+# The profile-selected rapid-screen row adds rapid screens not fully checked;
+# its boundary is rapid_screens.DECLARED_LIMITS.
 import re
 import sys
 from dataclasses import dataclass, replace
@@ -1694,6 +1697,7 @@ BARE_NOT_CODED = "any bare ``NOT CODED`` mark"
 UNREADABLE_THRESHOLD_SHEET = "a cited threshold sheet did not parse"
 VISIT_TIMES_INCOMPLETE = "visit times not fully checked"
 ANSWER_READER_INCOMPLETE = "delegated answers not independently checked"
+RAPID_SCREENS_INCOMPLETE = "rapid screens not fully checked"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_DIRECTORY,
@@ -1703,6 +1707,7 @@ EXIT_2_LIMBS = (
     BARE_NOT_CODED,
     UNREADABLE_THRESHOLD_SHEET,
     VISIT_TIMES_INCOMPLETE,
+    RAPID_SCREENS_INCOMPLETE,
     run_grader.UNREADABLE_RUN_ARTIFACT,
     approval_record.REPLY_UNREADABLE,
     ANSWER_READER_INCOMPLETE,
@@ -1743,6 +1748,9 @@ def _load(parsed: run_grader.Parsed) -> Source:
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     times = visit_times.check(source.directory, batch=False,
                              note=Path(_parsed.value("--note")) if _parsed.value("--note") else None)
+    screens = rapid_screens.check(source.directory, batch=False,
+        note=Path(_parsed.value("--note")) if _parsed.value("--note") else None,
+        profile=Path(_parsed.value("--profile")) if _parsed.value("--profile") else None)
     scan = survey([_read_artifact(artifact) for artifact in source.artifacts]
                   if source.artifacts else [read_note(text) for text in source.texts])
     scan = replace(scan, attribution=locate(source.artifacts))
@@ -1756,6 +1764,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     coverage_limbs: list[str] = []
     if times.incomplete:
         coverage_limbs.append(VISIT_TIMES_INCOMPLETE)
+    if screens.incomplete:
+        coverage_limbs.append(RAPID_SCREENS_INCOMPLETE)
     if has_findings:
         messages = []
         if scan.findings:
@@ -1853,13 +1863,14 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.directory.name,
         findings_failed=(
-            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed or bool(times.findings)
+            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed or outbound_failed or bool(times.findings) or bool(screens.findings)
         ),
-        coverage_failed=coverage_failed or times.incomplete or bool(delegated_unread) or "Outbound searches: unreadable" in outbound_report,
+        coverage_failed=coverage_failed or times.incomplete or screens.incomplete or bool(delegated_unread) or "Outbound searches: unreadable" in outbound_report,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
         reports=(run_grader.run_records_report(source.directory), visit_times.report(times, show=_parsed.show),
-                 run_grader.format_unread_remainder(times.unread + delegated_unread), aar_report, posting_report, chain_report, delegated_report, outbound_report),
+                 rapid_screens.report(screens, show=_parsed.show),
+                 run_grader.format_unread_remainder(times.unread + screens.unread + delegated_unread), aar_report, posting_report, chain_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")
@@ -1867,9 +1878,10 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
 
 
 GRADER = run_grader.Grader(
-    usage="usage: differential_scan.py <a run directory> [--show] [--note <path>] [--submission <key>]",
+    usage="usage: differential_scan.py <a run directory> [--show] [--note <path>] [--profile <path>] [--submission <key>]",
     options=(
         run_grader.Option("--show"),
+        run_grader.Option("--profile", takes_value=True, missing_value="--profile needs a path", repeatable=False),
         run_grader.Option("--note", takes_value=True, missing_value="--note needs a path", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),

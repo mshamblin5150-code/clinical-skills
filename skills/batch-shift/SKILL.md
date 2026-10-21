@@ -150,6 +150,13 @@ Assign **every line** to exactly one encounter. The day header, and anything els
 
 ### 4. Confirm the split — stop here
 
+For each encounter that gives a name, **read every identity-map row for that name**; never stop at
+the first matching name. One row is a candidate, not an automatic match. Where several rows share
+the name, disambiguate them with the map's own fields: **date first seen, age, sex, and any recorded
+disambiguator**. If those fields do not settle which fitting row belongs to the encounter, record an
+unresolved multiple-row match for step 7's pre-approval questions. **Only when no row fits** may the
+run request a portal lookup; a rejected first row does not establish that the map has no match.
+
 Present the proposed split and wait for the clinician. Do not process.
 
 ```
@@ -159,6 +166,7 @@ Found N encounters:
 Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
 Openers missing name, age or sex: <which encounters, and which field>
+Earlier care mentioned, no identity-map row: <which encounters, or "none">
 Branch for the whole shift: <the one the clinician named, or "SOAP by default — say the word and it is an H&P">
 Day file read with: <PyMuPDF | the agent's own PDF reader — shift text did not reach the corpus>
 ```
@@ -173,11 +181,21 @@ record that response so the eventual reference goes under *Cannot be matched*. A
 `Patient Time`, and no amount of rereading the encounter recovers an omitted age. This stop
 is the cheapest moment it can be answered: the clinician still remembers the patient.
 
+For an encounter whose shorthand mentions earlier care at the practice with no identity-map row,
+list it on the earlier-care line and ask once whether the clinician saw the patient within three
+years. Retain his whole verbatim reply as the private `clinician-answer` status evidence that
+step 7 uses; a delegate never answers this question. After an omitted-name answer, complete the
+same identity-map read before a note pass starts and settle any earlier-care question it exposes.
+
 **The branch is settled here, once, for the whole shift — and this stop is why it can be.** Step 5 says the shift takes one branch. [clinical-note](../clinical-note/SKILL.md) step 3 defaults to SOAP where nobody named one, which is right for a shift and **wrong during the first six encounters of a course**, exactly when nobody thinks to name one. Standalone, that default can only be announced after the fact. **Here it is announced before a single note is written**, on a block the run is already stopping on, so the correction costs one word instead of eleven regenerations.
 
 **So the default must not reach step 5 disguised as a choice.** Print it as a default and let the clinician overturn it on the confirm — a shift that resumes on this block has a branch the clinician has *seen*, which is the thing step 5's *the branch the user named* assumes and cannot check.
 
 **Correct reasoning can still choose the wrong branch when nobody states it.** A mixed-branch shift is not scoreable against a row that names one branch's fields, so confirm the branch before splitting the encounters. Evidence for the ruling remains in the withheld fixture record. #90.
+
+Where an answer to this stop can be parsed more than one way — a run-together number, a dropped
+word, or an answer that could belong to two encounters, including a missing-name answer — restate
+the parsed value per encounter and wait for the clinician's confirmation before any note pass starts.
 
 Resume only on the clinician's confirmation or correction.
 
@@ -198,13 +216,6 @@ owning checkout's profile before continuing. Each pass reads those saved lines a
 Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, **on the branch step 4 settled** — the whole shift takes the same branch unless the clinician says otherwise. State it to every pass rather than letting each derive its own: a pass given no branch routes on the program's first-six rule with no course context to check it against, and a shift is not scoreable against a row that names one branch's fields. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
 
 Number the output and keep the source order.
-
-For each encounter that gives a name, **read every identity-map row for that name**; never stop at
-the first matching name. One row is a candidate, not an automatic match. Where several rows share
-the name, disambiguate them with the map's own fields: **date first seen, age, sex, and any recorded
-disambiguator**. If those fields do not settle which fitting row belongs to the encounter, record an
-unresolved multiple-row match for step 7's pre-approval questions. **Only when no row fits** may the
-run request a portal lookup; a rejected first row does not establish that the map has no match.
 
 Every note-pass brief states: passes never run `artifact_repairs.py`; the orchestrator places each returned note and worksheet. Before dispatching a repair pass, the orchestrator records its permitted fields and sections with [standing rule 6](../../AGENTS.md#standing-rules)'s `begin` command. It compares the returned file against that retained scope and before copy. A failed comparison goes in the go-ahead's private `REPAIRS` block as awaiting the clinician's ruling; only a verified clinician acceptance can supersede it.
 
@@ -344,7 +355,7 @@ filename before printing its stem; other files use reader-order positions.
 rows keep their existing output.
 
 ```bash
-python tools/filled_vitals_census.py <the run directory>
+python tools/filled_vitals_census.py <the run directory> --profile <owning checkout>/scratch/medatrax-profile.md
 ```
 
 Its vital rows count declared-filled values only. Its BMI row computes every note's BMI from the height and weight it states and fails a note missing the `Z68` band and `E66` code that BMI owes (ADR 0309). It prints no value unless `--show` asks, and exits non-zero when two notes share a filled body or a BMI code is missing. A BMI finding blocks the Review sheet until the note carries the codes. **Its output is for you, not for the Review sheet** — the roll-up is working output, and [step 7](#7-build-the-review-sheet) already says which half of that leaves the machine.
@@ -386,7 +397,7 @@ that author run never substitutes for this non-authoring run. Record any refusal
 [standing rule 6](../../AGENTS.md)'s staging and repair-chain route, and have a non-authoring
 context run this **Grader handoff** on the correction again before building the Review sheet.
 
-Before building the Review sheet, run `python tools/differential_scan.py <run> --note <note-N.md> --show`
+Before building the Review sheet, run `python tools/differential_scan.py <run> --note <note-N.md> --show --profile <owning checkout>/scratch/medatrax-profile.md`
 once per final numbered note as a non-authoring **Grader handoff** under
 [standing rule 6](../../AGENTS.md). Select each note explicitly;
 `--note` takes one path, and `--submission` resolves only a standalone note. Do not pass
@@ -420,7 +431,8 @@ Do not build or render the Review sheet while the block has an unresolved item. 
 before the approval artifact exists, so an age or sex disagreement cannot first appear during
 entry on a run that followed this skill.
 
-The status question fires only when the shorthand mentions an earlier visit and neither the
+The status question fires only for an encounter step 4 did not settle, when the shorthand
+mentions an earlier visit and neither the
 identity map nor Medatrax records the patient. State that the shorthand mentions an earlier visit
 and the records show none, then ask whether it was the clinician's practice within three years.
 Retain the clinician's answer as private status evidence. A delegate never answers this question.
@@ -614,7 +626,7 @@ The complete boundary belongs to `medatrax_posting.DECLARED_LIMITS`.
 **Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review and posting rows enabled:
 
 ```bash
-python tools/filled_vitals_census.py <the run directory> --submission shift-<date>
+python tools/filled_vitals_census.py <the run directory> --submission shift-<date> --profile <owning checkout>/scratch/medatrax-profile.md
 ```
 
 An exit of 0 must include `the after-action review: clean` and `the Medatrax posted reading: clean`.

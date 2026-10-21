@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import completion_checks
 import visit_times
+import rapid_screens
 import re
 import sys
 from collections import Counter
@@ -781,7 +782,9 @@ def grade(
     scan = survey(notes)
     scan = replace(scan, attribution=locate(tuple(artifacts)))
     times = visit_times.check(directory, batch=True)
-    scan = replace(scan, unread_remainder=scan.unread_remainder + times.unread)
+    screens = rapid_screens.check(directory, batch=True,
+        profile=Path(parsed.value("--profile")) if parsed.value("--profile") else None)
+    scan = replace(scan, unread_remainder=scan.unread_remainder + times.unread + screens.unread)
     paths = medatrax_posting.note_paths(directory, batch=True) or tuple(
         path for path in sorted(directory.glob("*.md"))
         if path.is_file() and not run_grader.is_run_record(path)
@@ -842,9 +845,9 @@ def grade(
     )
     findings_failed = bool(
         scan.findings or aar_failed or posting_failed or summary_failed or chain_failed
-        or delegated_failed or times.findings
+        or delegated_failed or times.findings or screens.findings
     )
-    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete or times.incomplete)
+    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete or times.incomplete or screens.incomplete)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
@@ -885,7 +888,7 @@ def grade(
         findings_failed=findings_failed or outbound_failed,
         coverage_failed=coverage_failed or "Outbound searches: unreadable" in outbound_report,
         diagnostics=diagnostics,
-        reports=(run_grader.run_records_report(directory), visit_times.report(times, show=parsed.show), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
+        reports=(run_grader.run_records_report(directory), visit_times.report(times, show=parsed.show), rapid_screens.report(screens, show=parsed.show), summary_report, chain_report, aar_report, posting_report, delegated_report, outbound_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")
@@ -895,12 +898,13 @@ def grade(
 # No exit_2_limbs: ADR 0118 keeps this migration's existing prose contract
 # rather than introducing an exit-vocabulary seam without its own ruling.
 GRADER = run_grader.Grader(
-    usage="usage: filled_vitals_census.py <directory> [--show]",
+    usage="usage: filled_vitals_census.py <directory> [--show] [--profile <path>]",
     load=load,
     grade=grade,
     format_report=format_report,
     options=(
         run_grader.Option("--show"),
+        run_grader.Option("--profile", takes_value=True, missing_value="--profile needs a path", repeatable=False),
         run_grader.Option(
             "--submission", takes_value=True, missing_value="--submission needs a key"
         ),
