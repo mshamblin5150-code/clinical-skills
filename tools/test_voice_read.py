@@ -55,11 +55,34 @@ Match as whole words, compounds and infixes included:
 ## Seen in the corpus, never reproduce — how he types when nobody is reading
 
 - opens in lowercase
+
+## Imagery
+### The domains
+> Synthetic machinery
+### How an image works for the writer
+> The synthetic wheel carries the load.
+
+### Scale and consequence
+> A synthetic bridge holds the weight.
+> The whole span bears it.
 """
 
 
 def digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def image_match_fixture(run: Path, artifact: str) -> dict:
+    """Supply the independent new row while preserving these voice controls."""
+    path = run / "recorded-image-match.json"
+    payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"matches": {}}
+    payload["matches"][artifact] = {
+        "central_point": "A bounded synthetic point.", "image": None,
+        "reason": "No recorded image fits this point.",
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return {"central_point": "A bounded synthetic point.", "image": None,
+            "reason": "No unused recorded image fits this point."}
 
 
 class QuoteCheck(unittest.TestCase):
@@ -185,7 +208,7 @@ class CompletionGate(unittest.TestCase):
         self.run = self.root / "run"
         self.run.mkdir()
         self.model = self.root / "voice-model.md"
-        self.model.write_text(MODEL, encoding="utf-8")
+        self.model.write_bytes(MODEL.encode("utf-8"))
         self.draft = "This is the original sentence. Another sentence remains."
         self.planted = "This is a generic sentence. Another sentence remains."
         self.records = self.run / voice_read.RECORDS_DIRECTORY / "submission"
@@ -243,6 +266,7 @@ class CompletionGate(unittest.TestCase):
                         },
                     ],
                     "supplied_voice_answers": [],
+                    "unused_recorded_image": image_match_fixture(self.run, "submission"),
                 }
             )
             + "\n",
@@ -335,7 +359,7 @@ class CompletionGate(unittest.TestCase):
         self.assertEqual(
             result.reports,
             (
-                f"{voice_read.EXPECTED_ROW}: clean; supplied items 0; unanswered 0; pair candidates 2; unread remainder 0",
+                f"{voice_read.EXPECTED_ROW}: clean; supplied items 0; unanswered 0; unused recorded image: no unused fitting image reported; pair candidates 2; unread remainder 0",
                 f"{voice_read.PROFANITY_EXPECTED_ROW}: clean; profanity rows 1; unread remainder 0",
             ),
         )
@@ -685,6 +709,7 @@ class CompletionGate(unittest.TestCase):
 
     def test_clean_multiple_submissions_report_the_pair_denominator(self) -> None:
         shutil.copytree(self.records, self.run / voice_read.RECORDS_DIRECTORY / "second")
+        image_match_fixture(self.run, "second")
         surface = voice_read.DraftSurface(
             sha256=digest(self.draft), text=self.draft, plantable_text=self.draft
         )
@@ -856,7 +881,7 @@ class PublicCompletionCommand(unittest.TestCase):
         with mock.patch.object(approval_record, "_main_transcripts", return_value=([messages], False)):
             bar_signatures.sign(self.run, "I confirm this synthetic research bar.", skill="peer-critique")
         self.model = self.root / "voice-model.md"
-        self.model.write_text(MODEL, encoding="utf-8")
+        self.model.write_bytes(MODEL.encode("utf-8"))
         self.resolved = repo_root.VoiceModelResolution(
             path=self.model, sha256=digest(MODEL), exists=True
         )
@@ -918,6 +943,7 @@ class PublicCompletionCommand(unittest.TestCase):
                         },
                     ],
                     "supplied_voice_answers": [],
+                    "unused_recorded_image": image_match_fixture(self.run, "critique"),
                 }
             )
             + "\n",
@@ -963,7 +989,7 @@ class PublicCompletionCommand(unittest.TestCase):
             redirect_stderr(stderr),
         ):
             status = peer_critique_scan.main(
-                [str(self.run), "--submission", "critique"]
+                [str(self.run), "--submission", "critique", "--paper-language", "en"]
             )
         return status, stdout.getvalue() + stderr.getvalue()
 
@@ -1046,6 +1072,9 @@ class PublicCompletionCommand(unittest.TestCase):
                 self.test_caught_plant_on_another_pair_is_clean,
                 self.test_missed_plant_is_public,
             ),
+            "protected-image-comparison": (
+                self.test_image_changing_plant_refuses_and_an_intact_image_twin_passes,
+            ),
         }
         behavior_keys = {
             row.key for row in voice_read.DECLARED_LIMITS
@@ -1057,6 +1086,31 @@ class PublicCompletionCommand(unittest.TestCase):
                 with self.subTest(limit=key, control=control.__name__):
                     self.setUp()
                     control()
+
+    def test_image_changing_plant_refuses_and_an_intact_image_twin_passes(self) -> None:
+        model_text = MODEL + "\n> " + self.original + "\n"
+        self.model.write_bytes(model_text.encode("utf-8"))
+        self.resolved = repo_root.VoiceModelResolution(self.model, digest(model_text), True)
+        identity_path = self.run / voice_model_identity.RECORD_NAME
+        identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        identity["sha256"] = digest(model_text)
+        identity_path.write_text(json.dumps(identity), encoding="utf-8")
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["model_sha256"] = digest(model_text)
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        self.assert_public_finding("plant changed a recorded image")
+
+        original = "A real generic control sentence."
+        planted = self.draft.replace(original, self.replacement, 1)
+        (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(planted.encode("utf-8"))
+        planter = self.payload(voice_read.PLANTER_RECORD_NAME)
+        planter["original_sentence"] = original
+        planter["planted_sha256"] = reader["planted_sha256"] = digest(planted)
+        self.write_payload(voice_read.PLANTER_RECORD_NAME, planter)
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        status, output = self.command()
+        self.assertEqual(0, status, output)
+        self.assertNotIn("plant changed a recorded image", output)
 
     def test_caught_plant_also_labeled_his_on_another_pair_is_clean(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)

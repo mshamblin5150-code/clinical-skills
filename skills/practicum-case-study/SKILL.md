@@ -1035,18 +1035,17 @@ register unmodeled, that section is written in the §11 mechanics and the gap is
 clinician and his samples, it is [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8,
 and a case study is usually being written against a deadline. Declare it and name the skill.
 
-Reuse a recorded image whole where it fits. Where none fits, follow
-[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
-domain may be proposed, and one that works never licenses a second instance.
+Before the first prose, follow the shared
+[Recorded image match](../_shared/reference/voice.md#recorded-image-match-before-drafting).
 Before drafting, follow [Course history](../_shared/reference/voice.md#course-history).
 
 **Image stop.** Once the draft is complete, stop before its first grade, carrier build,
 render or reader. Show every proposal in its surrounding paragraph with the recorded domain
 and real behavior, separately from the later substance question:
 
-| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
-| --- | --- | --- | --- |
-| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+| Proposed image | Recorded domain | Real behavior it spends | Recorded-image match | Approve this image? |
+| --- | --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | `<central point; images weighed and why none fit>` | yes / no |
 
 Apply the answer and retain the whole reply and shown-draft timestamp under
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) before continuing.

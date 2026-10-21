@@ -45,6 +45,45 @@ The Voice reader keeps its existing blind inputs and receives no earlier course 
 [ADR 0360](../../../docs/adr/0360-a-reused-quotation-must-fit-the-piece-and-a-run-declares-the-earlier-course-papers-it-read.md)
 records these rulings.
 
+## Recorded image match before drafting
+
+Before the first prose, name this piece's central point and weigh it against the canonical model's
+recorded images. A recorded image here is the writer's authored comparison or metaphor; visual
+asset requirements still apply separately. Reuse a fitting image whole, making this piece's point.
+The inventory locates quoted entries. A quotation about how images behave need not itself be an
+image; the Voice reader decides whether the selected entry is imagery and whether it earns this
+piece's point. Write
+`<run>/recorded-image-match.json`, keyed by the exact terminal submission key (one entry per reply):
+
+```json
+{
+  "matches": {
+    "<submission key>": {
+      "central_point": "<the point this piece makes>",
+      "image": "<the whole recorded image, or null when none fits>",
+      "reason": "<why none fits; otherwise the reason this image carries the point>"
+    }
+  }
+}
+```
+
+Use JSON `null`, without quotes, when no recorded image fits. Then run
+`python tools/recorded_image_match.py <run> --artifact <submission key>` before drafting. Require
+exit 0 except for this file's existing named absent-model door: only its exact absent-model banner
+allows the unmodeled route. A missing or invalid match still refuses, and any other nonzero result
+stops drafting. The command checks the handwritten record and model membership; the terminal shared
+completion row also requires a selected image in the finished artifact. A model that cannot be
+read is incomplete coverage and one canonical-model member on the report's unread remainder.
+An unmodeled run remains incomplete, never mechanically verified. The complete mechanical ceiling
+belongs to `recorded_image_match.DECLARED_LIMITS` and
+`voice_model_observation.DECLARED_LIMITS`.
+
+When none fits, follow [imagery-proposals.md](imagery-proposals.md). Show this match record beside the proposal
+at its early image stop. The clinician's verified yes settles that same point; only the new unused
+recorded-image question in the Voice read skips it. The planted pair, supplied voice and profanity
+checks still run. A clinician edit that removes a selected recorded image updates `image` to `null`
+and records the removal in `reason` before the next grade; the record describes the approved draft.
+
 ## 1. Why [style.md](style.md) §11 was not enough
 
 §11 is real and it is not sufficient. **A run satisfied every bullet in it and still read as a

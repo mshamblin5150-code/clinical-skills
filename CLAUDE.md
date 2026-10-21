@@ -1451,6 +1451,26 @@ row from it.
 
 Covered by `tools/test_voice_model_identity.py`.
 
+### Recorded image match
+
+`tools/recorded_image_match.py` is Required before the first prose in the five coursework skills.
+The shared [Recorded image match](skills/_shared/reference/voice.md#recorded-image-match-before-drafting)
+owns its keyed handwritten record and invocation. The command checks the central point declaration
+and selected whole recorded image against the canonical model before drafting; the six terminal
+artifact graders also check that a selected image appears in the artifact. Missing or invalid
+records and absent named images are findings (exit 1); an unreadable canonical model is incomplete
+coverage (exit 2). A finding wins when both occur. A clean pre-draft check exits 0. Only the existing
+absent-model banner preserves the shared voice rule's unmodeled drafting route; another exit 2
+does not establish absence, and unmodeled drafting does not establish mechanical verification.
+
+The model observation is shared by match, voice and imagery readers. Their model failures contribute
+one model member to the host's unread total, separately from image-answer transcript observations.
+Retained frozen grades bypass new model reads, and each current or unknown key uses its own dated
+checks. The complete ceilings belong to `recorded_image_match.DECLARED_LIMITS` and
+`voice_model_observation.DECLARED_LIMITS`; this section copies no row.
+
+Covered by `tools/test_recorded_image_match.py` and `tools/test_recorded_image_hosts.py`.
+
 ### Coursework voice read
 
 After a scoped coursework draft is final and before the go-ahead, one fresh context plants a

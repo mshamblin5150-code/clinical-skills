@@ -95,7 +95,7 @@ class ReferenceLanguage(unittest.TestCase):
             case = empty_population_input(Path(directory))
             root = Path(case.argv[0])
             bar = root / "bar.md"
-            bar.write_text(bar.read_text(encoding="utf-8") + "PAPER-LANGUAGE: Norwegian Bokmål\n", encoding="utf-8")
+            bar.write_text(bar.read_text(encoding="utf-8").replace("PAPER-LANGUAGE: en\n", "PAPER-LANGUAGE: Norwegian Bokmål\n"), encoding="utf-8")
             profile = Path(directory) / "profile.md"
             profile.write_text("PAPER-LANGUAGE: Spanish\n", encoding="utf-8")
             for extra, expected in [([], "nb"), (["--paper-language", "English"], "en"), (["--paper-language", "German"], "de")]:
@@ -489,7 +489,7 @@ class CitationClaimTraceTest(unittest.TestCase):
                 sections=(assignment_docx.Section("Purpose and Scope", ("Opening (2027)",)),),
             )
             assignment_docx.build(spec, artifact, force=True)
-            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact)})
+            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact), "--paper-language": "en"})
             result = scan.survey(scan.load(parsed))
         self.assertTrue(any(
             item.kind == scan.UNTRACED_CITATION and "Opening 2027" in item.detail
@@ -527,7 +527,7 @@ class CitationClaimTraceTest(unittest.TestCase):
                 "SECOND-ROUTE: article page -> independent reader\n"
             )
             (run / "claims.md").write_text(claim, encoding="utf-8")
-            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact)})
+            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact), "--paper-language": "en"})
             matching = scan.survey(scan.load(parsed))
             (run / "claims.md").write_text(
                 claim.replace("Williams, S.", "Williams, R."), encoding="utf-8"
@@ -552,7 +552,8 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         "ASSIGNMENT: https://example.invalid/assignment\n"
         "SIGNED: 2026-09-13\nARTIFACT: docx\nSUBMISSION-TYPE: file-upload\n"
         "WORD-MIN: 1\nWORD-MAX: 200\nREFERENCE-MIN: 1\n"
-        "SOURCE-CLASSES: peer-reviewed | government\nRECENCY-WINDOW-YEARS: 5\n",
+        "SOURCE-CLASSES: peer-reviewed | government\nRECENCY-WINDOW-YEARS: 5\n"
+        "PAPER-LANGUAGE: en\n",
         encoding="utf-8",
     )
     (run / "claims.md").write_text("DATE: 2026-09-13\n", encoding="utf-8")

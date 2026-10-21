@@ -26,6 +26,7 @@ import coursework_run
 import repo_root
 import run_grader
 import voice_model_identity
+from voice_model_observation import ModelObservation
 from console_codec import require_python_floor, use_utf8
 from coursework_run import RECORDS_DIRECTORY
 from run_record_reader import read_handwritten_record, check_handwritten_text, DamagedRecord, damaged_record_result
@@ -95,6 +96,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit("handwritten voice damage", "Supplied capture, planter and reader JSON use the shared C0 reader per artifact; damaged evidence withholds its comparisons while other records and independent profanity checks continue. Planted and draft artifact bytes remain outside this record check.", run_grader.EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("unused-imagery-judgment", "The new answer binds its declared central point and a whole recorded image; whether that image fits the point better than the draft's choice remains the Voice reader's judgment, independently of planted-pair detection.", run_grader.EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("protected-image-comparison", "The dated plant guard compares whitespace-normalized whole quoted inventory entries in the real and planted voice surfaces; it does not classify their figurative meaning or protect equivalent rewordings.", run_grader.EvidenceDisposition.BEHAVIOR),
 )
 
 _PAIR_SECTION = re.compile(
@@ -196,6 +199,7 @@ class CompletionGate:
     coverage: bool
     reports: tuple[str, str]
     remarks: tuple[reader_remarks.Remark, ...] = ()
+    model_unread: int = 0
 
 
 @dataclass(frozen=True)
@@ -536,6 +540,7 @@ def _voice_result(
     pairs: tuple[Pair, ...],
     model_digest: str,
     artifact: str | None = None,
+    *, protected_images: tuple[str, ...] = (),
 ) -> ReadResult:
     try:
         planter = _read_json(records / PLANTER_RECORD_NAME, artifact)
@@ -551,7 +556,7 @@ def _voice_result(
         return ReadResult(True, False, "finding - planter or reader record shape is invalid")
     if planter.get("status") != "complete" or reader.get("status") != "complete":
         return ReadResult(True, False, "finding - planter or reader status is invalid")
-    if frozenset(planter) != _PLANTER_KEYS or frozenset(reader) not in {_READER_KEYS, _READER_KEYS - {"remarks"}}:
+    if frozenset(planter) != _PLANTER_KEYS or frozenset(reader) - {"unused_recorded_image"} not in {_READER_KEYS, _READER_KEYS - {"remarks"}}:
         return ReadResult(True, False, "finding - planter or reader record shape is invalid")
 
     remarks = reader.get("remarks", [])
@@ -600,6 +605,12 @@ def _voice_result(
         return ReadResult(True, False, "finding - planted copy differs in other than the named sentence")
     if not _verbatim_sentence(planted, replacement):
         return ReadResult(True, False, "finding - planted sentence is not one complete sentence")
+    if protected_images and artifact is not None:
+        from recorded_image_match import active_for_artifact, normalized
+        if active_for_artifact("voice_read:recorded-image-plant", artifact):
+            if any(normalized(surface.text).count(normalized(image)) > normalized(planted).count(normalized(image))
+                   for image in protected_images):
+                return ReadResult(True, False, "finding - plant changed a recorded image used by the draft")
 
     population = {pair.identifier for pair in pairs}
     if len(population) != len(pairs):
@@ -654,10 +665,59 @@ def _voice_result(
     return ReadResult(False, False, "clean")
 
 
+def _recorded_image_question(run: Path, records: Path, artifact: str, draft_text: str,
+                             model_text: str, approved_points: frozenset[tuple[str, str]]) -> ReadResult:
+    """Judge the new answer without replacing any existing reader population."""
+    import frozen_grade
+    frozen = frozen_grade.all_reports(run, artifact)
+    if frozen is not None:
+        return ReadResult(False, False, "unused recorded image: " + frozen)
+    from recorded_image_match import active_for_artifact
+    if not active_for_artifact("voice_read:unused-recorded-image", artifact):
+        return ReadResult(False, False, "unused recorded image: not graded - approval predates check")
+    from recorded_image_match import read_match, normalized
+    from voice_model_observation import read_images
+    try:
+        match = read_match(run, artifact)
+        if match is None:
+            return ReadResult(True, False, "unused recorded image: finding - match record is missing")
+        if (artifact, match.central_point) in approved_points:
+            return ReadResult(False, False, "unused recorded image: settled by the clinician's verified image ruling for this point")
+        reader = _read_json(records / READER_RECORD_NAME, artifact)
+    except DamagedRecord as failure:
+        failed, report = damaged_record_result(failure, check="the unused recorded image question", artifact=artifact)
+        return ReadResult(failed, False, report)
+    except (ValueError, UnicodeError):
+        return ReadResult(True, False, "unused recorded image: finding - match record is invalid")
+    except OSError:
+        return ReadResult(False, True, "unused recorded image: not graded - match record could not be opened")
+    if isinstance(reader, dict) and reader.get("status") == "not run":
+        return ReadResult(False, True, "unused recorded image: not graded - reader recorded as not run")
+    answer = reader.get("unused_recorded_image") if isinstance(reader, dict) else None
+    if not isinstance(answer, dict) or set(answer) != {"central_point", "image", "reason"}:
+        return ReadResult(False, True, "unused recorded image: not graded - question is unanswered")
+    if answer["central_point"] != match.central_point or not isinstance(answer["reason"], str) or not answer["reason"].strip():
+        return ReadResult(True, False, "unused recorded image: finding - answer does not bind the recorded point or give its reasoning")
+    image = answer["image"]
+    population = read_images(model_text)
+    if population.missing or population.unread:
+        return ReadResult(False, True, "unused recorded image: not graded - model imagery unreadable")
+    if image is None:
+        return ReadResult(False, False, "unused recorded image: no unused fitting image reported")
+    if not isinstance(image, str) or not image.strip() or normalized(image) not in {normalized(value) for value in population.images}:
+        return ReadResult(True, False, "unused recorded image: finding - answer names no whole recorded image")
+    if normalized(image) in normalized(draft_text):
+        return ReadResult(True, False, "unused recorded image: finding - reader named an image the draft already uses")
+    return ReadResult(True, False, "unused recorded image: finding - reader identified a fitting recorded image the draft does not use")
+
+
 def _completion_gate(
     run: Path,
     submission: str | None,
     surface: DraftSurface | Mapping[str, DraftSurface],
+    *,
+    model: ModelObservation | None = None,
+    approved_points: frozenset[tuple[str, str]] = frozenset(),
 ) -> CompletionGate:
     """Grade both shared rows when a terminal coursework submission is named."""
     if submission is None:
@@ -671,12 +731,15 @@ def _completion_gate(
     )
     model_suffix: str | None = None
     try:
-        resolved = repo_root.canonical_voice_model()
-        if not resolved.exists or resolved.sha256 is None:
+        resolved = repo_root.canonical_voice_model() if model is None else model
+        if model is not None and model.text is None:
+            model_suffix = "not scanned - canonical voice model is absent" if model.absent else "not scanned - canonical voice model is unreadable"
+            model_text = ""
+        elif model is None and (not resolved.exists or resolved.sha256 is None):
             model_suffix = "not scanned - canonical voice model is absent"
             model_text = ""
         else:
-            model_text = resolved.path.read_text(encoding="utf-8")
+            model_text = resolved.path.read_text(encoding="utf-8") if model is None else model.text
     except (OSError, UnicodeError):
         model_suffix = "not scanned - canonical voice model is unreadable"
         model_text = ""
@@ -725,6 +788,8 @@ def _completion_gate(
 
     pair_read = read_pairs(model_text)
     profanity_read = read_profanity_terms(model_text)
+    from voice_model_observation import read_images
+    imagery_read = model.imagery if model is not None else read_images(model_text)
     voice_results: list[VoiceResult] = []
     profanity_count = 0
     drafts_with_profanity = 0
@@ -762,10 +827,21 @@ def _completion_gate(
                 "not scanned - no discriminating-pair population was read",
             )
         else:
-            pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key)
+            from run_record_reader import UnreadableRecord, collecting_errors, fault_report
+            try:
+                pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256, raw_key,
+                                            protected_images=imagery_read.images)
+            except UnreadableRecord as failure:
+                if not collecting_errors():
+                    raise
+                pair_result = ReadResult(False, True, fault_report(failure, check=EXPECTED_ROW))
         finding = pair_result.finding or supplied_result.finding
         coverage = pair_result.coverage or supplied_result.coverage
         report = f"{pair_result.report}; {supplied_result.report}"
+        image_question = _recorded_image_question(run, records, raw_key, draft.text, model_text, approved_points)
+        finding = finding or image_question.finding
+        coverage = coverage or image_question.coverage
+        report += "; " + image_question.report
         if pair_read.unread:
             coverage = True
         report += (
@@ -835,13 +911,17 @@ def _completion_gate(
 
 def completion_gate(
     run: Path, submission: str | None, surface: DraftSurface | Mapping[str, DraftSurface],
+    *, model: ModelObservation | None = None, approved_points: frozenset[tuple[str, str]] = frozenset(),
 ) -> CompletionGate:
     frozen = completion_checks.exemption(run, submission, "voice_read", EXPECTED_ROW)
     if frozen is not None:
         return CompletionGate(False, False, (frozen, ""))
+    if model is None and submission is not None:
+        from voice_model_observation import observe
+        model = observe()
     from run_record_reader import UnreadableRecord, fault_report, collecting_errors
     try:
-        gate = _completion_gate(run, submission, surface)
+        gate = _completion_gate(run, submission, surface, model=model, approved_points=approved_points)
     except UnreadableRecord as failure:
         if not collecting_errors():
             raise
@@ -850,7 +930,7 @@ def completion_gate(
             f"{PROFANITY_EXPECTED_ROW}: not graded - tool-written identity unreadable",
         ))
     keys = tuple(surface) if isinstance(surface, Mapping) else tuple(submission.split(",")) if submission else ()
-    return replace(gate, remarks=reader_remarks.voice_remarks(run, keys))
+    return replace(gate, remarks=reader_remarks.voice_remarks(run, keys), model_unread=int(model is not None and model.text is None))
 
 
 def apply_completion_gate(
@@ -860,9 +940,11 @@ def apply_completion_gate(
     surface: DraftSurface | Mapping[str, DraftSurface],
     *,
     coverage_limb: str | None = None,
+    model: ModelObservation | None = None,
+    approved_points: frozenset[tuple[str, str]] = frozenset(),
 ) -> run_grader.Grade[TScan]:
     """Add the voice-read and profanity rows to a completion grade."""
-    gate = completion_gate(run, submission, surface)
+    gate = completion_gate(run, submission, surface, model=model, approved_points=approved_points)
     limbs = grade.coverage_limbs
     if gate.coverage and coverage_limb is not None:
         limbs += (coverage_limb,)

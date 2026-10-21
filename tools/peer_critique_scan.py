@@ -65,6 +65,7 @@ import aar_scan
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import case_video
@@ -81,6 +82,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
     case_video.EXPECTED_ROW,
@@ -303,6 +305,8 @@ class Scan:
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
     heading_items_report: str = ""
+    model_unread: int = 0
+    image_match_unread: int = 0
 
 
 def _heading_lines(text: str) -> list[str]:
@@ -635,7 +639,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"heading-read records: {scan.heading_reads}",
         *scan.heading_items_report.splitlines(),
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread + scan.image_answer_unread
+            scan.heading_read_unread + scan.posts_total - scan.posts_read + scan.reader_records_unread + scan.image_answer_unread + scan.model_unread + scan.image_match_unread
         ),
         *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
         f"findings: {len(scan.findings)}",
@@ -789,22 +793,17 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         parsed.value("--submission"),
         coverage_limb=VOICE_MODEL_IDENTITY_UNVERIFIED,
     )
-    grade = voice_read.apply_completion_gate(
+    submission = parsed.value("--submission")
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.path,
         parsed.value("--submission"),
         voice_read.draft_surface(
             ((source.path / "critique.md", source.critique),)
         ),
-        coverage_limb=VOICE_READ_UNVERIFIED,
-    )
-    submission = parsed.value("--submission")
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.path,
         {submission or "critique": source.critique},
-        terminal=submission is not None,
-        coverage_limb=UNREAD_REMAINDER,
+        voice_coverage_limb=VOICE_READ_UNVERIFIED,
+        imagery_coverage_limb=UNREAD_REMAINDER,
     )
     grade = project_context.apply_completion_gate(
         grade,

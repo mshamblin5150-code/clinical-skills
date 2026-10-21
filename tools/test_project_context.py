@@ -239,13 +239,18 @@ class CourseHistory(ProjectContextFixture):
                      "one line on its framing", "When there is none", "no grader checks",
                      "COURSE-HISTORY"):
             self.assertIn(rule, section)
+        image_section = voice.split("## Recorded image match before drafting\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("Before the first prose, name this piece's central point", image_section)
+        self.assertIn("Reuse a fitting image whole, making this piece's point.", image_section)
         for skill in ("course-assignment", "discussion-post", "discussion-reply",
                       "peer-critique", "practicum-case-study"):
             text = (root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             with self.subTest(skill=skill):
                 pointer = "Before drafting, follow [Course history](../_shared/reference/voice.md#course-history)."
                 self.assertIn(pointer, text)
-                image_end = text.index("\n\n", text.index("Reuse a recorded image whole where it fits."))
+                image_pointer = "[Recorded image match](../_shared/reference/voice.md#recorded-image-match-before-drafting)."
+                self.assertIn(image_pointer, text)
+                image_end = text.index("\n\n", text.index(image_pointer))
                 self.assertLess(text.index(pointer), image_end)
                 self.assertIn("At the go-ahead, show the reuse list required by [Course history]", text)
 

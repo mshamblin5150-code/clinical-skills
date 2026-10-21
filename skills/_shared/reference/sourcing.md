@@ -350,7 +350,8 @@ OWN-SUBMISSION: <path> | none - <reason>
 COURSE-HISTORY: <absolute path to one earlier submission in this course; repeat for each> | none - <reason>
 MEMORY-FILE: <absolute path to one opened memory file; repeat for each> | none - <reason>
 PRIOR-WORK: <absolute path to one earlier paper on the same subject outside this course; repeat for each> | none - <reason>
-CASE-MATERIAL: <path> | none - <reason>
+CASE-MATERIAL: <faculty file path or course-site video page URL> | none - <reason>
+CASE-CAPTURE: machine | <absolute capture path>
 CASE-RESEARCH: <dump id> | none - <reason>
 ASSET: <one registered asset of the declared project; repeat for each>
 CLASSMATE-POST: <submission key> -> <absolute path to the selected classmate's post>
@@ -396,8 +397,18 @@ readable and compare as midnight UTC, preserving earlier same-day records.
 The gate cannot establish completeness from unreliable course codes in names; its complete
 ceiling belongs to `project_context.DECLARED_LIMITS`.
 
-`CASE-MATERIAL` declares the case-material file, or `none` with a reason. Open its absolute path
-as an item of a `read` place, adding its location through `PROJECT-SEARCH` when needed.
+`CASE-MATERIAL` declares the faculty's own file or the course-site address of its video page,
+or `none` with a reason. Open a declared file's absolute path as an item of a `read` place, adding
+its location through `PROJECT-SEARCH` when needed. The video address identifies the faculty source;
+it is not a fingerprint of the video served later. A separate optional `CASE-CAPTURE` names the
+working reading: `machine | <absolute path>` for the Case video capture, or
+`typed | <absolute path>` for the clinician's typed capture under the shared capture route.
+Open and fingerprint that file in a `read` place; its route, path and SHA-256 bind the context
+digest and retained heading context. Neither declaration supplies retrieval credit.
+
+A capture is working material, never the faculty source. Check its wording against that source
+before quoting case wording or charging anything as missing from the case. For narration, follow
+[Case video narration](#case-video-narration); its capture and confirmation rules remain the owner.
 `CASE-RESEARCH` declares the dump id of the clinician's case research in the Evidence store,
 or `none` with a reason. File an existing compilation with `python tools/uptodate_store.py ingest`
 before drafting; open the filed `source.txt` as an item of a `read` place. The declaration names the
@@ -440,7 +451,7 @@ Run `python tools/project_context.py <run-directory> --write --submission <submi
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and a context digest binding the
-`OWN-SUBMISSION`, `COURSE-HISTORY`, `MEMORY-FILE`, `PRIOR-WORK`, `CASE-MATERIAL`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
+`OWN-SUBMISSION`, `COURSE-HISTORY`, `MEMORY-FILE`, `PRIOR-WORK`, `CASE-MATERIAL`, optional `CASE-CAPTURE`, `CASE-RESEARCH`, classmate, and `ASSET` header lines
 and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader

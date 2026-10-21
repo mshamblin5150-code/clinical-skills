@@ -18,6 +18,7 @@ from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, TypeVar
+from urllib.parse import urlsplit
 
 import coursework_run
 import memory_index
@@ -92,6 +93,7 @@ DECLARED_LIMITS = (
         "A narrower draft is caught only as far as the shared heading reader catches it.",
     ),
     ("locked-record-updates", "Context refresh, go-ahead and retained-context decisions hold the canonical record's exclusive lock; each changed file is replaced atomically under its own lock. No cross-file transaction is promised."),
+    ("case-video-address-unfingerprinted", "A CASE-MATERIAL HTTP(S) address identifies the faculty video page without fetching or fingerprinting it. A video re-recorded at that address between sittings is undetected, and the address does not prove faculty ownership. CASE-CAPTURE fingerprints bind working capture bytes and its declared machine or typed route, not their fidelity to the video."),
 )
 
 _URL = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
@@ -115,7 +117,7 @@ _OPENED = re.compile(
     re.IGNORECASE,
 )
 _HEADER_FIELDS = frozenset(
-    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
+    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-CAPTURE", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
 ) | frozenset(CLASSMATE_FIELDS) | {"ASSET", *DECLARED_FILE_FIELDS}
 _ENTRY_FIELDS = frozenset(
     {
@@ -436,6 +438,32 @@ def _opened_file_error(record: Record, name: str, value: str) -> str | None:
     return f"{name} path is not OPENED in a read PLACE"
 
 
+def _case_material_error(record: Record) -> str | None:
+    values = record.values("CASE-MATERIAL")
+    if len(values) == 1 and _URL.match(values[0]):
+        try:
+            address = urlsplit(values[0])
+            if (address.scheme.casefold() in {"http", "https"} and address.hostname
+                    and not any(character.isspace() for character in values[0])):
+                return None
+        except ValueError:
+            pass
+        return "CASE-MATERIAL needs an HTTP(S) video-page address"
+    return _file_declaration_error(record, "CASE-MATERIAL")
+
+
+def _case_capture_error(record: Record) -> str | None:
+    values = record.values("CASE-CAPTURE")
+    if not values:
+        return None  # Optional: absent legacy headers keep their exact digest.
+    if len(values) != 1:
+        return "CASE-CAPTURE is duplicated"
+    route, separator, path = values[0].partition(" | ")
+    if not separator or route not in {"machine", "typed"} or not path.strip():
+        return "CASE-CAPTURE needs machine | absolute path or typed | absolute path"
+    return _opened_file_error(record, "CASE-CAPTURE", path.strip())
+
+
 def _declared_file_gate(record: Record, name: str) -> tuple[list[str], str]:
     """Grade opened declarations, leaving semantic completeness to the reader."""
     label = name.lower().replace("-", " ")
@@ -566,8 +594,8 @@ def _case_research_error(record: Record, *, recheck_files: bool) -> str | None:
 
 
 def _context_declaration_errors(record: Record, *, recheck_files: bool = True) -> list[str]:
-    errors = [error for name in ("OWN-SUBMISSION", "CASE-MATERIAL")
-              if (error := _file_declaration_error(record, name))]
+    errors = [error for error in (_file_declaration_error(record, "OWN-SUBMISSION"),
+                                 _case_material_error(record), _case_capture_error(record)) if error]
     if error := _case_research_error(record, recheck_files=recheck_files):
         errors.append(error)
     assets = record.values("ASSET")
@@ -821,7 +849,7 @@ def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
     payload = "".join(name + "\0" + record.value(name) + "\n"
                       for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     payload += "".join(name + "\0" + value + "\n"
-                       for name in (*CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS) for value in record.values(name))
+                       for name in ("CASE-CAPTURE", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS) for value in record.values(name))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -835,6 +863,7 @@ def _render(
     lines = [f"PROJECT-CONTEXT: {record.value('PROJECT-CONTEXT')}"]
     lines.extend(f"{name}: {record.value(name)}"
                  for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
+    lines.extend(f"CASE-CAPTURE: {value}" for value in record.values("CASE-CAPTURE"))
     lines.extend(f"{name}: {value}" for name in CLASSMATE_FIELDS for value in record.values(name))
     lines.extend(f"{name}: {value}" for name in DECLARED_FILE_FIELDS for value in record.values(name))
     lines.extend(f"ASSET: {value}" for value in record.values("ASSET"))
@@ -1253,7 +1282,7 @@ def heading_context_matches(run: Path, digest: str, artifact: str) -> bool:
             retain_heading_context(run)
         previous = _read_context(path, artifact=artifact)
         current = _read_context(run / RECORD_NAME, artifact=artifact)
-        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS)
+        names = ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-CAPTURE", "CASE-RESEARCH", *CLASSMATE_FIELDS, "ASSET", *DECLARED_FILE_FIELDS)
         if _declaration(previous)[0] != _declaration(current)[0]:
             return False
         if any(previous.values(name) != current.values(name) for name in names):
