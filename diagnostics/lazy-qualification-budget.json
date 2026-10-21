@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "admission_mode": "estimate-not-completion-guarantee",
+  "source_sha": "cb0507279e4e6b66ad40d10bc746b0e0b699291e",
+  "approved_job_seconds": 5400,
+  "setup_controls_estimate_seconds": 900,
+  "measurement_estimate_seconds": 3900,
+  "cleanup_reserve_seconds": 300,
+  "contingency_seconds": 300,
+  "baseline_probe_estimate_seconds": 350,
+  "candidate_probe_estimate_seconds": 10,
+  "receipt_estimate_seconds": 300,
+  "minimum_free_bytes": 1073741824,
+  "max_capture_bytes": 16777216
+}

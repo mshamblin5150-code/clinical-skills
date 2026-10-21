@@ -1,7 +1,5 @@
-# One separately approved proof push; no rerun, PR, or adoption.
-# Publication requires the lazy proof, budget plan, observer, owner source,
-# and both independent review axes to pass. Native controls gate measurement.
-name: reader parallelism preliminary proof
+# Restores this trigger to lazy qualification only. No parallel workload runs.
+name: lazy message qualification
 
 on:
   push:
@@ -11,18 +9,22 @@ permissions:
   contents: read
 
 jobs:
-  parallel-proof:
+  lazy-qualification:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 150
+    timeout-minutes: 90
     steps:
       - name: Record whole-job budget origin
         shell: pwsh
         run: |
           "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Observer and reviewed lazy candidate only
+      - name: Immutable reviewed observer and lazy candidate
         uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: 'core.autocrlf'
+          GIT_CONFIG_VALUE_0: 'false'
         with:
           ref: ${{ github.sha }}
           path: observer
@@ -38,32 +40,29 @@ jobs:
             /tools/python_floor.py
             /tools/git_paths.py
 
-      - name: Immutable full source seed
+      - name: Fresh pinned full source seed with conversion disabled before checkout
         uses: actions/checkout@v7
-        # Apply conversion before the initial checkout, only for this action.
         env:
           GIT_CONFIG_COUNT: '1'
           GIT_CONFIG_KEY_0: 'core.autocrlf'
           GIT_CONFIG_VALUE_0: 'false'
         with:
-          ref: 38c431b15b7fafb0f5f89a67ecb501de318c47a1
+          ref: cb0507279e4e6b66ad40d10bc746b0e0b699291e
           path: source-seed
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Exact maintainer interpreter without installation of packages
+      - name: Exact interpreter without installing packages
         uses: actions/setup-python@v7
         with:
           python-version: '3.14.4'
 
-      - name: Qualify owned trees and budget, then compare full populations
+      - name: Qualify controls then twenty alternating module probes
         shell: pwsh
         run: |
-          # LF-normalized SHA-256 of the independently reviewed planning artifact.
-          # Only CRLF/CR -> LF normalization is allowed; runtime admission still gates.
-          $reviewedBudgetSha256 = 'a50ca5d8e7d73797b03330e23b57b6354bae95cdbd42f4f526bd4fab9ac65a59'
-          python observer/diagnostics/measure_parallel_readers.py --observer observer --seed source-seed --budget-plan observer/diagnostics/parallel-proof-budget.json --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          $reviewedBudgetSha256 = 'ae23ebfc010736b0c942ea66f496e0edeb92bb15efe2d0b0275b6bb9a5799b70'
+          python observer/diagnostics/measure_lazy_suite_ids.py --observer observer --seed source-seed --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
-# No artifact upload, workflow_dispatch, PR event, matrix, secret, package install,
-# write token, retry, changed production scheduler, or change to checks.yml.
+# No workflow_dispatch, PR event, matrix, upload, secret, write token, package
+# installation, automatic rerun, production scheduler, or checks.yml change.

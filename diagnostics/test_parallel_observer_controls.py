@@ -146,7 +146,11 @@ class RegistryControls(unittest.TestCase):
             workflow = root.parent / ".github/workflows/ci-parallel-proof.yml"
         timeouts = [line.strip() for line in workflow.read_text(encoding="utf-8").splitlines()
                     if line.strip().startswith("timeout-minutes:")]
-        self.assertEqual(timeouts, ["timeout-minutes: 150"])
+        # The old planner is retained as dormant source; the shared trigger now
+        # funds only the separately approved, smaller lazy qualification.
+        self.assertEqual(timeouts, ["timeout-minutes: 90"])
+        self.assertIn("measure_lazy_suite_ids.py", workflow.read_text(encoding="utf-8"))
+        self.assertNotIn("python observer/diagnostics/measure_parallel_readers.py", workflow.read_text(encoding="utf-8"))
 
     def test_inventory_slow_read_cannot_cross_experiment_deadline_and_return_success(self):
         with control_case(prefix="synthetic-inventory-deadline-") as name:
