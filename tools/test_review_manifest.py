@@ -2,6 +2,8 @@
 # phi-scan: synthetic
 from __future__ import annotations
 
+import artifact_lock_test_support
+
 import json
 from pathlib import Path
 import subprocess

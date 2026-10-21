@@ -68,6 +68,10 @@ class PlainReviewLayout(unittest.TestCase):
         self.assertEqual(row["renderer_shape"], docx_word_probe.review_renderer_shapes()[docx_word_probe.REVIEW_KEY])
         self.assertEqual(row["instrument"], "Microsoft Word COM")
         reading = row["word_observation"]
+        self.assertEqual(reading["text_control_representation"], docx_word_probe.WORD_TEXT_CONTROL_REPRESENTATION)
+        page_break, = [p for p in reading["paragraphs"] if "text_control_codepoints" in p]
+        self.assertEqual((page_break["text"], page_break["text_control_codepoints"], page_break["text_control_offsets"]),
+                         ("", ["U+000C"], [0]))
         self.assertEqual(reading["pages"], 2)
         paragraphs = {p["text"]: p for p in reading["paragraphs"]}
         for heading in ("Encounter One", "Encounter Two", "References"):
@@ -81,6 +85,17 @@ class PlainReviewLayout(unittest.TestCase):
                              -18 if body == "Regular numbered entry" else 0)
             self.assertEqual(paragraphs[body]["line_spacing_rule"], 0)
         self.assertEqual(reading["header"]["page_numbers"], 0)
+
+    def test_word_control_serialization_is_lossless_and_does_not_mutate_the_source(self):
+        original = {"paragraphs": [{"text": "left\fmiddle\x0b\x0cright"}]}
+        reading = docx_word_probe.review_observation(original)
+        paragraph = reading["paragraphs"][0]
+        self.assertEqual(paragraph["text"], "leftmiddleright")
+        reconstructed = list(paragraph["text"])
+        for offset, codepoint in zip(paragraph["text_control_offsets"], paragraph["text_control_codepoints"]):
+            reconstructed.insert(offset, chr(int(codepoint[2:], 16)))
+        self.assertEqual("".join(reconstructed), original["paragraphs"][0]["text"])
+        self.assertNotIn("text_control_codepoints", original["paragraphs"][0])
 
 
 if __name__ == "__main__":

@@ -42,12 +42,36 @@ def review_renderer_shapes() -> dict:
     return {REVIEW_KEY: docx_write.parts(REVIEW_PROBE, layout="plain")}
 
 
+WORD_TEXT_CONTROL_REPRESENTATION = (
+    "Word paragraph control characters are separated from printable text. "
+    "text_control_codepoints and text_control_offsets retain each character in order "
+    "at its zero-based offset in the original Word text; inserting them at those "
+    "offsets reconstructs that text exactly."
+)
+
+
+def review_observation(document: dict) -> dict:
+    """Retain Word's nontext controls losslessly without putting them in reference prose."""
+    observation = json.loads(json.dumps(document))
+    observation["text_control_representation"] = WORD_TEXT_CONTROL_REPRESENTATION
+    for paragraph in observation["paragraphs"]:
+        text = paragraph["text"]
+        controls = [(offset, char) for offset, char in enumerate(text)
+                    if ord(char) < 32 or 0x7f <= ord(char) <= 0x9f]
+        if controls:
+            offsets = {offset for offset, _char in controls}
+            paragraph["text"] = "".join(char for offset, char in enumerate(text) if offset not in offsets)
+            paragraph["text_control_codepoints"] = [f"U+{ord(char):04X}" for _offset, char in controls]
+            paragraph["text_control_offsets"] = [offset for offset, _char in controls]
+    return observation
+
+
 def review_word_measurement(report: dict) -> dict:
     document = next(item for item in report["documents"] if item["key"] == REVIEW_KEY)
     return {REVIEW_KEY: {
         "instrument": "Microsoft Word COM", "measured_on": date.today().isoformat(),
         "word_version": report["word_version"], "word_build": report["word_build"],
-        "word_observation": document, "renderer_shape": review_renderer_shapes()[REVIEW_KEY],
+        "word_observation": review_observation(document), "renderer_shape": review_renderer_shapes()[REVIEW_KEY],
     }}
 
 

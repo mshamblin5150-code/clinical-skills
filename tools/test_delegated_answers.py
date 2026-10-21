@@ -357,6 +357,8 @@ class ClinicalAnswerApproval(unittest.TestCase):
                     self.assertEqual(["unread remainder 1"], [line for line in stdout.getvalue().splitlines() if line.startswith("unread remainder ")])
 
     def test_real_paired_pregrades_combine_answer_and_visit_unread_members_once(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
             note = run / "note-1.md"

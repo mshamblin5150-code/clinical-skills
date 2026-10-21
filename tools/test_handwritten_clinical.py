@@ -491,6 +491,7 @@ class HandwrittenClinical(unittest.TestCase):
     def test_native_freshness_manifest_damage_is_before_network_and_receipt_changes(self):
         manifest = self.run / 'batch-codes.json'
         receipt = self.run / 'batch-freshness.json'
+        prior = self.freshness_receipt_fixture()
         start, _ = completion_checks.registry()['run_record_reader:handwritten-damage']
         for observed in (None, start - timedelta(days=1), start):
             token = completion_checks.MOMENTS.set({'approval': observed})
@@ -498,7 +499,7 @@ class HandwrittenClinical(unittest.TestCase):
                 for character in CONTROLS:
                     for payload in ({'unknown' + character: 'value'}, {'unknown': [{'value': character}]}):
                         manifest.write_text(json.dumps(payload), encoding='utf-8')
-                        receipt.write_bytes(b'prior receipt evidence')
+                        receipt.write_bytes(prior)
                         output = io.StringIO()
                         with patch.object(coding_freshness, 'read_url', side_effect=AssertionError('network reached')) as network, \
                              contextlib.redirect_stdout(output):
@@ -507,21 +508,30 @@ class HandwrittenClinical(unittest.TestCase):
                         network.assert_not_called()
                         self.assertIn(f'U+{ord(character):04X}', output.getvalue())
                         self.assertNotIn('unknown', output.getvalue())
-                        self.assertEqual(b'prior receipt evidence', receipt.read_bytes())
+                        self.assertEqual(prior, receipt.read_bytes())
             finally:
                 completion_checks.MOMENTS.reset(token)
 
-    def test_freshness_malformed_shape_and_undecodable_inputs_keep_original_refusal(self):
+    def freshness_receipt_fixture(self):
+        import review_manifest
+        from test_review_manifest import synthetic_run, passing_receipt
+        run = synthetic_run(self.run / 'receipt-fixture', batch=False)
+        review_manifest.build(run, run / 'inputs.json', batch=False)
+        passing_receipt(run, batch=False)
+        return (run / review_manifest.RECEIPT).read_bytes()
+
+    def test_freshness_malformed_shape_and_undecodable_inputs_preserve_receipt(self):
         manifest = self.run / 'batch-codes.json'
         receipt = self.run / 'batch-freshness.json'
+        prior = self.freshness_receipt_fixture()
         for raw in (b'{', b'[]', b'{}', b'\xff'):
             manifest.write_bytes(raw)
-            receipt.write_bytes(b'prior receipt evidence')
+            receipt.write_bytes(prior)
             with patch.object(coding_freshness, 'read_url', side_effect=AssertionError('network reached')) as network, \
                  contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(2, coding_freshness.main([str(manifest), '--receipt', str(receipt)]))
             network.assert_not_called()
-            self.assertFalse(receipt.exists())
+            self.assertEqual(prior, receipt.read_bytes())
 
 
 if __name__ == '__main__':

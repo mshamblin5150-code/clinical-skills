@@ -425,8 +425,12 @@ def manifest_record(text: str):
     """Retain legacy input checks while decoding the committed producer's shape."""
     reading = check_handwritten_text(text, Path("batch-codes.json"), "json")
     value = reading.require_json(force=True)
-    if not isinstance(value, dict):
-        raise ValueError("manifest object")
+    if (not isinstance(value, dict) or type(value.get("schema")) is not int or value["schema"] != 1
+            or not isinstance(value.get("service_date"), str)
+            or not isinstance(value.get("encounters"), list) or not value["encounters"]
+            or not all(isinstance(item, dict) for item in value["encounters"])):
+        raise ValueError("manifest header and population")
+    date.fromisoformat(value["service_date"])
     if value.get("producer") == "review_manifest":
         from review_manifest import decode_manifest
         decode_manifest(text)

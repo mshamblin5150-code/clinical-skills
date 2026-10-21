@@ -1222,8 +1222,14 @@
             "space_after_points": 0,
             "space_before_points": 0,
             "style": "Normal",
-            "text": "\f",
-            "vertical_position_points": null
+            "text": "",
+            "vertical_position_points": null,
+            "text_control_codepoints": [
+              "U+000C"
+            ],
+            "text_control_offsets": [
+              0
+            ]
           },
           {
             "alignment": 0,
@@ -1268,7 +1274,8 @@
             "vertical_position_points": null
           }
         ],
-        "tables": []
+        "tables": [],
+        "text_control_representation": "Word paragraph control characters are separated from printable text. text_control_codepoints and text_control_offsets retain each character in order at its zero-based offset in the original Word text; inserting them at those offsets reconstructs that text exactly."
       },
       "word_version": "16.0"
     }
