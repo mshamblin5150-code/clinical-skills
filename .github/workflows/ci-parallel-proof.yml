@@ -1,7 +1,5 @@
-# One separately approved proof push; no rerun, PR, or adoption.
-# Publication requires the lazy proof, budget plan, observer, owner source,
-# and both independent review axes to pass. Native controls gate measurement.
-name: reader parallelism preliminary proof
+# One approved diagnostic push, not a population benchmark or adoption.
+name: reader clone inventory diagnostic
 
 on:
   push:
@@ -11,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  parallel-proof:
+  inventory-diagnostic:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 150
+    timeout-minutes: 10
     steps:
       - name: Record whole-job budget origin
         shell: pwsh
@@ -51,14 +49,11 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Qualify owned trees and budget, then compare full populations
+      - name: Diagnose fresh checkout inventories without population probes
         shell: pwsh
         run: |
-          # LF-normalized SHA-256 of the independently reviewed planning artifact.
-          # Only CRLF/CR -> LF normalization is allowed; runtime admission still gates.
-          $reviewedBudgetSha256 = 'a50ca5d8e7d73797b03330e23b57b6354bae95cdbd42f4f526bd4fab9ac65a59'
-          python observer/diagnostics/measure_parallel_readers.py --observer observer --seed source-seed --budget-plan observer/diagnostics/parallel-proof-budget.json --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/clone_inventory_diagnostic.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
 # No artifact upload, workflow_dispatch, PR event, matrix, secret, package install,
-# write token, retry, changed production scheduler, or change to checks.yml.
+# write token, retry, production scheduler change, or population benchmark.
