@@ -24,6 +24,7 @@ SKILL_PATH = re.compile(
     r"(?i)(?:^|[/\\])(?:grilling|grill-me|grill-with-docs)"
     r"[/\\]SKILL\.md(?=$|[\s\"'])"
 )
+INJECTED_SKILL = re.compile(r"<skill>\s*<name>[^<\n]*</name>\s*<path>([^<\n]+)</path>")
 PLAIN_QUESTION_LABEL = re.compile(
     r"(?im)^\s*(?:#{1,6}\s*)?(?:\*\*)?"
     r"(?:Q\s*\d+|Question\s+\d+)(?:\*\*)?(?=\s|[.):-])"
@@ -40,7 +41,10 @@ RETRACT_REASON = (
 
 DECLARED_LIMITS = (
     'Unreadable hook payloads always allow the stop with a systemMessage warning that the turn was not graded; no raw trigger is applied.',
-    "A skill load is recognized only in a completed Codex command record whose parsed command classifies the SKILL.md path as a read.",
+    "A skill load is recognized only in a completed Codex command record whose parsed command classifies the SKILL.md path as a read, or in a user-role message opening with the <skill><name><path> block the Codex app injects for a $skill mention.",
+    "Injected <skill> blocks count only as the consecutive blocks a user-role text part opens with; a block quoted after other text does not activate grading.",
+    "User-typed text that opens with a <skill><name><path> block naming a grilling SKILL.md activates grading; role cannot tell it from the app's injection.",
+    "A model's own compound read that Codex parses as unknown, with no injected <skill> block, does not activate grading.",
     "A renamed grilling skill is not active until its SKILL.md directory name is added.",
     "Malformed or unreadable transcript rows cannot establish that grilling is active.",
     "Question labels are recognized only at the start of a line in the documented numbered forms.",
@@ -67,11 +71,34 @@ def _string_values(value: object) -> tuple[str, ...]:
     return ()
 
 
+def _injected_paths(text: str) -> tuple[str, ...]:
+    """Return the paths of the consecutive ``<skill>`` blocks a text opens with."""
+    paths = []
+    remaining = text.lstrip()
+    while match := INJECTED_SKILL.match(remaining):
+        paths.append(match.group(1).strip())
+        end = remaining.find("</skill>", match.end())
+        if end < 0:
+            break
+        remaining = remaining[end + len("</skill>") :].lstrip()
+    return tuple(paths)
+
+
 def _opened_skill_paths(record: Mapping[str, Any]) -> tuple[str, ...]:
-    """Return paths Codex reports as successfully read by one completed command."""
+    """Return skill paths one record shows Codex loaded.
+
+    Two records count: a completed command whose parsed command is a read, and
+    the user-role message the Codex app injects for a ``$skill`` mention, which
+    opens with a ``<skill>`` block naming the file in ``<path>``.
+    """
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return ()
+    injected = tuple(
+        path for text in _message_texts(record, "user") for path in _injected_paths(text)
+    )
+    if injected:
+        return injected
     if record.get("type") == "event_msg":
         item = payload.get("item")
         if (
@@ -92,16 +119,25 @@ def _opened_skill_paths(record: Mapping[str, Any]) -> tuple[str, ...]:
     return ()
 
 
+def _message_texts(record: Mapping[str, Any], role: str) -> tuple[str, ...]:
+    """Return the text parts of one ``response_item`` message from ``role``."""
+    payload = record.get("payload")
+    if (
+        record.get("type") == "response_item"
+        and isinstance(payload, dict)
+        and payload.get("type") == "message"
+        and payload.get("role") == role
+    ):
+        return _string_values(payload.get("content"))
+    return ()
+
+
 def _assistant_text(record: Mapping[str, Any]) -> str:
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return ""
-    if (
-        record.get("type") == "response_item"
-        and payload.get("type") == "message"
-        and payload.get("role") == "assistant"
-    ):
-        return "\n".join(_string_values(payload.get("content")))
+    if texts := _message_texts(record, "assistant"):
+        return "\n".join(texts)
     if record.get("type") == "event_msg":
         item = payload.get("item")
         if isinstance(item, dict) and item.get("type") == "AgentMessage":
