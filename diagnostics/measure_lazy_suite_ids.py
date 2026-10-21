@@ -16,6 +16,7 @@ from pathlib import Path
 import platform
 import shutil
 import statistics
+import stat
 import sys
 import tempfile
 import time
@@ -265,6 +266,22 @@ def first_clean(session, repo, head, role):
     require(not status, 'first_status_not_clean')
 
 
+def create_measurement_root(owner_root, observer, seed):
+    """Short disposable sibling; owner placement and process environment unchanged."""
+    clone_root = Path(tempfile.mkdtemp(prefix='lc-', dir=owner_root.parent))
+    require(clone_root.parent == owner_root.parent and clone_root.resolve() == clone_root
+            and clone_root.is_dir() and not any(clone_root.iterdir())
+            and all(clone_root != other and clone_root not in other.parents and other not in clone_root.parents
+                    for other in (owner_root, observer, seed)), 'clone_root_boundary_invalid')
+    for component in (clone_root, *clone_root.parents):
+        metadata = component.lstat()
+        require(stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode)
+                and not (getattr(metadata, 'st_file_attributes', 0) & 0x400), 'clone_root_ancestor_unsafe')
+    units = lambda path: len(str(path).encode('utf-16-le', errors='surrogatepass')) // 2
+    require(units(clone_root) < units(owner_root), 'clone_root_not_shorter')
+    return clone_root
+
+
 def make_clone(session, seed, root, variant, expected, candidate):
     repo = root / variant
     result = session.run(['git', '-c', 'core.autocrlf=false', 'clone', '--no-local', '--no-hardlinks',
@@ -392,7 +409,8 @@ def main(argv=None):
         require(owned['returncode'] == 0, 'owner_controls_failed')
         validate_owner_controls(json.loads(owned['stdout']))
         emit('owner_controls', passed=True, count=len(DECLARED_CONTROL_IDS))
-        clones = {variant: make_clone(session, seed, root, variant, expected, candidate)
+        clone_root = create_measurement_root(root, observer, seed)
+        clones = {variant: make_clone(session, seed, clone_root, variant, expected, candidate)
                   for variant in ('baseline', 'candidate')}
         baseline = clones['baseline'][0]
         row = parse_child(session.run(child_command(observer, 'validate-temp', baseline), baseline / 'tools'))

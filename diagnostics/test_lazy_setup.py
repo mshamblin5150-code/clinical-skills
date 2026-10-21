@@ -346,12 +346,12 @@ class SetupScopeTests(unittest.TestCase):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 self.assertNotIn(node.func.attr, {'system', 'popen', 'spawn', 'execv', 'execve'})
 
-    def test_workflow_only_invokes_setup_entrypoint_with_ten_minute_cap(self):
+    def test_setup_entrypoint_is_dormant_in_replacement_qualification_workflow(self):
         root = Path(subject.q.__file__).resolve().parent.parent
         workflow = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
-        self.assertIn('timeout-minutes: 10', workflow)
-        self.assertIn('diagnostics/diagnose_lazy_setup.py', workflow)
-        self.assertNotIn('diagnostics/measure_lazy_suite_ids.py', workflow)
+        self.assertIn('timeout-minutes: 90', workflow)
+        self.assertNotIn('python observer/diagnostics/diagnose_lazy_setup.py', workflow)
+        self.assertIn('python observer/diagnostics/measure_lazy_suite_ids.py', workflow)
         self.assertIn('github.run_attempt == 1', workflow)
         self.assertIn('PROOF_JOB_START_EPOCH', workflow)
         self.assertEqual(workflow.count("GIT_CONFIG_VALUE_0: 'false'"), 2)

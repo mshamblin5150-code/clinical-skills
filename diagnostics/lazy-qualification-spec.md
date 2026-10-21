@@ -1,3 +1,15 @@
+# Active replacement lazy qualification: short disposable clone root
+
+Approved October 21, 2026 after the terminal two-root diagnostic and independent evidence review. Restore exactly twenty alternating full-module probes: five baseline/candidate samples per refusal lookup, using the unchanged fixed plan. One first-attempt temporary-branch Windows/Python3.14.4 job, hard90minutes,300second owned-cleanup reserve from the recorded job origin, unchanged measured-estimate admission and test/lock timeouts. No automatic rerun, full-suite/end-to-end claim, production/main/PR/merge/adoption or issue change.
+
+Only operational correction to the reviewed qualification is clone placement: both baseline and candidate clones share a fresh randomized lc- disposable sibling root under the same validated TEMP parent; the owner/capture root and TEMP/TMP remain unchanged. The new root must be canonical, fresh/empty, shorter in UTF-16 units than the owner root, nonoverlapping with owner/observer/seed, and a directory with no symlink/reparse ancestors. No Git/OS settings, tracked source filename or data changes. Strict first status still happens once per clone before raw equality/candidate replacement, and ANY dirty clone stops qualification. No two-arm diagnostic continuation applies here.
+
+The original raw-object seed oracle, exact baseline/candidate bytes, branch-scope guard, full inventories, behavior controls, native nine ownership controls, synthetic writer controls, complete discovery identity, original refusal payload,20-sample exact-order validity, estimated admission, capture/disk bounds and final ownership/integrity verdict remain unchanged. No profiler, priming or optional path telemetry is added. Shared cache/warmup limitations and incomplete-is-inconclusive semantics remain as in the historical qualification specification below.
+
+Two-root run39616081447 observed identical original source at an original265-unit path failing first status and a short246-unit path passing first status and full raw identity with core.longpaths unset. This justifies the bounded disposable-root correction, not a claim about a particular Windows API or general performance. The setup/two-root helper and tests remain dormant evidence; the workflow invokes only measure_lazy_suite_ids.py and exact observer scope still includes those retained files.
+
+# Historical two-root specification (inactive workflow)
+
 # Active original-source two-root diagnostic
 
 This tranche supersedes the setup-only execution description retained below. Its approved design is the local proposal SHA-256 f0efa50c492f99363ae0b64fd4c5fce22847d445d2492dcf0b61810dbb3ce2f2. One Windows/Python 3.14.4 first-attempt branch job retains the 10-minute hard cap, job-origin accounting, 60-second cleanup reserve, and nine native ownership controls. No publication by the code author; independent Spec and Standards fixed-tree review precede coordinator publication/run.

@@ -1,5 +1,5 @@
-# Temporary setup-only diagnostic. No qualification or performance workload.
-name: original-source two-root diagnostic
+# Restores this trigger to lazy qualification only. No parallel workload runs.
+name: lazy message qualification
 
 on:
   push:
@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  lazy-setup-diagnostic:
+  lazy-qualification:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 90
     steps:
       - name: Record whole-job budget origin
         shell: pwsh
@@ -57,10 +57,11 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Observe native ownership and two original-source roots
+      - name: Qualify controls then twenty alternating module probes
         shell: pwsh
         run: |
-          python observer/diagnostics/diagnose_lazy_setup.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          $reviewedBudgetSha256 = 'ae23ebfc010736b0c942ea66f496e0edeb92bb15efe2d0b0275b6bb9a5799b70'
+          python observer/diagnostics/measure_lazy_suite_ids.py --observer observer --seed source-seed --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
 # No workflow_dispatch, PR event, matrix, upload, secret, write token, package

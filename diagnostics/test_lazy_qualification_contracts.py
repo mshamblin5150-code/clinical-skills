@@ -4,12 +4,112 @@ Run only after independent review, with diagnostics on PYTHONPATH:
   python -B -m unittest discover -s <this directory> -p test_lazy_qualification_contracts.py
 """
 import copy
+import ast
+import inspect
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 
 import measure_lazy_suite_ids as subject
+
+
+class ShortMeasurementRootTests(unittest.TestCase):
+    def setUp(self):
+        parent = Path(subject.__file__).resolve().parent.parent / 'scratch/sessions'
+        self.temp = tempfile.TemporaryDirectory(prefix='short-root-control-', dir=parent)
+        self.addCleanup(self.temp.cleanup)
+        self.parent = Path(self.temp.name)
+        self.owner = self.parent / 'lazy-qualification-original-owner-root'
+        self.observer = self.parent / 'observer'
+        self.seed = self.parent / 'seed'
+        for path in (self.owner, self.observer, self.seed):
+            path.mkdir()
+        self.marker = self.seed / 'unchanged.txt'
+        self.marker.write_bytes(b'original\r\nbytes\n')
+
+    def create(self):
+        return subject.create_measurement_root(self.owner, self.observer, self.seed)
+
+    def test_fresh_short_sibling_preserves_owner_source_and_environment(self):
+        import os
+        before_env = dict(os.environ)
+        before_owner = list(self.owner.iterdir())
+        root = self.create()
+        self.assertEqual(root.parent, self.owner.parent)
+        self.assertNotEqual(root, self.owner)
+        self.assertTrue(root.name.startswith('lc-'))
+        self.assertEqual(list(root.iterdir()), [])
+        self.assertLess(len(str(root).encode('utf-16-le')), len(str(self.owner).encode('utf-16-le')))
+        self.assertEqual(list(self.owner.iterdir()), before_owner)
+        self.assertEqual(self.marker.read_bytes(), b'original\r\nbytes\n')
+        self.assertEqual(dict(os.environ), before_env)
+
+    def test_overlapping_or_outside_returned_root_refuses(self):
+        outside = self.parent / 'elsewhere' / 'lc-outside'
+        outside.mkdir(parents=True)
+        for root in (self.owner, self.observer, self.seed, self.seed / 'lc-nested', outside):
+            with self.subTest(root=root.name), mock.patch.object(subject.tempfile, 'mkdtemp', return_value=str(root)):
+                with self.assertRaises(subject.Refused):
+                    self.create()
+
+    def test_nonempty_and_regular_returned_root_refuse(self):
+        nonempty = self.parent / 'lc-full'
+        nonempty.mkdir()
+        (nonempty / 'private.txt').write_bytes(b'untouched')
+        regular = self.parent / 'lc-file'
+        regular.write_bytes(b'untouched')
+        for root in (nonempty, regular):
+            with self.subTest(root=root.name), mock.patch.object(subject.tempfile, 'mkdtemp', return_value=str(root)):
+                with self.assertRaises(subject.Refused):
+                    self.create()
+        self.assertEqual((nonempty / 'private.txt').read_bytes(), b'untouched')
+        self.assertEqual(regular.read_bytes(), b'untouched')
+
+    def test_symlink_returned_root_refuses(self):
+        target = self.parent / 'target'
+        target.mkdir()
+        link = self.parent / 'lc-link'
+        link.symlink_to(target, target_is_directory=True)
+        with mock.patch.object(subject.tempfile, 'mkdtemp', return_value=str(link)):
+            with self.assertRaises(subject.Refused):
+                self.create()
+
+    def test_root_that_is_not_shorter_refuses(self):
+        root = self.parent / ('x' * 70)
+        root.mkdir()
+        with mock.patch.object(subject.tempfile, 'mkdtemp', return_value=str(root)):
+            with self.assertRaises(subject.Refused):
+                self.create()
+
+    def test_reparse_ancestor_refuses(self):
+        from types import SimpleNamespace
+        root = self.parent / 'lc-fresh'
+        root.mkdir()
+        original = Path.lstat
+        def metadata(path, *args, **kwargs):
+            result = original(path, *args, **kwargs)
+            if path == self.parent:
+                return SimpleNamespace(st_mode=result.st_mode, st_file_attributes=0x400)
+            return result
+        with mock.patch.object(subject.tempfile, 'mkdtemp', return_value=str(root)), \
+                mock.patch.object(Path, 'lstat', metadata):
+            with self.assertRaises(subject.Refused):
+                self.create()
+
+    def test_qualification_uses_short_root_but_retains_original_owner(self):
+        tree = ast.parse(inspect.getsource(subject.main))
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name)]
+        clones = [call for call in calls if call.func.id == 'make_clone']
+        self.assertEqual(len(clones), 1)
+        self.assertEqual(ast.unparse(clones[0].args[2]), 'clone_root')
+        owners = [call for call in calls if call.func.id == 'Session']
+        self.assertEqual(len(owners), 1)
+        self.assertEqual(ast.unparse(owners[0].args[0]), 'root')
+        constructors = [call for call in calls if call.func.id == 'create_measurement_root']
+        self.assertEqual(len(constructors), 1)
+        self.assertEqual([ast.unparse(arg) for arg in constructors[0].args], ['root', 'observer', 'seed'])
 
 
 class FirstStatusReceiptTests(unittest.TestCase):
