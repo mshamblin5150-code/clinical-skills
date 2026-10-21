@@ -331,7 +331,7 @@ TIER_LABEL = re.compile(
     r"^(?:DERIVED|FILLED·asserted|FILLED·proposed|FLAG|GAPS|UNKNOWN)\b"
 )
 GUIDELINE_TAIL = re.compile(
-    r"\[((?:uptodate(?: over thresholds/[^:\]]+)?|uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled,[^\]]*)\]",
+    r"\[((?:uptodate(?: drug| over thresholds/[^:\]]+)?|uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled,[^\]]*)\]",
     re.IGNORECASE,
 )
 GUIDELINE_TAIL_START = re.compile(
@@ -1081,6 +1081,26 @@ def _guideline_floor(
             tail = match.group(1).strip()
             subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
             lowered = tail.casefold()
+            if lowered.startswith("uptodate drug"):
+                citation = re.fullmatch(r"uptodate drug: (.+), version (\d+(?:\.\d+)*), ([a-z0-9][a-z0-9._-]*)", tail)
+                if citation is None:
+                    findings.append(GuidelineFinding(item.line, "malformed UpToDate drug verdict", item.text))
+                    continue
+                try:
+                    drug = uptodate_store.source_drug(citation.group(3), citation.group(1))
+                    matches = drug is not None and drug.version == citation.group(2)
+                    current = matches and uptodate_store.drug_is_current(drug.read_on)
+                except (OSError, ValueError, UnicodeError):
+                    matches = current = False
+                if not matches:
+                    findings.append(GuidelineFinding(item.line, "UpToDate drug title, version, or dump does not match filed evidence", item.text))
+                    continue
+                if not current:
+                    findings.append(GuidelineFinding(item.line, "UpToDate drug page is past one year or has an invalid read date; pull a fresh copy", item.text))
+                    continue
+                checked += 1
+                candidates.append(GuidelineCandidate(item.line, item.text))
+                continue
             if lowered.startswith("uptodate"):
                 citation = re.fullmatch(
                     r"uptodate(?: over thresholds/([a-z0-9-]+)(?:\.md)? ([^:]+))?: (.+), updated ([A-Za-z]+ \d{4}), ([a-z0-9][a-z0-9._-]*)",

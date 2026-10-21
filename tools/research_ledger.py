@@ -890,7 +890,10 @@ def accumulated_evidence_topics(store: Path | None = None) -> set[str]:
 def uptodate_topic(entry: str) -> str:
     """Read the topic element from #231's UpToDate reference form."""
     match = UPTODATE_TITLE.search(entry)
-    return " ".join(match.group("title").split()) if match else ""
+    if match is None:
+        return ""
+    title = re.sub(r"\s*\[Drug information\]\s*$", "", match.group("title"), flags=re.I)
+    return " ".join(title.strip().strip("*_").split())
 
 
 def cited_uptodate_entries(
@@ -1032,6 +1035,13 @@ def uptodate_masthead_findings(
     for claim, entry, _title, key in cited_uptodate_entries(records, entries):
         topic = stored.get(key)
         if topic is None:
+            continue
+        if getattr(topic, "kind", "topic") == "drug":
+            # Drug pages have no authored masthead or publisher update date.
+            # Their citation date is n.d.; the read-date check owns freshness.
+            if not re.search(r"\(\s*n\.d\.\s*\)", entry, re.I):
+                found.append(Finding(UPTODATE_MASTHEAD_DISAGREES, claim,
+                                     "an UpToDate drug-page reference must be dated n.d."))
             continue
         population += 1
         surnames, apa_complete = _apa_surnames(entry)
@@ -1941,6 +1951,15 @@ def uptodate_reread_findings(
     return sorted(found, key=lambda finding: _KIND_ORDER[finding.kind])
 
 
+def current_drug_keys(details: tuple[uptodate_store.StoredTopic, ...], as_of: date | None) -> set[str]:
+    return {
+        uptodate_store.citation_title_key(topic.title)
+        for topic in _latest_stored_topics(details)
+        if getattr(topic, "kind", "topic") == "drug"
+        and uptodate_store.drug_is_current(topic.read_on, on=as_of)
+    }
+
+
 def _stated_expiry_unscanned(records: Iterable[Record]) -> bool:
     """Whether sourced records all predate #498's required field."""
     sourced = [record for record in records if record.status == SOURCED]
@@ -2044,6 +2063,20 @@ def survey(
         on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
     mastheads = None
     if ledger_available and carried is not None and uptodate_details is not None:
+        drugs = {uptodate_store.citation_title_key(topic.title): topic
+                 for topic in _latest_stored_topics(uptodate_details)
+                 if getattr(topic, "kind", "topic") == "drug"}
+        current_drugs = current_drug_keys(uptodate_details, as_of)
+        for claim, _entry, title, key in cited_uptodate_entries(records, entries):
+            if key in drugs and key not in current_drugs:
+                on_the_evidence.append(Finding(UPTODATE_REREAD_DUE, claim,
+                    f"{title}; drug page read {drugs[key].read_on}; pull a fresh copy after one year"))
+        # A filed drug page inside its year supplies the reason an n.d. source
+        # stands. It does not excuse other undated sources or incomplete reads.
+        graded = [(record, [finding for finding in findings
+                   if not (finding.kind == UNDATED_REFERENCE
+                           and uptodate_store.citation_title_key(uptodate_topic(record.value("REFERENCE"))) in current_drugs)])
+                  for record, findings in graded]
         mastheads = uptodate_masthead_findings(records, entries, uptodate_details)
         on_the_evidence += list(mastheads.findings)
         on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
@@ -2386,6 +2419,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
                 uptodate_currency = {
                     topic.title: topic.literature_review_current_through
                     for topic in (uptodate_details or ())
+                    if getattr(topic, "kind", "topic") != "drug"
                 }
             except ValueError as error:
                 raise run_grader.SourceError(

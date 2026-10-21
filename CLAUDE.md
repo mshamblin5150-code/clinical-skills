@@ -3157,6 +3157,14 @@ Covered by `tools/test_guidelines_recs.py`, which builds synthetic tables in tha
 
 ### UpToDate evidence store
 
+The live drug route retains rendered title/article/version HTML after every adult and
+pediatric Expand All; `ingest --drug-page --read-on` validates indication bodies and
+files sections with title, version and read date. `report` counts drug pages past one
+year. `uptodate_store.DECLARED_LIMITS` owns absorbed-page recognition and the live-copy
+boundary. `outbound_search` requires query readback on live and failed outcomes,
+records mismatches, and validates each failure reason's evidence. Every puller receives
+`skills/_shared/reference/uptodate-pull.md` word for word.
+
 The sweep reports links not entered on every run. An unreadable subdirectory joins
 its unread count and exits 2. The shared walk's boundary belongs to `tree_walk.DECLARED_LIMITS`.
 

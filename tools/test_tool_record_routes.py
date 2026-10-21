@@ -39,7 +39,6 @@ EXCEPTIONS = {
     "tracker_event_checks.grade_event_path": "external tracker event payload",
     "tracker_filed_from.main": "external tracker issue input",
     "tracker_scan.load_rulings": "maintainer tracker rulings",
-    "uptodate_store._manifest_rows": "account source-store manifest, outside run directories",
     "voice_corpus.load_export": "account conversation export",
 }
 

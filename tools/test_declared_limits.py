@@ -108,7 +108,7 @@ NO_LIMITS = {
     "tracker_publish_stub": "a cost guard whose fail-closed route delegates all grading and limits to tracker_publish_hook",
     "tracker_population": "a deterministic probe adapter whose accepted input schemas define its reach",
     "tracker_scan": "an orchestrator whose nonstandard grader shape is classified by run_grader",
-    "uptodate_store": "a private-store command whose manifest and unfiled reports state its reach",
+    "uptodate_drug": "rendered drug-copy parsing and anniversary calculation; public filing and coverage boundaries belong to uptodate_store.DECLARED_LIMITS",
     "uspstf_interval_reach": "a focused interval-analysis helper whose input table is explicit",
     "uspstf_table": "a source-table parser with no independent completeness conclusion",
     "word_automation_scan": "a focused automation census whose searched syntax is explicit",

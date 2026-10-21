@@ -43,7 +43,7 @@ class Disclosure(unittest.TestCase):
     def test_empty_and_failed_gap_pull_without_note_mark(self):
         self.assertEqual((0, EMPTY), self.block())
         (self.run / outbound_search.SEARCHES).write_text(json.dumps({"search_id": "gap", "query": "cough", "passed": True}) + "\n")
-        (self.run / outbound_search.PULLS).write_text(json.dumps({"search_id": "gap", "outcome": "failed", "decision": "antibiotic choice", "instrument": "browser reader"}) + "\n")
+        (self.run / outbound_search.PULLS).write_text(json.dumps({"search_id": "gap", "outcome": "failed", "decision": "antibiotic choice", "instrument": "browser reader", "query_readback": "cough", "reason": "no-match", "results_read": 0}) + "\n")
         status, text = self.block()
         self.assertEqual(0, status)
         self.assertIn("UPTODATE FAILED PULLS: 1\n- gap | antibiotic choice | browser reader", text)
@@ -51,7 +51,7 @@ class Disclosure(unittest.TestCase):
     def test_conflict_requires_the_same_sheet_row_and_dump(self):
         self.note.write_text(NOTE + "\nFILLED·proposed 1. Treatment [uptodate over thresholds/hypertension aha-2025: Hypertension, updated October 2026, live-a]\n", encoding="utf-8")
         (self.run / outbound_search.SEARCHES).write_text(json.dumps({"search_id": "conflict", "query": "hypertension", "passed": True}) + "\n")
-        pull = {"search_id": "conflict", "dump_id": "live-a", "sheet": "hypertension", "row": "aha-2025", "difference": "threshold 130 versus 140"}
+        pull = {"search_id": "conflict", "dump_id": "live-a", "sheet": "hypertension", "row": "aha-2025", "difference": "threshold 130 versus 140", "query_readback": "hypertension"}
         path = self.run / outbound_search.PULLS
         path.write_text(json.dumps(pull) + "\n")
         self.assertIn("threshold 130 versus 140", self.block()[1])

@@ -37,6 +37,19 @@ class OutboundSearchCommand(unittest.TestCase):
         self.assertEqual("pneumonia older adult female", record["query"])
         self.assertEqual("search-a", record["search_id"])
 
+    def test_mismatched_sent_query_is_recorded_but_not_as_a_live_pull(self):
+        self.assertEqual(0, self.invoke("pneumonia adult"))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            status = command.main(["pull", "--run", str(self.run), "--search-id", "search-a",
+                "--dump-id", "live-a", "--query-readback", "pneumonia Fictional Person",
+                "--profile", str(self.profile)])
+        self.assertEqual(2, status)
+        record = command.records(self.run / command.PULLS)[0]
+        self.assertEqual("mismatched", record["outcome"])
+        self.assertFalse(record["sent_query_passed"])
+        self.assertNotIn("dump_id", record)
+        self.assertIn("1 mismatched search(es)", command.completion_gate(self.run, "note-a")[1])
+
     def test_passed_search_needs_an_outcome_and_failed_gap_pull_counts(self):
         self.assertEqual(0, self.invoke("pneumonia adult"))
         failed, report = command.completion_gate(self.run, "note-a")
@@ -45,7 +58,8 @@ class OutboundSearchCommand(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             status = command.main(["failed-pull", "--run", str(self.run),
                 "--search-id", "search-a", "--decision", "antibiotic choice",
-                "--instrument", "browser reader"])
+                "--instrument", "browser reader", "--query-readback", "pneumonia adult",
+                "--reason", "no-match", "--results-read", "0"])
         self.assertEqual(0, status)
         self.assertFalse(command.completion_gate(self.run, "note-a")[0])
         self.assertIn("1 failed pull(s)", command.completion_gate(self.run, "note-a")[1])
@@ -69,7 +83,8 @@ class OutboundSearchCommand(unittest.TestCase):
         self.assertFalse((self.run / command.SEARCHES).exists())
 
     def test_pull_command_requires_the_pretyping_record(self):
-        arguments = ["pull", "--run", str(self.run), "--search-id", "search-a", "--dump-id", "live-a"]
+        arguments = ["pull", "--run", str(self.run), "--search-id", "search-a", "--dump-id", "live-a",
+                     "--query-readback", "  PNEUMONIA   adult  "]
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(2, command.main(arguments))
             self.assertEqual(0, self.invoke("pneumonia adult"))
@@ -79,6 +94,31 @@ class OutboundSearchCommand(unittest.TestCase):
         failed, report = command.completion_gate(self.run, "note-a")
         self.assertTrue(failed)
         self.assertIn("lack a passed search-record line", report)
+
+    def test_failed_pull_requires_evidence_for_each_reason(self):
+        self.assertEqual(0, self.invoke("pneumonia adult"))
+        cases = (("signed-out", ["--page-url", "https://www.uptodate.com/login", "--sign-in-tried", "no"]),
+                 ("service-unavailable", ["--page-url", "https://www.uptodate.com/error"]),
+                 ("no-match", ["--results-read", "0"]),
+                 ("page-unreadable", ["--page-url", "https://www.uptodate.com/topic", "--second-method", "page screenshot"]))
+        for reason, evidence in cases:
+            with self.subTest(reason=reason), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                args = ["failed-pull", "--run", str(self.run), "--search-id", "search-a",
+                        "--query-readback", "pneumonia adult", "--reason", reason,
+                        "--decision", "antibiotic choice", "--instrument", "browser reader"]
+                self.assertEqual(2, command.main(args))
+                self.assertFalse((self.run / command.PULLS).exists())
+                self.assertEqual(0, command.main(args + evidence))
+                self.assertFalse(command.completion_gate(self.run, "note-a")[0])
+                (self.run / command.PULLS).unlink()
+
+    def test_completion_refuses_a_live_pull_whose_recorded_readback_differs(self):
+        self.assertEqual(0, self.invoke("pneumonia adult"))
+        (self.run / command.PULLS).write_text(json.dumps({"search_id": "search-a", "dump_id": "live-a",
+            "query_readback": "asthma adult"}) + "\n", encoding="utf-8")
+        finding, report = command.completion_gate(self.run, "note-a")
+        self.assertTrue(finding)
+        self.assertIn("readback", report)
 
     def test_declared_limits_are_named_beside_the_command_instructions(self):
         text = (Path(__file__).resolve().parents[1] / "skills/clinical-note/SKILL.md").read_text(encoding="utf-8")

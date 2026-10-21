@@ -1,8 +1,9 @@
 """Check an encounter search before typing it into UpToDate (ADR 0347).
 
 ``check <query> --run <directory> --search-id <id>`` writes only passed searches.
-``pull --run <directory> --search-id <id> --dump-id <id>`` records a live pull.
-Exit 0 is a recorded pass; exit 2 refuses without recording the requested action.
+``pull --run <directory> --search-id <id> --dump-id <id> --query-readback <query>`` records a live pull.
+Exit 0 is a recorded pass; exit 2 refuses the requested action. A mismatched
+readback records that mismatch as its own outcome before refusing the pull.
 Private record contents and refused queries are never printed.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ DECLARED_LIMITS = (
     "Only site strings in the profile's Site or Sites picklist are recognized as account sites.",
     "Whether a recorded difference is clinically accurate remains a reader's judgment.",
     "Search and pull appends validate existing records under their owning exclusive lock; a partial append or power loss has no rollback guarantee.",
+    "The query readback is copied by the agent; the tool cannot prove it came from the browser.",
 )
 
 SEARCHES = "outbound-searches.jsonl"
@@ -124,6 +126,20 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
         missing = sum(not row.get("search_id") or row.get("search_id") not in passed or not valid_outcome(row) for row in pulls)
         if missing:
             return True, f"Outbound searches: finding - {missing} live pull(s) lack a passed search-record line"
+        queries = {row["search_id"]: row["query"] for row in searches}
+        invalid = 0
+        for row in pulls:
+            readback = row.get("query_readback")
+            if not isinstance(readback, str) or not readback.strip():
+                invalid += 1
+                continue
+            differs = normalized_query(readback) != normalized_query(queries[row["search_id"]])
+            if differs != (row.get("outcome") == "mismatched"):
+                invalid += 1
+            elif row.get("outcome") == "failed" and not valid_failure(row):
+                invalid += 1
+        if invalid:
+            return True, f"Outbound searches: finding - {invalid} outcome(s) lack valid query readback or failure evidence"
         unfinished = passed - {row.get("search_id") for row in pulls}
         if unfinished:
             return True, f"Outbound searches: finding - {len(unfinished)} passed search(es) have no recorded outcome"
@@ -144,6 +160,11 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
 
 
 def valid_outcome(row: dict) -> bool:
+    if row.get("schema_version") == 2:
+        if not isinstance(row.get("query_readback"), str) or not row["query_readback"].strip():
+            return False
+        if row.get("outcome") == "failed" and not valid_failure(row):
+            return False
     outcome = row.get("outcome", "live")
     if outcome == "live":
         return isinstance(row.get("dump_id"), str) and bool(row["dump_id"].strip())
@@ -153,6 +174,25 @@ def valid_outcome(row: dict) -> bool:
         return (isinstance(row.get("query_readback"), str) and bool(row["query_readback"].strip())
                 and type(row.get("sent_query_passed")) is bool)
     return False
+
+
+def valid_failure(row: dict) -> bool:
+    reason = row.get("reason")
+    address = row.get("page_url")
+    opened = isinstance(address, str) and bool(re.fullmatch(r"https?://[^\s]+", address))
+    if reason == "signed-out":
+        return opened and type(row.get("sign_in_tried")) is bool
+    if reason == "service-unavailable":
+        return opened
+    if reason == "no-match":
+        return type(row.get("results_read")) is int and row["results_read"] >= 0
+    if reason == "page-unreadable":
+        return opened and isinstance(row.get("second_method"), str) and bool(row["second_method"].strip())
+    return False
+
+
+def normalized_query(query: str) -> str:
+    return " ".join(query.split()).casefold()
 
 
 def main(argv: list[str]) -> int:
@@ -170,6 +210,14 @@ def main(argv: list[str]) -> int:
     failed = sub.add_parser("failed-pull")
     failed.add_argument("--decision", required=True)
     failed.add_argument("--instrument", required=True)
+    failed.add_argument("--reason", choices=("signed-out", "service-unavailable", "no-match", "page-unreadable"), required=True)
+    failed.add_argument("--page-url")
+    failed.add_argument("--sign-in-tried", choices=("yes", "no"))
+    failed.add_argument("--results-read", type=int)
+    failed.add_argument("--second-method")
+    for command in (pull, failed):
+        command.add_argument("--query-readback", required=True)
+        command.add_argument("--profile", type=Path, default=scratch_path(scratch_root(), "medatrax-profile.md"))
     for command in (check, pull, failed):
         command.add_argument("--run", type=Path, required=True)
         command.add_argument("--search-id", required=True)
@@ -187,9 +235,30 @@ def main(argv: list[str]) -> int:
             row = {"search_id": args.search_id, "query": args.query, "passed": True}
         else:
             path = args.run / PULLS
-            if args.action == "failed-pull":
+            if not args.query_readback.strip():
+                raise ValueError("query readback is empty")
+            searches = records(args.run / SEARCHES)
+            checked = next((item for item in searches if item["search_id"] == args.search_id), None)
+            if checked is None:
+                raise ValueError("live pull has no passed search-record line")
+            mismatch = normalized_query(args.query_readback) != normalized_query(checked["query"])
+            if mismatch:
+                reason = refusal(args.query_readback, args.profile)
+                row = {"search_id": args.search_id, "outcome": "mismatched", "sent_query_passed": reason is None}
+            elif args.action == "failed-pull":
                 row = {"search_id": args.search_id, "outcome": "failed",
-                       "decision": private_line(args.decision), "instrument": private_line(args.instrument)}
+                       "decision": private_line(args.decision), "instrument": private_line(args.instrument),
+                       "reason": args.reason}
+                if args.page_url is not None:
+                    row["page_url"] = private_line(args.page_url)
+                if args.sign_in_tried is not None:
+                    row["sign_in_tried"] = args.sign_in_tried == "yes"
+                if args.results_read is not None:
+                    row["results_read"] = args.results_read
+                if args.second_method is not None:
+                    row["second_method"] = private_line(args.second_method)
+                if not valid_failure(row):
+                    raise ValueError("failed pull lacks its reason's required evidence")
             else:
                 if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", args.dump_id):
                     raise ValueError("invalid dump id")
@@ -202,6 +271,7 @@ def main(argv: list[str]) -> int:
                         raise ValueError("invalid threshold sheet")
                     row.update(sheet=sheet, row=private_line(args.row),
                                difference=private_line(args.difference), sheet_kept=args.sheet_kept)
+            row.update(schema_version=2, query_readback=args.query_readback)
         def append(previous):
             prior_rows, prior_text = previous if previous is not None else ([], "")
             if args.action == "check":
@@ -210,9 +280,14 @@ def main(argv: list[str]) -> int:
             elif not any(item.get("search_id") == args.search_id and item.get("passed") is True
                          for item in records(args.run / SEARCHES)):
                 raise ValueError("live pull has no passed search-record line")
+            elif any(item.get("search_id") == args.search_id and item.get("outcome") == "mismatched" for item in prior_rows):
+                raise ValueError("mismatched search is closed; check the retry under a new search id")
             separator = "\n" if prior_text and not prior_text.endswith("\n") else ""
             return RecordUpdate((separator + json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"))
         update_tool_record(path, lambda text: (_decode_records(path, text), text), append, append=True)
+        if args.action != "check" and mismatch:
+            print("outbound-search: refused - mismatched search recorded; check the retry under a new search id", file=sys.stderr)
+            return 2
         print("Outbound search: recorded pass" if args.action == "check" else "UpToDate pull outcome: recorded")
         return 0
     except UnreadableRecord as error:

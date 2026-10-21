@@ -411,7 +411,10 @@ before quoting case wording or charging anything as missing from the case. For n
 [Case video narration](#case-video-narration); its capture and confirmation rules remain the owner.
 `CASE-RESEARCH` declares the dump id of the clinician's case research in the Evidence store,
 or `none` with a reason. File an existing compilation with `python tools/uptodate_store.py ingest`
-before drafting; open the filed `source.txt` as an item of a `read` place. The declaration names the
+before drafting. Leave drug pages out of a Titled copy, even when the handover already has
+topic titles; record each dropped page and why in the block-to-title mapping. If needed, pull
+the drug page live. Give every clinical or coursework UpToDate puller the complete
+[shared puller brief](uptodate-pull.md) word for word. Open the filed `source.txt` as an item of a `read` place. The declaration names the
 dump, rather than the original Word file. Confirm both lines with the rest of the header in all
 five coursework skills. The gate requires each line exactly once, refuses a reasonless `none` or
 an unopened declared item, and refuses a research dump without a manifest or with a filed-copy

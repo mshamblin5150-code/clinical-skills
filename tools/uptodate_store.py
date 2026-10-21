@@ -44,6 +44,14 @@ import docx_read
 from tree_walk import walk_files
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
+from run_record_reader import read_tool_record, UnreadableRecord, update_tool_record, RecordUpdate
+from uptodate_drug import DrugPage, parse_drug, drug_is_current, rendered_drug_text, VERSION_LINE, DRUG_HEADER
+
+DECLARED_LIMITS = (
+    "A drug following a topic whose ending was cut off can evade the absorbed-page check when its header did not survive the paste.",
+    "Drug filing reads retained rendered HTML headings and indication controls; a fabricated or omitted heading is not proved to match the live page.",
+    "Whether a dose applies to a patient and revisions between reads remain reader judgments.",
+)
 
 SCHEMA_VERSION = 1
 STORE_DIRECTORY = "uptodate"
@@ -93,6 +101,9 @@ class StoredTopic:
     last_updated: str
     received_on: str = ""
     literature_review_current_through: str = ""
+    kind: str = "topic"
+    version: str = ""
+    read_on: str = ""
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,10 @@ class IngestReport:
 class SearchHit:
     dump_id: str
     title: str
+    section: str = ""
+    body: str = ""
+    version: str = ""
+    read_on: str = ""
 
 
 @dataclass(frozen=True)
@@ -220,6 +235,13 @@ def parse_topics(text: str) -> list[Topic]:
     """Read authored topic bodies; cross-references never become topics."""
     population = topic_population_count(text)
     blocks = _topic_blocks(text)
+    first = blocks[0].masthead_index if blocks else len(text.splitlines())
+    prefix = "\n".join(text.splitlines()[:first])
+    if VERSION_LINE.search(prefix) or DRUG_HEADER.search(text):
+        raise ValueError("drug-page signal in dump prefix/header; file a Titled copy without the drug page and pull it live")
+    for number, block in enumerate(blocks, 1):
+        if len(VERSION_LINE.findall(block.authored_body)) > 1:
+            raise ValueError(f"drug-page signal in block {number}: multiple closing versions; file a Titled copy without the drug page")
     retained, merged = _unique_blocks(blocks)
     untitled = _untitled_count(blocks)
     if untitled:
@@ -280,7 +302,7 @@ def topic_shape_count(text: str) -> int:
     return topic_population_count(text)
 
 
-def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, object]:
+def _validate_manifest(manifest_path: Path, manifest: object, *, verify_sources: bool = True) -> dict[str, object]:
     """Refuse malformed private state before it can grant citation membership."""
     dump_id = manifest_path.parent.name
     if not isinstance(manifest, dict):
@@ -289,20 +311,26 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         raise ValueError(f"unsupported manifest schema: {dump_id}")
     if manifest.get("dump_id") != dump_id:
         raise ValueError(f"manifest dump id does not match its directory: {dump_id}")
+    if manifest.get("kind") not in (None, "topic", "drug"):
+        raise ValueError("manifest page kind is invalid")
+    prior_ids = manifest.get("supersedes", [])
+    if not isinstance(prior_ids, list) or any(not isinstance(value, str) for value in prior_ids):
+        raise ValueError("supersedes must be a list of dump ids")
     if not isinstance(manifest.get("module"), str) or not str(manifest["module"]).strip():
         raise ValueError(f"manifest module is missing: {dump_id}")
     try:
         date.fromisoformat(str(manifest.get("received_on", "")))
     except ValueError as error:
         raise ValueError(f"manifest received date is invalid: {dump_id}") from error
-    if not re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", str(manifest.get("literature_review_current_through", ""))):
+    drug = manifest.get("kind") == "drug"
+    if not drug and not re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", str(manifest.get("literature_review_current_through", ""))):
         raise ValueError(f"manifest currency stamp is invalid: {dump_id}")
     if manifest.get("source_file") != SOURCE_NAME:
         raise ValueError(f"manifest source file is invalid: {dump_id}")
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("source_sha256", ""))):
         raise ValueError(f"manifest source digest is invalid: {dump_id}")
     source_path = manifest_path.parent / SOURCE_NAME
-    if not source_path.is_file() or file_digest.sha256(source_path) != manifest["source_sha256"]:
+    if verify_sources and (not source_path.is_file() or file_digest.sha256(source_path) != manifest["source_sha256"]):
         raise ValueError(f"source does not match manifest: {dump_id}")
     reference_file = manifest.get("reference_file")
     reference_digest = manifest.get("reference_sha256")
@@ -312,7 +340,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         if not re.fullmatch(r"[0-9a-f]{64}", str(reference_digest or "")):
             raise ValueError(f"manifest reference digest is invalid: {dump_id}")
         reference_path = manifest_path.parent / REFERENCE_NAME
-        if not reference_path.is_file() or file_digest.sha256(reference_path) != reference_digest:
+        if verify_sources and (not reference_path.is_file() or file_digest.sha256(reference_path) != reference_digest):
             raise ValueError(f"reference list does not match manifest: {dump_id}")
     topics = manifest.get("topics")
     if not isinstance(topics, list) or not topics:
@@ -325,6 +353,17 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         authors = topic.get("authors")
         if not isinstance(title, str) or not title.strip():
             raise ValueError(f"manifest topic needs a title: {dump_id}")
+        if drug:
+            if not isinstance(authors, str) or not isinstance(topic.get("last_updated"), str):
+                raise ValueError("drug manifest citation fields must be strings")
+            date.fromisoformat(str(manifest.get("read_on", "")))
+            if len(topics) != 1 or not isinstance(topic.get("version"), str) or not re.fullmatch(r"\d+(?:\.\d+)*", topic["version"]):
+                raise ValueError("drug manifest needs exactly one titled version")
+            if verify_sources:
+                page = parse_drug(source_path.read_text(encoding="utf-8"), str(manifest["read_on"]))
+                if title != page.title or topic["version"] != page.version:
+                    raise ValueError("drug manifest does not match rendered source")
+            continue
         if not isinstance(authors, str) or not authors.strip():
             raise ValueError(f"manifest topic needs authors: {title}")
         try:
@@ -340,16 +379,34 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
     return manifest
 
 
+def _decode_manifest(path: Path, text: str) -> dict:
+    manifest = json.loads(text)
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest must hold an object")
+    return _validate_manifest(path, manifest, verify_sources=False)
+
+
 def _manifest_rows(store: Path) -> Iterable[tuple[Path, dict[str, object]]]:
     dumps = store / "dumps"
     if not dumps.is_dir():
         return
     for manifest_path in sorted(dumps.glob(f"*/{DUMP_MANIFEST_NAME}")):
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = read_tool_record(manifest_path, lambda text: _decode_manifest(manifest_path, text))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise ValueError(f"unreadable manifest: {manifest_path.name}: {error}") from error
+        # Source integrity is a measured mismatch, not damaged bookkeeping.
+        # Keep it outside the decoder so dependent context checks report a
+        # fingerprint finding rather than an unread record.
         yield manifest_path, _validate_manifest(manifest_path, manifest)
+
+
+def _write_manifest(path: Path, manifest: dict) -> None:
+    def write(previous):
+        if previous is not None:
+            raise ValueError("dump manifest already exists")
+        return RecordUpdate((json.dumps(manifest, indent=2) + "\n").encode("utf-8"))
+    update_tool_record(path, json.loads, write)
 
 
 def store_snapshot(store: Path | None = None) -> StoreSnapshot:
@@ -361,7 +418,7 @@ def store_snapshot(store: Path | None = None) -> StoreSnapshot:
         digests.add(str(manifest["source_sha256"]))
     for path, manifest in _active_manifests(root):
         received = str(manifest["received_on"])
-        currency = str(manifest["literature_review_current_through"])
+        currency = str(manifest.get("literature_review_current_through", ""))
         for row in manifest.get("topics", []):
             if not isinstance(row, dict):
                 raise ValueError("manifest topic must hold an object")
@@ -372,7 +429,8 @@ def store_snapshot(store: Path | None = None) -> StoreSnapshot:
             )
             if not all(isinstance(value, str) for value in (title, authors, last_updated)):
                 raise ValueError("manifest topic needs title, authors and last updated")
-            topic = StoredTopic(title, authors, last_updated, received, currency)
+            topic = StoredTopic(title, authors, last_updated, received, currency,
+                                str(manifest.get("kind", "topic")), str(row.get("version", "")), str(manifest.get("read_on", "")))
             key = citation_title_key(title)
             prior = newest.get(key)
             if prior is not None and received == prior[0] and (
@@ -428,6 +486,8 @@ def source_topic(dump_id: str, title: str, store: Path | None = None) -> Topic |
     manifest = manifest_for_dump(dump_id, root)
     if manifest is None:
         return None
+    if manifest.get("kind") == "drug":
+        return None
     source = root / "dumps" / dump_id / str(manifest.get("source_file", SOURCE_NAME))
     if not source.is_file() or file_digest.sha256(source) != manifest.get("source_sha256"):
         raise ValueError(f"source does not match manifest: {dump_id}")
@@ -436,6 +496,15 @@ def source_topic(dump_id: str, title: str, store: Path | None = None) -> Topic |
         if topic_key(topic.title) == wanted:
             return topic
     return None
+
+
+def source_drug(dump_id: str, title: str, store: Path | None = None) -> DrugPage | None:
+    root = (store or default_store()).resolve()
+    manifest = manifest_for_dump(dump_id, root)
+    if manifest is None or manifest.get("kind") != "drug":
+        return None
+    page = parse_drug((root / "dumps" / dump_id / SOURCE_NAME).read_text(encoding="utf-8"), str(manifest["read_on"]))
+    return page if topic_key(page.title) == topic_key(title) else None
 
 
 def _active_manifests(store: Path) -> Iterable[tuple[Path, dict[str, object]]]:
@@ -470,7 +539,7 @@ def rebuild_index(store: Path) -> Path:
     connection = sqlite3.connect(building)
     try:
         connection.execute(
-            "CREATE VIRTUAL TABLE topic_fts USING fts5(dump_id UNINDEXED, title, body)"
+            "CREATE VIRTUAL TABLE topic_fts USING fts5(dump_id UNINDEXED, title, body, section, version UNINDEXED, read_on UNINDEXED)"
         )
         for manifest_path, manifest in _active_manifests(store):
             source_path = manifest_path.with_name(str(manifest.get("source_file", SOURCE_NAME)))
@@ -479,6 +548,12 @@ def rebuild_index(store: Path) -> Path:
             normalized_source = docx_read.normalize(
                 source_path.read_text(encoding="utf-8", errors="replace")
             )
+            if manifest.get("kind") == "drug":
+                page = parse_drug(normalized_source, str(manifest["read_on"]))
+                for section in page.sections:
+                    connection.execute("INSERT INTO topic_fts(dump_id,title,body,section,version,read_on) VALUES (?,?,?,?,?,?)",
+                                       (manifest["dump_id"], page.title, section.body, section.heading, page.version, page.read_on))
+                continue
             for report_line in docx_read.non_latin_letter_report(normalized_source):
                 print(
                     f"dump {manifest_path.parent.name}: {report_line}",
@@ -514,6 +589,8 @@ def ingest_dump(
     received_on: date,
     references: Path | None = None,
     supersedes: tuple[str, ...] = (),
+    drug_page: bool = False,
+    read_on: date | None = None,
 ) -> IngestReport:
     source = source.expanduser().resolve()
     root = (store or default_store()).expanduser().resolve()
@@ -529,6 +606,27 @@ def ingest_dump(
     if destination.exists():
         raise ValueError(f"dump id already exists: {dump_id}")
     text = source.read_text(encoding="utf-8", errors="replace")
+    if drug_page:
+        if read_on is None or read_on > date.today():
+            raise ValueError("live drug ingest needs a nonfuture --read-on date")
+        page = parse_drug(text, read_on.isoformat())
+        destination.mkdir(parents=True)
+        copied = destination / SOURCE_NAME
+        try:
+            shutil.copyfile(source, copied)
+            manifest = {"schema_version": SCHEMA_VERSION, "kind": "drug", "dump_id": dump_id,
+                        "module": module, "received_on": received_on.isoformat(), "read_on": page.read_on,
+                        "source_file": SOURCE_NAME, "source_sha256": file_digest.sha256(copied),
+                        "topics": [{"title": page.title, "version": page.version, "authors": "", "last_updated": ""}]}
+            if supersedes:
+                manifest["supersedes"] = list(supersedes)
+            manifest_path = destination / DUMP_MANIFEST_NAME
+            _write_manifest(manifest_path, manifest)
+            index = rebuild_index(root)
+        except Exception:
+            shutil.rmtree(destination)
+            raise
+        return IngestReport(manifest_path, index, 1, 1, 0, 0)
     topics = parse_topics(text)
     merged = len(_topic_blocks(text)) - len(topics)
     if not topics:
@@ -570,7 +668,7 @@ def ingest_dump(
             manifest["reference_file"] = REFERENCE_NAME
             manifest["reference_sha256"] = file_digest.sha256(copied_references)
         manifest_path = destination / DUMP_MANIFEST_NAME
-        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        _write_manifest(manifest_path, manifest)
         index = rebuild_index(root)
     except Exception:
         shutil.rmtree(destination)
@@ -583,10 +681,10 @@ def ingest_dump(
 def search(store: Path | None, query: str, *, limit: int = 20) -> list[SearchHit]:
     with closing(_index_connection(store)) as connection:
         rows = connection.execute(
-            "SELECT dump_id, title FROM topic_fts WHERE topic_fts MATCH ? ORDER BY rank LIMIT ?",
+            "SELECT dump_id, title, section, body, version, read_on FROM topic_fts WHERE topic_fts MATCH ? ORDER BY rank LIMIT ?",
             (docx_read.normalize(query), limit),
         ).fetchall()
-    return [SearchHit(str(row[0]), str(row[1])) for row in rows]
+    return [SearchHit(*(str(value or "") for value in row)) for row in rows]
 
 
 def _index_connection(store: Path | None) -> sqlite3.Connection:
@@ -595,14 +693,20 @@ def _index_connection(store: Path | None) -> sqlite3.Connection:
     database = root / INDEX_NAME
     if not database.is_file():
         raise ValueError(f"no UpToDate index at {database}")
-    return sqlite3.connect(database)
+    connection = sqlite3.connect(database)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(topic_fts)")}
+    if "section" not in columns:
+        connection.close()
+        rebuild_index(root)
+        connection = sqlite3.connect(database)
+    return connection
 
 
 def index_population(store: Path | None) -> tuple[int, int]:
     """Indexed topic rows and distinct dump identifiers, without an FTS match."""
     with closing(_index_connection(store)) as connection:
         topics, dumps = connection.execute(
-            "SELECT COUNT(*), COUNT(DISTINCT dump_id) FROM topic_fts"
+            "SELECT COUNT(DISTINCT dump_id || char(0) || title), COUNT(DISTINCT dump_id) FROM topic_fts"
         ).fetchone()
     return int(topics), int(dumps)
 
@@ -625,7 +729,7 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         return SweepReport(0, 0, root_read=False)
     unread += walked.unreadable_directories
     for path in walked.files:
-        if path.suffix.casefold() not in {".txt", ".md"}:
+        if path.suffix.casefold() not in {".txt", ".md", ".html", ".htm"}:
             continue
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
@@ -634,7 +738,17 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         try:
             if file_digest.sha256(resolved) in filed_hashes:
                 continue
-            count = topic_shape_count(path.read_text(encoding="utf-8", errors="replace"))
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix.casefold() in {".html", ".htm"}:
+                text = rendered_drug_text(text)
+            count = topic_shape_count(text)
+            lines = text.splitlines()
+            first_author = next((index for index, line in enumerate(lines) if TOPIC_MASTHEAD.match(line)), len(lines))
+            prefix = "\n".join(lines[:first_author])
+            titles = sum(bool(re.fullmatch(r".+: (?:Pediatric )?Drug information", line.strip(), re.I)) for line in lines)
+            branded = sum(line.strip() == "UpToDate Lexidrug" for line in lines)
+            drug_signals = max(titles, branded, len(VERSION_LINE.findall(prefix)))
+            count += drug_signals
         except (OSError, UnicodeError):
             unread += 1
             continue
@@ -655,11 +769,14 @@ def _parser() -> argparse.ArgumentParser:
     ingest.add_argument("--received-on", type=date.fromisoformat, required=True)
     ingest.add_argument("--references", type=Path)
     ingest.add_argument("--supersedes", action="append", default=[])
+    ingest.add_argument("--drug-page", action="store_true")
+    ingest.add_argument("--read-on", type=date.fromisoformat)
     find = sub.add_parser("search")
     find.add_argument("queries", nargs="+")
     find.add_argument("--limit", type=int, default=20)
     sweep = sub.add_parser("sweep")
     sweep.add_argument("roots", nargs="*", type=Path)
+    sub.add_parser("report")
     return parser
 
 
@@ -675,6 +792,8 @@ def main(argv: list[str]) -> int:
                 received_on=args.received_on,
                 references=args.references,
                 supersedes=tuple(args.supersedes),
+                drug_page=args.drug_page,
+                read_on=args.read_on,
             )
             print(
                 f"ingested topic blocks read {report.blocks_read} of {report.candidates}; "
@@ -698,6 +817,11 @@ def main(argv: list[str]) -> int:
                 )
                 for hit in hits:
                     print(f"  {hit.dump_id}: {hit.title}")
+                    if hit.version:
+                        print(f"    {hit.section}; version {hit.version}; read {hit.read_on}\n{hit.body}")
+        elif args.command == "report":
+            pages = [topic for topic in store_snapshot(args.store).topics if topic.kind == "drug"]
+            print(f"drug pages: {len(pages)}; past one year: {sum(not drug_is_current(page.read_on) for page in pages)}")
         else:
             roots = args.roots or [scratch_root()]
             reports = [sweep_unfiled(root, args.store) for root in roots]
@@ -737,7 +861,7 @@ def main(argv: list[str]) -> int:
             if any(not report.root_read for report in reports) or unread:
                 return 2
         return 0
-    except (OSError, UnicodeError, ValueError, sqlite3.Error) as error:
+    except (OSError, UnicodeError, ValueError, sqlite3.Error, UnreadableRecord) as error:
         print(f"uptodate-store: {error}", file=sys.stderr)
         return 2
 
