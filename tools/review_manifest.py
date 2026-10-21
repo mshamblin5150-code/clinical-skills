@@ -47,7 +47,8 @@ def section_kind(title: str) -> str:
         return "fields"
     if title == "coding worksheet":
         return "worksheet"
-    if title.startswith(("tier", "technical receipt", "freshness receipt", "schedule", "shift summary")):
+    if title.startswith(("tier", "technical receipt", "freshness receipt", "schedule", "shift summary",
+                         "drift matrix", "drift verdicts", "proposed (verify before use)")):
         return "private"
     return "visible"
 
@@ -151,8 +152,10 @@ def selected_codes(text: str, *, private: bool) -> dict:
 
 def decode_manifest(text: str) -> dict:
     value = object_record(text)
-    if value.get("producer") != "review_manifest" or value.get("schema") != 1 or type(value.get("batch")) is not bool:
+    if (value.get("producer") != "review_manifest" or type(value.get("schema")) is not int
+            or value["schema"] != 1 or type(value.get("batch")) is not bool):
         raise ValueError("invalid manifest header")
+    review_constants(value.get("review_constants"), batch=value["batch"])
     date.fromisoformat(value["service_date"])
     if not isinstance(value.get("receipt_path"), str) or not value["receipt_path"]:
         raise ValueError("invalid receipt path")
@@ -161,6 +164,8 @@ def decode_manifest(text: str) -> dict:
     if findings:
         raise ValueError("invalid manifest encounter population")
     for item in value["encounters"]:
+        if type(item["order"]) is not int:
+            raise ValueError("invalid encounter order")
         for key in ("note_path", "worksheet_path", "private_worksheet_path"):
             if not isinstance(item.get(key), str) or not item[key]:
                 raise ValueError("invalid artifact path")
@@ -184,13 +189,29 @@ def manifest_for(run: Path, *, batch: bool) -> dict:
     return value
 
 
-def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None) -> dict:
+def review_constants(value: object, *, batch: bool) -> dict:
+    from run_record_reader import require_outbound_text
+    if not batch and value is None:
+        return {}
+    if (not isinstance(value, dict) or set(value) != {"course", "preceptor", "site"}
+            or any(not isinstance(text, str) or not text.strip() for text in value.values())):
+        raise ValueError("batch Review sheet needs current course, preceptor and site")
+    for text in value.values():
+        require_outbound_text(text)
+        if "\n" in text or "\r" in text:
+            raise ValueError("Review constants must be single-line values")
+    return value
+
+
+def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
+          constants: dict | None = None) -> dict:
     run = private_target(run)
     openers = read_openers(run)
     rows = read_handwritten_record(inputs, "json").require_json(force=True)
     if not isinstance(rows, list) or len(rows) != len(openers["encounters"]) or (not batch and len(rows) != 1):
         raise ValueError("input population differs from opener population")
     value = dict(schema=1, producer="review_manifest", batch=batch,
+                 review_constants=review_constants(constants, batch=batch) if batch else None,
                  service_date=openers["service_date"], receipt_path=str((receipt or run / RECEIPT).resolve()), encounters=[])
     for order, (row, opener) in enumerate(zip(rows, openers["encounters"]), 1):
         if not isinstance(row, dict) or set(row) != {"note", "worksheet", "setting", "codes"}:
@@ -282,7 +303,11 @@ def render(run: Path, output: Path, *, force: bool = False) -> Path:
         pages.append(f"# Note {item['order']}\n\n{labels(note)}\n## Coding worksheet\n\n{labels(worksheet)}\n**Coding freshness:** PASS\n")
     # Validation is deliberately independent of Word layout and output bytes.
     assert binding.sources
-    return write_docx(("\n" + PAGE_BREAK + "\n").join(pages), output,
+    constants = manifest["review_constants"]
+    header = (f"# Review sheet\n\n**Course:** {constants['course']}\n"
+              f"**Date:** {manifest['service_date']}\n**Preceptor:** {constants['preceptor']}\n"
+              f"**Site:** {constants['site']}\n\n")
+    return write_docx(header + ("\n" + PAGE_BREAK + "\n").join(pages), output,
                       force=force, bold_headings=True, layout="plain")
 
 
@@ -294,6 +319,8 @@ def main(argv=None) -> int:
     builder.add_argument("--inputs", type=Path, required=True)
     builder.add_argument("--single", action="store_true")
     builder.add_argument("--receipt", type=Path)
+    for field in ("course", "preceptor", "site"):
+        builder.add_argument("--" + field)
     renderer = sub.add_parser("render")
     renderer.add_argument("run", type=Path)
     renderer.add_argument("--output", type=Path, required=True)
@@ -301,7 +328,9 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
-            build(args.run, args.inputs, batch=not args.single, receipt=args.receipt)
+            constants = {field: getattr(args, field) for field in ("course", "preceptor", "site")}
+            build(args.run, args.inputs, batch=not args.single, receipt=args.receipt,
+                  constants=constants if not args.single else None)
             print("review-manifest: written; run coding_freshness.py visibly before render or approval")
         else:
             render(args.run, args.output, force=args.force)

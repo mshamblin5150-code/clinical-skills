@@ -327,7 +327,7 @@ class ApprovalRecord:
 
 
 def source_sha256(paths: Iterable[Path]) -> str:
-    """Hash one ordered source population exactly as its posted reading does."""
+    """Hash the ordered approval sources; clinical posted readings hash notes separately."""
 
     digest = sha256()
     for path in paths:

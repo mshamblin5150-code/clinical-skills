@@ -16,6 +16,7 @@ import medatrax_posting
 import reader_remarks
 import review_manifest
 import uptodate_block
+from run_record_reader import UnreadableRecord
 from test_approval_record import NOTE
 from test_review_manifest import synthetic_run, passing_receipt
 
@@ -34,7 +35,9 @@ class ManifestApproval(unittest.TestCase):
         note = run / "note-1.md"
         note.write_text(NOTE.removesuffix("Coding worksheet\n") +
                         "\n## Medatrax entry fields\nGender: Female\n", encoding="utf-8")
-        review_manifest.build(run, run / "inputs.json", batch=batch)
+        review_manifest.build(run, run / "inputs.json", batch=batch,
+                              constants=dict(course="Synthetic course", preceptor="Synthetic preceptor",
+                                             site="Synthetic site") if batch else None)
         passing_receipt(run, batch=batch)
         for source in (note, run / "visible-worksheet-1.md", run / review_manifest.MANIFEST,
                        run / review_manifest.RECEIPT):
@@ -108,6 +111,24 @@ class ManifestApproval(unittest.TestCase):
         with self.assertRaises(approval_record.ApprovalRecordError):
             approval_record.prepare(run, skill="clinical-note", submission="synthetic",
                                     sources=(note,), grader_args=(str(run),))
+
+    def test_damaged_receipt_refuses_render_and_both_approval_skills(self):
+        for batch in (False, True):
+            with self.subTest(batch=batch):
+                run, note = self.make_run(batch)
+                path = run / review_manifest.RECEIPT
+                receipt = json.loads(path.read_text())
+                receipt["sources"] = {}
+                path.write_text(json.dumps(receipt), encoding="utf-8")
+                before = path.read_bytes()
+                with self.assertRaises(UnreadableRecord):
+                    approval_record.prepare(run, skill="batch-shift" if batch else "clinical-note",
+                                            submission="synthetic", sources=(note,), grader_args=(str(run),))
+                if batch:
+                    with self.assertRaises(UnreadableRecord):
+                        review_manifest.render(run, self.root / "review.docx")
+                self.assertEqual(before, path.read_bytes())
+                self.assertFalse((run / approval_record.RECORD).exists())
 
 
 if __name__ == "__main__":

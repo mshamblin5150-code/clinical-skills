@@ -393,13 +393,13 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                     self.assertFalse(self.output.exists())
 
     def test_clinician_answer_refuses_missing_mismatched_old_and_unreadable_replies(self):
+        self.assertEqual(0, self.run_gate()[0])
+        prior = self.output.read_bytes()
         for mode in ("missing", "mismatch", "old", "unreadable", "hook-context", "scheduled-trigger"):
             with self.subTest(mode=mode):
                 # A prior pass is a complete tool record, not arbitrary text.
                 self.output.unlink(missing_ok=True)
-                prior = {"schema": 1, "verdict": "PASS", "service_date": self.load_manifest()["service_date"],
-                         "checked_as_of": self.load_manifest()["service_date"], "encounters": [{}], "sources": {}}
-                self.output.write_text(json.dumps(prior), encoding="utf-8")
+                self.output.write_bytes(prior)
                 os.utime(self.source, (1, 1))
                 value = self.load_manifest()
                 status = value["encounters"][0]["patient_status"]
@@ -467,6 +467,27 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertEqual(2, status)
         self.assertIn("unread remainder 1", output)
         self.assertEqual(b'{"verdict":', self.output.read_bytes())
+
+    def test_receipt_member_and_publisher_shape_faults_refuse_without_replacement(self):
+        self.assertEqual(0, self.run_gate()[0])
+        original = self.output.read_bytes()
+        for mutation in ("encounters", "sources", "publisher", "fingerprint"):
+            with self.subTest(mutation=mutation):
+                receipt = json.loads(original)
+                if mutation == "encounters":
+                    receipt["encounters"] = [None]
+                elif mutation == "sources":
+                    receipt["sources"] = {}
+                elif mutation == "publisher":
+                    receipt["sources"]["icd10"] = None
+                else:
+                    receipt["sources"]["cpt"]["mdm_sheet_sha256"] = "not-a-fingerprint"
+                self.output.write_text(json.dumps(receipt), encoding="utf-8")
+                before = self.output.read_bytes()
+                status, output = self.run_gate()
+                self.assertEqual(2, status, output)
+                self.assertIn("not graded", output)
+                self.assertEqual(before, self.output.read_bytes())
 
 
 if __name__ == "__main__":

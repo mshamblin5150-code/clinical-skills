@@ -46,7 +46,15 @@ def passing_receipt(run: Path, *, batch: bool = True) -> None:
     findings = []
     population = review_manifest.coding_freshness.read_encounters(manifest, findings)
     assert not findings
-    (run / review_manifest.RECEIPT).write_text(json.dumps(dict(schema=1, verdict="PASS", service_date=manifest["service_date"], checked_as_of="2026-10-21", encounters=population, sources={})), encoding="utf-8")
+    sources = {
+        "icd10": {"release": "synthetic-release", "database_sha256": "a" * 64,
+                  "authoritative_url": "https://example.test/icd"},
+        "cpt": {"source_id": "synthetic-cpt", "edition": "synthetic-edition", "source_sha256": "b" * 64,
+                "database_sha256": "c" * 64, "valid_through": "2026-12-31",
+                "mdm_sheet_filename": "synthetic-mdm.md", "mdm_sheet_sha256": "d" * 64},
+        "hcpcs": {"source_id": "synthetic-hcpcs", "edition": "synthetic-edition", "source_sha256": "e" * 64,
+                  "database_sha256": "f" * 64, "authoritative_url": "https://example.test/hcpcs"}}
+    (run / review_manifest.RECEIPT).write_text(json.dumps(dict(schema=1, verdict="PASS", service_date=manifest["service_date"], checked_as_of="2026-10-21", encounters=population, sources=sources)), encoding="utf-8")
 
 
 class ManifestCommands(unittest.TestCase):
@@ -65,7 +73,9 @@ class ManifestCommands(unittest.TestCase):
         return subprocess.run([sys.executable, str(Path(__file__).with_name(command)), *map(str, args)], capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     def build(self, *extra):
-        return self.invoke("review_manifest.py", "build", self.run, "--inputs", self.run / "inputs.json", *extra)
+        return self.invoke("review_manifest.py", "build", self.run, "--inputs", self.run / "inputs.json",
+                           "--course", "Synthetic course", "--preceptor", "Synthetic preceptor",
+                           "--site", "Synthetic site", *extra)
 
     def test_clean_batch_and_standalone_build_public_commands(self):
         result = self.build()
@@ -180,6 +190,11 @@ class ManifestCommands(unittest.TestCase):
         self.assertEqual("plain", kwargs["layout"])
         self.assertNotIn("Private working text", args[0])
         self.assertNotIn("Gender", args[0])
+        self.assertNotIn("Example Person", args[0])
+        self.assertEqual(1, args[0].count("**Course:** Synthetic course"))
+        self.assertEqual(1, args[0].count("**Preceptor:** Synthetic preceptor"))
+        self.assertEqual(1, args[0].count("**Site:** Synthetic site"))
+        self.assertEqual(1, args[0].count("**Date:**"))
         self.assertIn("**Coding freshness:** PASS", args[0])
 
     def test_public_render_writes_docx_and_layout_rerender_preserves_binding(self):
@@ -228,6 +243,47 @@ class ManifestCommands(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertEqual(b'{"broken":', target.read_bytes())
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_preserved_notes_keep_clinical_prefix_and_exclude_working_appendices(self):
+        root = Path(__file__).resolve().parents[1]
+        members = (
+            ("fixtures/filled-anchor/notes/case-01.md", "\n## Medatrax entry"),
+            ("fixtures/slot-form-run/day-b-case-02.md", "\n## Tier block"),
+        )
+        for relative, boundary in members:
+            with self.subTest(member=relative):
+                source = (root / relative).read_text(encoding="utf-8")
+                expected = source[:source.index(boundary)].rstrip()
+                if expected.endswith("---"):
+                    expected = expected[:-3].rstrip()
+                # Independent expected prefix; no production section regex is reused.
+                expected = "\n".join(line.rstrip() for line in expected.splitlines()) + "\n"
+                visible, fields = review_manifest.split_note(source)
+                self.assertEqual(expected, visible)
+                self.assertIn("Patient Reference", fields)
+                self.assertNotIn("FILLED·", visible)
+                self.assertNotIn("## Drift", visible)
+                self.assertNotIn("## PROPOSED", visible)
+                # Zero-recognized-field mutant must refuse instead of silently omitting it.
+                mutated = source.replace("## Medatrax entry", "## Unrecognized portal entry")
+                with self.assertRaisesRegex(ValueError, "exactly one"):
+                    review_manifest.split_note(mutated)
+
+    def test_both_committed_branch_templates_retain_all_clinical_lines(self):
+        root = Path(__file__).resolve().parents[1]
+        for branch in ("SOAP", "HP"):
+            with self.subTest(branch=branch):
+                source = (root / "skills" / "clinical-note" / (branch + ".md")).read_text(encoding="utf-8")
+                template = source.split("```", 2)[1].lstrip("\n")
+                clinical, _worksheet = template.split("\nCoding worksheet\n", 1)
+                note = template + "\n## Medatrax entry fields\nGender: Female\n"
+                visible, fields, worksheets = review_manifest.note_parts(note)
+                self.assertEqual(clinical.rstrip() + "\n", visible)
+                self.assertEqual(1, len(worksheets))
+                self.assertIn("Gender: Female", fields)
+                if branch == "HP":
+                    self.assertIn("History of Present Illness (OLDCARTS)", visible)
+                    self.assertIn("Discussion", visible)
 
 
 if __name__ == "__main__":

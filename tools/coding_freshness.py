@@ -392,12 +392,32 @@ def validate_procedures(
 
 def receipt_record(text: str) -> dict:
     value = object_record(text)
-    if (value.get("schema") != 1 or value.get("verdict") != "PASS"
+    if (type(value.get("schema")) is not int or value["schema"] != 1 or value.get("verdict") != "PASS"
             or not isinstance(value.get("encounters"), list) or not value["encounters"]
             or not isinstance(value.get("sources"), dict)):
         raise ValueError("freshness receipt fields")
     date.fromisoformat(value["service_date"])
     date.fromisoformat(value["checked_as_of"])
+    findings = []
+    encounters = read_encounters(value, findings)
+    if (findings or encounters != value["encounters"]
+            or any(type(item["order"]) is not int for item in encounters)):
+        raise ValueError("freshness encounter members")
+    requirements = {
+        "icd10": ("release", "database_sha256", "authoritative_url"),
+        "cpt": ("source_id", "edition", "source_sha256", "database_sha256", "valid_through",
+                "mdm_sheet_filename", "mdm_sheet_sha256"),
+        "hcpcs": ("source_id", "edition", "source_sha256", "database_sha256", "authoritative_url"),
+    }
+    for kind, fields in requirements.items():
+        source = value["sources"].get(kind)
+        if not isinstance(source, dict) or any(not isinstance(source.get(key), str) or not source[key].strip()
+                                               for key in fields):
+            raise ValueError("freshness source fields")
+        for key in fields:
+            if key.endswith("sha256") and SHA256.fullmatch(source[key]) is None:
+                raise ValueError("freshness source fingerprint")
+    date.fromisoformat(value["sources"]["cpt"]["valid_through"])
     return value
 
 

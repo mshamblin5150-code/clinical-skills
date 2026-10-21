@@ -20,10 +20,10 @@ DECLARED_LIMITS = (
 
 def decode_record(text: str) -> dict:
     record = object_record(text)
-    if record.get("schema") != 1 or not isinstance(record.get("encounters"), dict):
+    if type(record.get("schema")) is not int or record["schema"] != 1 or not isinstance(record.get("encounters"), dict):
         raise ValueError("invalid status record")
     for key, item in record["encounters"].items():
-        if not key.isdigit() or int(key) < 1 or not isinstance(item, dict):
+        if not key.isdigit() or int(key) < 1 or key != str(int(key)) or not isinstance(item, dict):
             raise ValueError("invalid status encounter")
         if item.get("value") not in {"new", "established"} or item.get("evidence") not in {"identity-map", "medatrax", "clinician-answer"}:
             raise ValueError("invalid status fields")

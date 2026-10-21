@@ -48,7 +48,7 @@ for-entry code identities in that worksheet and the visible selections with the 
 populations. A mismatch refuses; provenance-only edits do not alter the normalized approval identity.
 
 ```text
-python tools/review_manifest.py build <run> --inputs <manifest-inputs.json>
+python tools/review_manifest.py build <run> --inputs <manifest-inputs.json> --course <resolved-course> --preceptor <resolved-preceptor> --site <resolved-site>
 python tools/coding_freshness.py <run>/batch-codes.json --receipt <run>/batch-freshness.json
 ```
 
@@ -58,6 +58,9 @@ field block, and writes `batch-codes.json` through the shared locked transaction
 opener details, status evidence, membership and order. Normalization uses UTF-8, LF, trailing-space
 removal per line and one final newline; private tier blocks, Medatrax fields and technical receipts
 are excluded from the coding fingerprint. The field fingerprint remains separate.
+For a batch, pass this run's resolved step-6 constants; the service date comes from the opener
+record. The manifest binds these constants, and the renderer prints them once at the top.
+A standalone `--single` build omits the three Review-sheet options.
 
 For batch-shift only, then run:
 
