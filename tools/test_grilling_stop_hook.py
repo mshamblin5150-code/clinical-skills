@@ -34,6 +34,38 @@ def command_record(command: str) -> dict[str, object]:
     }
 
 
+def injected_skill_record(name: str, *, role: str = "user") -> dict[str, object]:
+    """The message the Codex app adds when a `$skill` mention loads a skill (2026-10-21)."""
+    path = f"C:\\Users\\clinician\\.agents\\skills\\{name}\\SKILL.md"
+    return {
+        "type": "response_item",
+        "payload": {
+            "type": "message",
+            "role": role,
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": f"<skill>\n<name>{name}</name>\n<path>{path}</path>\n"
+                    f"---\r\nname: {name}\r\n---\r\nSkill body.\n</skill>",
+                }
+            ],
+        },
+    }
+
+
+def mention_record(name: str) -> dict[str, object]:
+    """The user's own `$skill` mention, which names the path without carrying the skill."""
+    path = f"C:\\Users\\clinician\\\\.agents\\skills\\{name}\\SKILL.md"
+    return {
+        "type": "response_item",
+        "payload": {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": f"[${name}]({path}) grill me"}],
+        },
+    }
+
+
 def assistant_record(message: str) -> dict[str, object]:
     return {
         "type": "response_item",
@@ -160,6 +192,37 @@ class HookContract(unittest.TestCase):
         ]
 
         self.assertEqual(self.grade("Q1 First?\nQ2 Second?", records=(mention,)), {})
+
+    def test_a_skill_the_app_injects_for_a_mention_activates_grading(self) -> None:
+        # The 2026-10-21 Codex app run: the skill arrived only this way, and
+        # Codex parsed its compound Get-Content read as "unknown".
+        compound = command_record(
+            "Get-Content -LiteralPath 'C:/skills/grill-me/SKILL.md'; "
+            "Get-Content -LiteralPath 'C:/skills/grilling/SKILL.md'"
+        )
+        compound["payload"]["item"]["parsed_cmd"] = [
+            {"type": "unknown", "cmd": "Get-Content -LiteralPath ..."}
+        ]
+        for name in ("grill-me", "grilling", "grill-with-docs"):
+            with self.subTest(name=name):
+                result = self.grade(
+                    "Q1 First?\nQ2 Second?",
+                    records=(mention_record(name), injected_skill_record(name), compound),
+                )
+                self.assertEqual(result.get("decision"), "block")
+
+    def test_a_mention_or_quoted_injection_alone_does_not_activate(self) -> None:
+        for records in (
+            (mention_record("grill-me"),),
+            (injected_skill_record("implement"),),
+            (injected_skill_record("grilling", role="assistant"),),
+        ):
+            with self.subTest(records=records):
+                self.assertEqual(self.grade("Q1 First?\nQ2 Second?", records=records), {})
+
+    def test_closing_ends_an_injected_skill_s_interval(self) -> None:
+        closed = (injected_skill_record("grill-me"), assistant_record(hook.CLOSING_LINE))
+        self.assertEqual(self.grade("Q1 First?\nQ2 Second?", records=closed), {})
 
     def test_a_failed_skill_read_does_not_activate(self) -> None:
         failed = command_record("Get-Content C:/skills/grilling/SKILL.md")

@@ -2082,8 +2082,9 @@ Every Codex hook installer refreshes its registration where it stands through
 Codex trust and the hand-edited shapes where positions still move. Each installer takes no
 arguments: `--help` prints usage and any other argument exits 2, both before a user file is written.
 
-The Stop hook grades only the interval between a command that opens a `grilling`, `grill-me`, or
-`grill-with-docs` skill file and an assistant reply carrying the format's fixed closing line. It
+The Stop hook grades only the interval between a load of a `grilling`, `grill-me`, or
+`grill-with-docs` skill file (a command that reads it, or the skill the Codex app injects for a
+`$skill` mention) and an assistant reply carrying the format's fixed closing line. It
 retracts a bundled, incomplete, or out-of-block question after display, suppresses its own retry,
 and reports a stale installed format block. The complete detection boundary belongs to
 `grilling_stop_hook.DECLARED_LIMITS`; this section points at that object and copies none of its
