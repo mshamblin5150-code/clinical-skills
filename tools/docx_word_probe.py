@@ -92,6 +92,8 @@ PAD_CALIBRATIONS = (
     ),
 )
 
+PADDING_KEY = "table-cell-padding"
+
 ASSIGNMENT_KEYS = (
     "assignment-title-page",
     "assignment-title-page-no-credentials",
@@ -218,6 +220,10 @@ PAD_TABLE = (
     "| Refill: none | DEA number on file with pharmacy |\n"
 )
 PAD_PROSE = "Pharmacologic prose."
+WRAPPING_SIG = (
+    "Sig: Inject 500 mg into the muscle one time for infection, "
+    "following the supplied administration instructions"
+)
 
 PROBES = {
     "body-defaults": COMMON,
@@ -285,9 +291,12 @@ def _write_parts(parts: dict[str, bytes], destination: Path) -> None:
             archive.writestr(name, content)
 
 
-def _pad_markdown(fillers: int) -> str:
+def _pad_markdown(fillers: int, *, wrapping: bool = False) -> str:
     prefix = "".join("Filler paragraph {n}.\n\n".format(n=n + 1) for n in range(fillers))
-    return prefix + PAD_TABLE + "\n" + PAD_PROSE + "\n"
+    table = PAD_TABLE
+    if wrapping:
+        table = table.replace("Sig: Inject 500 mg into the muscle one time for infection", WRAPPING_SIG)
+    return prefix + table + "\n" + PAD_PROSE + "\n"
 
 
 def _without_keep_next(parts: dict[str, bytes]) -> dict[str, bytes]:
@@ -308,7 +317,45 @@ def pad_probe_parts() -> dict[str, dict[str, bytes]]:
         probes["prescription-pad-pagination-control-{n:02d}".format(n=fillers)] = (
             _without_keep_next(bound)
         )
+        probes["prescription-pad-pagination-wrapping-bound-{n:02d}".format(n=fillers)] = (
+            _rendered_parts(_pad_markdown(fillers, wrapping=True))
+        )
     return probes
+
+
+def padding_probe_parts() -> dict[str, dict[str, bytes]]:
+    """Compare inherited padding with the same table and no style margin."""
+    bound = _rendered_parts(COMMON)
+    control = dict(bound)
+    styles = _root(control, "word/styles.xml")
+    properties = _style(styles, docx_write.TABLE_STYLE_ID).find(W + "tblPr")
+    properties.remove(properties.find(W + "tblCellMar"))
+    control["word/styles.xml"] = ElementTree.tostring(styles)
+    return {PADDING_KEY: bound, PADDING_KEY + "-control": control}
+
+
+def padding_renderer_shapes() -> dict:
+    """Bind the house-property calibration to the style's declared margin."""
+    styles = _root(_rendered_parts(COMMON), "word/styles.xml")
+    margin = _style(styles, docx_write.TABLE_STYLE_ID).find(f"{W}tblPr/{W}tblCellMar")
+    edges = None if margin is None else [
+            {"edge": node.tag.removeprefix(W), "width": _attr(node, "w"),
+             "type": _attr(node, "type")}
+            for node in margin
+        ]
+    return {PADDING_KEY: {"style": docx_write.TABLE_STYLE_ID, "tblCellMar": edges}}
+
+
+def padding_word_measurement(report: dict) -> dict:
+    """Retain Word's padding readback beside its zero-margin control."""
+    documents = {item["key"]: item for item in report["documents"]}
+    return {PADDING_KEY: {
+        "measured_on": date.today().isoformat(), "word_version": report["word_version"],
+        "word_build": report["word_build"], "verdict": "observed",
+        "word_observation": {key: documents[name]["tables"][0]["padding_points"]
+                             for key, name in (("renderer", PADDING_KEY), ("control", PADDING_KEY + "-control"))},
+        "renderer_shape": padding_renderer_shapes()[PADDING_KEY],
+    }}
 
 
 def _root(parts: dict[str, bytes], name: str):
@@ -697,6 +744,7 @@ def pad_renderer_shapes() -> dict[str, dict]:
             )
             is not None,
             "cant_split_count": len(table.findall(".//" + W + "cantSplit")),
+            "wrapping_probe_document": _rendered_parts(_pad_markdown(0, wrapping=True))["word/document.xml"].decode(),
         }
     }
 
@@ -706,6 +754,10 @@ def pad_word_measurement(report: dict) -> dict[str, dict]:
 
     positions = {"bound": [], "control": []}
     prose_separations = {"bound": [], "control": []}
+    wrapping = []
+    shape = pad_renderer_shapes()["prescription-pad-pagination"]
+    sig_row = next(row["row"] - 1 for row in shape["table_paragraphs"]
+                   if row["text"].startswith("Sig:"))
     for document in report["documents"]:
         if not document["key"].startswith("prescription-pad-pagination-"):
             continue
@@ -717,6 +769,11 @@ def pad_word_measurement(report: dict) -> dict[str, dict]:
             for paragraph in document["paragraphs"]
             if paragraph["text"] == PAD_PROSE
         )
+        if "-wrapping-" in document["key"]:
+            wrapping.append({"fillers": fillers, "row_pages": row_pages,
+                             "prose_page": prose_page,
+                             "sig_lines": document["tables"][0]["row_lines"][sig_row]})
+            continue
         if len(set(row_pages)) > 1:
             positions[mode].append(fillers)
         if prose_page != row_pages[-1]:
@@ -745,7 +802,8 @@ def pad_word_measurement(report: dict) -> dict[str, dict]:
             "control_prose_separation_positions": prose_separations["control"],
             "bound_split_positions": positions["bound"],
             "bound_prose_separation_positions": prose_separations["bound"],
-            "renderer_shape": pad_renderer_shapes()[spec.key],
+            "renderer_shape": shape,
+            "wrapping_positions": wrapping,
         }
     }
 
@@ -762,6 +820,8 @@ def word_report(*, assignment_only: bool = False) -> dict:
             for key, mode in PASTE_PROBES.items():
                 _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
             for key, parts in pad_probe_parts().items():
+                _write_parts(parts, root / (key + ".docx"))
+            for key, parts in padding_probe_parts().items():
                 _write_parts(parts, root / (key + ".docx"))
         for key, package in assignment_probe_parts().items():
             _write_parts(package, root / (key + ".docx"))
@@ -791,6 +851,7 @@ def word_report(*, assignment_only: bool = False) -> dict:
         saved_copy = Path(report.pop("saved_copy"))
         if not assignment_only:
             report["pad_rows"] = pad_word_measurement(report)
+            report["padding_rows"] = padding_word_measurement(report)
         report["assignment_rows"] = assignment_word_measurement(report)
         report["documents"] = [
             document
@@ -824,6 +885,7 @@ def main(argv=None) -> int:
                     "rows": renderer_shapes(),
                     "paste_rows": paste_renderer_shapes(),
                     "pad_rows": pad_renderer_shapes(),
+                    "padding_rows": padding_renderer_shapes(),
                     "assignment_rows": assignment_renderer_shapes(),
                 },
                 indent=2,

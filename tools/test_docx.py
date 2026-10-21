@@ -992,6 +992,21 @@ class TheTableRules(unittest.TestCase):
         cell = self.document[self.document.index("<w:tc>") :]
         self.assertLess(cell.index("<w:tcW "), cell.index("<w:tcBorders>"))
 
+    def test_padding_is_declared_once_on_the_table_style(self):
+        namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+        W = '{' + namespace + '}'
+        NS = {'w': namespace}
+        styles = ElementTree.fromstring(self.styles)
+        table_style = styles.find("w:style[@w:styleId='APATable']/w:tblPr", NS)
+        self.assertEqual([node.tag.rsplit('}', 1)[-1] for node in table_style],
+                         ["tblBorders", "tblCellMar"])
+        margin = table_style.find("w:tblCellMar", NS)
+        self.assertEqual([(node.tag.rsplit('}', 1)[-1], node.get(W + 'w'), node.get(W + 'type'))
+                          for node in margin],
+                         [('top', '0', 'dxa'), ('left', '108', 'dxa'),
+                          ('bottom', '0', 'dxa'), ('right', '108', 'dxa')])
+        self.assertNotIn('tblCellMar', self.document)
+
     def test_the_table_style_draws_no_grid_either(self):
         """``BORDERS`` overrides the style, so a grid left in it is a latent grid."""
         style = self.styles[self.styles.index('w:type="table"') :]

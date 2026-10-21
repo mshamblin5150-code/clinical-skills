@@ -183,13 +183,17 @@ class ThePrescriptionPadCalibrationFamily(unittest.TestCase):
         self.assertEqual(set(record["pad_rows"]), set(specs))
         for key, row in record["pad_rows"].items():
             with self.subTest(key=key):
-                self.assertEqual(row["measured_on"], "2026-09-13")
+                self.assertGreaterEqual(row["measured_on"], "2026-10-21")
                 self.assertEqual(row["word_version"], "16.0")
                 self.assertTrue(row["word_build"])
                 self.assertEqual(row["verdict"], specs[key].verdict)
                 self.assertTrue(row["control_split_positions"])
                 self.assertEqual(row["bound_split_positions"], [])
                 self.assertEqual(row["bound_prose_separation_positions"], [])
+                self.assertEqual([item["fillers"] for item in row["wrapping_positions"]], list(docx_word_probe.PAD_FILLERS))
+                for item in row["wrapping_positions"]:
+                    self.assertEqual(item["sig_lines"], 2)
+                    self.assertEqual(set(item["row_pages"]), {item["prose_page"]})
                 self.assertEqual(
                     row["renderer_shape"], docx_word_probe.pad_renderer_shapes()[key]
                 )
@@ -208,6 +212,7 @@ class TheCommittedWordMeasurement(unittest.TestCase):
         record = json.loads(self.RECORD.read_text(encoding="utf-8"))
         specs = {spec.key: spec for spec in docx_word_probe.CALIBRATIONS}
         measured_on = {
+            "table-horizontal-rules": "2026-10-21",
             "body-no-extra-space": "2026-09-08",
             "heading-no-blank-lines": "2026-09-08",
             "block-quotation-format": "2026-09-08",
@@ -295,6 +300,22 @@ class TheCommittedWordMeasurement(unittest.TestCase):
 
 
 class TheMaintainerCommand(unittest.TestCase):
+    def test_padding_measurement_covers_the_declared_style_and_zero_control(self):
+        record = json.loads(TheCommittedWordMeasurement.RECORD.read_text(encoding="utf-8"))
+        row = record["padding_rows"][docx_word_probe.PADDING_KEY]
+        self.assertGreaterEqual(row["measured_on"], "2026-10-21")
+        self.assertEqual(row["renderer_shape"], docx_word_probe.padding_renderer_shapes()[docx_word_probe.PADDING_KEY])
+        for edge, value in {"left": 5.4, "right": 5.4, "top": 0.0, "bottom": 0.0}.items():
+            self.assertAlmostEqual(row["word_observation"]["renderer"][edge], value, places=5)
+        self.assertEqual(row["word_observation"]["control"], dict.fromkeys(("left", "right", "top", "bottom"), 0.0))
+        sheet = (TheCommittedWordMeasurement.RECORD.parent / 'style.md').read_text(encoding='utf-8')
+        self.assertEqual(sheet.count('`table-cell-padding`'), 1)
+
+    def test_an_unretaken_padding_change_leaves_the_measured_shape(self):
+        expected = docx_word_probe.padding_renderer_shapes()
+        with patch.object(docx_write, 'STYLES', docx_write.STYLES.replace('w:w="108"', 'w:w="120"')):
+            self.assertNotEqual(expected, docx_word_probe.padding_renderer_shapes())
+
     def test_word_mode_has_one_probe_for_every_calibration(self):
         self.assertEqual(
             set(docx_word_probe.PROBES),
@@ -312,7 +333,7 @@ class TheMaintainerCommand(unittest.TestCase):
                 )
                 for mode in ("bound", "control")
                 for fillers in docx_word_probe.PAD_FILLERS
-            },
+            } | {f"prescription-pad-pagination-wrapping-bound-{n:02d}" for n in docx_word_probe.PAD_FILLERS},
         )
 
     def test_shape_mode_prints_the_word_free_side_without_opening_word(self):
