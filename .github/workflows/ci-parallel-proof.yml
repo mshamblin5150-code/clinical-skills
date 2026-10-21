@@ -1,5 +1,5 @@
-# One generated-output diagnostic only; no application full suite or performance workload.
-name: bounded generated output diagnostic
+# One synthetic Windows metadata diagnostic; no application methods or performance work.
+name: bounded Windows metadata diagnostic
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  generated-output-diagnostic:
+  windows-metadata-diagnostic:
     if: github.run_attempt == 1
     runs-on: windows-latest
     timeout-minutes: 10
@@ -19,7 +19,7 @@ jobs:
         run: |
           "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Immutable reviewed observer and lazy candidate
+      - name: Immutable reviewed diagnostic observer
         uses: actions/checkout@v7
         env:
           GIT_CONFIG_COUNT: '1'
@@ -57,9 +57,9 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Diagnose only generated outputs and three unchanged methods
+      - name: Validate only synthetic native metadata and safety controls
         id: arm
         shell: pwsh
         run: |
-          python observer/diagnostics/diagnose_generated_outputs.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/diagnose_windows_snapshot.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE

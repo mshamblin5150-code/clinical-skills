@@ -353,7 +353,7 @@ class SetupScopeTests(unittest.TestCase):
         self.assertNotIn('python observer/diagnostics/diagnose_lazy_setup.py', workflow)
         self.assertNotIn('python observer/diagnostics/diagnose_staging_layout.py', workflow)
         self.assertNotIn('python observer/diagnostics/measure_maintainer_pair.py', workflow)
-        self.assertIn('python observer/diagnostics/diagnose_generated_outputs.py', workflow)
+        self.assertIn('python observer/diagnostics/diagnose_windows_snapshot.py', workflow)
         self.assertIn('github.run_attempt == 1', workflow)
         self.assertIn('PROOF_JOB_START_EPOCH', workflow)
         self.assertEqual(workflow.count("GIT_CONFIG_VALUE_0: 'false'"), 2)

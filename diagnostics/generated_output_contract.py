@@ -120,6 +120,173 @@ def _regular(metadata, limit, relative):
     need(0 <= metadata.st_size <= limit, 'generated_file_oversize', relative)
 
 
+@dataclass(frozen=True)
+class WindowsSnapshot:
+    st_dev: int
+    st_ino: int
+    st_mode: int
+    st_nlink: int
+    st_size: int
+    st_mtime_ns: int
+    st_ctime_ns: int
+    st_file_attributes: int
+    st_birthtime_ns: int
+    file_type: int
+    reparse_tag: int
+    delete_pending: bool
+
+
+class WindowsMetadataAPI:
+    """Documented read-only Win32 queries; no optional class or access fallback."""
+    def __init__(self, kernel=None):
+        import ctypes as c
+        self.c = c
+        self.kernel = kernel if kernel is not None else c.WinDLL('kernel32', use_last_error=True)
+        class Basic(c.Structure):
+            _fields_ = [(name, c.c_int64) for name in
+                        ('CreationTime', 'LastAccessTime', 'LastWriteTime', 'ChangeTime')] + [('FileAttributes', c.c_uint32)]
+        class Standard(c.Structure):
+            _fields_ = [('AllocationSize', c.c_int64), ('EndOfFile', c.c_int64),
+                        ('NumberOfLinks', c.c_uint32), ('DeletePending', c.c_ubyte), ('Directory', c.c_ubyte)]
+        class Identity(c.Structure):
+            _fields_ = [('VolumeSerialNumber', c.c_uint64), ('FileId', c.c_ubyte * 16)]
+        class Tag(c.Structure):
+            _fields_ = [('FileAttributes', c.c_uint32), ('ReparseTag', c.c_uint32)]
+        self.structures = {0: Basic, 1: Standard, 18: Identity, 9: Tag}
+        need([c.sizeof(self.structures[k]) for k in (0, 1, 18, 9)] == [40, 24, 24, 8],
+             'generated_native_abi_unavailable')
+        signatures = {
+            'CreateFileW': ((c.c_wchar_p, c.c_uint32, c.c_uint32, c.c_void_p,
+                             c.c_uint32, c.c_uint32, c.c_void_p), c.c_void_p),
+            'CloseHandle': ((c.c_void_p,), c.c_int),
+            'GetFileType': ((c.c_void_p,), c.c_uint32),
+            'GetFileInformationByHandleEx': ((c.c_void_p, c.c_int, c.c_void_p, c.c_uint32), c.c_int),
+        }
+        for name, (args, result) in signatures.items():
+            function = getattr(self.kernel, name)  # Missing API refuses; never use mixed Python metadata.
+            function.argtypes, function.restype = args, result
+
+    def open(self, path):
+        handle = self.kernel.CreateFileW(str(path), 0x80000000, 1, None, 3,
+                                         0x00200000 | 0x08000000, None)
+        need(handle not in (None, self.c.c_void_p(-1).value), 'generated_file_unread')
+        return handle
+
+    def close(self, handle):
+        need(bool(self.kernel.CloseHandle(handle)), 'generated_handle_cleanup_failed')
+
+    def from_fd(self, fd):
+        import msvcrt
+        return msvcrt.get_osfhandle(fd)
+
+    def record(self, handle):
+        values = {}
+        for kind in (0, 1, 18, 9):
+            item = self.structures[kind]()
+            need(bool(self.kernel.GetFileInformationByHandleEx(handle, kind, self.c.byref(item), self.c.sizeof(item))),
+                 'generated_handle_metadata_unread')
+            values[kind] = item
+        basic, standard, identity, tag = (values[k] for k in (0, 1, 18, 9))
+        need(basic.FileAttributes == tag.FileAttributes, 'generated_file_identity_changed')
+        mode = (stat.S_IFDIR | 0o111 if standard.Directory else stat.S_IFREG)
+        mode |= 0o444 if basic.FileAttributes & 1 else 0o666
+        need(bool(basic.FileAttributes & 0x10) == bool(standard.Directory), 'generated_file_identity_changed')
+        def ns(ticks):
+            return int(ticks) * 100 - 11644473600000000000
+        return WindowsSnapshot(int(identity.VolumeSerialNumber), int.from_bytes(bytes(identity.FileId), 'little'),
+                               mode, int(standard.NumberOfLinks), int(standard.EndOfFile),
+                               ns(basic.LastWriteTime), ns(basic.ChangeTime), int(basic.FileAttributes),
+                               ns(basic.CreationTime), int(self.kernel.GetFileType(handle)),
+                               int(tag.ReparseTag), bool(standard.DeletePending))
+
+
+def windows_metadata_api():
+    return WindowsMetadataAPI() if os.name == 'nt' else None
+
+
+def windows_snapshot(api, handle, limit, relative, deadline):
+    """Exactly two complete native records, not an atomicity claim or retry loop."""
+    need(time.monotonic() < deadline, 'global_budget_exhausted')
+    first = api.record(handle)
+    need(time.monotonic() < deadline, 'global_budget_exhausted')
+    second = api.record(handle)
+    for sample in (first, second):
+        need(type(sample) is WindowsSnapshot
+             and all(type(getattr(sample, field)) is int for field in
+                     (*METADATA_FIELDS, 'st_birthtime_ns', 'file_type', 'reparse_tag'))
+             and type(sample.delete_pending) is bool,
+             'generated_handle_metadata_unread', relative)
+        need(sample.file_type == 1 and sample.reparse_tag == 0
+             and not sample.delete_pending, 'generated_file_unsafe', relative)
+        _regular(sample, limit, relative)
+    if first != second:
+        q.emit('generated_native_snapshot_comparison', stage='repeat_record',
+               fields_equal={name: getattr(first, name) == getattr(second, name) for name in METADATA_FIELDS},
+               creation_equal=first.st_birthtime_ns == second.st_birthtime_ns,
+               path_token=q.digest(relative.encode('utf-8', errors='surrogatepass')))
+        refuse('generated_native_snapshot_unstable', relative)
+    need(time.monotonic() < deadline, 'global_budget_exhausted')
+    return first
+
+
+def _close_windows(close, primary):
+    try:
+        close()
+    except BaseException:
+        try:
+            q.emit('generated_handle_cleanup', verified=False,
+                   primary_failure_preserved=primary)
+        except BaseException:
+            pass
+        if not primary:
+            raise q.Refused('generated_handle_cleanup_failed') from None
+
+
+def _windows_path_snapshot(api, path, limit, relative, deadline):
+    need(time.monotonic() < deadline, 'global_budget_exhausted')
+    handle = api.open(path)
+    primary = False
+    try:
+        return windows_snapshot(api, handle, limit, relative, deadline)
+    except BaseException:
+        primary = True
+        raise
+    finally:
+        _close_windows(lambda: api.close(handle), primary)
+
+
+def _compare_windows(stage, left, right, relative):
+    compare_metadata(stage, left, right, relative)
+    if left.st_birthtime_ns != right.st_birthtime_ns:
+        q.emit('generated_creation_comparison', stage=stage, creation_equal=False,
+               path_token=q.digest(relative.encode('utf-8', errors='surrogatepass')))
+        refuse('generated_file_creation_changed', relative)
+
+
+def read_windows(path, limit, relative, deadline, api):
+    need(path.suffix.lower() in ('.pyc', '.json'), 'generated_native_path_kind_unsupported', relative)
+    before = _windows_path_snapshot(api, path, limit, relative, deadline)
+    fd = _open_readonly(path)  # Existing access, sharing, no-follow and ownership transfer.
+    stream, primary = None, False
+    try:
+        stream = os.fdopen(fd, 'rb')
+        handle = api.from_fd(stream.fileno())
+        opened = windows_snapshot(api, handle, limit, relative, deadline)
+        _compare_windows('before_open', before, opened, relative)
+        need(time.monotonic() < deadline, 'global_budget_exhausted')
+        raw = stream.read(limit + 1)
+        after = windows_snapshot(api, handle, limit, relative, deadline)
+        _compare_windows('before_after', before, after, relative)
+    except BaseException:
+        primary = True
+        raise
+    finally:
+        _close_windows(stream.close if stream is not None else lambda: os.close(fd), primary)
+    final = _windows_path_snapshot(api, path, limit, relative, deadline)
+    _compare_windows('after_final', after, final, relative)
+    return raw, before
+
+
 def _open_readonly(path):
     if os.name != 'nt':
         need(hasattr(os, 'O_NOFOLLOW'), 'generated_nofollow_unavailable')
@@ -146,7 +313,7 @@ def _open_readonly(path):
         need(not attributes.attributes & 0x400, 'generated_file_unsafe')
         fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
     except BaseException:
-        kernel.CloseHandle(handle)
+        _close_windows(lambda: need(bool(kernel.CloseHandle(handle)), 'generated_handle_cleanup_failed'), True)
         raise
     return fd  # ownership transferred to the Python file descriptor
 
@@ -167,21 +334,26 @@ def safe_read(repo, relative, limit, deadline):
         if ancestor == repo:
             break
     try:
-        before = path.lstat()
-        _regular(before, limit, relative)
-        fd = _open_readonly(path)
-        with os.fdopen(fd, 'rb') as stream:
-            opened = os.fstat(stream.fileno())
-            _regular(opened, limit, relative)
-            compare_metadata('before_open', before, opened, relative)
-            raw = stream.read(limit + 1)
-            after = os.fstat(stream.fileno())
-        final = path.lstat()
+        api = windows_metadata_api()
+        if api is not None:
+            raw, before = read_windows(path, limit, relative, deadline, api)
+        else:
+            before = path.lstat()
+            _regular(before, limit, relative)
+            fd = _open_readonly(path)
+            with os.fdopen(fd, 'rb') as stream:
+                opened = os.fstat(stream.fileno())
+                _regular(opened, limit, relative)
+                compare_metadata('before_open', before, opened, relative)
+                raw = stream.read(limit + 1)
+                after = os.fstat(stream.fileno())
+            final = path.lstat()
     except OSError:
         refuse('generated_file_unread', relative)
     need(len(raw) <= limit, 'generated_file_oversize', relative)
-    compare_metadata('before_after', before, after, relative)
-    compare_metadata('after_final', after, final, relative)
+    if api is None:
+        compare_metadata('before_after', before, after, relative)
+        compare_metadata('after_final', after, final, relative)
     compare_read_length(len(raw), before.st_size, relative)
     for ancestor, identity in ancestors.items():
         metadata = _safe_directory(ancestor, relative)

@@ -55,6 +55,9 @@ SYNTHETIC_SELECTORS = (
 )
 JUNCTION = 'test_aar_scan.ScanBasedSittingDiscovery.test_transcript_junctions_are_counted_without_being_entered'
 OBSERVER_PATHS = {
+    'diagnostics/diagnose_windows_snapshot.py', 'diagnostics/windows_snapshot_controls.py',
+    'diagnostics/test_snapshot_packet.py',
+    'diagnostics/test_windows_metadata.py',
     'diagnostics/diagnostic_observations.py', 'diagnostics/test_diagnostic_observations.py',
     'diagnostics/diagnose_staging_layout.py', 'diagnostics/test_staging_diagnostic.py',
     'diagnostics/staging_retained_controls.py', 'diagnostics/test_staging_retained_controls.py',

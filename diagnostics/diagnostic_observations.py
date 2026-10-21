@@ -5,15 +5,16 @@ import unittest
 import measure_lazy_suite_ids as q
 from parallel_reader_capture import summary_counts, FAILED, OK
 
-PHASES = frozenset(('preflight', 'source', 'native', 'retained', 'contract', 'clone',
+PHASES = frozenset(('preflight', 'source', 'native', 'retained', 'contract', 'snapshot', 'clone',
     'temp', 'initial_guard', 'discovery', 'discovery_validate', 'discovery_guard',
     'final_source', 'environment', 'cleanup') + tuple(
         prefix + str(index) for prefix in ('case_', 'case_verify_', 'case_guard_') for index in range(3)))
-CHILD_PHASES = frozenset(('native', 'retained', 'contract', 'temp', 'discovery', 'case_0', 'case_1', 'case_2'))
+CHILD_PHASES = frozenset(('native', 'retained', 'contract', 'snapshot', 'temp', 'discovery', 'case_0', 'case_1', 'case_2'))
 EXCEPTIONS = (AssertionError, ValueError, TypeError, KeyError, OSError, PermissionError,
               FileNotFoundError, TimeoutError, RuntimeError, KeyboardInterrupt, SystemExit, q.Refused)
 PREFIX = 'DIAGNOSTIC_CONTROL_OBSERVATION:'
-REASONS = frozenset(('global_budget_exhausted', 'disk_reserve_exhausted', 'capture_limit_exceeded',
+REASONS = frozenset(('windows_python_pin_required', 'unauthorized_event_or_rerun', 'snapshot_fixture_scope_invalid', 'snapshot_population_changed', 'snapshot_fixture_cleanup_failed', 'generated_file_creation_changed', 'generated_native_snapshot_unstable',
+    'generated_handle_cleanup_failed', 'generated_native_abi_unavailable', 'generated_native_path_kind_unsupported', 'global_budget_exhausted', 'disk_reserve_exhausted', 'capture_limit_exceeded',
     'capture_or_disk_reserve_exhausted', 'process_cleanup_unverified', 'probe_failed_or_unread',
     'owner_controls_failed', 'retained_controls_failed', 'retained_controls_receipt_invalid',
     'retained_controls_native_link_missing', 'unit_discovery_receipt_invalid',
@@ -80,7 +81,10 @@ def contract_ids():
 
 def contract_child():
     """Same unittest population, with finite failure-only observations after mocks stop."""
-    allowed = contract_ids()
+    return control_child(('test_generated_output_contract',), contract_ids(), 41)
+
+
+def control_child(modules, allowed, count):
     events = []
     class Result(unittest.TextTestResult):
         def record(self, test, err):
@@ -92,7 +96,7 @@ def contract_child():
                     row = metadata_flags(call.kwargs)
                     if row is not None and len(flags) < 8:
                         flags.append(row)
-            if len(events) < 41:
+            if len(events) < count:
                 events.append({'test_id': identity if identity in allowed else 'unknown',
                                'exception_category': exception_category(err[1]), 'metadata': flags})
         def addFailure(self, test, err):
@@ -107,7 +111,7 @@ def contract_child():
             super().addSubTest(test, subtest, err)
     class Runner(unittest.TextTestRunner):
         resultclass = Result
-    program = unittest.TestProgram(module=None, argv=['unittest', 'test_generated_output_contract'],
+    program = unittest.TestProgram(module=None, argv=['unittest', *modules],
                                    testRunner=Runner, exit=False)
     result = program.result
     print(PREFIX + json.dumps({'events': events}, sort_keys=True))
@@ -115,9 +119,9 @@ def contract_child():
 
 
 def observe_result(phase, result, allowed_ids=()):
-    bound = 41 if phase == 'contract' else 9 if phase == 'native' else 5 if phase == 'retained' else 1
+    bound = 73 if phase == 'snapshot' else 41 if phase == 'contract' else 9 if phase == 'native' else 5 if phase == 'retained' else 1
     row = {'phase': phase_name(phase), 'exit_state': exit_state(result.get('returncode')),
-           'expected_test_count': 41 if phase == 'contract' else 1 if phase in ('case_0', 'case_1', 'case_2') else None,
+           'expected_test_count': 73 if phase == 'snapshot' else 41 if phase == 'contract' else 1 if phase in ('case_0', 'case_1', 'case_2') else None,
            'summary_read': False, 'tests_run': None, 'failures': None, 'errors': None,
            'skipped': None, 'failed_test_ids': [], 'unknown_failure_ids': 0,
            'unknown_failure_ids_truncated': False, 'counts_state': 'unread'}
@@ -195,13 +199,19 @@ def observe_result(phase, result, allowed_ids=()):
                            failure_stage=data.get('failure_stage') if data.get('failure_stage') in states else None,
                            exception_category=data.get('exception_category') if data.get('exception_category') in tuple(t.__name__ for t in EXCEPTIONS) else None,
                            reason=data.get('reason') if type(data.get('reason')) is str and data.get('reason') in REASONS else None)
-        elif phase == 'contract':
+        elif phase in ('contract', 'snapshot'):
             lines = [line[len(PREFIX):] for line in result['stdout'].splitlines() if line.startswith(PREFIX)]
             if len(lines) != 1:
                 raise ValueError('missing or duplicate observation')
             data = unique_json(lines[0])
-            if type(data) is not dict or type(data.get('events')) is not list or len(data['events']) > 41:
+            if type(data) is not dict or type(data.get('events')) is not list or len(data['events']) > bound:
                 raise ValueError('invalid observation')
+            preflight = data.get('preflight_failure')
+            if type(preflight) is dict:
+                category, reason = preflight.get('exception_category'), preflight.get('reason')
+                q.emit('diagnostic_control_preflight', phase=phase_name(phase),
+                       exception_category=category if category in tuple(t.__name__ for t in EXCEPTIONS) else 'OtherException',
+                       reason=reason if type(reason) is str and reason in REASONS else 'unavailable')
             for event in data['events']:
                 if type(event) is not dict:
                     raise ValueError('invalid event')
@@ -241,6 +251,9 @@ class ObservedSession(q.Session):
         if self.phase in CHILD_PHASES:
             try:
                 allowed = contract_ids() if self.phase == 'contract' else ()
+                if self.phase == 'snapshot':
+                    from diagnose_windows_snapshot import control_groups
+                    allowed = sum(control_groups().values(), ())
                 if self.phase in ('case_0', 'case_1', 'case_2'):
                     from diagnose_generated_outputs import CASES
                     allowed = (CASES[int(self.phase[-1])],)

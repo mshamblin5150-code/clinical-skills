@@ -99,7 +99,7 @@ class GeneratedDiagnosticControls(unittest.TestCase):
     def test_workflow_exclusively_launches_one_narrow_job(self):
         text=(Path(d.__file__).resolve().parent.parent/'.github/workflows/ci-parallel-proof.yml').read_text()
         self.assertEqual(text.count('timeout-minutes: 10'),1)
-        self.assertEqual(text.count('python observer/diagnostics/diagnose_generated_outputs.py'),1)
+        self.assertEqual(text.count('python observer/diagnostics/diagnose_windows_snapshot.py'),1)
         for forbidden in ('needs: baseline','python observer/diagnostics/measure_maintainer_pair.py','upload-artifact'):
             self.assertNotIn(forbidden,text)
         self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),2)

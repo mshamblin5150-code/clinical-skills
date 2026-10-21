@@ -98,7 +98,7 @@ class PairControls(unittest.TestCase):
         flow=(root/'.github/workflows/ci-parallel-proof.yml').read_text()
         self.assertEqual(flow.count('timeout-minutes: 10'),1)
         self.assertNotIn('needs: baseline',flow)
-        self.assertIn('python observer/diagnostics/diagnose_generated_outputs.py',flow)
+        self.assertIn('python observer/diagnostics/diagnose_windows_snapshot.py',flow)
         self.assertNotIn('python observer/diagnostics/measure_maintainer_pair.py',flow)
         self.assertIn('github.run_attempt == 1',flow)
         self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),2)

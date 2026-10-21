@@ -205,16 +205,29 @@ class GeneratedOutputControls(unittest.TestCase):
 
     def test_handle_metadata_change_after_read_refuses(self):
         from types import SimpleNamespace
-        self.marker();original=os.fstat;calls=0
-        def changed(fd):
-            nonlocal calls
-            calls+=1;sample=original(fd)
-            if calls==2:
-                fields={name:getattr(sample,name) for name in dir(sample) if name.startswith('st_')}
-                fields['st_mtime_ns']+=1
-                return SimpleNamespace(**fields)
-            return sample
-        with mock.patch.object(os,'fstat',side_effect=changed):self.refused(marker='required')
+        self.marker();calls=0
+        if os.name == 'nt':
+            original = g.WindowsMetadataAPI.record
+            def changed(api, handle):
+                nonlocal calls
+                calls += 1
+                sample = original(api, handle)
+                return dataclasses.replace(sample, st_mtime_ns=sample.st_mtime_ns+100) if calls == 5 else sample
+            with mock.patch.object(g.WindowsMetadataAPI, 'record', changed):
+                self.refused(marker='required')
+        else:
+            original = os.fstat
+            def changed(fd):
+                nonlocal calls
+                calls += 1
+                sample = original(fd)
+                if calls == 2:
+                    fields = {name: getattr(sample, name) for name in dir(sample) if name.startswith('st_')}
+                    fields['st_mtime_ns'] += 1
+                    return SimpleNamespace(**fields)
+                return sample
+            with mock.patch.object(os, 'fstat', side_effect=changed):
+                self.refused(marker='required')
 
     def test_injected_reparse_and_link_metadata_refuse(self):
         import stat

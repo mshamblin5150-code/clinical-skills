@@ -281,3 +281,80 @@ would require an explicitly reviewed fixture/ownership scope and runtime
 approval. It would neither waive the full metadata guard nor establish the
 previous hosted checkout's cause. This packet instead makes the existing phases
 diagnosable without adding another runtime branch.
+
+## Local Windows metadata acquisition correction
+
+This local-only revision implements the separately approved design
+`d4c19ba9753ad13aca63dc25da7303670cfcfdc8482b2257234b0a1e348d314d`.
+The Windows generated-file reader acquires two additional short-lived pathname
+handles, one before and one after its existing read handle. All three use the
+existing GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, OPEN_REPARSE_POINT and
+SEQUENTIAL_SCAN policy with no inheritance. No write/delete access, expanded
+sharing, privilege, settings change or fallback is introduced. Path handles are
+closed before moving on; read ownership transfers to the existing Python file
+object. Every acquired handle/descriptor has one close attempt. Close failure is
+finite evidence and refuses; simultaneous primary failure is preserved.
+
+Each observation uses documented GetFileInformationByHandleEx Basic, Standard,
+Id and AttributeTag information plus GetFileType. It preserves volume serial,
+full 128-bit identity, regular/readonly mode, link count, size, write time, actual
+ChangeTime and attributes. CreationTime is checked separately, never substituted
+for ChangeTime. Reparse points, non-disk types, directories, delete-pending files,
+multiple links, excessive/invalid size and unavailable queries refuse. Only the
+contract's .pyc/.json generated-file names use the native mode mapping; arbitrary
+executable names are not silently assigned simplified mode semantics.
+
+Exactly two complete records are taken per observation, compared without retry,
+and bounded by deadline checks. Native queries are separate, not atomic. Share
+restrictions do not prevent all metadata changes; restored-value/ABA races remain
+an explicit limitation. No claim of immutable metadata or atomic snapshots is
+made. Cross-observation comparisons preserve all eight equality fields; creation
+and within-observation instability have separate finite refusal receipts. Raw
+values, payloads and paths are not added to public diagnostics. Ancestor checks,
+raw source identity, read length/size bounds and generated schemas remain in force.
+
+Portable native-boundary fixtures cover distinct CreationTime/ChangeTime,
+full-width identity, every field at every comparison boundary, fixed-repeat
+instability, reparse/link/type/size refusal, query/open/read/transfer/close failures,
+primary/cleanup separation and deadline exhaustion. The existing 41 contract
+controls retain their population; the injected post-read metadata mutation uses
+the native adapter on Windows and fstat on other systems. This does not claim a
+Windows execution. Publication or hosted validation needs separate approval.
+
+Primary API contracts: Microsoft Learn GetFileInformationByHandleEx,
+FILE_BASIC_INFO, FILE_STANDARD_INFO, FILE_ID_INFO, FILE_ATTRIBUTE_TAG_INFO,
+CreateFileW and GetFileType. No undocumented by-name behavior is assumed.
+
+## Dedicated synthetic Windows validation packet (prepared, not authorized to run)
+
+The only active workflow entrypoint is diagnose_windows_snapshot.py. It retains
+one Windows/Python 3.14.4 job, attempt one only, 10 total runner minutes and a
+60-second cleanup reserve. The pinned observer and source seed are verified;
+there is no measurement clone, application discovery, application test method,
+full suite or performance sample.
+
+Nine existing native ownership controls run first. Then one owned unittest child
+runs exactly 73 declared controls: 41 existing generated-output contract controls,
+26 deterministic/fake-native snapshot controls and six native Windows fixtures.
+The native fixtures cover exact stable .pyc and .json bytes, hardlink refusal,
+junction-ancestor refusal, same-byte file replacement at a controlled closed-handle
+boundary, and same-size content change with restored LastWriteTime at that boundary.
+The latter two are deliberate boundary interventions, not naturally concurrent
+races. They require actual differing native file identity/ChangeTime flags; absence
+of that evidence fails the control. There is no sleep/retry until a desired outcome.
+No native capability failure or incomplete population can be counted as a skip/pass.
+
+Known population IDs and exact groups are checked before running. Child exit,
+counts, source-known failing IDs and existing metadata flags are observed before
+the original validator. Child pre-parser failures emit finite category/reason data;
+fixture cleanup is observed before parser refusal, then owned-process cleanup is
+always attempted. Raw capture contents, paths and payloads remain private. Final
+success requires all 73 controls, exact raw source/observer preservation, unchanged
+environment and verified fixture/process cleanup. A diagnostic success would not
+qualify application performance or full-suite behavior.
+
+Five older workflow contract assertions change only the expected active entrypoint
+from diagnose_generated_outputs.py to diagnose_windows_snapshot.py. Their existing
+job-count, budget, no-full-pair, no-artifact, source-checkout and no-rerun checks are
+retained. The shared owner implementation remains unchanged. Publication and the
+single hosted validation still require explicit approval of the complete packet.
