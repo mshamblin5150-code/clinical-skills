@@ -1,5 +1,5 @@
 # Temporary setup-only diagnostic. No qualification or performance workload.
-name: lazy clone setup diagnostic
+name: original-source two-root diagnostic
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Observe native ownership and clone setup only
+      - name: Observe native ownership and two original-source roots
         shell: pwsh
         run: |
           python observer/diagnostics/diagnose_lazy_setup.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH

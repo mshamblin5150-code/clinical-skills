@@ -250,7 +250,7 @@ def conversion_config_receipt(session, repo):
 
 
 def first_clean(session, repo, head, role):
-    require(role in ('observer', 'seed', 'baseline', 'candidate'), 'unknown_clone_role')
+    require(role in ('observer', 'seed', 'baseline', 'candidate', 'original-layout', 'short-layout'), 'unknown_clone_role')
     require((repo / '.git').is_dir() and not (repo / '.git').is_symlink(), 'independent_clone_required')
     require(not (repo / '.git/objects/info/alternates').exists(), 'shared_objects_refused')
     common = session.git(repo, 'rev-parse', '--git-common-dir').strip()
