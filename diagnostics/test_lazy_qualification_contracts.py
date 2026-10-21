@@ -280,7 +280,8 @@ class BudgetAdmissionContracts(unittest.TestCase):
         self.assertEqual(subject.BASE, expected_pin)
         self.assertEqual(subject.BUDGET['source_sha'], expected_pin)
         self.assertIn('ref: ' + expected_pin, workflow)
-        self.assertIn("$reviewedBudgetSha256 = '" + subject.digest(budget) + "'", workflow)
+        self.assertEqual(subject.digest(budget), 'c8a0195e46b954adad9624ad48baa0c70687d8db6a0c7cde3213e0c4c7c550a7')
+        self.assertNotIn('measure_lazy_suite_ids.py --observer', workflow)
         self.assertNotIn('cb0507279e4e6b66ad40d10bc746b0e0b699291e', workflow)
 
     def test_measurement_and_cleanup_reserve_fit_exactly_after_preflight(self):

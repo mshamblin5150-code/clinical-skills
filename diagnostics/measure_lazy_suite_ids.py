@@ -55,6 +55,9 @@ SYNTHETIC_SELECTORS = (
 )
 JUNCTION = 'test_aar_scan.ScanBasedSittingDiscovery.test_transcript_junctions_are_counted_without_being_entered'
 OBSERVER_PATHS = {
+    'diagnostics/measure_maintainer_pair.py', 'diagnostics/full_suite_receipts.py',
+    'diagnostics/test_maintainer_pair.py', 'diagnostics/test_full_suite_receipts.py',
+    'diagnostics/test_source_context_real_git.py',
     SUITE_PATH, '.github/workflows/ci-parallel-proof.yml',
     'diagnostics/parallel-proof-budget.json', 'diagnostics/measure_parallel_readers.py',
     'diagnostics/parallel_reader_scheduler.py', 'diagnostics/parallel_reader_capture.py',

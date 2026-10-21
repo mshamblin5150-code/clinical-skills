@@ -351,10 +351,10 @@ class SetupScopeTests(unittest.TestCase):
         workflow = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
         self.assertIn('timeout-minutes: 90', workflow)
         self.assertNotIn('python observer/diagnostics/diagnose_lazy_setup.py', workflow)
-        self.assertIn('python observer/diagnostics/measure_lazy_suite_ids.py', workflow)
+        self.assertIn('python observer/diagnostics/measure_maintainer_pair.py', workflow)
         self.assertIn('github.run_attempt == 1', workflow)
         self.assertIn('PROOF_JOB_START_EPOCH', workflow)
-        self.assertEqual(workflow.count("GIT_CONFIG_VALUE_0: 'false'"), 2)
+        self.assertEqual(workflow.count("GIT_CONFIG_VALUE_0: 'false'"), 4)
         self.assertIn('/.gitignore', workflow)
 
 
