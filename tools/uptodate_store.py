@@ -45,7 +45,7 @@ from tree_walk import walk_files
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_path, scratch_root
 from run_record_reader import read_tool_record, UnreadableRecord, update_tool_record, RecordUpdate
-from uptodate_drug import DrugPage, parse_drug, drug_is_current, VERSION_LINE, DRUG_HEADER
+from uptodate_drug import DrugPage, parse_drug, drug_is_current, rendered_drug_text, VERSION_LINE, DRUG_HEADER
 
 DECLARED_LIMITS = (
     "A drug following a topic whose ending was cut off can evade the absorbed-page check when its header did not survive the paste.",
@@ -708,7 +708,7 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         return SweepReport(0, 0, root_read=False)
     unread += walked.unreadable_directories
     for path in walked.files:
-        if path.suffix.casefold() not in {".txt", ".md"}:
+        if path.suffix.casefold() not in {".txt", ".md", ".html", ".htm"}:
             continue
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
@@ -718,6 +718,8 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
             if file_digest.sha256(resolved) in filed_hashes:
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix.casefold() in {".html", ".htm"}:
+                text = rendered_drug_text(text)
             count = topic_shape_count(text)
             lines = text.splitlines()
             first_author = next((index for index, line in enumerate(lines) if TOPIC_MASTHEAD.match(line)), len(lines))

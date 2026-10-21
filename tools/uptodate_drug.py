@@ -42,10 +42,11 @@ class _RenderedDrug(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
-        self.headings: list[tuple[str, int, bool]] = []
+        self.headings: list[tuple[str, int, bool, int]] = []
         self.heading: list[str] | None = None
         self.heading_tag = ""
         self.indication = False
+        self.heading_start = 0
         self.folded = 0
 
     def handle_starttag(self, tag, attrs):
@@ -54,6 +55,7 @@ class _RenderedDrug(HTMLParser):
         if indication and attributes.get("aria-expanded") != "true":
             self.folded += 1
         if tag in {"h1", "h2", "h3", "h4"} or attributes.get("role") == "heading" or indication:
+            self.heading_start = len(self.parts)
             self.heading, self.heading_tag, self.indication = [], tag, indication
             self.parts.append("\n")
         elif tag in {"p", "div", "br", "li", "tr"}:
@@ -63,7 +65,7 @@ class _RenderedDrug(HTMLParser):
         if self.heading is not None and tag == self.heading_tag:
             title = " ".join("".join(self.heading).split())
             if title:
-                self.headings.append((title, len(self.parts), self.indication))
+                self.headings.append((title, len(self.parts), self.indication, self.heading_start))
             self.heading = None
             self.parts.append("\n")
         elif tag in {"p", "div", "li", "tr"}:
@@ -75,13 +77,20 @@ class _RenderedDrug(HTMLParser):
             self.heading.append(value)
 
 
+def rendered_drug_text(text: str) -> str:
+    """Visible-format text for the unfiled-material candidate census."""
+    reader = _RenderedDrug()
+    reader.feed(text)
+    return "".join(reader.parts)
+
+
 def parse_drug(text: str, read_on: str) -> DrugPage:
     date.fromisoformat(read_on)
     reader = _RenderedDrug()
     reader.feed(text)
     if reader.folded:
         raise ValueError(f"drug page has {reader.folded} folded indication(s); expand every adult and pediatric group")
-    titles = [title for title, _at, _indication in reader.headings if re.fullmatch(r".+: (?:Pediatric )?Drug information", title, re.I)]
+    titles = [title for title, _at, _indication, _start in reader.headings if re.fullmatch(r".+: (?:Pediatric )?Drug information", title, re.I)]
     if len(set(titles)) != 1:
         raise ValueError("drug source needs its rendered page title and article HTML")
     body = "".join(reader.parts)
@@ -89,16 +98,12 @@ def parse_drug(text: str, read_on: str) -> DrugPage:
     if len(versions) != 1:
         raise ValueError("drug page needs exactly one closing Topic / Version line")
     sections = []
-    for index, (heading, start, indication) in enumerate(reader.headings):
-        end = reader.headings[index + 1][1] if index + 1 < len(reader.headings) else len(reader.parts)
+    for index, (heading, start, indication, _heading_start) in enumerate(reader.headings):
+        end = reader.headings[index + 1][3] if index + 1 < len(reader.headings) else len(reader.parts)
         section_body = "".join(reader.parts[start:end]).strip()
-        # The next heading is already in parts before its end offset. Exclude it.
-        if index + 1 < len(reader.headings):
-            next_heading = reader.headings[index + 1][0]
-            section_body = section_body.rsplit(next_heading, 1)[0].strip()
         if indication and (not section_body or not re.search(r"\d|\b(?:mg|mcg|dose|dosing|administer|avoid|not recommended|refer|see)\b", section_body, re.I)):
             raise ValueError(f"drug indication has no dosing text: {heading}")
         sections.append(DrugSection(heading, section_body))
-    if not any(heading.lower().startswith("dosing") for heading, _at, _indication in reader.headings):
+    if not any(heading.lower().startswith("dosing") for heading, _at, _indication, _start in reader.headings):
         raise ValueError("drug page has no dosing section headings")
     return DrugPage(titles[0], versions[0][1], read_on, tuple(sections), body)

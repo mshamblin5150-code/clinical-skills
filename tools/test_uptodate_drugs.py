@@ -21,6 +21,39 @@ def drug(*, pediatric=False, folded=False, empty=False):
 
 
 class DrugCommands(unittest.TestCase):
+    def test_report_and_sweep_count_drugs_without_counting_topic_versions_as_drugs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            status, output = self.run_ingest(root, drug(), '--drug-page', '--read-on', date(2000, 1, 1).isoformat())
+            self.assertEqual(status, 0, output)
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(store.main(['--store', str(root / 'store'), 'report']), 0)
+            self.assertIn('drug pages: 1; past one year: 1', output.getvalue())
+            scan = root / 'scan'
+            scan.mkdir()
+            (scan / 'drug.html').write_text(drug(pediatric=True), encoding='utf-8')
+            (scan / 'topic.txt').write_text(topic('Example topic') + '\nTopic 101 Version 1.0\n', encoding='utf-8')
+            report = store.sweep_unfiled(scan, root / 'store')
+            self.assertEqual(report.files, 2)
+            self.assertEqual(report.topic_bodies, 2)
+
+    def test_observed_rendered_structure_with_synthetic_text(self):
+        # The live title is a div/role heading, not h1. The measured article
+        # uses drugH1 h2 headings, nested indication spans and separate body
+        # containers; all clinical words below are invented synthetic content.
+        html = ('<div id="topic-title" role="heading" aria-level="1">Example: Pediatric drug information</div>'
+                '<div id="topicArticle"><h2 class="drugH1">Dosing: Pediatric</h2>'
+                '<div><span class="collapsible-indication-title" aria-expanded="true">'
+                'Example <i>indication</i></span><div class="collapsible-indication-content">'
+                '<p>Oral: 5 mg once daily.</p></div></div>'
+                '<h2 class="drugH1">Dosing: Kidney Impairment: Pediatric</h2><p>No adjustment required.</p></div>'
+                '<div id="topicVersionRevision">Topic 123 Version 4.0</div>')
+        for content, expected in ((html, 0), (html.replace('aria-expanded="true"', 'aria-expanded="false"'), 2),
+                                  (html.replace('<p>Oral: 5 mg once daily.</p>', ''), 2)):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as temporary:
+                status, output = self.run_ingest(Path(temporary), content, '--drug-page', '--read-on', date.today().isoformat())
+                self.assertEqual(status, expected, output)
+
     def test_shared_brief_keeps_every_required_route(self):
         brief = (Path(__file__).resolve().parents[1] / 'skills/_shared/reference/uptodate-pull.md').read_text(encoding='utf-8')
         for required in ('word for word', '--query-readback', 'every Expand All', 'adult and pediatric',
