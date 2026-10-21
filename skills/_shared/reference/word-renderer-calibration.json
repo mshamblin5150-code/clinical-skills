@@ -3,11 +3,16 @@
   "historical_credential_note": "The prescription-pad-pagination text is the synthetic Word input measured on 2026-09-13. Its credential string is retained as dated calibration evidence, not an account default (#1682).",
   "pad_rows": {
     "prescription-pad-pagination": {
-      "measured_on": "2026-09-13",
-      "word_version": "16.0",
-      "word_build": "16.0.20326",
-      "verdict": "observed",
-      "word_observation": "Control split positions: 20, 21, 22; control prose separation positions: 19; bound split positions: none; bound prose separation positions: none.",
+      "bound_prose_separation_positions": [],
+      "bound_split_positions": [],
+      "control_prose_separation_positions": [
+        19
+      ],
+      "control_split_positions": [
+        20,
+        21,
+        22
+      ],
       "filler_positions": [
         8,
         9,
@@ -32,116 +37,422 @@
         28,
         29
       ],
-      "control_split_positions": [
-        20,
-        21,
-        22
-      ],
-      "control_prose_separation_positions": [
-        19
-      ],
-      "bound_split_positions": [],
-      "bound_prose_separation_positions": [],
+      "measured_on": "2026-10-21",
       "renderer_shape": {
-        "table_paragraphs": [
-          {
-            "row": 1,
-            "cell": 1,
-            "text": "",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 1,
-            "cell": 2,
-            "text": "",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 1,
-            "cell": 3,
-            "text": "",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 2,
-            "cell": 1,
-            "text": "Patient",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 2,
-            "cell": 2,
-            "text": "DOB x-x-xxx",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 2,
-            "cell": 3,
-            "text": "NPI # 1234567890",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 3,
-            "cell": 1,
-            "text": "Ceftriaxone 500 mg IM once",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 4,
-            "cell": 1,
-            "text": "Disp: 1 vial",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 5,
-            "cell": 1,
-            "text": "Sig: Inject 500 mg into the muscle one time for infection",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 6,
-            "cell": 1,
-            "text": "M. S. FNP-C, CEN, TCRN",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 7,
-            "cell": 1,
-            "text": "Refill: none",
-            "keep_next": true,
-            "keep_next_first": true
-          },
-          {
-            "row": 7,
-            "cell": 2,
-            "text": "DEA number on file with pharmacy",
-            "keep_next": true,
-            "keep_next_first": true
-          }
-        ],
+        "cant_split_count": 0,
+        "first_row_is_header": true,
         "post_table_paragraphs": [
           {
-            "text": "",
-            "keep_next": true
+            "keep_next": true,
+            "text": ""
           },
           {
-            "text": "Pharmacologic prose.",
-            "keep_next": false
+            "keep_next": false,
+            "text": "Pharmacologic prose."
           }
         ],
-        "first_row_is_header": true,
-        "cant_split_count": 0
-      }
+        "table_paragraphs": [
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 1,
+            "text": ""
+          },
+          {
+            "cell": 2,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 1,
+            "text": ""
+          },
+          {
+            "cell": 3,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 1,
+            "text": ""
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 2,
+            "text": "Patient"
+          },
+          {
+            "cell": 2,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 2,
+            "text": "DOB x-x-xxx"
+          },
+          {
+            "cell": 3,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 2,
+            "text": "NPI # 1234567890"
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 3,
+            "text": "Ceftriaxone 500 mg IM once"
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 4,
+            "text": "Disp: 1 vial"
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 5,
+            "text": "Sig: Inject 500 mg into the muscle one time for infection"
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 6,
+            "text": "M. S. FNP-C, CEN, TCRN"
+          },
+          {
+            "cell": 1,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 7,
+            "text": "Refill: none"
+          },
+          {
+            "cell": 2,
+            "keep_next": true,
+            "keep_next_first": true,
+            "row": 7,
+            "text": "DEA number on file with pharmacy"
+          }
+        ],
+        "wrapping_probe_document": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body><w:tbl><w:tblPr><w:tblStyle w:val=\"APATable\"/><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:color=\"000000\"/><w:left w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"000000\"/><w:right w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/><w:insideH w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/><w:insideV w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"3120\"/><w:gridCol w:w=\"3120\"/><w:gridCol w:w=\"3120\"/></w:tblGrid><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/><w:tcBorders><w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"000000\"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/><w:tcBorders><w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"000000\"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/><w:tcBorders><w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"000000\"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Patient</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">DOB x-x-xxx</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">NPI # 1234567890</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9360\" w:type=\"dxa\"/><w:gridSpan w:val=\"3\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Ceftriaxone 500 mg IM once</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9360\" w:type=\"dxa\"/><w:gridSpan w:val=\"3\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Disp: 1 vial</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9360\" w:type=\"dxa\"/><w:gridSpan w:val=\"3\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Sig: Inject 500 mg into the muscle one time for infection, following the supplied administration instructions</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9360\" w:type=\"dxa\"/><w:gridSpan w:val=\"3\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">M. S. FNP-C, CEN, TCRN</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:tcW w:w=\"3120\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Refill: none</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"6240\" w:type=\"dxa\"/><w:gridSpan w:val=\"2\"/></w:tcPr><w:p><w:pPr><w:keepNext/><w:spacing w:line=\"240\" w:lineRule=\"auto\"/><w:jc w:val=\"right\"/></w:pPr><w:r><w:t xml:space=\"preserve\">DEA number on file with pharmacy</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:keepNext/></w:pPr></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Pharmacologic prose.</w:t></w:r></w:p><w:sectPr><w:headerReference w:type=\"default\" r:id=\"rId3\"/><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>"
+      },
+      "verdict": "observed",
+      "word_build": "16.0.20430",
+      "word_observation": "Control split positions: 20, 21, 22; control prose separation positions: 19; bound split positions: none; bound prose separation positions: none.",
+      "word_version": "16.0",
+      "wrapping_positions": [
+        {
+          "fillers": 8,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 9,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 10,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 11,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 12,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 13,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 14,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 15,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 16,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 17,
+          "prose_page": 1,
+          "row_pages": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 18,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 19,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 20,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 21,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 22,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 23,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 24,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 25,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 26,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 27,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 28,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        },
+        {
+          "fillers": 29,
+          "prose_page": 2,
+          "row_pages": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "sig_lines": 2
+        }
+      ]
     }
   },
   "word_save_guard": {
@@ -181,13 +492,41 @@
       "verdict": "observed",
       "word_observation": "Word clipboard HTML contained <h1>, <h3>, and <h4> for the style-named paragraphs.",
       "renderer_shape": {
-        "paragraph_styles": ["Heading1", "Heading3", "Heading4"],
-        "referenced_style_names": ["heading 1", "heading 3", "heading 4"],
-        "outline_levels": ["0", "2", "3"],
-        "direct_bold": [false, false, false],
-        "direct_italic": [false, false, false],
-        "direct_left_indent_twips": [null, null, null],
-        "direct_alignment": [null, null, null]
+        "paragraph_styles": [
+          "Heading1",
+          "Heading3",
+          "Heading4"
+        ],
+        "referenced_style_names": [
+          "heading 1",
+          "heading 3",
+          "heading 4"
+        ],
+        "outline_levels": [
+          "0",
+          "2",
+          "3"
+        ],
+        "direct_bold": [
+          false,
+          false,
+          false
+        ],
+        "direct_italic": [
+          false,
+          false,
+          false
+        ],
+        "direct_left_indent_twips": [
+          null,
+          null,
+          null
+        ],
+        "direct_alignment": [
+          null,
+          null,
+          null
+        ]
       }
     },
     "unnamed-heading-clipboard": {
@@ -197,13 +536,41 @@
       "verdict": "observed",
       "word_observation": "Word clipboard HTML contained <p class=MsoNormal> for heading styles stripped of their names, and the style-borne bold was absent.",
       "renderer_shape": {
-        "paragraph_styles": ["Heading1", "Heading3", "Heading4"],
-        "referenced_style_names": [null, null, null],
-        "outline_levels": ["0", "2", "3"],
-        "direct_bold": [false, false, false],
-        "direct_italic": [false, false, false],
-        "direct_left_indent_twips": [null, null, null],
-        "direct_alignment": [null, null, null]
+        "paragraph_styles": [
+          "Heading1",
+          "Heading3",
+          "Heading4"
+        ],
+        "referenced_style_names": [
+          null,
+          null,
+          null
+        ],
+        "outline_levels": [
+          "0",
+          "2",
+          "3"
+        ],
+        "direct_bold": [
+          false,
+          false,
+          false
+        ],
+        "direct_italic": [
+          false,
+          false,
+          false
+        ],
+        "direct_left_indent_twips": [
+          null,
+          null,
+          null
+        ],
+        "direct_alignment": [
+          null,
+          null,
+          null
+        ]
       }
     },
     "renamed-heading-clipboard": {
@@ -213,13 +580,41 @@
       "verdict": "observed",
       "word_observation": "Word clipboard HTML contained paragraphs with renamed style classes; bold remained only in the embedded stylesheet rather than inline.",
       "renderer_shape": {
-        "paragraph_styles": ["Heading1", "Heading3", "Heading4"],
-        "referenced_style_names": ["APA Head 1", "APA Head 3", "APA Head 4"],
-        "outline_levels": ["0", "2", "3"],
-        "direct_bold": [false, false, false],
-        "direct_italic": [false, false, false],
-        "direct_left_indent_twips": [null, null, null],
-        "direct_alignment": [null, null, null]
+        "paragraph_styles": [
+          "Heading1",
+          "Heading3",
+          "Heading4"
+        ],
+        "referenced_style_names": [
+          "APA Head 1",
+          "APA Head 3",
+          "APA Head 4"
+        ],
+        "outline_levels": [
+          "0",
+          "2",
+          "3"
+        ],
+        "direct_bold": [
+          false,
+          false,
+          false
+        ],
+        "direct_italic": [
+          false,
+          false,
+          false
+        ],
+        "direct_left_indent_twips": [
+          null,
+          null,
+          null
+        ],
+        "direct_alignment": [
+          null,
+          null,
+          null
+        ]
       }
     },
     "direct-heading-clipboard": {
@@ -229,13 +624,33 @@
       "verdict": "observed",
       "word_observation": "Word clipboard HTML contained <p><b> for directly formatted heading paragraphs; the level-three run also remained italic.",
       "renderer_shape": {
-        "paragraph_styles": [null, null, null],
+        "paragraph_styles": [
+          null,
+          null,
+          null
+        ],
         "referenced_style_names": [],
         "outline_levels": [],
-        "direct_bold": [true, true, true],
-        "direct_italic": [false, true, false],
-        "direct_left_indent_twips": [null, null, "720"],
-        "direct_alignment": ["center", null, null]
+        "direct_bold": [
+          true,
+          true,
+          true
+        ],
+        "direct_italic": [
+          false,
+          true,
+          false
+        ],
+        "direct_left_indent_twips": [
+          null,
+          null,
+          "720"
+        ],
+        "direct_alignment": [
+          "center",
+          null,
+          null
+        ]
       }
     }
   },
@@ -266,7 +681,10 @@
       "verdict": "applied",
       "word_observation": "Word reported both plural-heading entries in Reference style with 36 pt left indents and -36 pt first-line indents.",
       "renderer_shape": {
-        "entry_styles": ["Reference", "Reference"],
+        "entry_styles": [
+          "Reference",
+          "Reference"
+        ],
         "hanging_twips": "720",
         "left_twips": "720"
       }
@@ -279,7 +697,10 @@
       "word_observation": "Word reported both reference entries at 24 pt double-line spacing and zero space after.",
       "renderer_shape": {
         "after_twips": "0",
-        "entry_styles": ["Reference", "Reference"],
+        "entry_styles": [
+          "Reference",
+          "Reference"
+        ],
         "line_twips": "480"
       }
     },
@@ -419,7 +840,10 @@
         "left_twips": "720",
         "line_twips": "480",
         "marker_visible": false,
-        "paragraph_styles": ["BlockQuotation", "BlockQuotation"]
+        "paragraph_styles": [
+          "BlockQuotation",
+          "BlockQuotation"
+        ]
       }
     },
     "block-quotation-subsequent-paragraph-indent": {
@@ -429,23 +853,87 @@
       "verdict": "not applied",
       "word_observation": "Word reported the two consecutive authored block quotation lines as separate Block Quotation paragraphs, each with a zero first-line indent; the renderer did not infer that the second paragraph continued the same quotation or add the required extra indent.",
       "renderer_shape": {
-        "direct_first_line_twips": [null, null],
+        "direct_first_line_twips": [
+          null,
+          null
+        ],
         "paragraph_count": 2,
-        "paragraph_styles": ["BlockQuotation", "BlockQuotation"],
+        "paragraph_styles": [
+          "BlockQuotation",
+          "BlockQuotation"
+        ],
         "style_first_line_twips": null
       }
     },
     "table-horizontal-rules": {
-      "measured_on": "2026-08-22",
+      "measured_on": "2026-10-21",
       "word_version": "16.0",
-      "word_build": "16.0.20228",
+      "word_build": "16.0.20430",
       "verdict": "applied",
-      "word_observation": "Word reported single top and bottom borders, no left, right, or vertical borders, single bottom borders on both header cells, no bottom borders on the intervening body row, and bottom borders on the last row.",
+      "word_observation": [
+        {
+          "borders": {
+            "bottom": 1,
+            "inside_h": 9999999,
+            "inside_v": 0,
+            "left": 0,
+            "right": 0,
+            "top": 1
+          },
+          "columns": 2,
+          "header_cell_bottoms": [
+            1,
+            1
+          ],
+          "index": 1,
+          "padding_points": {
+            "bottom": 0,
+            "left": 5.400000095367432,
+            "right": 5.400000095367432,
+            "top": 0
+          },
+          "row_cell_bottoms": [
+            [
+              1,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "row_lines": [
+            2,
+            2,
+            2
+          ],
+          "row_pages": [
+            1,
+            1,
+            1
+          ],
+          "rows": 3,
+          "style": "APA Table"
+        }
+      ],
       "renderer_shape": {
         "row_cell_bottoms": [
-          ["single", "single"],
-          [null, null],
-          [null, null]
+          [
+            "single",
+            "single"
+          ],
+          [
+            null,
+            null
+          ],
+          [
+            null,
+            null
+          ]
         ],
         "style": "APATable",
         "table_edges": {
@@ -465,7 +953,10 @@
       "verdict": "not applied",
       "word_observation": "Word reported one page containing only the authored Clinical Case heading and Body paragraph; no title-page elements were added.",
       "renderer_shape": {
-        "paragraphs": ["Clinical Case", "Body paragraph."]
+        "paragraphs": [
+          "Clinical Case",
+          "Body paragraph."
+        ]
       }
     },
     "run-in-headings": {
@@ -476,7 +967,10 @@
       "word_observation": "Word reported Follow-up as its own Heading 4 paragraph and The plan continues. as a separate body paragraph.",
       "renderer_shape": {
         "heading_style": "Heading4",
-        "paragraphs": ["Follow-up", "The plan continues."]
+        "paragraphs": [
+          "Follow-up",
+          "The plan continues."
+        ]
       }
     },
     "reference-alphabetization": {
@@ -504,6 +998,53 @@
           "disease. UpToDate."
         ]
       }
+    }
+  },
+  "padding_rows": {
+    "table-cell-padding": {
+      "measured_on": "2026-10-21",
+      "renderer_shape": {
+        "style": "APATable",
+        "tblCellMar": [
+          {
+            "edge": "top",
+            "type": "dxa",
+            "width": "0"
+          },
+          {
+            "edge": "left",
+            "type": "dxa",
+            "width": "108"
+          },
+          {
+            "edge": "bottom",
+            "type": "dxa",
+            "width": "0"
+          },
+          {
+            "edge": "right",
+            "type": "dxa",
+            "width": "108"
+          }
+        ]
+      },
+      "verdict": "observed",
+      "word_build": "16.0.20430",
+      "word_observation": {
+        "control": {
+          "bottom": 0,
+          "left": 0,
+          "right": 0,
+          "top": 0
+        },
+        "renderer": {
+          "bottom": 0,
+          "left": 5.400000095367432,
+          "right": 5.400000095367432,
+          "top": 0
+        }
+      },
+      "word_version": "16.0"
     }
   }
 }

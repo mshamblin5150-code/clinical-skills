@@ -66,8 +66,10 @@ function Table-Record($Table, [int]$Index) {
     }
     $rowBottoms = @()
     $rowPages = @()
+    $rowLines = @()
     foreach ($row in $Table.Rows) {
         $rowPages += [int]$row.Range.Information($WdActiveEndPageNumber)
+        $rowLines += [int]$row.Range.ComputeStatistics(1)
         $cellBottoms = @()
         foreach ($cell in $row.Cells) {
             $cellBottoms += Border-LineStyle $cell.Borders $WdBorderBottom
@@ -90,6 +92,13 @@ function Table-Record($Table, [int]$Index) {
         header_cell_bottoms = $headerBottoms
         row_cell_bottoms = $rowBottoms
         row_pages = $rowPages
+        row_lines = $rowLines
+        padding_points = [ordered]@{
+            left = [double]$Table.LeftPadding
+            right = [double]$Table.RightPadding
+            top = [double]$Table.TopPadding
+            bottom = [double]$Table.BottomPadding
+        }
     }
 }
 

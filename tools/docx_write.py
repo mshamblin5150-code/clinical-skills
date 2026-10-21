@@ -323,7 +323,7 @@ HEADER_RULE = "<w:tcBorders>{b}</w:tcBorders>".format(b=_edge("bottom", True))
 # The style is named for what it draws. It carried Word's built-in ``TableGrid`` name
 # while it drew a grid; keeping that name over APA borders would be a false statement
 # inside the file, and ``BORDERS`` overriding it in every ``tblPr`` would not make the
-# style itself true.
+# style itself true. It also supplies Word's default horizontal cell padding.
 TABLE_STYLE_ID = "APATable"
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -439,7 +439,9 @@ STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>
 <w:basedOn w:val="Normal"/><w:pPr><w:contextualSpacing/></w:pPr></w:style>
 <w:style w:type="table" w:styleId="{table}"><w:name w:val="APA Table"/>
-<w:tblPr>{borders}</w:tblPr></w:style>
+<w:tblPr>{borders}<w:tblCellMar><w:top w:w="0" w:type="dxa"/>
+<w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/>
+<w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>
 </w:styles>""".format(
     w=W,
     line=LINE_DOUBLE,

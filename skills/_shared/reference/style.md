@@ -281,6 +281,10 @@ One table per drug, including home medications continued unchanged.
 The pad stays on one page with the start of its prose; Word 16 calibration
 `prescription-pad-pagination` records that behavior and the renderer XML that produced it.
 
+Every table takes Word's default horizontal cell padding: 0.075 inch on the left and
+right, with none above or below. The house calibration `table-cell-padding` records
+Word's reading against a table with no declared margin.
+
 | | | |
 | --- | --- | --- |
 | `<patient placeholder>` | `DOB x-x-xxx` | `NPI # <number>` |

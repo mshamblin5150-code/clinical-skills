@@ -10,7 +10,7 @@
   "rows": {
     "assignment-caption": {
       "instrument": "Microsoft Word COM",
-      "measured_on": "2026-10-11",
+      "measured_on": "2026-10-21",
       "renderer_shape": {
         "paragraphs": [
           "<ns0:p xmlns:ns0=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><ns0:pPr><ns0:pStyle ns0:val=\"Caption\" /></ns0:pPr><ns0:r><ns0:rPr><ns0:b /></ns0:rPr><ns0:t xml:space=\"preserve\">Figure 1</ns0:t></ns0:r></ns0:p>",
@@ -75,7 +75,7 @@
     },
     "assignment-figure": {
       "instrument": "Microsoft Word COM",
-      "measured_on": "2026-10-11",
+      "measured_on": "2026-10-21",
       "renderer_shape": {
         "content_types": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n<Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"png\" ContentType=\"image/png\"/><Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/><Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>\n<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>\n<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>\n<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>\n<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>\n</Types>",
         "drawing": [
@@ -99,7 +99,7 @@
     },
     "assignment-figure-note": {
       "instrument": "Microsoft Word COM",
-      "measured_on": "2026-10-11",
+      "measured_on": "2026-10-21",
       "renderer_shape": {
         "document": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body><w:p><w:pPr><w:keepNext/></w:pPr></w:p><w:p><w:pPr><w:keepNext/></w:pPr></w:p><w:p><w:pPr><w:keepNext/></w:pPr></w:p><w:p><w:pPr><w:pStyle w:val=\"Title\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[DOCUMENT TITLE]</w:t></w:r></w:p><w:p><w:pPr><w:keepNext/></w:pPr></w:p><w:p><w:pPr><w:pStyle w:val=\"Subtitle\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[AUTHOR]</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:rPr><w:fitText w:val=\"9000\"/></w:rPr><w:t xml:space=\"preserve\">[CREDENTIAL ONE] | [CREDENTIAL TWO] | [CREDENTIAL THREE] | [CREDENTIAL FOUR]</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[INSTITUTION]</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[COURSE]</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[INSTRUCTOR]</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t xml:space=\"preserve\">[DUE DATE]</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Title\"/><w:pageBreakBefore/></w:pPr><w:r><w:t xml:space=\"preserve\">[DOCUMENT TITLE]</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Purpose and Scope</w:t></w:r></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">This generic fixture demonstrates a reusable academic document structure.</w:t></w:r></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">The example connects authority, coordination, and feedback (Example Agency, 2025).</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Command Matrix</w:t></w:r></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Sponsor: Sets intent. Decision right: Approves direction.</w:t></w:r></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Coordinator: Aligns work. Decision right: Resolves dependencies.</w:t></w:r></w:p><w:p><w:pPr><w:ind w:firstLine=\"720\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Team: Executes work. Decision right: Escalates constraints.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Caption\"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">Figure 1</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Caption\"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t xml:space=\"preserve\">Intent, Coordination, and Feedback</w:t></w:r></w:p><w:p><w:pPr><w:keepNext/><w:jc w:val=\"center\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"5943600\" cy=\"1717040\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:docPr id=\"1\" name=\"System relationship figure\" descr=\"Generic system relationship diagram\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"figure.png\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId4\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"5943600\" cy=\"1717040\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Caption\"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t xml:space=\"preserve\">Note.</w:t></w:r><w:r><w:t xml:space=\"preserve\"> Synthetic figure created with Example Tool (Example, 2026).</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Heading1\"/><w:pageBreakBefore/></w:pPr><w:r><w:t xml:space=\"preserve\">References</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Reference\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Example Agency. (2025). </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t xml:space=\"preserve\">Systems coordination brief</w:t></w:r><w:r><w:t xml:space=\"preserve\">. https://example.invalid/brief</w:t></w:r></w:p><w:sectPr><w:headerReference w:type=\"default\" r:id=\"rId3\"/><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>",
         "typography": [
@@ -190,7 +190,7 @@
     },
     "assignment-title-page": {
       "instrument": "Microsoft Word COM",
-      "measured_on": "2026-10-11",
+      "measured_on": "2026-10-21",
       "renderer_shape": {
         "paragraphs": [
           "<ns0:p xmlns:ns0=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><ns0:pPr><ns0:keepNext /></ns0:pPr></ns0:p>",
@@ -734,7 +734,7 @@
     },
     "assignment-title-page-no-credentials": {
       "instrument": "Microsoft Word COM",
-      "measured_on": "2026-10-11",
+      "measured_on": "2026-10-21",
       "renderer_shape": {
         "paragraphs": [
           "<ns0:p xmlns:ns0=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><ns0:pPr><ns0:keepNext /></ns0:pPr></ns0:p>",
