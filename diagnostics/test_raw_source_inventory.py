@@ -13,6 +13,7 @@ import time
 import unittest
 import zipfile
 from unittest import mock
+import measure_lazy_suite_ids as coordinator
 
 HERE = Path(__file__).resolve().parent
 ROOT = (HERE.parent / 'scratch/sessions'
@@ -83,6 +84,23 @@ class RawSourceInventoryTests(unittest.TestCase):
         self.git('-c', 'core.autocrlf=false', 'checkout', '--', '.')
         self.assertEqual(self.check(), {name: hashlib.sha256(data).hexdigest() for name, data in self.files.items()})
         self.assertFalse(any('archive' in args for args in self.session.calls))
+
+    def test_real_git_first_status_dirty_receipt_uses_single_result(self):
+        self.commit({'source.txt': b'alpha\nbeta\n', '.gitignore': b'scratch/\n'})
+        (self.repo / 'source.txt').write_bytes(b'changed\n')
+        def run(argv, cwd):
+            result = subprocess.run(argv, cwd=cwd, env=self.session.env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+            return {'returncode': result.returncode, 'stdout': result.stdout.decode('utf-8')}
+        with mock.patch.object(self.session, 'run', side_effect=run, create=True), \
+                mock.patch.object(coordinator, 'emit') as emit:
+            with self.assertRaisesRegex(coordinator.Refused, '^first_status_not_clean$'):
+                coordinator.first_clean(self.session, self.repo, self.pin, 'baseline')
+        statuses = [args for args in self.session.calls if args[0] == 'status']
+        self.assertEqual(len(statuses), 1)
+        self.assertEqual(emit.call_args_list[0].kwargs['category_counts'], {' M': 1})
+        self.assertEqual(emit.call_args_list[1].kwargs['effective_values'],
+                         {'core.autocrlf': 'true', 'core.eol': 'unset', 'core.safecrlf': 'unset'})
 
     def test_legacy_archive_conversion_discriminates_raw_from_converted_bytes(self):
         # Archive is a negative fixture only, never the replacement oracle.

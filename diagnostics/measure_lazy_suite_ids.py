@@ -64,6 +64,7 @@ OBSERVER_PATHS = {
     'diagnostics/lazy-qualification-budget.json', 'diagnostics/lazy-qualification-spec.md',
     'diagnostics/test_lazy_qualification_contracts.py',
     'diagnostics/raw_source_inventory.py', 'diagnostics/test_raw_source_inventory.py',
+    'diagnostics/diagnose_lazy_setup.py', 'diagnostics/test_lazy_setup.py',
 }
 BUDGET = {
     'schema_version': 1, 'admission_mode': 'estimate-not-completion-guarantee',
@@ -207,14 +208,61 @@ class Session:
         return clean
 
 
-def first_clean(session, repo, head):
+def status_receipt(raw):
+    """Summarize original porcelain-v1 rows without decoding path fields."""
+    counts, entries, total = {}, [], 0
+    records = raw.split(b'\n')
+    malformed = bool(raw and records[-1])
+    if not records[-1]:
+        records.pop()
+    for row in records:
+        code = row[:2]
+        valid = len(row) > 3 and row[2:3] == b' ' and all(c in b' MADRCUT?!' for c in code)
+        category = code.decode('ascii') if valid else 'malformed'
+        counts[category] = counts.get(category, 0) + 1
+        total += 1
+        if len(entries) < 8:
+            entries.append({'category': category,
+                            'path_field_token': digest(row[3:]) if valid else None})
+        malformed = malformed or not valid
+    return {'category_counts': counts, 'entry_count': total, 'entries': entries,
+            'omitted_entries': total - len(entries), 'parse_complete': not malformed,
+            'path_token_semantics': 'original-possibly-quoted-or-rename-composite-field',
+            'raw_paths_disclosed': False, 'raw_contents_disclosed': False}
+
+
+def conversion_config_receipt(session, repo):
+    # Effective values only. Never print config origins, arbitrary keys or values.
+    allowed = {'core.autocrlf': {'true', 'false', 'input'},
+               'core.eol': {'lf', 'crlf', 'native'},
+               'core.safecrlf': {'true', 'false', 'warn'}}
+    result = {}
+    for key, values in allowed.items():
+        try:
+            row = session.run(['git', '-C', str(repo), 'config', '--get', key], repo)
+            value = row['stdout'].strip().lower()
+            result[key] = (value if row['returncode'] == 0 and value in values else
+                           'unset' if row['returncode'] == 1 and not value else
+                           'unrecognized' if row['returncode'] == 0 else 'unavailable')
+        except Exception:
+            result[key] = 'unavailable'
+    return result
+
+
+def first_clean(session, repo, head, role):
+    require(role in ('observer', 'seed', 'baseline', 'candidate'), 'unknown_clone_role')
     require((repo / '.git').is_dir() and not (repo / '.git').is_symlink(), 'independent_clone_required')
     require(not (repo / '.git/objects/info/alternates').exists(), 'shared_objects_refused')
     common = session.git(repo, 'rev-parse', '--git-common-dir').strip()
     require((repo / common).resolve() == (repo / '.git').resolve(), 'shared_git_directory')
     require(session.git(repo, 'rev-parse', 'HEAD').strip() == head, 'wrong_source_head')
     # This must precede normalization, reset, checkout-index, or a candidate copy.
-    require(not session.git(repo, 'status', '--porcelain=v1', '--untracked-files=all'), 'first_status_not_clean')
+    status = session.git_bytes(repo, 'status', '--porcelain=v1', '--untracked-files=all')
+    if status:
+        # This exact captured result determines refusal. No second status or repair.
+        emit('first_status_discrepancy', role=role, **status_receipt(status))
+        emit('first_status_config', role=role, effective_values=conversion_config_receipt(session, repo))
+    require(not status, 'first_status_not_clean')
 
 
 def make_clone(session, seed, root, variant, expected, candidate):
@@ -223,7 +271,7 @@ def make_clone(session, seed, root, variant, expected, candidate):
                           '--no-checkout', str(seed), str(repo)], root)
     require(result['returncode'] == 0, 'clone_failed')
     session.git(repo, '-c', 'core.autocrlf=false', 'checkout', '--detach', BASE)
-    first_clean(session, repo, BASE)
+    first_clean(session, repo, BASE, variant)
     require(inventory(repo, deadline=session.deadline) == expected, 'initial_clone_inventory_changed')
     inventory(repo / '.git', exclude_git=False, deadline=session.deadline)
     require(not any(os.path.lexists(repo / name) for name in ('scratch', 'output')), 'private_roots_present')
@@ -322,11 +370,11 @@ def main(argv=None):
         require(all(not temp.is_relative_to(repo) for repo in (observer, seed)), 'temp_inside_checkout')
         root = Path(tempfile.mkdtemp(prefix='lazy-qualification-', dir=temp))
         session = Session(root, deadline)
-        first_clean(session, observer, os.environ.get('GITHUB_SHA'))
+        first_clean(session, observer, os.environ.get('GITHUB_SHA'), 'observer')
         session.git(observer, 'merge-base', '--is-ancestor', OBSERVER_BASE, 'HEAD')
         changed = set(session.git(observer, 'diff', '--name-only', OBSERVER_BASE, 'HEAD').splitlines())
         require(changed == OBSERVER_PATHS, 'observer_branch_scope_changed')
-        first_clean(session, seed, BASE)
+        first_clean(session, seed, BASE, 'seed')
         budget_bytes = read_reviewed_bytes(observer / 'diagnostics/lazy-qualification-budget.json', args.budget_sha256)
         budget = json.loads(budget_bytes)
         require(budget == BUDGET, 'budget_contract_changed')

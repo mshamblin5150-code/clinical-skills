@@ -7,8 +7,85 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import measure_lazy_suite_ids as subject
+
+
+class FirstStatusReceiptTests(unittest.TestCase):
+    def test_bounded_binary_safe_path_fields_and_rename_composite(self):
+        field = b'"old\\tname" -> "new\\377name"'
+        raw = b'R  ' + field + b'\n' + b'?? private\n' * 20
+        receipt = subject.status_receipt(raw)
+        self.assertEqual(receipt['category_counts'], {'R ': 1, '??': 20})
+        self.assertEqual(receipt['entry_count'], 21)
+        self.assertEqual(len(receipt['entries']), 8)
+        self.assertEqual(receipt['omitted_entries'], 13)
+        self.assertEqual(receipt['entries'][0]['path_field_token'], subject.digest(field))
+        self.assertTrue(receipt['parse_complete'])
+        self.assertNotIn('private', str(receipt))
+
+    def test_malformed_status_never_discloses_rows(self):
+        for raw in (b'PRIVATE', b'XX PRIVATE\n', b'R  PRIVATE'):
+            with self.subTest(raw=raw):
+                receipt = subject.status_receipt(raw)
+                self.assertFalse(receipt['parse_complete'])
+                self.assertNotIn('PRIVATE', str(receipt))
+
+    def test_first_status_is_called_once_and_same_dirty_result_refuses(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            (repo / '.git').mkdir()
+            session = mock.Mock()
+            session.git.side_effect = ['.git\n', 'pinned\n']
+            session.git_bytes.return_value = b' M sensitive\n'
+            session.run.return_value = {'returncode': 0, 'stdout': 'PRIVATE VALUE'}
+            with mock.patch.object(subject, 'emit') as emit:
+                with self.assertRaisesRegex(subject.Refused, '^first_status_not_clean$'):
+                    subject.first_clean(session, repo, 'pinned', 'baseline')
+            session.git_bytes.assert_called_once_with(
+                repo, 'status', '--porcelain=v1', '--untracked-files=all')
+            self.assertEqual(session.git.call_count, 2)
+            self.assertEqual(emit.call_args_list[0].kwargs['role'], 'baseline')
+            self.assertNotIn('PRIVATE', str(emit.call_args_list))
+            self.assertNotIn('sensitive', str(emit.call_args_list))
+
+    def test_clean_first_status_does_not_observe_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            (repo / '.git').mkdir()
+            session = mock.Mock()
+            session.git.side_effect = ['.git\n', 'pinned\n']
+            session.git_bytes.return_value = b''
+            subject.first_clean(session, repo, 'pinned', 'candidate')
+            session.run.assert_not_called()
+
+    def test_config_allowlist_absent_and_failure(self):
+        session = mock.Mock()
+        session.run.side_effect = [
+            {'returncode': 0, 'stdout': 'TRUE\n'},
+            {'returncode': 1, 'stdout': ''}, RuntimeError('PRIVATE')]
+        self.assertEqual(subject.conversion_config_receipt(session, Path('.')),
+                         {'core.autocrlf': 'true', 'core.eol': 'unset',
+                          'core.safecrlf': 'unavailable'})
+
+    def test_config_deadline_failure_keeps_dirty_status_verdict(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            (repo / '.git').mkdir()
+            session = mock.Mock()
+            session.git.side_effect = ['.git\n', 'pinned\n']
+            session.git_bytes.return_value = b' M changed\n'
+            with mock.patch.object(subject, 'emit') as emit:
+                def exhausted(*args):
+                    self.assertEqual(emit.call_args_list[0].args, ('first_status_discrepancy',))
+                    raise subject.Refused('global_budget_exhausted')
+                session.run.side_effect = exhausted
+                with self.assertRaisesRegex(subject.Refused, '^first_status_not_clean$'):
+                    subject.first_clean(session, repo, 'pinned', 'seed')
+            self.assertEqual(session.git_bytes.call_count, 1)
+            self.assertEqual(set(emit.call_args_list[1].kwargs['effective_values'].values()),
+                             {'unavailable'})
 
 
 CONTROL_IDS = (

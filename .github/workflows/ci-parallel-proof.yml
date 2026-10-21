@@ -1,5 +1,5 @@
-# Restores this trigger to lazy qualification only. No parallel workload runs.
-name: lazy message qualification
+# Temporary setup-only diagnostic. No qualification or performance workload.
+name: lazy clone setup diagnostic
 
 on:
   push:
@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  lazy-qualification:
+  lazy-setup-diagnostic:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 10
     steps:
       - name: Record whole-job budget origin
         shell: pwsh
@@ -52,17 +52,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Exact interpreter without installing packages
+      - name: Exact interpreter
         uses: actions/setup-python@v7
         with:
           python-version: '3.14.4'
 
-      - name: Qualify controls then twenty alternating module probes
+      - name: Observe native ownership and clone setup only
         shell: pwsh
         run: |
-          $reviewedBudgetSha256 = 'ae23ebfc010736b0c942ea66f496e0edeb92bb15efe2d0b0275b6bb9a5799b70'
-          python observer/diagnostics/measure_lazy_suite_ids.py --observer observer --seed source-seed --budget-sha256 $reviewedBudgetSha256 --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/diagnose_lazy_setup.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
 
 # No workflow_dispatch, PR event, matrix, upload, secret, write token, package
-# installation, automatic rerun, production scheduler, or checks.yml change.
+# install command, automatic rerun, production scheduler, or checks.yml change.
