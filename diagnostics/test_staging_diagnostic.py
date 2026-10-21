@@ -149,7 +149,7 @@ class StagingDiagnosticControls(unittest.TestCase):
         self.assertEqual(text.count('timeout-minutes: 10'),1)
         self.assertNotIn('python observer/diagnostics/diagnose_staging_layout.py',text)
         self.assertNotIn('python observer/diagnostics/measure_maintainer_pair.py',text)
-        self.assertIn('python observer/diagnostics/diagnose_windows_snapshot.py',text)
+        self.assertIn('python observer/diagnostics/diagnose_generated_outputs.py',text)
         self.assertNotIn('needs: baseline',text)
         self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),2)
         self.assertIn('PROOF_JOB_START_EPOCH',text)

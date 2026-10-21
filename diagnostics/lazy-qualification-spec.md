@@ -325,9 +325,9 @@ Primary API contracts: Microsoft Learn GetFileInformationByHandleEx,
 FILE_BASIC_INFO, FILE_STANDARD_INFO, FILE_ID_INFO, FILE_ATTRIBUTE_TAG_INFO,
 CreateFileW and GetFileType. No undocumented by-name behavior is assumed.
 
-## Dedicated synthetic Windows validation packet (prepared, not authorized to run)
+## Historical dedicated synthetic Windows validation packet
 
-The only active workflow entrypoint is diagnose_windows_snapshot.py. It retains
+For that packet the active workflow entrypoint was diagnose_windows_snapshot.py. It retained
 one Windows/Python 3.14.4 job, attempt one only, 10 total runner minutes and a
 60-second cleanup reserve. The pinned observer and source seed are verified;
 there is no measurement clone, application discovery, application test method,
@@ -358,3 +358,49 @@ from diagnose_generated_outputs.py to diagnose_windows_snapshot.py. Their existi
 job-count, budget, no-full-pair, no-artifact, source-checkout and no-rerun checks are
 retained. The shared owner implementation remains unchanged. Publication and the
 single hosted validation still require explicit approval of the complete packet.
+
+
+## Real-output integration packet (local preparation only)
+
+Native validation is retained in history: published a3609f30, tree
+b76543d33bec726449d5935782bf5347f09b284e, run 39685887923 passed the nine
+ownership and 73 snapshot/contract controls, source/environment and fixture/process
+cleanup. That is native adapter evidence, not real-application output integration.
+
+Restore the existing diagnose_generated_outputs.py entrypoint without changing its
+implementation, the native-validated adapter, source files or settings. Frozen
+source remains 104ee03cd4d37519b12b3edbc4da5fbf31b631cf. One Windows/Python
+3.14.4 job is capped at 10 total runner minutes, with the unchanged 60-second
+cleanup reserve, attempt-one restriction and owned-process cancellation/cleanup.
+Nine ownership controls, five retained-output controls and 41 contract controls
+precede the existing real-output sequence. Do not repeat the 73-control synthetic
+route or its six native fixtures. All diagnostic source and historical tests remain.
+
+The unchanged sequence verifies source identity/raw bytes/first status, creates its
+legitimate disposable workspace with unchanged owner/capture placement and TEMP/TMP,
+checks initial generated output, discovers actual test objects without executing
+application test bodies, then executes exactly these three unchanged methods:
+
+- test_hook_payload.UnreadableHookPayloads.test_escaped_trigger_is_a_declared_raw_search_limit
+- test_subagent_staging_hook.SubagentStagingLaunch.test_existing_nonempty_folder_accepts_relative_absolute_and_backslash_routes
+- test_suite.SuiteRunControls.test_a_complete_run_atomically_replaces_the_unit_weights
+
+The existing coherent four-family generated-output contract remains unchanged:
+source-correlated bytecode, the exact marker, native suite weights, and the exact
+empty staging parent. Unknown, unsafe, unread or changed output still refuses.
+Raw-object equality, all metadata dimensions including actual ChangeTime, exactly
+two additional short-lived path handles, application policy and test/lock timeouts
+are unchanged. No full suite, benchmark, lazy samples or parallelism work runs.
+
+Expected success requires all 9/5/41 controls, zero-skip passing receipts for all
+three selected methods, every intermediate/final retained-output guard, source and
+observer raw integrity, unchanged environment and verified owned cleanup. Failure,
+unsupported capability or incomplete work is inconclusive, never a skipped pass;
+existing bounded phase/test/metadata reporting precedes unchanged refusal. Passing
+would establish this narrow integration only, not full-suite qualification, prior
+hosted-output integrity or adoption. No automatic rerun or follow-on job.
+
+This packet changes only the active workflow, five active-entrypoint test
+expectations (with an explicit prohibition of the synthetic route), and this spec.
+All existing budget, source, no-full-pair, no-artifact and no-rerun assertions remain.
+Publication and one hosted integration diagnostic require separate explicit approval.

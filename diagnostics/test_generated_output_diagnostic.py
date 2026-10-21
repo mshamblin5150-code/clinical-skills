@@ -90,7 +90,16 @@ class GeneratedDiagnosticControls(unittest.TestCase):
         import test_generated_output_contract
         suite=unittest.defaultTestLoader.loadTestsFromModule(test_generated_output_contract)
         self.assertEqual(suite.countTestCases(),d.CONTRACT_CONTROL_COUNT)
-        self.assertGreater(d.CONTRACT_CONTROL_COUNT,0)
+        self.assertEqual(d.CONTRACT_CONTROL_COUNT,41)
+        self.assertEqual(len(d.q.DECLARED_CONTROL_IDS),9)
+        import staging_retained_controls
+        self.assertEqual(len(staging_retained_controls.CASES),5)
+        self.assertEqual(d.q.BASE,'104ee03cd4d37519b12b3edbc4da5fbf31b631cf')
+        source=inspect.getsource(d.setup)
+        self.assertLess(source.index("'native'"),source.index("'retained'"))
+        self.assertLess(source.index("'retained'"),source.index("'contract'"))
+        self.assertNotIn('diagnose_windows_snapshot',source)
+        self.assertNotIn('windows_snapshot_controls',source)
 
     def test_job_origin_reserves_cleanup(self):
         self.assertEqual(d.budget_deadline(1000,1100,500),940)
@@ -99,8 +108,8 @@ class GeneratedDiagnosticControls(unittest.TestCase):
     def test_workflow_exclusively_launches_one_narrow_job(self):
         text=(Path(d.__file__).resolve().parent.parent/'.github/workflows/ci-parallel-proof.yml').read_text()
         self.assertEqual(text.count('timeout-minutes: 10'),1)
-        self.assertEqual(text.count('python observer/diagnostics/diagnose_windows_snapshot.py'),1)
-        for forbidden in ('needs: baseline','python observer/diagnostics/measure_maintainer_pair.py','upload-artifact'):
+        self.assertEqual(text.count('python observer/diagnostics/diagnose_generated_outputs.py'),1)
+        for forbidden in ('python observer/diagnostics/diagnose_windows_snapshot.py', 'needs: baseline','python observer/diagnostics/measure_maintainer_pair.py','upload-artifact'):
             self.assertNotIn(forbidden,text)
         self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),2)
         self.assertIn('github.run_attempt == 1',text)

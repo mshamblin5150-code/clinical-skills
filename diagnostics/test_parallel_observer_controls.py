@@ -152,7 +152,7 @@ class RegistryControls(unittest.TestCase):
         self.assertNotIn("python observer/diagnostics/diagnose_lazy_setup.py", workflow.read_text(encoding="utf-8"))
         self.assertNotIn("python observer/diagnostics/diagnose_staging_layout.py", workflow.read_text(encoding="utf-8"))
         self.assertNotIn("python observer/diagnostics/measure_maintainer_pair.py", workflow.read_text(encoding="utf-8"))
-        self.assertIn("python observer/diagnostics/diagnose_windows_snapshot.py", workflow.read_text(encoding="utf-8"))
+        self.assertIn("python observer/diagnostics/diagnose_generated_outputs.py", workflow.read_text(encoding="utf-8"))
         self.assertNotIn("python observer/diagnostics/measure_parallel_readers.py", workflow.read_text(encoding="utf-8"))
 
     def test_inventory_slow_read_cannot_cross_experiment_deadline_and_return_success(self):

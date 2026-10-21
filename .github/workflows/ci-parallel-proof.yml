@@ -1,5 +1,5 @@
-# One synthetic Windows metadata diagnostic; no application methods or performance work.
-name: bounded Windows metadata diagnostic
+# One bounded real-output integration diagnostic; three selected methods, no full suite or performance work.
+name: bounded generated-output integration diagnostic
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  windows-metadata-diagnostic:
+  generated-output-diagnostic:
     if: github.run_attempt == 1
     runs-on: windows-latest
     timeout-minutes: 10
@@ -57,9 +57,9 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Validate only synthetic native metadata and safety controls
+      - name: Validate generated-output integration with three unchanged methods
         id: arm
         shell: pwsh
         run: |
-          python observer/diagnostics/diagnose_windows_snapshot.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/diagnose_generated_outputs.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE
