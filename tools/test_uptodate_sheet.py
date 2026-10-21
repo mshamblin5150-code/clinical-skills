@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import artifact_lock_test_support
 import uptodate_sheet as sheet
 import uptodate_store as store
 

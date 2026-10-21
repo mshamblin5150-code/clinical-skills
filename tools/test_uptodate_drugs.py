@@ -1,6 +1,7 @@
 """Synthetic public-command coverage of live drug filing and absorbed pages."""
 import contextlib
 import io
+import json
 from datetime import date
 import sys
 import tempfile
@@ -8,7 +9,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import artifact_lock_test_support
 import uptodate_store as store
+from prose_bind import bind, NAMING
 from test_uptodate_store import topic
 
 
@@ -21,6 +24,28 @@ def drug(*, pediatric=False, folded=False, empty=False):
 
 
 class DrugCommands(unittest.TestCase):
+    def test_damaged_drug_read_date_is_unreadable_not_an_absent_date(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            status, output = self.run_ingest(root, drug(), '--drug-page', '--read-on', date.today().isoformat())
+            self.assertEqual(status, 0, output)
+            path = root / 'store' / 'dumps' / 'sample' / 'manifest.json'
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            for changed in ({**manifest, 'read_on': 'not a date'}, {**manifest, 'topics': []},
+                            {**manifest, 'source_sha256': 'not a digest'},
+                            {**manifest, 'supersedes': {}},
+                            {**manifest, 'topics': [{**manifest['topics'][0], 'authors': None}]},
+                            {**manifest, 'topics': [{**manifest['topics'][0], 'last_updated': None}]}):
+                with self.subTest(changed_fields=changed.keys()):
+                    path.write_text(json.dumps(changed), encoding='utf-8')
+                    with contextlib.redirect_stderr(io.StringIO()) as error:
+                        self.assertEqual(store.main(['--store', str(root / 'store'), 'report']), 2)
+                    self.assertIn('unreadable', error.getvalue())
+
+    def test_filing_limits_are_named_at_the_maintainer_pointer(self):
+        text = (Path(__file__).resolve().parents[1] / 'CLAUDE.md').read_text(encoding='utf-8')
+        self.assertEqual(bind(store.DECLARED_LIMITS, text, mode=NAMING), ())
+
     def test_report_and_sweep_count_drugs_without_counting_topic_versions_as_drugs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

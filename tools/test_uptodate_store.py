@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import artifact_lock_test_support
 import docx_read
 import uptodate_store as store
 
@@ -374,7 +375,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         )
         (report.manifest.parent / store.SOURCE_NAME).unlink()
 
-        with self.assertRaisesRegex(ValueError, "wrong shape"):
+        with self.assertRaisesRegex(ValueError, "source does not match"):
             store.entitled_topics(self.store)
 
     def test_an_independent_metadata_marker_cannot_disappear_from_ingest(self):

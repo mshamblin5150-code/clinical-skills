@@ -302,7 +302,7 @@ def topic_shape_count(text: str) -> int:
     return topic_population_count(text)
 
 
-def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, object]:
+def _validate_manifest(manifest_path: Path, manifest: object, *, verify_sources: bool = True) -> dict[str, object]:
     """Refuse malformed private state before it can grant citation membership."""
     dump_id = manifest_path.parent.name
     if not isinstance(manifest, dict):
@@ -311,6 +311,11 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         raise ValueError(f"unsupported manifest schema: {dump_id}")
     if manifest.get("dump_id") != dump_id:
         raise ValueError(f"manifest dump id does not match its directory: {dump_id}")
+    if manifest.get("kind") not in (None, "topic", "drug"):
+        raise ValueError("manifest page kind is invalid")
+    prior_ids = manifest.get("supersedes", [])
+    if not isinstance(prior_ids, list) or any(not isinstance(value, str) for value in prior_ids):
+        raise ValueError("supersedes must be a list of dump ids")
     if not isinstance(manifest.get("module"), str) or not str(manifest["module"]).strip():
         raise ValueError(f"manifest module is missing: {dump_id}")
     try:
@@ -325,7 +330,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("source_sha256", ""))):
         raise ValueError(f"manifest source digest is invalid: {dump_id}")
     source_path = manifest_path.parent / SOURCE_NAME
-    if not source_path.is_file() or file_digest.sha256(source_path) != manifest["source_sha256"]:
+    if verify_sources and (not source_path.is_file() or file_digest.sha256(source_path) != manifest["source_sha256"]):
         raise ValueError(f"source does not match manifest: {dump_id}")
     reference_file = manifest.get("reference_file")
     reference_digest = manifest.get("reference_sha256")
@@ -335,7 +340,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         if not re.fullmatch(r"[0-9a-f]{64}", str(reference_digest or "")):
             raise ValueError(f"manifest reference digest is invalid: {dump_id}")
         reference_path = manifest_path.parent / REFERENCE_NAME
-        if not reference_path.is_file() or file_digest.sha256(reference_path) != reference_digest:
+        if verify_sources and (not reference_path.is_file() or file_digest.sha256(reference_path) != reference_digest):
             raise ValueError(f"reference list does not match manifest: {dump_id}")
     topics = manifest.get("topics")
     if not isinstance(topics, list) or not topics:
@@ -349,9 +354,15 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         if not isinstance(title, str) or not title.strip():
             raise ValueError(f"manifest topic needs a title: {dump_id}")
         if drug:
-            page = parse_drug(source_path.read_text(encoding="utf-8"), str(manifest.get("read_on", "")))
-            if len(topics) != 1 or title != page.title or topic.get("version") != page.version:
-                raise ValueError("drug manifest does not match rendered source")
+            if not isinstance(authors, str) or not isinstance(topic.get("last_updated"), str):
+                raise ValueError("drug manifest citation fields must be strings")
+            date.fromisoformat(str(manifest.get("read_on", "")))
+            if len(topics) != 1 or not isinstance(topic.get("version"), str) or not re.fullmatch(r"\d+(?:\.\d+)*", topic["version"]):
+                raise ValueError("drug manifest needs exactly one titled version")
+            if verify_sources:
+                page = parse_drug(source_path.read_text(encoding="utf-8"), str(manifest["read_on"]))
+                if title != page.title or topic["version"] != page.version:
+                    raise ValueError("drug manifest does not match rendered source")
             continue
         if not isinstance(authors, str) or not authors.strip():
             raise ValueError(f"manifest topic needs authors: {title}")
@@ -368,16 +379,26 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
     return manifest
 
 
+def _decode_manifest(path: Path, text: str) -> dict:
+    manifest = json.loads(text)
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest must hold an object")
+    return _validate_manifest(path, manifest, verify_sources=False)
+
+
 def _manifest_rows(store: Path) -> Iterable[tuple[Path, dict[str, object]]]:
     dumps = store / "dumps"
     if not dumps.is_dir():
         return
     for manifest_path in sorted(dumps.glob(f"*/{DUMP_MANIFEST_NAME}")):
         try:
-            manifest = read_tool_record(manifest_path, lambda text: _validate_manifest(manifest_path, json.loads(text)))
+            manifest = read_tool_record(manifest_path, lambda text: _decode_manifest(manifest_path, text))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise ValueError(f"unreadable manifest: {manifest_path.name}: {error}") from error
-        yield manifest_path, manifest
+        # Source integrity is a measured mismatch, not damaged bookkeeping.
+        # Keep it outside the decoder so dependent context checks report a
+        # fingerprint finding rather than an unread record.
+        yield manifest_path, _validate_manifest(manifest_path, manifest)
 
 
 def _write_manifest(path: Path, manifest: dict) -> None:
