@@ -456,7 +456,8 @@ class CommandModes(SyntheticSnapshotCase):
             "    correction kind misplacement\n"
             "    departure list shape\n"
             "    browser tab ownership\n"
-            "    locked record publication\n",
+            "    locked record publication\n"
+            "    unverified cause\n",
         )
 
     def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:
@@ -3307,6 +3308,8 @@ class SubmissionRecord(SyntheticSnapshotCase):
                     "CORRECTOR: clinician",
                     "IN-ERROR: orchestrator",
                     "SUMMARY: the correction needs a durable landing",
+                    f"CLASSIFIER-CAUSE: shown - {correction.event}",
+                    f"CAUSE: shown - {correction.event}",
                     f"CLASSIFIER: {disposition} - the disposition matches the correction",
                     f"ORCHESTRATOR: agree - the {disposition} target now carries the correction",
                     f"DISPOSITION: {disposition}",

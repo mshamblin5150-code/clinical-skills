@@ -20,6 +20,10 @@ bar_signatures:completion_gate	2026-10-20T05:29:48Z	approval
 bar_signatures:the bar signature	2026-10-20T05:29:48Z	approval
 checks_ledger:bar-walk-signature	2026-10-20T05:29:48Z	approval
 aar_scan:reversal-candidates	2026-10-20T04:30:38Z	extraction
+aar_scan:cause-line	2026-10-20T16:13:19Z	extraction
+aar_scan:cause-overrule	2026-10-20T16:13:19Z	extraction
+aar_scan:unverified-disposition	2026-10-20T16:13:19Z	extraction
+aar_scan:unverified-publication	2026-10-20T16:13:19Z	extraction
 aar_scan:sustain-on-reversal-candidates	2026-10-20T04:30:38Z	extraction
 aar_scan:missing-landing-search	2026-10-20T04:30:38Z	extraction
 run_record_reader:handwritten-damage	2026-10-20T10:59:37Z	approval

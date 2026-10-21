@@ -48,6 +48,8 @@ from discussion_artifact import REREAD_BLOCK
 import git_paths
 import memory_index
 import shell_reader
+import command_reader
+import shlex
 import repo_root
 import run_grader
 import browser_tab_hook
@@ -67,6 +69,8 @@ LANDING_OUTPUT_CUTOFF = completion_checks.registry()["aar_scan:landing-output"][
 MEMORY_MEASUREMENT_CUTOFF = completion_checks.registry()["aar_scan:memory-measurement"][0]
 SYSTEM_SUBTYPE_CUTOFF = completion_checks.registry()["aar_scan:system-subtype"][0]
 REVERSAL_CANDIDATES_CUTOFF = completion_checks.registry()["aar_scan:reversal-candidates"][0]
+UNVERIFIED_CAUSE_CUTOFF = completion_checks.registry()["aar_scan:cause-line"][0]
+UNVERIFIED_CAUSE_WARNING = "**Cause unverified:** the review's reader could not see the tool output this cause rests on; reread the run's transcript before building on it."
 MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
 
 
@@ -292,6 +296,10 @@ ROWS: Mapping[str, str] = MappingProxyType(
         "reversal-candidates": "the round's reversal candidates or their answers are missing or invalid",
         "sustain-on-reversal-candidates": "a sustain rests on the orchestrator's reversal claims",
         "missing-landing-search": "a tracker landing has no preceding successful issue search",
+        "cause-line": "a correction has no well-formed cause pointers to real entries in its round",
+        "cause-overrule": "a cause changes other than shown to unverified with a reason",
+        "unverified-disposition": "an unverified cause lands outside a tracker or skill-file ticket",
+        "unverified-publication": "an unverified landing has no recognized body-file warning and required create labels",
     }
 )
 KINDS = tuple(ROWS)
@@ -373,6 +381,7 @@ DECLARED_LIMITS = (
         "The transcript cannot reveal a clinician handover or prove a conditional tab creation unless the tool result marks it, so ownership is reported conservatively and never graded.",
     ),
     ("locked record publication", "AAR writers take the allocation resource before round, retirement and archive decisions, then lock each actual record for its shared atomic update. Extract and baseline are separate publications, not a multi-file atomic transaction; an extract may remain if its later baseline publication fails."),
+    ("unverified cause", "A cause resting on an agent's explanation of dropped tool output is marked, not checked. The grader requires cause pointers and restricts unverified landings to warning-bearing tickets, but cannot prove that the reader noticed every narrated cause or that a shown entry supports it. A not-shown candidate is counted separately and establishes no correction. Publication recognition uses the existing successful Claude tool-result and Codex CommandExecution shapes and command_reader body-file grammar. Multiple command strings sharing output refuse; a single gh publication may have only literal cd && prefixes. Other compound or unknown shapes refuse. The file is read at grading time, not retained as its publication-time bytes; matching command evidence cannot prove the file was unchanged."),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
@@ -2175,83 +2184,83 @@ def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
     return _hash(path) is not None and _hash(path) != baseline.get(str(path))
 
 
+@dataclass(frozen=True)
+class GhCommand:
+    command: str
+    cwd: str | None
+    output: str
+    timestamp: datetime | None
+    shared_output: bool = False
+
+
+def _successful_gh_commands(transcripts: Iterable[Path]) -> tuple[GhCommand, ...]:
+    """Retain successful command evidence; never replay a recorded command."""
+    results = []
+    for transcript in transcripts:
+        rows = read_transcript(transcript)
+        calls = {}
+        for row in rows:
+            if row.get("type") != "assistant":
+                continue
+            for block in _content_blocks(row.get("message")):
+                source = block.get("input")
+                command = source.get("command") if isinstance(source, dict) else None
+                if block.get("type") == "tool_use" and isinstance(command, str) and shell_reader.has_executable(command, "gh"):
+                    calls[_text(block.get("id"))] = (command, _text(row.get("cwd")) or None)
+        for row in rows:
+            try:
+                timestamp = _utc_timestamp(_text(row.get("timestamp")), "command timestamp")
+            except ValueError:
+                timestamp = None
+            if row.get("type") == "event_msg":
+                payload = row.get("payload")
+                item = payload.get("item") if isinstance(payload, dict) and payload.get("type") == "item_completed" else None
+                if not isinstance(item, dict) or item.get("type") != "CommandExecution":
+                    continue
+                if item.get("status") != "completed" or item.get("exit_code") != 0:
+                    continue
+                commands = item.get("command")
+                commands = commands if isinstance(commands, list) else [commands]
+                for command in commands:
+                    if isinstance(command, str) and shell_reader.has_executable(command, "gh"):
+                        results.append(GhCommand(
+                            command, _text(item.get("cwd") or item.get("workdir") or row.get("cwd")) or None,
+                            "\n".join(_text(item.get(field)) for field in ("stdout", "aggregated_output")),
+                            timestamp,
+                            len(commands) != 1,
+                        ))
+            elif row.get("type") == "user":
+                for block in _content_blocks(row.get("message")):
+                    if block.get("type") != "tool_result" or block.get("tool_use_id") not in calls or block.get("is_error") is True:
+                        continue
+                    command, cwd = calls[block["tool_use_id"]]
+                    content = block.get("content")
+                    output = content if isinstance(content, str) else "\n".join(
+                        _text(part.get("text")) for part in (content or [])
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    )
+                    results.append(GhCommand(command, cwd, output, timestamp))
+    return tuple(results)
+
+
+def _printed_landing(call: GhCommand, landing: str, extracted_at: datetime) -> bool:
+    return (call.timestamp is not None and call.timestamp >= extracted_at
+            and landing in re.findall(r"https://[^\s<>\"']+", call.output))
+
+
 def _successful_gh_call(
     transcripts: Iterable[Path], landing: str | None = None,
     extracted_at: datetime | None = None,
     *, require_search: bool = False,
 ) -> bool:
     search_times = _successful_issue_search_times(transcripts) if require_search else ()
-    def proves_landing(row: dict[str, Any], output: object) -> bool:
-        if landing is None:
-            return True  # Historical rounds retain the any-successful-gh rule.
-        try:
-            timestamp = _utc_timestamp(_text(row.get("timestamp")), "command timestamp")
-        except ValueError:
-            return False
-        # Tokenize addresses so a different comment ID or an anchor cannot prove
-        # the bare issue address merely by containing its prefix.
-        printed_urls = re.findall(r"https://[^\s<>\"']+", _text(output))
-        return (extracted_at is not None and timestamp >= extracted_at and landing in printed_urls
-                and (not require_search or any(search < timestamp for search in search_times)))
-
-    for transcript in transcripts:
-        rows = read_transcript(transcript)
-        for row in rows:
-            if row.get("type") != "event_msg":
-                continue
-            payload = row.get("payload")
-            if not isinstance(payload, dict) or payload.get("type") != "item_completed":
-                continue
-            item = payload.get("item")
-            if not isinstance(item, dict) or item.get("type") != "CommandExecution":
-                continue
-            command = item.get("command")
-            commands = command if isinstance(command, list) else [command]
-            if (
-                item.get("status") == "completed"
-                and item.get("exit_code") == 0
-                and any(
-                    isinstance(value, str) and shell_reader.has_executable(value, "gh")
-                    for value in commands
-                )
-                and proves_landing(
-                    row, "\n".join(
-                        _text(item.get(field)) for field in ("stdout", "aggregated_output")
-                    )
-                )
-            ):
-                return True
-        tools = _tool_index(rows)
-        gh_ids: set[str] = set()
-        for row in rows:
-            if row.get("type") != "assistant":
-                continue
-            for block in _content_blocks(row.get("message")):
-                command = block.get("input", {}).get("command") if isinstance(block.get("input"), dict) else None
-                if block.get("type") == "tool_use" and isinstance(command, str) and shell_reader.has_executable(command, "gh"):
-                    gh_ids.add(_text(block.get("id")))
-        for row in rows:
-            if row.get("type") != "user":
-                continue
-            for block in _content_blocks(row.get("message")):
-                if (
-                    block.get("type") == "tool_result"
-                    and block.get("tool_use_id") in gh_ids
-                    and block.get("is_error") is not True
-                    and proves_landing(
-                        row,
-                        block.get("content") if isinstance(block.get("content"), str)
-                        else "\n".join(
-                            _text(part.get("text")) for part in (block.get("content") or [])
-                            if isinstance(part, dict) and part.get("type") == "text"
-                        ),
-                    )
-                ):
-                    return True
-        if any(tool == "Bash" for tool in tools.values()) and gh_ids:
-            # Older transcript rows omit ``is_error`` on a successful result.
-            continue
-    return False
+    return any(
+        landing is None or (
+            extracted_at is not None and _printed_landing(call, landing, extracted_at)
+            and (not require_search or any(search < call.timestamp for search in search_times))
+        )
+        for call in _successful_gh_commands(transcripts)
+    )
 
 
 def _review_content(review: Review) -> tuple[int, int, list[Finding]]:
@@ -2303,34 +2312,8 @@ def _successful_issue_search_times(transcripts: Iterable[Path]) -> tuple[datetim
             if args[:1] == ["api"] and any(re.search(r"(?:^|/)search/issues(?:\?|$)", arg) for arg in args[1:]):
                 return True
         return False
-    times = []
-    for transcript in transcripts:
-        rows = read_transcript(transcript)
-        calls = {}
-        for row in rows:
-            if row.get("type") == "assistant":
-                for block in _content_blocks(row.get("message")):
-                    command = block.get("input", {}).get("command") if isinstance(block.get("input"), dict) else None
-                    if block.get("type") == "tool_use" and isinstance(command, str) and searches(command):
-                        calls[_text(block.get("id"))] = True
-            success = False
-            if row.get("type") == "event_msg":
-                payload = row.get("payload", {})
-                item = payload.get("item", {}) if isinstance(payload, dict) and payload.get("type") == "item_completed" else {}
-                if isinstance(item, dict) and item.get("type") == "CommandExecution":
-                    commands = item.get("command", [])
-                    commands = commands if isinstance(commands, list) else [commands]
-                    success = (item.get("status") == "completed" and item.get("exit_code") == 0
-                               and any(isinstance(command, str) and searches(command) for command in commands))
-            elif row.get("type") == "user":
-                success = any(block.get("type") == "tool_result" and block.get("tool_use_id") in calls
-                              and block.get("is_error") is not True for block in _content_blocks(row.get("message")))
-            if success:
-                try:
-                    times.append(_utc_timestamp(_text(row.get("timestamp")), "search timestamp"))
-                except ValueError:
-                    pass
-    return tuple(times)
+    return tuple(call.timestamp for call in _successful_gh_commands(transcripts)
+                 if call.timestamp is not None and searches(call.command))
 
 
 def _grade_reversal_candidates(run: Path, submission: str, round_number: int,
@@ -2353,15 +2336,110 @@ def _grade_reversal_candidates(run: Path, submission: str, round_number: int,
     if set(keys) != expected or len(keys) != len(expected):
         findings.append(Finding("reversal-candidates", "each candidate needs exactly one numbered answer"))
     corrections = {correction.event for correction in review.corrections}
-    rejected = 0
+    rejected = not_shown = 0
     for key, answer in review.candidate_answers:
         if answer in corrections:
             continue
         if answer.startswith("not a correction - ") and _substance(answer[len("not a correction - "):]):
             rejected += 1
+        elif answer.startswith("not shown - ") and _substance(answer[len("not shown - "):]):
+            not_shown += 1
         else:
-            findings.append(Finding("reversal-candidates", f"candidate {key} needs a correction entry or reasoned rejection"))
-    return tuple(findings), f"reversal candidates: {population}; answered {len(keys)}; not a correction {rejected}"
+            findings.append(Finding("reversal-candidates", f"candidate {key} needs a correction entry or reasoned not-a-correction/not-shown answer"))
+    return tuple(findings), f"reversal candidates: {population}; answered {len(keys)}; not a correction {rejected}; not shown {not_shown}"
+
+
+def _cause_fields(correction: Correction, entry_kinds: Mapping[str, str]):
+    """Read classifier and final pointers without deciding what their evidence proves."""
+    causes = []
+    for name in ("CLASSIFIER-CAUSE", "CAUSE"):
+        match = re.fullmatch(r"(shown|unverified) - (\S+)", correction.fields.get(name, ""))
+        if (match is None or match[2] not in entry_kinds
+                or entry_kinds[match[2]] in EXTRACTOR_WRITTEN_ENTRY_KINDS):
+            return None
+        causes.append((match[1], match[2]))
+    return tuple(causes)
+
+
+def _grade_causes(review: Review, entry_kinds: Mapping[str, str], active: bool):
+    findings = []
+    unverified = 0
+    for correction in review.corrections:
+        unverified += int(bool(re.fullmatch(r"unverified - \S+", correction.fields.get("CAUSE", ""))))
+        causes = _cause_fields(correction, entry_kinds)
+        if causes is None:
+            if active:
+                findings.append(Finding("cause-line", correction.event))
+            continue
+        classifier, final = causes
+        if not active:
+            continue
+        if classifier != final and (
+            classifier[0] != "shown" or final[0] != "unverified"
+            or not _substance(correction.fields.get("CAUSE-OVERRULE", ""))
+        ):
+            findings.append(Finding("cause-overrule", correction.event))
+        if final[0] == "unverified" and correction.fields.get("DISPOSITION") not in {"tracker-ticket", "skill-file"}:
+            findings.append(Finding("unverified-disposition", correction.event))
+    return tuple(findings), unverified
+
+
+def _publication_labels(command: str) -> set[str]:
+    labels = set()
+    parsed = command_reader.gh_command_tokens(command, (("issue", "create"),))
+    if parsed is None:
+        return labels
+    tokens, start = parsed
+    arguments = tokens[start + 3:]
+    for index, argument in enumerate(arguments):
+        if argument in {"--label", "-l"} and index + 1 < len(arguments):
+            labels.update(arguments[index + 1].split(","))
+        elif argument.startswith(("--label=", "-l=")):
+            labels.update(argument.split("=", 1)[1].split(","))
+    return labels
+
+
+def _warning_after_origin(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    origins = [index for index, line in enumerate(lines)
+               if re.match(r"^(?:\*\*)?Filed from:(?:\*\*)?\s", line)]
+    return (len(origins) == 1 and origins[0] + 1 < len(lines)
+            and lines[origins[0] + 1] == UNVERIFIED_CAUSE_WARNING)
+
+
+def _unverified_publication(transcripts: Iterable[Path], landing: str,
+                            extracted_at: datetime | None) -> bool:
+    if extracted_at is None:
+        return False
+    for call in _successful_gh_commands(transcripts):
+        if call.shared_output or not _printed_landing(call, landing, extracted_at):
+            continue
+        # Shared output cannot identify which executable printed the address.
+        # Recognize only one gh command, optionally preceded by literal cd &&.
+        pieces = [piece.strip() for piece in shell_reader.shell_pieces(call.command) if piece.strip()]
+        if (not pieces or len(pieces) % 2 != 1
+                or any((shell_reader.LITERAL_CD.fullmatch(piece) is None if index % 2 == 0
+                        else piece != "&&") for index, piece in enumerate(pieces[:-1]))
+                or len(tuple(shell_reader.executable_calls(pieces[-1], "gh"))) != 1):
+            continue
+        command = call.command
+        if call.cwd and Path(call.cwd).is_absolute():
+            command = f"cd {shlex.quote(call.cwd)} && {command}"
+        try:
+            published = command_reader.extract(command)
+        except (OSError, UnicodeError, ValueError):
+            continue
+        if published.route not in {("issue", "create"), ("issue", "comment")} or published.unreadable:
+            continue
+        bodies = [field for field in published.publications if field.field == "body"]
+        if len(bodies) != 1 or bodies[0].origin != "body-file" or not _warning_after_origin(bodies[0].text):
+            continue
+        if published.route == ("issue", "create"):
+            labels = _publication_labels(command)
+            if "grilling" not in labels or "ready-for-agent" in labels:
+                continue
+        return True
+    return False
 
 
 def _survey_round(
@@ -2430,6 +2508,9 @@ def _survey_round(
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-extract", str(exc)),))
 
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
+    cause_check = not extracted_at or _utc_timestamp(extracted_at, "EXTRACTED-AT") >= UNVERIFIED_CAUSE_CUTOFF
+    cause_findings, unverified = _grade_causes(review, entry_kinds, cause_check)
+    findings.extend(cause_findings)
     reversal_check = bool(extracted_at) and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= REVERSAL_CANDIDATES_CUTOFF
     if reversal_check:
         reversal_findings, reversal_report = _grade_reversal_candidates(run, submission, round_number, review, entries)
@@ -2483,6 +2564,8 @@ def _survey_round(
     elif extracted_at:
         system_reports = ("system-subtype count: not measured (extract predates the count)",)
     system_reports += (reversal_report,)
+    system_reports += (f"round {round_number} unverified causes: {unverified}" +
+                       ("" if cause_check else f" ({NOT_GRADED} - extract predates check)"),)
     if fingerprint_cutoff and newest_round:
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
@@ -2558,6 +2641,12 @@ def _survey_round(
                 transcript_paths, landing, _utc_timestamp(extracted_at, "EXTRACTED-AT"), require_search=True,
             ):
                 findings.append(Finding("missing-landing-search", correction.event))
+            causes = _cause_fields(correction, entry_kinds)
+            if cause_check and causes is not None and causes[1][0] == "unverified" and not _unverified_publication(
+                transcript_paths, landing,
+                _utc_timestamp(extracted_at, "EXTRACTED-AT") if extracted_at else None,
+            ):
+                findings.append(Finding("unverified-publication", correction.event))
         elif disposition == "memory-write":
             if baseline is not None and not _target_changed(target, baseline):
                 findings.append(Finding("unlanded-memory", correction.event))

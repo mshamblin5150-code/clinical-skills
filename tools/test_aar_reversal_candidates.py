@@ -68,6 +68,7 @@ class ReversalCandidates(unittest.TestCase):
         target = self.memory.parent / "correction.md"
         target.write_text("# Corrected workflow\n", encoding="utf-8")
         self.append(f"\n## CORRECTION: {event}\nCORRECTOR: clinician\nIN-ERROR: orchestrator\n"
+                    f"CLASSIFIER-CAUSE: shown - {event}\nCAUSE: shown - {event}\n"
                     "SUMMARY: The workflow was corrected.\nCLASSIFIER: memory-write - retain the rule\n"
                     "ORCHESTRATOR: agree - retain the corrected rule\n"
                     f"DISPOSITION: {disposition}\nTARGET: {target}\nLANDING: {landing or 'recorded correction'}\n")
