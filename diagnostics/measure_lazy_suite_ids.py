@@ -57,6 +57,8 @@ JUNCTION = 'test_aar_scan.ScanBasedSittingDiscovery.test_transcript_junctions_ar
 OBSERVER_PATHS = {
     'diagnostics/diagnose_staging_layout.py', 'diagnostics/test_staging_diagnostic.py',
     'diagnostics/staging_retained_controls.py', 'diagnostics/test_staging_retained_controls.py',
+    'diagnostics/generated_output_contract.py', 'diagnostics/test_generated_output_contract.py',
+    'diagnostics/diagnose_generated_outputs.py', 'diagnostics/test_generated_output_diagnostic.py',
     'diagnostics/measure_maintainer_pair.py', 'diagnostics/full_suite_receipts.py',
     'diagnostics/test_maintainer_pair.py', 'diagnostics/test_full_suite_receipts.py',
     'diagnostics/test_source_context_real_git.py',
