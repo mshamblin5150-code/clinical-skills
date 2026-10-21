@@ -54,6 +54,7 @@ DECLARED_SECTIONS = {
     "fixture_writer_hook": "Fixture writer hook",
     "uptodate_block": "Clinical go-ahead disclosure",
     "medatrax_posting": "Medatrax posted-reading writer",
+    "medatrax_fill": "Checked patient and visit fields",
     "claude_output_access": "Claude output access",
     "refutation_apply": "Refutation apply",
     "frozen_grade": "Approved run status guard",
