@@ -484,6 +484,11 @@ def valid_posting_item(item: object) -> bool:
         and isinstance(item.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
         and isinstance(item.get("sources"), list) and item["sources"]
         and all(isinstance(path, str) and path for path in item["sources"])
+        and ("clinical_manifest_binding" not in item or (
+            item["clinical_manifest_binding"] is True and skill in {"clinical-note", "batch-shift"}
+            and isinstance(item.get("note_sources"), list) and item["note_sources"]
+            and all(isinstance(path, str) and path for path in item["note_sources"])
+            and len(set(item["note_sources"])) == len(item["note_sources"])))
         and isinstance(item.get("grader_args"), list) and item["grader_args"]
         and all(isinstance(arg, str) for arg in item["grader_args"])
         and "--submission" not in item["grader_args"]

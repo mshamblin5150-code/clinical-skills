@@ -28,6 +28,8 @@ class Disclosure(unittest.TestCase):
         self.assertEqual((), bind(uptodate_block.DECLARED_LIMITS, text, mode=NAMING))
 
     def setUp(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.run = Path(temporary.name)

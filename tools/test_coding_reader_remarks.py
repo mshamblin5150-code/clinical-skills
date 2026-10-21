@@ -139,6 +139,8 @@ class CodingRecordRemarks(unittest.TestCase):
 
 class ClinicalCodingRemarks(unittest.TestCase):
     def setUp(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         self.fixture = agreement_tests.AgreementModes("runTest")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)

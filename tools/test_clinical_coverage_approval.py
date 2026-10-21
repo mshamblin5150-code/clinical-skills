@@ -18,6 +18,8 @@ from test_approval_record import NOTE
 
 class ClinicalCoverageApproval(unittest.TestCase):
     def setUp(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.run = Path(self.temporary.name)

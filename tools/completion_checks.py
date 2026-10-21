@@ -197,7 +197,7 @@ def grading(run: Path, submission: str | None):
                 raise
             approval = None
         if approval is not None:
-            for path in approval[1].get("sources", ()):
+            for path in (*approval[1].get("sources", ()), *approval[1].get("note_sources", ())):
                 items[Path(path).name] = observed
     known = [value for value in moments if value is not None]
     # Multi-item callers select each item themselves; no unknown date is waived.

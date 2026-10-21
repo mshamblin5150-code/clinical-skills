@@ -25,6 +25,8 @@ NOTE = (
 
 class ApprovalRecordContract(unittest.TestCase):
     def setUp(self) -> None:
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()
         self.run = self.root / "scratch" / "runs" / "nur-5042-module-5-discussion"

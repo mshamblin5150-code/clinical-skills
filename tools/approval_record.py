@@ -62,6 +62,26 @@ SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-crit
 CLINICAL_SKILLS = frozenset({"batch-shift", "clinical-note"})
 
 
+def _clinical_binding(run: Path, skill: str):
+    import review_manifest
+    try:
+        return review_manifest.approval_binding(run, batch=skill == "batch-shift")
+    except UnreadableRecord:
+        raise
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise ApprovalRecordError("clinical manifest and passing freshness receipt are missing or stale") from failure
+
+
+def _bound_sources(run: Path, skill: str, sources: tuple[Path, ...]):
+    """Keep the approval identity separate from note-only readers and timestamps."""
+    binding = _clinical_binding(run, skill) if skill in CLINICAL_SKILLS else None
+    if binding is None:
+        return sources, sources, sources
+    if sources != binding.sources and sources != binding.notes:
+        raise ApprovalRecordError("clinical source population differs from the manifest")
+    return binding.sources, binding.notes, binding.source_times
+
+
 def assistant_text(run: Path, *, after: float, before: float, transcripts=None) -> tuple[list[str], bool]:
     """Read main-session assistant text in one strict timestamp window."""
     shown = []
@@ -146,12 +166,14 @@ def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | No
 
 
 def verify_uptodate_block(run: Path, sources: tuple[Path, ...], reply_at: float | None,
-                         *, transcripts=None) -> ReplyVerification:
+                         *, transcripts=None, source_modified_at: float | None = None) -> ReplyVerification:
     """Check the generated clinical block in the source-change-to-reply window."""
     import uptodate_block
     try:
         expected = uptodate_block.render(run, sources)
         boundary = max(path.stat().st_mtime for path in uptodate_block.source_paths(run, sources))
+        if source_modified_at is not None:
+            boundary = max(boundary, source_modified_at)
     except UnreadableRecord:
         raise
     except (OSError, UnicodeError, ValueError, TypeError) as failure:
@@ -305,7 +327,7 @@ class ApprovalRecord:
 
 
 def source_sha256(paths: Iterable[Path]) -> str:
-    """Hash one ordered source population exactly as its posted reading does."""
+    """Hash the ordered approval sources; clinical posted readings hash notes separately."""
 
     digest = sha256()
     for path in paths:
@@ -376,6 +398,7 @@ def prepare(
         raise ApprovalRecordError("prepare needs a supported skill, run, submission and source population")
     if "--submission" in grader_args:
         raise ApprovalRecordError("the pre-post grader must not receive --submission")
+    paths, notes, _times = _bound_sources(root, skill, paths)
     status, report = _pre_post_grade(skill, grader_args)
     if skill in CLINICAL_SKILLS:
         status, report = delegated_answers.pre_approval(root, submission, status, report)
@@ -384,7 +407,7 @@ def prepare(
     if skill in CLINICAL_SKILLS:
         if completion_checks.active("reader_remarks:clinical-go-ahead"):
             try:
-                report = reader_remarks.clinical_report(report, root, paths)
+                report = reader_remarks.clinical_report(report, root, notes)
             except reader_remarks.RemarkError as failure:
                 raise ApprovalRecordError(str(failure)) from failure
             return reader_remarks.prepare(root, skill, submission, paths, report)
@@ -434,8 +457,10 @@ def approve(
     resolved_sources = tuple(Path(path).resolve() for path in sources)
     if not resolved_sources or any(not path.is_file() for path in resolved_sources):
         raise ApprovalRecordError("approval record needs a nonempty readable source population")
+    resolved_sources, notes, source_times = _bound_sources(root, skill, resolved_sources)
+    source_modified_at = max(path.stat().st_mtime for path in source_times)
     if skill in {"batch-shift", "clinical-note"}:
-        for source in resolved_sources:
+        for source in notes:
             try:
                 from run_record_reader import read_outbound_source
                 entry_copy.check(read_outbound_source(source))
@@ -463,7 +488,7 @@ def approve(
             raise ApprovalRecordError("a preceding approval reply was not found")
         after = preceding.matched_at
         verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after,
-                                              **transcript_args)
+                                              source_modified_at=source_modified_at, **transcript_args)
         if verification.state == "not found":
             raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
         if preceding.state == "unreadable":
@@ -501,7 +526,7 @@ def approve(
             # Compare the raw paired report before appending transcript qualifiers.
             try:
                 if completion_checks.active("reader_remarks:clinical-go-ahead"):
-                    clinical_report = reader_remarks.clinical_report(grade_report, root, resolved_sources)
+                    clinical_report = reader_remarks.clinical_report(grade_report, root, notes)
                 coverage = reader_remarks.verify_coverage(root, skill, submission, resolved_sources,
                     clinical_report, verification.matched_at, transcripts=transcripts)
             except reader_remarks.RemarkError as failure:
@@ -509,8 +534,8 @@ def approve(
             if coverage.state == "unreadable":
                 grade_status = 2
                 grade_report += "\n" + coverage.reason
-            shown = verify_uptodate_block(root, resolved_sources, verification.matched_at,
-                                          transcripts=transcripts)
+            shown = verify_uptodate_block(root, notes, verification.matched_at,
+                                          transcripts=transcripts, source_modified_at=source_modified_at)
             if shown.state == "not found":
                 raise ApprovalRecordError(shown.reason)
             if shown.state == "unreadable":
@@ -574,11 +599,13 @@ def approve(
             "reply_reason": verification.reason,
             "reply_matched_at": verification.matched_at,
             "reply_after": after,
-            "source_modified_at": max(path.stat().st_mtime for path in resolved_sources),
+            "source_modified_at": source_modified_at,
         }
         if skill in CLINICAL_SKILLS:
             item.update(delegated_answers_verification=answers_shown.state,
-                        delegated_answers_reason=answers_shown.reason)
+                        delegated_answers_reason=answers_shown.reason,
+                        clinical_manifest_binding=True,
+                        note_sources=[str(path) for path in notes])
         history.append({name: item[name] for name in (
             "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
             "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
@@ -699,6 +726,10 @@ def _record_posting(
             raise ApprovalRecordError("the recorded source population is unreadable")
         paths = tuple(Path(path) for path in sources)
         try:
+            if item.get("clinical_manifest_binding") is True:
+                _, notes, _times = _bound_sources(root, skill, paths)
+                if item.get("note_sources") != [str(path) for path in notes]:
+                    raise ApprovalRecordError("recorded clinical notes differ from the manifest")
             current = source_sha256(paths)
         except OSError as failure:
             raise ApprovalRecordError("the approved source population is unreadable") from failure
@@ -777,7 +808,16 @@ def completion_gate(
         ):
             return True, f"{label}: finding - {key} has an unreadable approval record"
         try:
+            paths = tuple(Path(path) for path in sources)
+            if item.get("clinical_manifest_binding") is True:
+                _, notes, _times = _bound_sources(root, skill, paths)
+                if item.get("note_sources") != [str(path) for path in notes]:
+                    raise ApprovalRecordError("recorded clinical notes differ from the manifest")
             current = source_sha256(tuple(Path(path) for path in sources))
+        except UnreadableRecord:
+            raise
+        except ApprovalRecordError:
+            return True, f"{label}: finding - {key}'s clinical manifest or freshness receipt is stale"
         except OSError:
             return True, f"{label}: finding - {key}'s approved source population is unreadable"
         if current != expected:
@@ -793,7 +833,11 @@ def completion_gate(
         reading = by_submission.get(key)
         unavailable = record_unavailable(root / "reread.md", key)
         damaged_reading |= unavailable
-        outcomes = () if unavailable else check_posted_reading(reading, expected)
+        reading_digest = expected
+        if item.get("clinical_manifest_binding") is True:
+            # Portal evidence has always fingerprinted saved note bytes, not JSON.
+            reading_digest = source_sha256(tuple(Path(path) for path in item["note_sources"]))
+        outcomes = () if unavailable else check_posted_reading(reading, reading_digest)
         if outcomes:
             return True, f"{label}: finding - {outcomes[0].message}"
         if skill in POSTING_GO_AHEAD_SKILLS and item.get("posting_route") == PostingRoute.AGENT.value:

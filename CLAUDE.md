@@ -163,6 +163,24 @@ ADR 0427 build 1. The private JSON contract and consumer steps live in
 coverage and literal shorthand-name presence, and appends identity rows atomically under the
 artifact lock. Its complete boundary belongs to `encounter_openers.DECLARED_LIMITS`.
 
+### Clinical manifest and office status
+
+ADR 0427 build 2 uses `tools/encounter_status.py` to retain office status and fingerprint its
+selected evidence, and `tools/review_manifest.py` to build the manifest and later render the
+Review sheet after a visibly separate freshness command. The shared consumer route and inputs
+live in [Clinical status, manifest, and Review sheet](skills/_shared/reference/clinical-manifest.md).
+The commands' complete boundaries belong to `encounter_status.DECLARED_LIMITS` and
+`review_manifest.DECLARED_LIMITS`. Both write bookkeeping through `run_record_reader`'s locked
+transaction. New clinical approvals bind the manifest and receipt while their `note_sources`
+retain the independent note population for standalone resolution and posted-reading note-byte
+fingerprints. Unmarked historical approvals retain their raw-note identity. Entry-copy grammar,
+coding remarks, delegated answers, coverage and UpToDate disclosure keep their existing checks;
+the reply and prepare window includes notes, selected worksheets, manifest and receipt.
+
+`docx_write.py --layout plain` and its own-line `[[PAGE_BREAK]]` marker provide the Review-sheet
+layout under the existing output guards. Its installed-Word calibration joins the existing
+padding, wrapping and assignment measurements rather than replacing them.
+
 ### Clinical go-ahead disclosure
 
 `approval_record.prepare` retains the paired clinical completion grade before the ask. Its
