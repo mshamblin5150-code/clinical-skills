@@ -22,7 +22,9 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from console_codec import require_python_floor, use_utf8
-from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
+from run_record_reader import (DamagedRecord, damaged_record_result, check_handwritten_text,
+                               object_record, read_tool_record, update_tool_record,
+                               RecordUpdate, UnreadableRecord, fault_report)
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
@@ -46,6 +48,7 @@ MONTH = (
 DATE_TEXT = rf"{MONTH}\s+\d{{1,2}},\s+20\d{{2}}"
 
 DECLARED_LIMITS = (
+    "Manifest reads and locked receipt replacement/invalidation use run_record_reader. A damaged existing receipt is left untouched; it never becomes a new pass.",
     "The caller supplies each normalized-content digest and code population; the gate binds those declarations but does not derive them from notes or worksheets.",
     "The live pages establish which named release applies or was most recently published; the gate does not download and byte-compare the authority's release archive with the committed database.",
     "The MDM sheet's book, edition, and ISBN header lines are copied from the database; only the edition year is read from the book by both readers, and the reader's ISBN confirmation is unrecorded.",
@@ -387,6 +390,29 @@ def validate_procedures(
     return cpt_source, hcpcs_source, selected_sheet, sheet_digest
 
 
+def receipt_record(text: str) -> dict:
+    value = object_record(text)
+    if (value.get("schema") != 1 or value.get("verdict") != "PASS"
+            or not isinstance(value.get("encounters"), list) or not value["encounters"]
+            or not isinstance(value.get("sources"), dict)):
+        raise ValueError("freshness receipt fields")
+    date.fromisoformat(value["service_date"])
+    date.fromisoformat(value["checked_as_of"])
+    return value
+
+
+def manifest_record(text: str):
+    """Retain legacy input checks while decoding the committed producer's shape."""
+    reading = check_handwritten_text(text, Path("batch-codes.json"), "json")
+    value = reading.require_json(force=True)
+    if not isinstance(value, dict):
+        raise ValueError("manifest object")
+    if value.get("producer") == "review_manifest":
+        from review_manifest import decode_manifest
+        decode_manifest(text)
+    return reading
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("manifest", type=Path)
@@ -396,17 +422,37 @@ def main(argv: list[str]) -> int:
         "--procedure-database", type=Path, default=procedure_codes_lookup.DEFAULT_DATABASE
     )
     args = parser.parse_args(argv)
+    try:
+        args.receipt.parent.mkdir(parents=True, exist_ok=True)
+        def change(previous):
+            return _gate(args)
+        status = update_tool_record(args.receipt, receipt_record, change)
+        if status == 0:
+            print("coding-freshness: PASS")
+        return status
+    except UnreadableRecord as failure:
+        print(fault_report(failure, check="coding-freshness"))
+        print("unread remainder 1")
+        return 2
+    except OSError:
+        print("coding-freshness: BLOCKED: receipt could not be opened")
+        return 2
+
+
+def _gate(args) -> RecordUpdate:
 
     manifest_read = None
     manifest_error = None
     try:
-        manifest_read = read_handwritten_record(args.manifest, "json")
+        manifest_read = read_tool_record(args.manifest, manifest_record)
         # This command publishes a receipt. Content damage refuses before any
         # receipt invalidation; malformed/undecodable input keeps its old path.
+        if manifest_read is None:
+            raise FileNotFoundError("coding manifest is missing")
         manifest_read.require_text(force=True)
     except DamagedRecord as error:
         print(damaged_record_result(error, check="coding-freshness manifest", force=True)[1])
-        return 1
+        return RecordUpdate(None, 1)
     except (OSError, UnicodeError) as error:
         manifest_error = error
 
@@ -414,7 +460,7 @@ def main(argv: list[str]) -> int:
         args.receipt.unlink(missing_ok=True)
     except OSError as error:
         print(f"coding-freshness: BLOCKED: cannot invalidate old receipt: {error}")
-        return 2
+        return RecordUpdate(None, 2)
 
     try:
         if manifest_error is not None:
@@ -430,7 +476,7 @@ def main(argv: list[str]) -> int:
         procedure_connection = procedure_codes_lookup.open_database(args.procedure_database)
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
         print(f"coding-freshness: BLOCKED: {error}")
-        return 2
+        return RecordUpdate(None, 2)
 
     findings: list[str] = []
     try:
@@ -460,7 +506,7 @@ def main(argv: list[str]) -> int:
     if findings:
         for finding in findings:
             print(f"coding-freshness: BLOCKED: {finding}")
-        return 1
+        return RecordUpdate(None, 1)
 
     receipt = {
         "schema": 1,
@@ -492,10 +538,7 @@ def main(argv: list[str]) -> int:
             },
         },
     }
-    args.receipt.parent.mkdir(parents=True, exist_ok=True)
-    args.receipt.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
-    print("coding-freshness: PASS")
-    return 0
+    return RecordUpdate((json.dumps(receipt, indent=2) + "\n").encode("utf-8"), 0)
 
 
 if __name__ == "__main__":

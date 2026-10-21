@@ -34,6 +34,7 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
+    "approval_record_test_support": "isolated approval fixtures for existing nonmanifest checks, not a public binding or coverage claim",
     "assignment_bar": "compatibility envelope parser and caller; retained signature reading, signing and coverage limits belong to bar_signatures.DECLARED_LIMITS",
     "tool_record_test_support": "synthetic approval fixture construction, not a public reader or completeness check",
     "maintainer_python": "an advisory comparison of one pin with the running major.minor.micro release, not a population or CI reproducibility check",

@@ -17,6 +17,8 @@ import run_status_stop_hook as hook
 
 class PublicRecordApis(unittest.TestCase):
     def setUp(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)

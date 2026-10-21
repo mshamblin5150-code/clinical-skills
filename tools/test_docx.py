@@ -1339,7 +1339,7 @@ class TheDestinationSurvivesAFailedRender(unittest.TestCase):
         # one-parameter stub raised ``TypeError`` instead of the ``RuntimeError`` these
         # tests assert -- the merged tree failed where neither branch's suite could.
         # #86's *the merge is the unguarded moment*, on a test double.
-        def explode(*_):
+        def explode(*_, **_kwargs):
             raise RuntimeError("the render died part way")
 
         original = docx_write.document_xml

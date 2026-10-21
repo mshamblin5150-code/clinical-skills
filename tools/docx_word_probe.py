@@ -3,11 +3,15 @@
 The command surface is added below; the calibration registry lives here first so the
 reference sheet, the one-time Word record, and the Word-free renderer tripwires share
 one exhaustive identity for every row.
+
+Set ``DOCX_WORD_PROBE_ROOT`` to a run-unique private staging folder to place the
+synthetic Word packages there. It must already exist; the probe cleans its own child.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -22,6 +26,29 @@ from xml.etree import ElementTree
 import docx_write
 import assignment_docx
 from console_codec import require_python_floor, use_utf8
+
+
+REVIEW_KEY = "plain-review-layout"
+REVIEW_PROBE = (
+    "# Encounter One\n**Field label:** Synthetic value\n"
+    "Regular body paragraph.\n1. Regular numbered entry\n"
+    "## References\nRegular reference content.\n"
+    + docx_write.PAGE_BREAK + "\n# Encounter Two\nSecond encounter body.\n"
+)
+
+
+def review_renderer_shapes() -> dict:
+    """The complete plain package binds formatting and explicit pagination together."""
+    return {REVIEW_KEY: docx_write.parts(REVIEW_PROBE, layout="plain")}
+
+
+def review_word_measurement(report: dict) -> dict:
+    document = next(item for item in report["documents"] if item["key"] == REVIEW_KEY)
+    return {REVIEW_KEY: {
+        "instrument": "Microsoft Word COM", "measured_on": date.today().isoformat(),
+        "word_version": report["word_version"], "word_build": report["word_build"],
+        "word_observation": document, "renderer_shape": review_renderer_shapes()[REVIEW_KEY],
+    }}
 
 
 @dataclass(frozen=True)
@@ -259,11 +286,8 @@ PASTE_PROBES = {
 
 
 def _rendered_parts(markdown: str, bold_headings: bool = False) -> dict[str, bytes]:
-    with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "probe.docx"
-        docx_write.write_docx(markdown, path, bold_headings=bold_headings)
-        with zipfile.ZipFile(path) as archive:
-            return {name: archive.read(name) for name in archive.namelist()}
+    return {name: content.encode("utf-8") if isinstance(content, str) else content
+            for name, content in docx_write.parts(markdown, bold_headings=bold_headings).items()}
 
 
 def _paste_probe_parts(mode: str) -> dict[str, bytes]:
@@ -812,11 +836,12 @@ def word_report(*, assignment_only: bool = False) -> dict:
     """Render one probe per row, ask installed Word what it draws, and return JSON data."""
 
     script = Path(__file__).with_suffix(".ps1")
-    with tempfile.TemporaryDirectory() as directory:
+    with tempfile.TemporaryDirectory(dir=os.environ.get("DOCX_WORD_PROBE_ROOT")) as directory:
         root = Path(directory)
         if not assignment_only:
+            _write_parts(docx_write.parts(REVIEW_PROBE, layout="plain"), root / (REVIEW_KEY + ".docx"))
             for key, markdown in PROBES.items():
-                docx_write.write_docx(markdown, root / (key + ".docx"))
+                _write_parts(docx_write.parts(markdown), root / (key + ".docx"))
             for key, mode in PASTE_PROBES.items():
                 _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
             for key, parts in pad_probe_parts().items():
@@ -825,7 +850,7 @@ def word_report(*, assignment_only: bool = False) -> dict:
                 _write_parts(parts, root / (key + ".docx"))
         for key, package in assignment_probe_parts().items():
             _write_parts(package, root / (key + ".docx"))
-        docx_write.write_docx(TITLE, root / "word-saved.docx")
+        _write_parts(docx_write.parts(TITLE), root / "word-saved.docx")
         completed = subprocess.run(
             [
                 "powershell.exe",
@@ -852,6 +877,7 @@ def word_report(*, assignment_only: bool = False) -> dict:
         if not assignment_only:
             report["pad_rows"] = pad_word_measurement(report)
             report["padding_rows"] = padding_word_measurement(report)
+            report["review_rows"] = review_word_measurement(report)
         report["assignment_rows"] = assignment_word_measurement(report)
         report["documents"] = [
             document
@@ -887,6 +913,7 @@ def main(argv=None) -> int:
                     "pad_rows": pad_renderer_shapes(),
                     "padding_rows": padding_renderer_shapes(),
                     "assignment_rows": assignment_renderer_shapes(),
+                    "review_rows": review_renderer_shapes(),
                 },
                 indent=2,
                 sort_keys=True,

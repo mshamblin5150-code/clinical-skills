@@ -96,6 +96,8 @@ DECLARED_SECTIONS = {
     "day_file_text": "Day-file text",
     "entry_copy": "Medatrax Entry copy",
     "encounter_openers": "Encounter openers and identity rows",
+    "encounter_status": "Clinical manifest and office status",
+    "review_manifest": "Clinical manifest and office status",
     "exam_scheme": "Examination scheme",
     "differential_scan": "Differential scan",
     "visit_times": "Filled-vitals census",

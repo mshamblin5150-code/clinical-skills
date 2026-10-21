@@ -582,7 +582,11 @@ When reporting a same-day procedure with an E/M, apply `-25` from the passing sh
 `modifier-25` entry when the note supports it. Whether the E/M work is significant and
 separately identifiable remains a reading of the note.
 
-Before the worksheet can say `PASS`, write one private batch manifest naming every encounter in
+Before the worksheet can say `PASS`, follow
+[Clinical status, manifest, and Review sheet](../_shared/reference/clinical-manifest.md): record office
+status with `tools/encounter_status.py`, then run `tools/review_manifest.py build` with `--single`.
+Require both clean exits and run freshness visibly afterward. A standalone note does not render
+a batch Review sheet. The committed builder writes one private batch manifest naming every encounter in
 Review-sheet order. Each encounter record carries its stable id, one-based order, stated
 `setting` (`office` or `emergency-department`), final code populations, office status evidence
 (`identity-map`, `medatrax`, or `clinician-answer` for the clinician's recorded answer to the
@@ -1774,7 +1778,8 @@ Enter a Time Log row only on the clinician's explicit instruction in this run, f
 branch, live-form reading, saved-row readback and correction rules. The shift's go-ahead does not
 authorize that write. Record its outcome in the posted reading as that route specifies.
 Before asking, call `approval_record.prepare(run, skill="clinical-note", submission=submission_key,
-sources=(output_note,), grader_args=(str(run), "--note", str(output_note)))`.
+sources=review_manifest.approval_binding(run, batch=False).sources,
+grader_args=(str(run), "--note", str(output_note)))`.
 Give every returned coding remark an `Outcome("fixed", "<what changed>")` or
 `Outcome("leave", "<proposal and reason>")` from `reader_remarks`, in returned order.
 Show `reader_remarks.surface(prepared, outcomes, clinical=True)` as the numbered `READER REMARKS` block,
@@ -1795,7 +1800,7 @@ Show every line in the returned `coverage` exactly as printed in chat beside
 document. These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
-submission=submission_key, sources=(output_note,),
+submission=submission_key, sources=review_manifest.approval_binding(run, batch=False).sources,
 grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply,
 remark_outcomes=outcomes)`.
 A changed grade, a grade run after the reply, or a readable transcript missing a required line

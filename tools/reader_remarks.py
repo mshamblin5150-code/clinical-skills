@@ -329,11 +329,15 @@ def _prepared_receipt(run: Path, skill: str, key: str, sources: tuple[Path, ...]
                       report_text: str, reply_at: float | None, *, accepted: bool = False,
                       transcript_unread: bool = False):
     """Keep the same grade, source and ordering comparison for every go-ahead."""
+    import approval_record
     try:
         receipt = read_tool_record(_receipt_path(run, skill, key), _decode_receipt)
         if receipt is None:
             raise RemarkError("approval needs a readable pre-ask grade receipt")
-        boundary = max(path.stat().st_mtime for path in sources)
+        time_sources = sources
+        if skill in approval_record.CLINICAL_SKILLS:
+            time_sources = approval_record._clinical_binding(run, skill).source_times
+        boundary = max(path.stat().st_mtime for path in time_sources)
         prepared_at = receipt["prepared_at"]
         if receipt["source_digest"] != _digest(sources) or (not accepted and receipt["grader_report"] != report_text):
             raise RemarkError("the prepared grade or source changed; prepare and show the approval again")

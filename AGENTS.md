@@ -301,6 +301,14 @@ Its complete boundary belongs to `encounter_openers.DECLARED_LIMITS`.
 
 These bind every skill in this repo.
 
+**`tools/encounter_status.py` and `tools/review_manifest.py` are Required for both clinical skills.**
+Follow [Clinical status, manifest, and Review sheet](skills/_shared/reference/clinical-manifest.md).
+The status writer fingerprints office evidence; the manifest builder binds normalized notes,
+visible worksheets and separate field blocks. Freshness runs visibly between build and batch
+render; standalone notes use the same manifest approval binding without rendering a Review sheet.
+Every required clean exit is a gate. Their complete boundaries belong to each module's
+`DECLARED_LIMITS`.
+
 1. **No PHI is ever committed.** Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
 
    **Two gitignored directories, split by stage.** Working material — day files, the identity map, the account profile — lives in `scratch/`. **Anything finished and handed over — a note, a batch document, a case study — is written to `output/`.** Never write a finished note anywhere else, and never into the repo root: everywhere else is tracked, and a note written there is a committed patient record one `git add -A` later.

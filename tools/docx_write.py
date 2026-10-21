@@ -1,6 +1,6 @@
 """Render a Markdown subset to a .docx, with the standard library and nothing else.
 
-    python tools/docx_write.py <in.md> <out.docx> [--bold-headings] [--force]
+    python tools/docx_write.py <in.md> <out.docx> [--layout apa|plain] [--bold-headings] [--force]
 
 **Why this is not PyMuPDF, asked and answered once.** PyMuPDF reads and writes PDFs.
 A finished case study is submitted to Canvas as a Word document, and no PDF library
@@ -19,6 +19,7 @@ why three tools here are allowed a dependency and the rest are not: all three op
 ``**bold**``            bold run
 ``*italic*``            italic run
 ``> quotation``         block quotation, one source line per paragraph
+``[[PAGE_BREAK]]``      explicit page break on its own line
 blank line              ignored -- retained by the parser, emits no Word paragraph
 ``---``                 ignored -- a Markdown rule is not a Word construct
 own-line HTML comment   ignored -- markup is not document content
@@ -50,6 +51,12 @@ size at every level, distinguished the way APA distinguishes them: level 1 bold
 centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
 line can be given mechanically -- see ``skills/_shared/reference/rubric.md``.
+
+``layout="plain"`` (CLI ``--layout plain``) selects the Review-sheet layout:
+single spacing, flush-left body and bold flush-left headings, without APA reference
+formatting or a page-number header. Inline bold marks field labels; numbered entries
+remain regular weight unless explicitly marked. Both layouts accept the exported
+``PAGE_BREAK`` line and share every output guard.
 
 **``--bold-headings`` carries that same visible heading format directly.** The heading
 paragraph has no named heading style or outline level; bold and level-three italic are
@@ -129,6 +136,13 @@ MARGIN = 1440
 HANGING = 720
 FIRST_LINE = 720
 LINE_DOUBLE = 480
+PAGE_BREAK = "[[PAGE_BREAK]]"
+LAYOUTS = ("apa", "plain")
+
+
+def _require_layout(layout: str) -> None:
+    if layout not in LAYOUTS:
+        raise ValueError("layout must be apa or plain")
 
 
 # What this renderer does **not** apply. One object rather than another prose inventory:
@@ -873,9 +887,9 @@ def separator_artifacts(markdown: str) -> list:
     return found
 
 
-def body_xml(markdown: str, bold_headings: bool = False) -> str:
+def body_xml(markdown: str, bold_headings: bool = False, layout: str = "apa") -> str:
     """Convert the Markdown subset to the payload of a ``w:body`` element."""
-    return render_body(markdown, bold_headings=bold_headings)[0]
+    return render_body(markdown, bold_headings=bold_headings, layout=layout)[0]
 
 
 # The Markdown subset, as three patterns and a name for the separators. **They
@@ -1003,6 +1017,11 @@ def blocks(markdown: str):
         stripped = line.strip()
         number = index + 1
 
+        if stripped == PAGE_BREAK:
+            yield Block("page-break", line=number)
+            index += 1
+            continue
+
         if not stripped:
             yield Block("blank", line=number)
             index += 1
@@ -1073,7 +1092,7 @@ def blocks(markdown: str):
         index += 1
 
 
-def render_body(markdown: str, bold_headings: bool = False):
+def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa"):
     """``(body payload, number of decimal lists)``.
 
     The count is what ``numbering_xml`` has to be sized by, and it is returned
@@ -1082,6 +1101,8 @@ def render_body(markdown: str, bold_headings: bool = False):
     ``table_first_cells`` above was consolidated to refuse, and which is why the
     reading itself is ``blocks`` above rather than a loop in here.
     """
+    _require_layout(layout)
+    plain = layout == "plain"
     out = []
     in_references = False
     has_content = False
@@ -1092,16 +1113,20 @@ def render_body(markdown: str, bold_headings: bool = False):
         if block.kind in ("blank", "separator"):
             continue
 
+        if block.kind == "page-break":
+            out.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
+            continue
+
         if block.kind == "heading":
             # ``REFERENCE_HEADING`` above carries the rule and why it is a module
             # constant rather than an inline pattern.
-            in_references = bool(REFERENCE_HEADING.match(block.text))
+            in_references = not plain and bool(REFERENCE_HEADING.match(block.text))
             heading = HEADING_LEVELS[block.level]
             out.append(
                 para(
                     block.text,
                     style=(
-                        "" if bold_headings else "Heading{n}".format(n=block.level)
+                        "" if bold_headings or plain else "Heading{n}".format(n=block.level)
                     ),
                     # A page break on the document's first paragraph renders an empty
                     # first page, so a document that opens on its reference list takes
@@ -1110,11 +1135,11 @@ def render_body(markdown: str, bold_headings: bool = False):
                     align=(
                         "center"
                         if in_references
-                        else heading.get("align", "") if bold_headings else ""
+                        else heading.get("align", "") if bold_headings and not plain else ""
                     ),
-                    indent=heading.get("indent", 0) if bold_headings else 0,
-                    bold=bold_headings,
-                    italic=bool(heading.get("italic")) if bold_headings else False,
+                    indent=heading.get("indent", 0) if bold_headings and not plain else 0,
+                    bold=bold_headings or plain,
+                    italic=bool(heading.get("italic")) if bold_headings and not plain else False,
                 )
             )
             has_content = True
@@ -1162,7 +1187,7 @@ def render_body(markdown: str, bold_headings: bool = False):
             para(
                 block.text,
                 style="Reference" if in_references else "",
-                first_line=not in_references,
+                first_line=not plain and not in_references,
             )
         )
         has_content = True
@@ -1170,15 +1195,16 @@ def render_body(markdown: str, bold_headings: bool = False):
     return "".join(out), decimal_lists
 
 
-def document_xml(markdown: str, body: str = None) -> str:
+def document_xml(markdown: str, body: str = None, layout: str = "apa") -> str:
     from run_record_reader import require_outbound_text
     require_outbound_text(markdown)
+    _require_layout(layout)
     # ``body`` is accepted so ``write_docx`` can parse once and spend the result
     # on both parts. ``render_body``'s docstring is explicit that a second pass
     # over the same Markdown is a second parser to keep in step; this function
     # took one anyway until #215's follow-up review caught it.
     if body is None:
-        body = body_xml(markdown)
+        body = body_xml(markdown, layout=layout)
     # ``headerReference`` is the first child of ``sectPr`` because the schema puts it
     # there; a reference written after ``pgSz`` is a file Word declines to open.
     sect = (
@@ -1187,6 +1213,8 @@ def document_xml(markdown: str, body: str = None) -> str:
         '<w:pgMar w:top="{m}" w:right="{m}" w:bottom="{m}" w:left="{m}" '
         'w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
     ).format(m=MARGIN, h=HEADER_ID)
+    if layout == "plain":
+        sect = sect.replace('<w:headerReference w:type="default" r:id="{h}"/>'.format(h=HEADER_ID), "")
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         "<w:document {w} {r}><w:body>{b}{s}</w:body></w:document>"
@@ -1197,7 +1225,7 @@ class RefusedToOverwrite(Exception):
     """The destination holds work this renderer did not write, or Word has it open."""
 
 
-def parts(markdown: str, bold_headings: bool = False) -> dict:
+def parts(markdown: str, bold_headings: bool = False, layout: str = "apa") -> dict:
     """Every part of the archive, keyed by name, in the order it is written.
 
     **One object, so the guard cannot hold a different answer than the writer.**
@@ -1214,15 +1242,15 @@ def parts(markdown: str, bold_headings: bool = False) -> dict:
     """
     from run_record_reader import require_outbound_text
     require_outbound_text(markdown)
-    body, decimal_lists = render_body(markdown, bold_headings=bold_headings)
+    body, decimal_lists = render_body(markdown, bold_headings=bold_headings, layout=layout)
     return {
         "[Content_Types].xml": CONTENT_TYPES,
         "_rels/.rels": ROOT_RELS,
         "word/_rels/document.xml.rels": DOC_RELS,
-        "word/styles.xml": STYLES,
+        "word/styles.xml": STYLES if layout == "apa" else STYLES.replace('w:line="480"', 'w:line="240"'),
         "word/numbering.xml": numbering_xml(decimal_lists),
         "word/header1.xml": HEADER,
-        "word/document.xml": document_xml(markdown, body),
+        "word/document.xml": document_xml(markdown, body, layout=layout),
     }
 
 
@@ -1350,6 +1378,7 @@ def write_docx(
     destination,
     force: bool = False,
     bold_headings: bool = False,
+    layout: str = "apa",
 ) -> Path:
     """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
 
@@ -1365,6 +1394,7 @@ def write_docx(
     before the sibling existed, so nothing exercised the cleanup. One mechanism, and the
     limb is now on the path the test drives.
     """
+    _require_layout(layout)
     destination = ensure_main_checkout(destination)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1377,7 +1407,7 @@ def write_docx(
     try:
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
             for name, content in parts(
-                markdown, bold_headings=bold_headings
+                markdown, bold_headings=bold_headings, layout=layout
             ).items():
                 archive.writestr(name, content)
         os.replace(partial, destination)
@@ -1387,10 +1417,19 @@ def write_docx(
     return destination
 
 
-USAGE = "usage: docx_write.py <in.md> <out.docx> [--bold-headings] [--force]"
+USAGE = "usage: docx_write.py <in.md> <out.docx> [--layout apa|plain] [--bold-headings] [--force]"
 
 
 def main(argv: list) -> int:
+    argv = list(argv)
+    layout = "apa"
+    if "--layout" in argv:
+        index = argv.index("--layout")
+        if index + 1 >= len(argv) or argv[index + 1] not in LAYOUTS:
+            print(USAGE)
+            return 2
+        layout = argv[index + 1]
+        del argv[index:index + 2]
     force = "--force" in argv
     bold_headings = "--bold-headings" in argv
     # An unrecognized ``--`` argument is refused rather than sliding into a positional
@@ -1419,6 +1458,7 @@ def main(argv: list) -> int:
             Path(argv[1]),
             force=force,
             bold_headings=bold_headings,
+            layout=layout,
         )
     except OutboundTextError as reason:
         print(f"document was not written: {reason}", file=sys.stderr)

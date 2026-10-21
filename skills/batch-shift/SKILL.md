@@ -446,7 +446,11 @@ note and follows the existing approval rules.
 **A delegated answer never decides what a written rule already settles.** [clinical-note](../clinical-note/SKILL.md)'s rule beside its `PRE-APPROVAL PATIENT QUESTIONS`
 block binds this block too, including the run's `delegated-answers.md` record (ADR 0309).
 
-It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
+It is batch-atomic. Follow [Clinical status, manifest, and Review sheet](../_shared/reference/clinical-manifest.md):
+record every office status with `tools/encounter_status.py`, build the manifest with
+`tools/review_manifest.py build`, run freshness visibly, and render with
+`tools/review_manifest.py render`. Require every command's clean exit; a refusal stops the sheet.
+Before rendering, the committed builder creates one private manifest naming every encounter in exact
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
 populations, one patient-status record whose evidence is `identity-map`, `medatrax`, or
 `clinician-answer` for the clinician's recorded answer to the earlier-visit conflict question,
@@ -510,7 +514,7 @@ before this go-ahead. Quote every recorded `ANSWER:` line exactly on its own lin
 patient questions, outside the Review sheet. With no second context, disclose that the answers
 were not independently checked and name their sections; a disagreement holds this ask.
 Before asking, call `approval_record.prepare(run, skill="batch-shift", submission=shift_key,
-sources=medatrax_posting.note_paths(run, batch=True), grader_args=(str(run),))`.
+sources=review_manifest.approval_binding(run, batch=True).sources, grader_args=(str(run),))`.
 Give every returned coding remark an `Outcome("fixed", "<what changed>")` or
 `Outcome("leave", "<proposal and reason>")` from `reader_remarks`, in returned order.
 Show `reader_remarks.surface(prepared, outcomes, clinical=True)` as the numbered `READER REMARKS` block
@@ -523,7 +527,7 @@ Show every line in the returned `coverage` exactly as printed in chat beside
 These are the paired completion grader's lines; the coding graders keep their exit-0 gates.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that approval call `approval_record.approve(run, skill="batch-shift",
-submission=shift_key, sources=medatrax_posting.note_paths(run, batch=True),
+submission=shift_key, sources=review_manifest.approval_binding(run, batch=True).sources,
 grader_args=(str(run),), content_approved=True, clinician_reply=clinician_reply,
 remark_outcomes=outcomes)`.
 A changed grade, a grade run after the reply, or a readable transcript missing a required line

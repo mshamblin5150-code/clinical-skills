@@ -37,6 +37,8 @@ def codex(text=REPLY, timestamp=LATER, **flags):
 
 class WholeReplyApproval(unittest.TestCase):
     def setUp(self):
+        from approval_record_test_support import isolate_manifest_binding
+        isolate_manifest_binding(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

@@ -395,6 +395,11 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
     def test_clinician_answer_refuses_missing_mismatched_old_and_unreadable_replies(self):
         for mode in ("missing", "mismatch", "old", "unreadable", "hook-context", "scheduled-trigger"):
             with self.subTest(mode=mode):
+                # A prior pass is a complete tool record, not arbitrary text.
+                self.output.unlink(missing_ok=True)
+                prior = {"schema": 1, "verdict": "PASS", "service_date": self.load_manifest()["service_date"],
+                         "checked_as_of": self.load_manifest()["service_date"], "encounters": [{}], "sources": {}}
+                self.output.write_text(json.dumps(prior), encoding="utf-8")
                 os.utime(self.source, (1, 1))
                 value = self.load_manifest()
                 status = value["encounters"][0]["patient_status"]
@@ -412,7 +417,6 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                 if mode == "unreadable":
                     self.transcript.unlink()
                 self.save_manifest(value)
-                self.output.write_text("stale pass receipt", encoding="utf-8")
                 result, output = self.run_gate()
                 self.assertEqual(1, result, output)
                 self.assertIn("clinician-answer", output)
@@ -441,12 +445,28 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertIn("HCPCS C9046 is not active on 2026-10-02", output)
 
     def test_blocked_rerun_removes_an_old_pass_receipt(self):
-        self.output.write_text('{"verdict":"PASS"}\n', encoding="utf-8")
+        self.assertEqual(0, self.run_gate()[0])
+        value = self.load_manifest()
+        value["encounters"][0]["codes"]["hcpcs"] = ["C9046"]
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(1, status)
+        self.assertIn("coding-freshness: BLOCKED", output)
+        self.assertFalse(self.output.exists())
+
+    def test_unreadable_manifest_or_receipt_is_preserved(self):
+        self.assertEqual(0, self.run_gate()[0])
+        before = self.output.read_bytes()
         self.manifest.write_text("not json", encoding="utf-8")
         status, output = self.run_gate()
         self.assertEqual(2, status)
-        self.assertIn("coding-freshness: BLOCKED", output)
-        self.assertFalse(self.output.exists())
+        self.assertIn("not graded", output)
+        self.assertEqual(before, self.output.read_bytes())
+        self.output.write_bytes(b'{"verdict":')
+        status, output = self.run_gate()
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder 1", output)
+        self.assertEqual(b'{"verdict":', self.output.read_bytes())
 
 
 if __name__ == "__main__":

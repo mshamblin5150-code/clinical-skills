@@ -70,8 +70,13 @@ def _fingerprints(skill: str, item: dict, *, approved: bool = False) -> dict:
                 values[str(path)] = None
         return values
     try:
+        if not approved and item.get("clinical_manifest_binding") is True:
+            from approval_record import _bound_sources
+            _bound_sources(Path(item["sources"][0]).parent, skill, paths)
         digest = item.get("sha256") if approved else source_sha256(paths)
-    except OSError:
+    except UnreadableRecord:
+        raise
+    except (OSError, ValueError):
         digest = None
     return {"paths": [str(path) for path in paths], "sha256": digest}
 

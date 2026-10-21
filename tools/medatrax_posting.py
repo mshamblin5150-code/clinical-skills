@@ -91,7 +91,8 @@ def _approved_standalone_note(run: Path) -> Path | None:
     )
     if len(matches) != 1:
         return None
-    sources = matches[0].get("sources")
+    item = matches[0]
+    sources = item.get("note_sources") if item.get("clinical_manifest_binding") is True else item.get("sources")
     if not isinstance(sources, list) or len(sources) != 1 or not isinstance(sources[0], str):
         return None
     note = Path(sources[0])
