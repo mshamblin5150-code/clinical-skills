@@ -22,6 +22,7 @@ from run_record_reader import UnreadableRecord
 
 def synthetic_run(root: Path, *, batch: bool = True, setting="emergency-department") -> Path:
     """Create a minimal synthetic run and build its manifest (no real currency claim)."""
+    root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     run = root / "run"
     source = root / "source.txt"
@@ -63,7 +64,7 @@ class ManifestCommands(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.run = synthetic_run(self.root)
 
     def test_declared_limits_are_named_in_shared_contract(self):
@@ -91,6 +92,19 @@ class ManifestCommands(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         with self.assertRaises(ValueError):
             review_manifest.approval_binding(other, batch=True)
+
+    def test_native_short_alias_fixture_returns_canonical_record_paths(self):
+        from tree_walk_test_support import short_alias
+        target = self.root / "Long clinical fixture directory"
+        target.mkdir()
+        alias = short_alias(target)
+        run = synthetic_run(alias, batch=False)
+        self.assertEqual(target.resolve() / "run", run)
+        review_manifest.build(run, run / "inputs.json", batch=False)
+        passing_receipt(run, batch=False)
+        binding = review_manifest.approval_binding(alias / "run", batch=False)
+        self.assertEqual((run / "note-1.md",), binding.notes)
+        self.assertEqual((run / review_manifest.MANIFEST, run / review_manifest.RECEIPT), binding.sources)
 
     def test_office_refuses_missing_status_and_status_command_fingerprints_evidence(self):
         inputs = self.run / "inputs.json"

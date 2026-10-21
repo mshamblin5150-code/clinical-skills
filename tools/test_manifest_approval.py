@@ -25,7 +25,7 @@ class ManifestApproval(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.grader = patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean"))
         self.grader.start()
         self.addCleanup(self.grader.stop)
