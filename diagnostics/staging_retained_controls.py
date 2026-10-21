@@ -9,6 +9,7 @@ import stat
 import subprocess
 import tempfile
 import time
+import sys
 from types import SimpleNamespace
 from unittest import mock
 
@@ -49,13 +50,38 @@ def unlink_native(link, kind):
     q.require(not os.path.lexists(link), 'retained_control_link_cleanup_failed')
 
 
-def controls(report_root, deadline):
+@contextlib.contextmanager
+def fixture(report_root, observe):
+    holder = tempfile.TemporaryDirectory(prefix='retained-controls-', dir=report_root)
+    try:
+        yield Path(holder.name)
+    except BaseException as error:
+        if observe is not None:
+            observe(None, 'failed', error)  # Preserve current case setup failure before fixture cleanup.
+        raise
+    finally:
+        if observe is not None:
+            observe('fixture', 'cleanup_started')
+        try:
+            holder.cleanup()
+        except BaseException as error:
+            if observe is not None:
+                observe('fixture', 'cleanup_failed', error)
+            raise
+        if observe is not None:
+            observe('fixture', 'cleanup_passed')
+
+
+def controls(report_root, deadline, observe=None):
+    if observe is not None:
+        observe('fixture', 'started')
     m.safe_directory(report_root)
     rows = []
     link_kind = None
-    with tempfile.TemporaryDirectory(prefix='retained-controls-', dir=report_root) as name:
-        root = Path(name)
+    with fixture(report_root, observe) as root:
         for case, wanted in CASES:
+            if observe is not None:
+                observe(case, 'started')
             q.require(time.monotonic() < deadline, 'global_budget_exhausted')
             repo = root / case
             sessions = repo / 'scratch/sessions'
@@ -92,11 +118,26 @@ def controls(report_root, deadline):
                         observed = str(error)
                 q.require(observed == wanted, 'retained_control_outcome_mismatch')
                 rows.append({'id': case, 'refusal': observed, 'passed': True})
+                if observe is not None:
+                    observe(case, 'passed')
+            except BaseException as error:
+                if observe is not None:
+                    observe(case, 'failed', error)
+                raise
             finally:
-                if link is not None and os.path.lexists(link):
-                    unlink_native(link, link_kind)
-                    q.require(target.is_dir() and (target / 'sentinel').read_bytes() == b'synthetic',
-                              'retained_control_link_target_changed')
+                if observe is not None:
+                    observe(case, 'cleanup_started')
+                try:
+                    if link is not None and os.path.lexists(link):
+                        unlink_native(link, link_kind)
+                        q.require(target.is_dir() and (target / 'sentinel').read_bytes() == b'synthetic',
+                                  'retained_control_link_target_changed')
+                except BaseException as error:
+                    if observe is not None:
+                        observe(case, 'cleanup_failed', error)
+                    raise
+                if observe is not None:
+                    observe(case, 'cleanup_passed')
         # TemporaryDirectory cleanup is limited to this newly owned synthetic tree.
     q.require(not root.exists(), 'retained_control_cleanup_failed')
     return {'cases': rows, 'count': 5, 'synthetic_source_ref_isolation': True,
@@ -126,9 +167,23 @@ def main():
     parser.add_argument('--report-root', required=True, type=Path)
     parser.add_argument('--deadline', required=True, type=float)
     args = parser.parse_args()
+    active = {'case': 'fixture', 'state': 'started'}
+    primary = {}
+    def observe(case, state, error=None):
+        from diagnostic_observations import exception_category, reason_category
+        case = active['case'] if case is None else case
+        if error is not None and not primary:
+            primary.update(case=case, state='failed', failure_stage=active['state'],
+                           exception_category=exception_category(error), reason=reason_category(error))
+        active.update(case=case, state=state)
+        print('RETAINED_CONTROL_OBSERVATION:' + json.dumps({'case': case, 'state': state}), file=sys.stderr)
     try:
-        row = validate_receipt(controls(args.report_root, args.deadline))
-    except BaseException:
+        row = validate_receipt(controls(args.report_root, args.deadline, observe=observe))
+    except BaseException as error:
+        from diagnostic_observations import exception_category, reason_category
+        print('RETAINED_CONTROL_OBSERVATION:' + json.dumps(primary or {**active, 'state': 'failed',
+              'failure_stage': active['state'], 'exception_category': exception_category(error),
+              'reason': reason_category(error)}), file=sys.stderr)
         print(json.dumps({'passed': False, 'reason': 'retained_controls_inconclusive'}))
         return 2
     print(json.dumps(row, sort_keys=True))

@@ -240,3 +240,44 @@ A qualified target-module receipt requires the exact ordered twenty valid sample
 Local tests cover planning, estimates, real-method RED/GREEN behavior, schema refusal, incomplete summary behavior, and actual Git raw-oracle fixtures. The committed real-Git tests include a legacy-archive negative fixture: inherited core.autocrlf=true converts the archive entry while a checkout-only false override retains raw LF bytes. The test demonstrates that the raw oracle accepts the unchanged file and rejects the actual archive-converted bytes. Archive is used only to reproduce the old failure, never as the replacement reference. The separately retained original RED reproducer exits 1 on the old equality assertion; it is not part of the committed test matrix. The matrix also tests explicit text/EOL attributes, export-ignore/export-subst, binary data, object formats, and missing/extra/content mutations. Explicit eol=crlf checkout conversion is correctly rejected when raw bytes differ, even if checkout used core.autocrlf=false. Exact raw blob materialization passes regardless of inherited conversion/export settings. Linux local controls establish neither Windows owner execution nor current-main whole-tree compatibility. Two independent fixed-tree reviews, Spec and Standards, remain mandatory before any request to publish this corrected packet and run a newly authorized job.
 
 P-Stack benchmark-checklist and principle-prove-it-works were read at immutable upstream `e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a`. Matt Pocock diagnosis, TDD, and two-axis review guidance applies. Private-corpus coverage is explicitly NOT RUN. Subsequent all-interpreter/full-suite/end-to-end work needs a separate costed plan and approval.
+# Pending local-only diagnostic observation revision
+
+This revision changes reporting, not admission. `diagnostic_observations.PHASES`
+is the finite phase inventory. Each phase is announced before its operation;
+the failure phase survives cleanup. Command start, polling, finishing and capture
+exceptions are observed by a diagnostic-local Session subclass and re-raised.
+The shared process-owner implementation, deadlines and original validators are
+unchanged. Unavailable exits and unread summaries are never reported as zero
+or passed. Expected and observed test counts remain separate.
+
+Native-child reports expose only allowlisted status, exception category, control
+IDs and diagnostic codes, not private source frames. Retained controls report
+their finite current case before work and after exact intended outcome checks.
+The contract child executes the same unittest population with a result observer:
+only unhandled test failures/errors produce failure IDs and any already-captured
+finite metadata comparison flags. Expected caught refusals are not failures.
+Subtest parameters, arbitrary exception messages, paths and payloads are withheld.
+The original unittest output and admission parser remain authoritative.
+Parsed numeric counts are capped by the source-known phase population; an
+out-of-range summary exposes a finite state rather than the arbitrary number.
+Native exception propagation is unchanged: its existing cleanup refusal may
+replace the original exception. The new primary category/code is observational
+evidence retained before that finally block, not a change to exception behavior.
+
+Discovery, actual methods, source/output guards, environment and cleanup have
+distinct phases. Cleanup exceptions cannot overwrite the primary failure or
+suppress the final result solely by escaping cleanup. A broken public output
+stream can still prevent delivery; reporting cannot guarantee transmission.
+
+The existing Windows/Python 3.14.4 workflow remains one job capped at 10 minutes,
+including a 60-second cleanup reserve. This local preparation does not authorize
+publication or a hosted run. No full suite or performance work is added.
+
+A separate synthetic native stat/fstat observation was evaluated, not included.
+It would pin Python 3.14.4, own a disposable synthetic regular file, and observe
+the same lstat/open/fstat/read/fstat/lstat sequence with the eight-field equality
+flags only. It could measure Windows semantics without the contract suite, but
+would require an explicitly reviewed fixture/ownership scope and runtime
+approval. It would neither waive the full metadata guard nor establish the
+previous hosted checkout's cause. This packet instead makes the existing phases
+diagnosable without adding another runtime branch.

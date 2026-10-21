@@ -14,6 +14,7 @@ import unittest
 import measure_lazy_suite_ids as q
 import measure_maintainer_pair as m
 import generated_output_contract as contract
+import diagnostic_observations as observation
 from diagnose_lazy_setup import budget_deadline
 from diagnose_staging_layout import verify_retained_controls
 from lazy_suite_support import RESULT_PREFIX
@@ -24,6 +25,14 @@ CASES = (
     'test_suite.SuiteRunControls.test_a_complete_run_atomically_replaces_the_unit_weights',
 )
 CONTRACT_CONTROL_COUNT = 41
+
+
+def phase(session, progress, name):
+    q.require(name in observation.PHASES, 'diagnostic_phase_invalid')
+    progress['active_phase'] = name
+    if session is not None:
+        session.phase = name
+    q.emit('diagnostic_phase', phase=name)
 
 
 def discovery_child(repo):
@@ -82,6 +91,7 @@ def guarded(session, repo, expected, state):
 
 
 def setup(session, observer, seed, job_start, progress):
+    phase(session, progress, 'source')
     q.first_clean(session, observer, os.environ.get('GITHUB_SHA'), 'observer')
     session.git(observer, 'merge-base', '--is-ancestor', q.OBSERVER_BASE, 'HEAD')
     q.require(set(session.git(observer, 'diff', '--name-only', q.OBSERVER_BASE, 'HEAD').splitlines()) == q.OBSERVER_PATHS,
@@ -93,20 +103,26 @@ def setup(session, observer, seed, job_start, progress):
     progress.update(source_sha=q.BASE, environment=m.environment_identity())
     q.emit('generated_output_scope', **progress, full_suite=False, performance_probes=0,
            job_seconds=600, cleanup_reserve_seconds=60)
+    phase(session, progress, 'native')
     owned = session.run([sys.executable, str(observer / 'diagnostics/windows_job_probe_controls.py'),
                          '--run', '--report-dir', str(session.root / 'owner-controls')], observer / 'diagnostics')
     q.require(owned['returncode'] == 0, 'owner_controls_failed')
     q.validate_owner_controls(json.loads(owned['stdout']))
     q.emit('owner_controls', count=9, passed=True)
+    phase(session, progress, 'retained')
     verify_retained_controls(session, observer)
+    phase(session, progress, 'contract')
     q.require(CONTRACT_CONTROL_COUNT > 0, 'contract_control_population_unset')
-    controls = session.run([sys.executable, '-m', 'unittest', 'test_generated_output_contract'], observer / 'diagnostics')
+    controls = session.run([sys.executable, str(observer / 'diagnostics/diagnose_generated_outputs.py'),
+                            '--contract-child'], observer / 'diagnostics')
     progress['contract_controls'] = q.verify_probe(controls, CONTRACT_CONTROL_COUNT, q.LOOKUPS[0])
     q.emit('generated_contract_controls', tests_run=CONTRACT_CONTROL_COUNT, **progress['contract_controls'])
+    phase(session, progress, 'clone')
     clone_root = m.workspace_clone_root(session.root, observer, seed, expected)
     repo = clone_root / 'baseline'
     target = m.source_context(session, seed, repo, 'baseline', expected, b'')
     q.require(target == expected, 'generated_diagnostic_source_delta_forbidden')
+    phase(session, progress, 'temp')
     temp = q.parse_child(session.run(q.child_command(observer, 'validate-temp', repo), repo / 'tools'))
     q.require(temp.get('outside_checkout_temp') is True and temp.get('temp_environment_unchanged') is True,
               'temp_validation_incomplete')
@@ -114,23 +130,31 @@ def setup(session, observer, seed, job_start, progress):
     def state(marker, units=(), sessions='optional'):
         return contract.State(marker=marker, weights='absent', units=units, job_start_epoch=job_start,
                               observed_epoch=time.time(), max_job_seconds=600, sessions=sessions)
+    phase(session, progress, 'initial_guard')
     progress['initial_output'] = guarded(session, repo, expected, state('absent'))
+    phase(session, progress, 'discovery')
     discovered = session.run([sys.executable, str(observer / 'diagnostics/diagnose_generated_outputs.py'),
                               '--discovery-child', '--repo', str(repo)], repo / 'tools')
+    phase(session, progress, 'discovery_validate')
     units, public = validate_discovery(discovered)
     progress['discovery'] = public
     q.emit('generated_unit_discovery', **public)
+    phase(session, progress, 'discovery_guard')
     guarded(session, repo, expected, state('absent', units))
     progress['cases'] = []
     for index, selector in enumerate(CASES):
+        phase(session, progress, 'case_' + str(index))
         result = session.run([sys.executable, '-m', 'unittest', selector], repo / 'tools')
         # Preserve command outcome before any parser/guard refusal.
         row = {'test_token': q.digest(selector.encode()), 'returncode': result['returncode']}
         progress['cases'].append(row)
         q.emit('generated_case_observed', **row)
+        phase(session, progress, 'case_verify_' + str(index))
         row.update(q.verify_probe(result, 1, q.LOOKUPS[0]))
+        phase(session, progress, 'case_guard_' + str(index))
         row['retained'] = guarded(session, repo, expected, state('required', units, 'required' if index >= 1 else 'optional'))
         q.emit('generated_case_verified', **row)
+    phase(session, progress, 'final_source')
     sessions = repo / 'scratch/sessions'
     q.require(sessions.is_dir() and not any(sessions.iterdir()), 'staging_parent_not_empty_or_absent')
     progress['final_output'] = guarded(session, repo, expected, state('required', units, 'required'))
@@ -146,15 +170,19 @@ def main(argv=None):
     parser.add_argument('--seed', type=Path)
     parser.add_argument('--job-start-epoch', type=float)
     parser.add_argument('--discovery-child', action='store_true')
+    parser.add_argument('--contract-child', action='store_true')
     parser.add_argument('--repo', type=Path)
     args = parser.parse_args(argv)
+    if args.contract_child:
+        return observation.contract_child()
     if args.discovery_child:
         return discovery_child(args.repo.resolve())
     start = time.monotonic()
     session, root, complete, clean, failure = None, None, False, False, None
-    progress = {'raw_source_integrity_verified': False}
+    progress = {'raw_source_integrity_verified': False, 'active_phase': 'preflight'}
     environment = dict(os.environ)
     try:
+        phase(None, progress, 'preflight')
         q.require(os.name == 'nt' and platform.python_version() == '3.14.4', 'windows_python_pin_required')
         q.require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_EVENT_NAME') == 'push'
                   and os.environ.get('GITHUB_REF') == q.BRANCH and os.environ.get('GITHUB_RUN_ATTEMPT') == '1',
@@ -167,17 +195,35 @@ def main(argv=None):
         temp = Path(tempfile.gettempdir()).resolve()
         q.require(all(not temp.is_relative_to(repo) for repo in (observer, seed)), 'temp_inside_checkout')
         root = Path(tempfile.mkdtemp(prefix='generated-output-owner-', dir=temp))
-        session = q.Session(root, deadline)
+        session = observation.ObservedSession(root, deadline)
         setup(session, observer, seed, args.job_start_epoch, progress)
+        phase(session, progress, 'environment')
         q.require(dict(os.environ) == environment, 'environment_changed')
         complete = True
     except BaseException as error:
-        failure = str(error) if isinstance(error, q.Refused) else 'unexpected_exception_details_withheld'
-        q.safe_exception(error, root)
-        q.emit('hold', reason=failure, error_type=type(error).__name__, comparative_claim_allowed=False)
+        failure = observation.reason_category(error)
+        try:
+            q.safe_exception(error, root)  # Preserve bounded private evidence, never forward its frames.
+        except BaseException:
+            pass  # Private evidence failure must not replace the original failure.
+        progress['failure_phase'] = progress['active_phase']
+        q.emit('hold', reason=failure, phase=progress['failure_phase'],
+               error_type=observation.exception_category(error), comparative_claim_allowed=False)
     finally:
         if session is not None:
-            clean = session.cleanup()
+            phase(session, progress, 'cleanup')
+            try:
+                clean = session.cleanup()
+                q.emit('diagnostic_cleanup', verified=clean is True, exception_category=None)
+                if clean is not True and failure is None:
+                    failure = 'cleanup_unverified'
+                    progress['failure_phase'] = 'cleanup'
+            except BaseException as error:
+                clean = False
+                q.emit('diagnostic_cleanup', verified=False, exception_category=observation.exception_category(error))
+                if failure is None:
+                    failure = 'cleanup_failed'
+                    progress['failure_phase'] = 'cleanup'
         passed = complete and clean
         q.emit('generated_output_summary', **progress, diagnostic_collection_complete=complete,
                process_cleanup_verified=clean, status='diagnostic-passed' if passed else 'inconclusive',

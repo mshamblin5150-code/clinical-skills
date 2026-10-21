@@ -226,7 +226,7 @@ class ProcessWitness:
             self.handle = None
 
 
-def run_controls(root):
+def run_controls(root, observation=None):
     require_unoptimized()
     if os.name != "nt":
         raise ProbeError("CONTROL_PLATFORM_UNSUPPORTED")
@@ -234,6 +234,11 @@ def run_controls(root):
     owners = []
     results = []
     original_env, original_cwd = dict(os.environ), os.getcwd()
+
+    def active(index):
+        if observation is not None:
+            observation.update(active_control_id=DECLARED_CONTROL_IDS[index],
+                               completed_control_ids=list(DECLARED_CONTROL_IDS[:index]))
 
     def launch(name, mode):
         case = root / name
@@ -259,6 +264,7 @@ def run_controls(root):
         assert Path(result.stdout_path).is_file() and Path(result.stderr_path).is_file()
 
     try:
+        active(0)
         case, probe = launch("normal-tree", "normal")
         result = probe.finish(timeout=WAIT_SECONDS)
         check_terminal(probe, result, "completed")
@@ -268,6 +274,7 @@ def run_controls(root):
         results.append({"control": "normal_tree_cpu_and_active_zero", "result": asdict(result)})
         assert (case / "capture").is_dir(), "capture evidence must remain"
 
+        active(1)
         case, probe = launch("large-output", "output")
         result = probe.finish(timeout=WAIT_SECONDS)
         check_terminal(probe, result, "completed")
@@ -276,6 +283,7 @@ def run_controls(root):
         assert Path(result.stderr_path).read_bytes() == b"E" * OUTPUT_BYTES
         results.append({"control": "separate_large_output", "bytes_each": OUTPUT_BYTES})
 
+        active(2)
         case, probe = launch("cancel-tree", "hang")
         wait_for(lambda: read_pid(case / "grandchild.pid"))
         assert probe.poll().active_processes == 3
@@ -286,6 +294,7 @@ def run_controls(root):
         check_terminal(probe, result, "synthetic-cancel")
         results.append({"control": "cancel_tree_and_retained_evidence", "result": asdict(result)})
 
+        active(3)
         case, probe = launch("failed-worker", "failure")
         wait_for(lambda: probe.poll().root_reaped)
         snapshot = probe.poll()
@@ -294,6 +303,7 @@ def run_controls(root):
         check_terminal(probe, result, "worker-failure")
         results.append({"control": "failed_root_keeps_descendants_owned", "result": asdict(result)})
 
+        active(4)
         case, probe = launch("cleanup-unread", "hang")
         wait_for(lambda: read_pid(case / "grandchild.pid"))
         with mock.patch.object(probe._api, "accounting", side_effect=ProbeError("QUERY_ACCOUNTING_FAILED")):
@@ -310,6 +320,7 @@ def run_controls(root):
         check_terminal(probe, result, "retry-after-query-restored")
         results.append({"control": "cleanup_unread_retains_files_and_can_recover", "result": asdict(result)})
 
+        active(5)
         case = root / "assignment-refusal"
         case.mkdir()
         api_class = owner_module._Kernel32
@@ -344,6 +355,7 @@ def run_controls(root):
             else:
                 raise AssertionError("invalid job assignment unexpectedly launched")
 
+        active(6)
         case = root / "membership-refusal"
         case.mkdir()
 
@@ -378,6 +390,7 @@ def run_controls(root):
                 raise AssertionError("unverified membership unexpectedly resumed")
 
         for before_resume in (False, True):
+            active(8 if before_resume else 7)
             case = root / ("coordinator-death-suspended" if before_resume else "coordinator-death-running")
             case.mkdir()
             argv = [sys.executable, str(SCRIPT), "--coordinator", "--report-dir", str(case)]
@@ -423,6 +436,8 @@ def run_controls(root):
         for probe in owners:
             assert probe.result is not None and probe.result.snapshot.cleanup_verified
             assert probe.stdout_path.is_file() and probe.stderr_path.is_file()
+        if observation is not None:
+            observation.update(active_control_id=None, completed_control_ids=list(DECLARED_CONTROL_IDS))
         return {"schema": "windows-job-probe-controls-v1", "status": "passed",
                 "platform": sys.platform, "python": sys.version,
                 "optimization_level": sys.flags.optimize,
@@ -432,7 +447,18 @@ def run_controls(root):
                 "planned_count": len(DECLARED_CONTROL_IDS), "passed_count": len(results),
                 "failed_count": 0, "skipped_count": 0,
                 "controls": results, "retained_evidence_root": str(root)}
+    except BaseException as error:
+        if observation is not None:
+            try:
+                detail = failure_report(error)
+                observation.update(primary_error_type=detail['error_type'],
+                                   primary_diagnostic_codes=detail['diagnostic_codes'])
+            except BaseException:
+                pass  # Observations must not replace the original control exception.
+        raise
     finally:
+        if observation is not None:
+            observation['cleanup_state'] = 'started'
         cleanup_errors = []
         for probe in reversed(owners):
             if probe.result is None or not probe.result.snapshot.cleanup_verified:
@@ -441,8 +467,12 @@ def run_controls(root):
                 except ProbeError as error:
                     cleanup_errors.append(error.code)
         if cleanup_errors:
+            if observation is not None:
+                observation['cleanup_state'] = 'failed'
             raise ProbeError("CONTROL_PROCESS_CLEANUP_INCOMPLETE",
                              diagnostic_codes=tuple(cleanup_errors))
+        if observation is not None:
+            observation['cleanup_state'] = 'passed'
 
 
 def main():
@@ -468,10 +498,11 @@ def main():
         return output_child(root)
     if args.coordinator:
         return coordinator(root, args.before_resume)
+    observation = {'active_control_id': None, 'completed_control_ids': [], 'cleanup_state': 'not_started'}
     try:
-        report = run_controls(root)
+        report = run_controls(root, observation=observation)
     except BaseException as error:
-        print(json.dumps(failure_report(error), sort_keys=True))
+        print(json.dumps({**failure_report(error), 'control_observation': observation}, sort_keys=True))
         return 2
     print(json.dumps(report, sort_keys=True))
     return 0
