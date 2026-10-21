@@ -55,7 +55,8 @@ def injected_skill_record(name: str, *, role: str = "user") -> dict[str, object]
 
 def mention_record(name: str) -> dict[str, object]:
     """The user's own `$skill` mention, which names the path without carrying the skill."""
-    path = f"C:\\Users\\clinician\\\\.agents\\skills\\{name}\\SKILL.md"
+    # The doubled backslash before .agents is how the 2026-10-21 app run wrote it.
+    path =f"C:\\Users\\clinician\\\\.agents\\skills\\{name}\\SKILL.md"
     return {
         "type": "response_item",
         "payload": {
@@ -211,11 +212,29 @@ class HookContract(unittest.TestCase):
                 )
                 self.assertEqual(result.get("decision"), "block")
 
+    def test_a_grilling_block_after_leading_space_or_another_skill_activates(self) -> None:
+        leading = injected_skill_record("grilling")
+        leading["payload"]["content"][0]["text"] = (
+            "\n" + leading["payload"]["content"][0]["text"]
+        )
+        stacked = injected_skill_record("implement")
+        stacked["payload"]["content"][0]["text"] += (
+            "\n" + injected_skill_record("grill-me")["payload"]["content"][0]["text"]
+        )
+        for record in (leading, stacked):
+            with self.subTest(record=record):
+                result = self.grade("Q1 First?\nQ2 Second?", records=(record,))
+                self.assertEqual(result.get("decision"), "block")
+
     def test_a_mention_or_quoted_injection_alone_does_not_activate(self) -> None:
+        quoted = injected_skill_record("grilling")
+        block = quoted["payload"]["content"][0]["text"]
+        quoted["payload"]["content"][0]["text"] = f"The transcript showed:\n{block}"
         for records in (
             (mention_record("grill-me"),),
             (injected_skill_record("implement"),),
             (injected_skill_record("grilling", role="assistant"),),
+            (quoted,),
         ):
             with self.subTest(records=records):
                 self.assertEqual(self.grade("Q1 First?\nQ2 Second?", records=records), {})
