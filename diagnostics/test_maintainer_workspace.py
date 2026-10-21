@@ -105,19 +105,20 @@ class EvidenceBoundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             root=Path(name);observer=root/'observer';seed=root/'seed';observer.mkdir();seed.mkdir()
             env={'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'push','GITHUB_REF':m.q.BRANCH,'GITHUB_RUN_ATTEMPT':'1'}
-            session=mock.Mock();session.cleanup.return_value=True;emitted=[]
-            def failed_execute(session, observer, seed, variant, identity, prior, progress):
+            session=mock.Mock();session.cleanup.side_effect=RuntimeError('private cleanup detail');emitted=[]
+            def failed_execute(session, observer, seed, variant, identity, prior, progress, job_start_epoch):
                 m.preserve_identity(progress, {'python':'3.14.4'},
                     {'test_count':2,'sorted_ids_sha256':'a'*64,'loader_error_count':0,
                      'module_test_count':1,'executed_test_count':0,'ids_encoding':'sorted JSON array, ASCII escaped, compact'},
                     sorted(m.q.CONTROL_IDS))
                 progress['suite_observation']={'returncode':1,'accounting_valid':True}
-                raise m.q.Refused('unexpected_retained_directory')
+                progress['active_phase']='pair_guard_suite'
+                raise m.q.Refused('generated_output_unexpected')
             with mock.patch.object(m,'os',SimpleNamespace(name='nt',environ=env)), \
                  mock.patch.object(m.platform,'python_version',return_value='3.14.4'), \
                  mock.patch.object(m,'environment_identity',return_value={}), \
                  mock.patch.object(m.q,'environment_preflight'),mock.patch.object(m.q,'corpus_preflight'), \
-                 mock.patch.object(m.q,'Session',return_value=session),mock.patch.object(m.q,'safe_exception'), \
+                 mock.patch.object(m.observation,'ObservedSession',return_value=session),mock.patch.object(m.q,'safe_exception',side_effect=PermissionError('private evidence detail')), \
                  mock.patch.object(m,'execute',side_effect=failed_execute), \
                  mock.patch.object(m.q,'emit',side_effect=lambda event,**kw:emitted.append((event,kw))), \
                  mock.patch.object(m.tempfile,'mkdtemp',return_value=str(root/'capture')):
@@ -128,7 +129,11 @@ class EvidenceBoundaries(unittest.TestCase):
             self.assertEqual(row['environment'],{'python':'3.14.4'})
             self.assertEqual(row['discovery']['test_count'],2)
             self.assertEqual(row['behavior_control_ids'],sorted(m.q.CONTROL_IDS))
-            self.assertEqual(row['failure'],'unexpected_retained_directory')
+            self.assertEqual(row['failure'],'generated_output_unexpected')
+            self.assertEqual(row['failure_phase'],'pair_guard_suite')
+            self.assertFalse(row['process_cleanup_verified'])
+            self.assertNotIn('private cleanup detail',json.dumps(emitted))
+            self.assertNotIn('private evidence detail',json.dumps(emitted))
             self.assertFalse(row['safe_to_continue'])
             self.assertFalse(row['all_commands_passed'])
 

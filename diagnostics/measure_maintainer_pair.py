@@ -12,6 +12,7 @@ import tempfile
 import time
 
 import measure_lazy_suite_ids as q
+import diagnostic_observations as observation
 from full_suite_receipts import parse_suite, allowed_retained, failure_target_receipt
 
 COMMANDS = (
@@ -199,9 +200,18 @@ def retained_guard(session, repo, target, candidate):
             'ephemeral_or_unknown_absolute_writes_proved_absent': False}
 
 
+def generated_guard(session, repo, target, candidate, state):
+    """Real-output admission uses the complete native-validated contract."""
+    import generated_output_contract as contract
+    q.verify_sources(session, repo, target, candidate)
+    verify_refs(session, repo)
+    return contract.scan(repo, target, session.deadline, state)
+
+
 def behavior_controls(session, observer, repo, variant):
     result = session.run([sys.executable, str(observer / 'diagnostics/suite_id_lazy_controls.py'),
                           '--repo', str(repo)], repo / 'tools')
+    q.emit('behavior_control_observed', variant=variant, exit_state=observation.exit_state(result.get('returncode')))
     ids = q.validate_controls(json.loads(result['stdout']), variant, result['returncode'])
     q.emit('behavior_controls', variant=variant, tests_run=6,
            expected_failures=2 if variant == 'baseline' else 0, errors=0)
@@ -211,10 +221,12 @@ def behavior_controls(session, observer, repo, variant):
 def explicit_controls(session, seed, repo):
     payload = q.original_payload(seed)
     junction = session.run([sys.executable, '-c', payload, str(repo / 'tools'), q.JUNCTION, q.LOOKUPS[0]], repo / 'tools')
+    q.emit('explicit_control_observed', selector=q.JUNCTION, exit_state=observation.exit_state(junction.get('returncode')))
     q.verify_probe(junction, 1, q.LOOKUPS[0])
     q.emit('junction_control', tests_run=1, successful=True)
     for selector in q.SYNTHETIC_SELECTORS:
         result = session.run([sys.executable, '-m', 'unittest', selector], repo / 'tools')
+        q.emit('explicit_control_observed', selector=selector, exit_state=observation.exit_state(result.get('returncode')))
         q.verify_probe(result, 1, q.LOOKUPS[0])
         q.emit('synthetic_control', selector=selector, tests_run=1, successful=True,
                contention_reproduced=False, overlap_verified=False, root_cause_established=False)
@@ -224,13 +236,19 @@ def baseline_receipt(raw):
     q.require(isinstance(raw, str) and 0 < len(raw) <= 16384, 'baseline_receipt_missing_or_large')
     row = json.loads(raw)
     q.require(isinstance(row, dict) and row.get('variant') == 'baseline' and row.get('safe_to_continue') is True
-              and row.get('source_sha') == q.BASE, 'baseline_not_safe')
+              and row.get('source_sha') == q.BASE and row.get('all_commands_passed') is True, 'baseline_not_safe_or_passed')
     return row
 
 
-def execute(session, observer, seed, variant, identity, prior, progress=None):
+def execute(session, observer, seed, variant, identity, prior, progress=None, job_start_epoch=None):
     progress = progress if progress is not None else {}
+    import diagnose_generated_outputs as generated
+    import generated_output_contract as contract
     preparation_start = time.monotonic()
+    def phase(name):
+        generated.phase(session, progress, name)
+    phase('source')
+    q.require(identity['default_workers'] == 3, 'matched_worker_topology_changed')
     q.first_clean(session, observer, os.environ.get('GITHUB_SHA'), 'observer')
     session.git(observer, 'merge-base', '--is-ancestor', q.OBSERVER_BASE, 'HEAD')
     q.require(set(session.git(observer, 'diff', '--name-only', q.OBSERVER_BASE, 'HEAD').splitlines()) == q.OBSERVER_PATHS,
@@ -240,6 +258,7 @@ def execute(session, observer, seed, variant, identity, prior, progress=None):
     expected = q.raw_source_inventory(session, seed, q.BASE)
     q.require(expected[q.SUITE_PATH] == q.ORIGINAL_HASH, 'baseline_module_hash_changed')
     candidate = q.read_reviewed_bytes(observer / q.SUITE_PATH, q.CANDIDATE_HASH)
+    phase('native')
     owned = session.run([sys.executable, str(observer / 'diagnostics/windows_job_probe_controls.py'), '--run',
                          '--report-dir', str(session.root / 'owner-controls')], observer / 'diagnostics')
     q.require(owned['returncode'] == 0, 'owner_controls_failed')
@@ -247,31 +266,60 @@ def execute(session, observer, seed, variant, identity, prior, progress=None):
     q.emit('owner_controls', passed=True, count=9)
     # Reuse only the bounded synthetic guard gate, not TEMP layout test cases.
     from diagnose_staging_layout import verify_retained_controls
+    phase('retained')
     verify_retained_controls(session, observer)
+    phase('contract')
+    controls = session.run([sys.executable, str(observer / 'diagnostics/diagnose_generated_outputs.py'),
+                            '--contract-child'], observer / 'diagnostics')
+    progress['contract_controls'] = q.verify_probe(controls, generated.CONTRACT_CONTROL_COUNT, q.LOOKUPS[0])
+    q.emit('generated_contract_controls', tests_run=generated.CONTRACT_CONTROL_COUNT, **progress['contract_controls'])
+    phase('clone')
     clone_root = workspace_clone_root(session.root, observer, seed, expected)
     repo = clone_root / variant
     target = source_context(session, seed, repo, variant, expected, candidate)
+    phase('temp')
     temp_receipt = q.parse_child(session.run(q.child_command(observer, 'validate-temp', repo), repo / 'tools'))
     q.require(temp_receipt.get('outside_checkout_temp') is True and temp_receipt.get('temp_environment_unchanged') is True,
               'temp_validation_incomplete')
     verify_hook_location(session, repo)
+    phase('pair_behavior')
     behavior_ids = behavior_controls(session, observer, repo, variant)
+    phase('pair_explicit')
     explicit_controls(session, seed, repo)
+    phase('discovery')
     discovery = q.parse_child(session.run(q.child_command(observer, 'discover', repo), repo / 'tools'))
+    phase('discovery_validate')
+    unit_result = session.run([sys.executable, str(observer / 'diagnostics/diagnose_generated_outputs.py'),
+                               '--discovery-child', '--repo', str(repo)], repo / 'tools')
+    units, unit_identity = generated.validate_discovery(unit_result)
+    q.require(unit_identity['test_count'] == discovery['test_count']
+              and unit_identity['test_ids_sha256'] == discovery['sorted_ids_sha256'],
+              'unit_discovery_identity_changed')
+    progress['unit_discovery'] = unit_identity
+    q.emit('generated_unit_discovery', **unit_identity)
     preserve_identity(progress, identity, discovery, behavior_ids)
     q.require(not (repo / 'scratch').exists(), 'initial_suite_weights_or_scratch_present')
     if prior:
         q.require(prior.get('environment') == identity and prior.get('discovery') == discovery
-                  and prior.get('behavior_control_ids') == behavior_ids,
+                  and prior.get('behavior_control_ids') == behavior_ids
+                  and prior.get('unit_discovery') == unit_identity,
                   'matched_environment_or_discovery_changed')
-    retained_guard(session, repo, target, variant == 'candidate')
+    def output_state(after_suite):
+        return contract.State(marker='required' if after_suite else 'absent',
+                              weights='required' if after_suite else 'absent', units=units,
+                              job_start_epoch=job_start_epoch, observed_epoch=time.time(),
+                              max_job_seconds=5400, sessions='required' if after_suite else 'optional')
+    phase('initial_guard')
+    generated_guard(session, repo, target, variant == 'candidate', output_state(False))
     setup_seconds = time.monotonic() - preparation_start
     q.require(session.deadline - time.monotonic() >= 4200, 'estimated_maintainer_plan_no_longer_fits')
     q.emit('estimated_admission', suite_and_ancillary_seconds=4200, cleanup_reserve_seconds=300, completion_guaranteed=False)
     rows, suite_result = [], None
+    after_suite = False
     # Preserve maintainer always-after-suite semantics for ordinary nonzero exits.
     # Ownership/deadline/capture/source violations still stop immediately.
     for name, argv in COMMANDS:
+        phase('pair_' + name)
         q.emit('maintainer_command_started', command=name)
         result = session.run([sys.executable, *argv], repo)
         row = {'command': name, 'returncode': result['returncode'],
@@ -284,16 +332,19 @@ def execute(session, observer, seed, variant, identity, prior, progress=None):
         if name == 'suite':
             suite_result = result
             progress['suite_observation'] = observe_suite(result, discovery, identity)
-        retained_guard(session, repo, target, variant == 'candidate')
+            after_suite = True
+        phase('pair_guard_' + name)
+        generated_guard(session, repo, target, variant == 'candidate', output_state(after_suite))
         if name == 'suite':
             q.require(progress['suite_observation']['accounting_valid'], 'suite_accounting_incomplete')
     accounting = parse_suite(suite_result['stdout'], suite_result['stderr'], suite_result['returncode'],
                              discovery['test_count'], identity['cpu_count'])
-    retained = retained_guard(session, repo, target, variant == 'candidate')
+    phase('final_source')
+    retained = generated_guard(session, repo, target, variant == 'candidate', output_state(True))
     q.require(q.inventory(seed, deadline=session.deadline) == expected, 'seed_changed')
     for name, checksum in observer_snapshot.items():
         q.require(q.digest((observer / name).read_bytes()) == checksum, 'observer_source_changed')
-    return {'behavior_control_ids': behavior_ids, 'setup_seconds': setup_seconds, 'discovery': discovery, 'environment': identity, 'commands': rows, 'accounting': accounting,
+    return {'unit_discovery': unit_identity, 'behavior_control_ids': behavior_ids, 'setup_seconds': setup_seconds, 'discovery': discovery, 'environment': identity, 'commands': rows, 'accounting': accounting,
             'retained': retained, 'all_commands_passed': all(row['returncode'] == 0 for row in rows)}
 
 
@@ -324,18 +375,36 @@ def main(argv=None):
         temp = Path(tempfile.gettempdir()).resolve()
         q.require(all(not temp.is_relative_to(repo) for repo in (observer, seed)), 'temp_inside_checkout')
         root = Path(tempfile.mkdtemp(prefix='maintainer-pair-', dir=temp))
-        session = q.Session(root, deadline)
-        evidence.update(execute(session, observer, seed, args.variant, identity, prior, evidence))
+        session = observation.ObservedSession(root, deadline)
+        evidence.update(execute(session, observer, seed, args.variant, identity, prior, evidence, args.job_start_epoch))
+        evidence['active_phase'] = session.phase = 'environment'
         q.require(dict(os.environ) == original_env, 'environment_changed')
         complete = True
     except BaseException as error:
-        failure = str(error) if isinstance(error, q.Refused) else 'unexpected_exception_details_withheld'
-        q.safe_exception(error, root)
-        q.emit('hold', reason=failure, error_type=type(error).__name__, comparative_claim_allowed=False)
+        failure = observation.reason_category(error)
+        evidence['failure_phase'] = observation.phase_name(evidence.get('active_phase', 'preflight'))
+        try:
+            q.safe_exception(error, root)
+        except BaseException:
+            pass
+        q.emit('hold', reason=failure, phase=evidence['failure_phase'],
+               error_type=observation.exception_category(error), comparative_claim_allowed=False)
     finally:
         cleanup_start = time.monotonic()
         if session is not None:
-            clean = session.cleanup()
+            session.phase = 'cleanup'
+            try:
+                clean = session.cleanup() is True
+                q.emit('diagnostic_cleanup', verified=clean, exception_category=None)
+                if not clean and failure is None:
+                    failure = 'cleanup_unverified'
+                    evidence['failure_phase'] = 'cleanup'
+            except BaseException as error:
+                clean = False
+                q.emit('diagnostic_cleanup', verified=False, exception_category=observation.exception_category(error))
+                if failure is None:
+                    failure = 'cleanup_failed'
+                    evidence['failure_phase'] = 'cleanup'
         safe = complete and clean
         passed = safe and evidence.get('all_commands_passed') is True
         pair_passed = passed and args.variant == 'candidate' and prior.get('all_commands_passed') is True
@@ -350,11 +419,11 @@ def main(argv=None):
         output = os.environ.get('GITHUB_OUTPUT')
         if output:
             compact = {key: receipt[key] for key in ('variant', 'source_sha', 'safe_to_continue', 'all_commands_passed')}
-            compact.update({key: evidence[key] for key in ('environment', 'discovery', 'behavior_control_ids') if key in evidence})
+            compact.update({key: evidence[key] for key in ('environment', 'discovery', 'behavior_control_ids', 'unit_discovery') if key in evidence})
             payload = json.dumps(compact, separators=(',', ':'), allow_nan=False)
             q.require(len(payload) <= 16384, 'pair_receipt_limit')
             with open(output, 'a', encoding='utf-8') as stream:
-                stream.write('safe=' + str(safe).lower() + '\nreceipt=' + payload + '\n')
+                stream.write('safe=' + str(safe).lower() + '\npassed=' + str(passed).lower() + '\nreceipt=' + payload + '\n')
     return 0 if passed else 1 if safe else 2
 
 

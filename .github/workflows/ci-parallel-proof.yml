@@ -1,5 +1,5 @@
-# One bounded real-output integration diagnostic; three selected methods, no full suite or performance work.
-name: bounded generated-output integration diagnostic
+# Exactly one sequential matched pair. No performance resampling or production changes.
+name: matched maintainer qualification
 
 on:
   push:
@@ -9,17 +9,21 @@ permissions:
   contents: read
 
 jobs:
-  generated-output-diagnostic:
+  baseline:
     if: github.run_attempt == 1
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 90
+    outputs:
+      safe: ${{ steps.arm.outputs.safe }}
+      passed: ${{ steps.arm.outputs.passed }}
+      receipt: ${{ steps.arm.outputs.receipt }}
     steps:
       - name: Record whole-job budget origin
         shell: pwsh
         run: |
           "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Immutable reviewed diagnostic observer
+      - name: Immutable reviewed observer and lazy candidate
         uses: actions/checkout@v7
         env:
           GIT_CONFIG_COUNT: '1'
@@ -57,9 +61,73 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Validate generated-output integration with three unchanged methods
+      - name: Run unchanged matched maintainer arm
         id: arm
         shell: pwsh
+        env:
+          BASELINE_RECEIPT: ''
         run: |
-          python observer/diagnostics/diagnose_generated_outputs.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/measure_maintainer_pair.py --observer observer --seed source-seed --variant baseline --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          exit $LASTEXITCODE
+
+  candidate:
+    needs: baseline
+    if: always() && github.run_attempt == 1 && needs.baseline.outputs.safe == 'true' && needs.baseline.outputs.passed == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    outputs:
+      safe: ${{ steps.arm.outputs.safe }}
+      passed: ${{ steps.arm.outputs.passed }}
+      receipt: ${{ steps.arm.outputs.receipt }}
+    steps:
+      - name: Record whole-job budget origin
+        shell: pwsh
+        run: |
+          "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Immutable reviewed observer and lazy candidate
+        uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: 'core.autocrlf'
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: ${{ github.sha }}
+          path: observer
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.gitignore
+            /diagnostics/
+            /.github/workflows/ci-parallel-proof.yml
+            /tools/test_suite_ids.py
+            /tools/console_codec.py
+            /tools/python_floor.py
+            /tools/git_paths.py
+
+      - name: Fresh pinned full source seed with conversion disabled before checkout
+        uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: 'core.autocrlf'
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: 104ee03cd4d37519b12b3edbc4da5fbf31b631cf
+          path: source-seed
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact interpreter
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+
+      - name: Run unchanged matched maintainer arm
+        id: arm
+        shell: pwsh
+        env:
+          BASELINE_RECEIPT: ${{ needs.baseline.outputs.receipt }}
+        run: |
+          python observer/diagnostics/measure_maintainer_pair.py --observer observer --seed source-seed --variant candidate --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE

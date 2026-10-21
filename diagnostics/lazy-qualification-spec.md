@@ -404,3 +404,66 @@ This packet changes only the active workflow, five active-entrypoint test
 expectations (with an explicit prohibition of the synthetic route), and this spec.
 All existing budget, source, no-full-pair, no-artifact and no-rerun assertions remain.
 Publication and one hosted integration diagnostic require separate explicit approval.
+
+
+## Matched full-pair integration (local preparation, not execution authorization)
+
+The real-output integration run 39688397623 independently cleared 9 ownership,
+5 retained and 41 contract controls, actual discovery (8475 tests / 1372 units),
+all three unchanged methods, output/source/environment checks and owned-process
+cleanup. This does not establish a full-suite pass or whole-suite speedup.
+
+Restore exactly baseline then conditional candidate on frozen source
+104ee03cd4d37519b12b3edbc4da5fbf31b631cf, Windows/Python 3.14.4. Each job has a
+90-minute hard cap with 300-second cleanup reserve; at most 180 runner minutes.
+There is no matrix, resampling, automatic rerun or follow-on. The unchanged native
+suite defaults must resolve to three workers; a different topology refuses rather
+than overriding the application's worker policy. Existing canary policy and all
+actual test/lock timeouts remain unchanged. This is a single preliminary pair,
+not repeated performance proof or an adoption decision. Whole-suite gain is unknown.
+
+The exact original maintainer commands and coverage/accounting gates remain:
+phi_scan --layers --all; unchanged unfiltered tools/suite.py; tracker_measurements;
+threshold_sheet --all; phi_scan --all --allow-no-corpus. Ordinary complete suite
+failure retains the original always-after-suite ancillary semantics when all
+containment/output gates pass; any unsafe/incomplete guard stops immediately.
+Both arms must pass and match environment, discovery, behavior controls and actual
+unit identity before a comparative claim. Candidate spending requires both
+baseline safety and all-command success, checked in the workflow and again by
+the candidate receipt parser. A safe but failing baseline stops without rerun. Baseline suite success alone never admits candidate after a later
+output/source/environment/cleanup failure. No prior incomplete baseline is reused.
+
+Each arm runs the original nine ownership and five retained compatibility controls,
+then the existing 41 full generated-contract controls before cloning. The old
+retained_guard remains only for those synthetic compatibility controls and their
+local tests; it is no longer a real-output admission path. The unchanged validated
+generated_output_contract.scan is now the sole real-output inventory contract,
+always preceded by exact raw source and ref checks. All historical diagnostic files
+remain; no extra 73-control snapshot qualification or three-method rehearsal runs.
+
+The existing independent complete discovery is retained. A second existing
+actual-object discovery derives true suite unit names, checks its test-count/ID
+digest against that independent discovery, and carries a bounded unit-count/digest
+into the matched arm receipt. No class-name guesses. Before the suite, marker and
+weights must be absent; after the suite, the exact native marker and weights are
+required, with weights keys equal to those actual units and finite values within
+5400 seconds. The exact empty sessions parent is required after the suite. All four
+families, content/schema/date bounds, unknown/unsafe/link/reparse/race refusal,
+actual ChangeTime, eight safety dimensions and two extra path handles remain
+unchanged. No permissive filename-only real-output admission or parent wildcard.
+
+Bounded phase/child observations run before native/retained/contract parsers;
+behavior and explicit-selector exits are preserved before their classifiers.
+Every original maintainer exit, capture digest, wall/CPU measurement and suite
+accounting observation precedes the unchanged post-command refusal. Primary
+failure phase/category survives private-capture and process-cleanup errors; failure
+to verify cleanup refuses candidate admission. No raw payload/path is uploaded.
+Owned process cleanup is not proof of runner teardown or capture-file deletion.
+
+Job setup uses measured admission estimates, not a guarantee: at least 4200 seconds
+must remain after preparation; the hard deadline is whole-job 5400 seconds minus
+elapsed setup and 300-second cleanup reserve. Incomplete samples/commands are
+inconclusive. Queue delay is reported separately from runner execution using actual
+GitHub job timestamps; no module percentage is extrapolated to whole-CI benefit.
+No production/main change, PR, merge, adoption, issue write, canary removal or lock
+fix is included. Publication and execution require separate explicit approval.

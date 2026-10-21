@@ -105,14 +105,16 @@ class GeneratedDiagnosticControls(unittest.TestCase):
         self.assertEqual(d.budget_deadline(1000,1100,500),940)
         with self.assertRaises(d.q.Refused):d.budget_deadline(1000,1540,500)
 
-    def test_workflow_exclusively_launches_one_narrow_job(self):
+    def test_workflow_keeps_narrow_route_dormant_during_reviewed_pair(self):
         text=(Path(d.__file__).resolve().parent.parent/'.github/workflows/ci-parallel-proof.yml').read_text()
-        self.assertEqual(text.count('timeout-minutes: 10'),1)
-        self.assertEqual(text.count('python observer/diagnostics/diagnose_generated_outputs.py'),1)
-        for forbidden in ('python observer/diagnostics/diagnose_windows_snapshot.py', 'needs: baseline','python observer/diagnostics/measure_maintainer_pair.py','upload-artifact'):
-            self.assertNotIn(forbidden,text)
-        self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),2)
-        self.assertIn('github.run_attempt == 1',text)
+        self.assertEqual(text.count('timeout-minutes: 90'),2)
+        self.assertEqual(text.count('python observer/diagnostics/measure_maintainer_pair.py'),2)
+        self.assertNotIn('python observer/diagnostics/diagnose_generated_outputs.py',text)
+        self.assertNotIn('python observer/diagnostics/diagnose_windows_snapshot.py',text)
+        self.assertNotIn('upload-artifact',text)
+        self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),4)
+        self.assertEqual(text.count('github.run_attempt == 1'),2)
+        self.assertIn("needs.baseline.outputs.safe == 'true'",text)
 
 
 if __name__=='__main__':unittest.main()

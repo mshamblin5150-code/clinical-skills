@@ -5,15 +5,17 @@ import unittest
 import measure_lazy_suite_ids as q
 from parallel_reader_capture import summary_counts, FAILED, OK
 
+PAIR_COMMANDS = ('phi_layers', 'suite', 'publication_measurements', 'threshold_sheet', 'phi_shape_only')
 PHASES = frozenset(('preflight', 'source', 'native', 'retained', 'contract', 'snapshot', 'clone',
     'temp', 'initial_guard', 'discovery', 'discovery_validate', 'discovery_guard',
-    'final_source', 'environment', 'cleanup') + tuple(
+    'final_source', 'environment', 'cleanup', 'pair_behavior', 'pair_explicit') + tuple(
+        prefix + name for prefix in ('pair_', 'pair_guard_') for name in PAIR_COMMANDS) + tuple(
         prefix + str(index) for prefix in ('case_', 'case_verify_', 'case_guard_') for index in range(3)))
 CHILD_PHASES = frozenset(('native', 'retained', 'contract', 'snapshot', 'temp', 'discovery', 'case_0', 'case_1', 'case_2'))
 EXCEPTIONS = (AssertionError, ValueError, TypeError, KeyError, OSError, PermissionError,
               FileNotFoundError, TimeoutError, RuntimeError, KeyboardInterrupt, SystemExit, q.Refused)
 PREFIX = 'DIAGNOSTIC_CONTROL_OBSERVATION:'
-REASONS = frozenset(('windows_python_pin_required', 'unauthorized_event_or_rerun', 'snapshot_fixture_scope_invalid', 'snapshot_population_changed', 'snapshot_fixture_cleanup_failed', 'generated_file_creation_changed', 'generated_native_snapshot_unstable',
+REASONS = frozenset(('unit_discovery_identity_changed', 'matched_worker_topology_changed', 'suite_accounting_incomplete', 'estimated_maintainer_plan_no_longer_fits', 'matched_environment_or_discovery_changed', 'windows_python_pin_required', 'unauthorized_event_or_rerun', 'snapshot_fixture_scope_invalid', 'snapshot_population_changed', 'snapshot_fixture_cleanup_failed', 'generated_file_creation_changed', 'generated_native_snapshot_unstable',
     'generated_handle_cleanup_failed', 'generated_native_abi_unavailable', 'generated_native_path_kind_unsupported', 'global_budget_exhausted', 'disk_reserve_exhausted', 'capture_limit_exceeded',
     'capture_or_disk_reserve_exhausted', 'process_cleanup_unverified', 'probe_failed_or_unread',
     'owner_controls_failed', 'retained_controls_failed', 'retained_controls_receipt_invalid',
@@ -24,6 +26,16 @@ REASONS = frozenset(('windows_python_pin_required', 'unauthorized_event_or_rerun
     'retained_control_outcome_mismatch', 'retained_control_link_unavailable',
     'retained_control_link_cleanup_failed', 'retained_control_link_target_changed',
     'retained_control_cleanup_failed'))
+
+
+# Source-known full-pair refusal codes only; never derive categories from payloads.
+REASONS = REASONS | frozenset(('baseline_module_hash_changed', 'baseline_not_safe_or_passed', 'baseline_receipt_missing_or_large', 'checkout_overlap', 'clone_failed', 'controls_population_changed', 'cpu_identity_unread', 'discovery_identity_invalid', 'environment_changed', 'estimated_maintainer_plan_no_longer_fits', 'global_budget_exhausted', 'initial_clone_inventory_changed', 'initial_suite_weights_or_scratch_present', 'matched_environment_or_discovery_changed', 'matched_worker_topology_changed', 'observer_branch_scope_changed', 'observer_source_changed', 'owner_controls_failed', 'pair_receipt_limit', 'precommand_identity_limit', 'prepared_clone_inventory_changed', 'retained_output_limit', 'runner_identity_unread', 'seed_changed', 'setup_estimate_exhausted', 'source_history_shallow', 'source_hook_refuses_checkout_location', 'source_ref_unread', 'source_refs_changed', 'source_remote_head_changed', 'suite_accounting_incomplete', 'temp_inside_checkout', 'temp_validation_incomplete', 'unauthorized_event_or_rerun', 'unit_discovery_identity_changed', 'windows_python_pin_required', 'workflow_workspace_identity_changed', 'workflow_workspace_unavailable', 'workspace_ancestor_unsafe', 'workspace_clone_not_fresh', 'workspace_clone_not_shorter', 'workspace_clone_overlap', 'workspace_parent_inside_temp', 'workspace_path_noncanonical', 'workspace_source_path_too_long'))
+
+# Fixed source/contract helper refusals invoked by the pair.
+REASONS = REASONS | frozenset(('arguments_missing', 'baseline_module_hash_changed', 'budget_contract_changed', 'capture_limit_exceeded', 'capture_or_disk_reserve_exhausted', 'checkout_overlap', 'child_repo_missing', 'clone_failed', 'clone_root_ancestor_unsafe', 'clone_root_boundary_invalid', 'clone_root_not_shorter', 'controls_exit_mismatch', 'controls_population_changed', 'controls_rows_incomplete', 'controls_unexpected_outcome', 'controls_work_incomplete', 'discovery_population_changed', 'disk_reserve_exhausted', 'environment_changed', 'estimated_complete_plan_no_longer_fits', 'first_status_not_clean', 'generated_handle_cleanup_failed', 'git_unavailable', 'git_verification_failed', 'global_budget_exhausted', 'independent_clone_required', 'initial_clone_inventory_changed', 'measured_head_changed', 'measured_index_changed', 'measured_scope_changed', 'observer_branch_scope_changed', 'observer_dirty_at_finish', 'observer_source_changed', 'owner_control_rows_incomplete', 'owner_controls_failed', 'owner_controls_incomplete', 'prepared_clone_inventory_changed', 'private_roots_present', 'probe_failed_or_unread', 'process_cleanup_unverified', 'remaining_estimated_samples_do_not_fit', 'reviewed_raw_bytes_changed', 'seed_changed', 'setup_estimate_exhausted', 'shared_git_directory', 'shared_objects_refused', 'temp_inside_checkout', 'temp_validation_incomplete', 'timed_probe_incomplete_or_failed', 'tracked_raw_bytes_changed', 'tracked_reparse_path_changed', 'unauthorized_event_or_rerun', 'unknown_clone_role', 'unknown_control_variant', 'untracked_source_changed', 'windows_python_pin_required', 'wrong_source_head'))
+
+# Fixed native contract need/refuse categories.
+REASONS = REASONS | frozenset(('generated_comparison_stage_invalid', 'generated_date_interval_invalid', 'generated_directory_identity_changed', 'generated_directory_unread', 'generated_directory_unsafe', 'generated_discrepancy_limit', 'generated_entry_identity_changed', 'generated_entry_limit', 'generated_file_creation_changed', 'generated_file_identity_changed', 'generated_file_oversize', 'generated_file_unread', 'generated_file_unsafe', 'generated_handle_cleanup_failed', 'generated_handle_metadata_unread', 'generated_json_duplicate_key', 'generated_json_invalid', 'generated_marker_bytes_invalid', 'generated_marker_date_invalid', 'generated_marker_schema_invalid', 'generated_metadata_unread', 'generated_native_abi_unavailable', 'generated_native_path_kind_unsupported', 'generated_native_snapshot_unstable', 'generated_nofollow_unavailable', 'generated_output_discrepancies_found', 'generated_relative_path_invalid', 'generated_root_invalid', 'generated_state_invalid', 'generated_units_invalid', 'generated_weights_bytes_invalid', 'generated_weights_units_invalid', 'generated_weights_values_invalid', 'global_budget_exhausted'))
 
 
 def reason_category(error):
