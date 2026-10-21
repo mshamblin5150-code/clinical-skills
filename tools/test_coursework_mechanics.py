@@ -45,6 +45,9 @@ class PublicMechanics(unittest.TestCase):
     def command(self, root: Path, kind: str, body: str, *, language="en", handling=None, reference=REFERENCE):
         if kind == "word":
             case = word_fixture.empty_population_input(root)
+            if language is None:
+                bar = Path(case.argv[0]) / "bar.md"
+                bar.write_text(bar.read_text(encoding="utf-8").replace("PAPER-LANGUAGE: en\n", ""), encoding="utf-8")
             path = Path(case.argv[2])
             spec = replace(assignment_docx.fixture_spec(),
                            title_page=replace(assignment_docx.fixture_spec().title_page, title="Purpose"),

@@ -14,6 +14,7 @@ import run_grader
 import voice_model_identity as identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import case_video
@@ -216,6 +217,7 @@ class ScopedCompletionGraders(unittest.TestCase):
                         voice_read.EXPECTED_ROW,
                         voice_read.PROFANITY_EXPECTED_ROW,
                         imagery_proposals.EXPECTED_ROW,
+                        recorded_image_match.EXPECTED_ROW,
                         project_context.EXPECTED_ROW,
                         lms_attachments.EXPECTED_ROW,
                     ) + ((case_video.EXPECTED_ROW,) if skill in {"peer-critique", "practicum-case-study"} else ()),

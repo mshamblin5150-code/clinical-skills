@@ -25,6 +25,7 @@ with this exact envelope and one record per proposal:
       "image": "<exact proposed sentence or sentences>",
       "domain": "<complete exact model domain entry>",
       "behavior": "<the real behavior the image spends>",
+      "central_point": "<the exact point in this artifact's recorded-image match>",
       "status": "proposed"
     }
   ]
@@ -34,7 +35,12 @@ with this exact envelope and one record per proposal:
 Once the draft is complete, stop before its first grade, carrier build, render or reader.
 Show each proposal in its surrounding paragraph with its recorded domain and the real behavior
 it spends, and ask yes or no separately from the later substance question. Show the recorded-image
-match beside it when that run has one. In a deck the completed `.pptx` is the draft: generate it
+match beside it: its central point, the recorded images weighed and why none fit. Retain that exact
+point in the proposal's `central_point`. The clinician's verified yes settles the match for that
+point, so the Voice reader skips only its new unused-recorded-image question. The existing planted
+pair, supplied-voice and profanity populations remain owed. Historical proposals without the new
+optional field retain their existing gates but establish no same-point skip.
+In a deck the completed `.pptx` is the draft: generate it
 first and take this stop before `deck_scan.py`; edit the deck to apply the answer. The Word
 assignment's completed JSON spec is its draft before the DOCX producer.
 

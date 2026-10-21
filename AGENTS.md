@@ -92,6 +92,15 @@ gate reads the model-owned profanity list and is enabled by each completion grad
 `--submission`. With no subagent tool, the run records `not run` and the grader reports incomplete
 coverage rather than clean. The complete ceiling belongs to `voice_read.DECLARED_LIMITS`.
 
+**`tools/recorded_image_match.py` is a Required command before the first coursework prose.**
+The five coursework skills record the central point and selected whole recorded image, or why none
+fits, under the shared [Recorded image match](skills/_shared/reference/voice.md#recorded-image-match-before-drafting).
+Its pre-draft command must exit 0 except for the shared voice rule's named absent-model door;
+the six artifact graders repeat the match against the finished
+artifact. Without the command, the pre-draft match is not mechanically verified. Its complete
+ceiling belongs to `recorded_image_match.DECLARED_LIMITS`; the model inventory's format ceiling
+belongs to `voice_model_observation.DECLARED_LIMITS`.
+
 **The same coursework completion graders enforce `tools/imagery_proposals.py`.** When no recorded
 image fits, a run may propose one only from a domain evidenced in the canonical model. The private
 run record binds its exact text, complete model domain entry, behavior, artifact, and terminal ruling. An

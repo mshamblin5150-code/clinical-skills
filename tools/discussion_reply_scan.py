@@ -72,6 +72,7 @@ import aar_scan
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import approval_record
@@ -87,6 +88,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
 )
@@ -346,6 +348,8 @@ class Scan:
     withheld_rows: tuple[str, ...] = ()
     withheld_items: tuple[tuple[str, tuple[str, ...]], ...] = ()
     heading_items_report: str = ""
+    model_unread: int = 0
+    image_match_unread: int = 0
 
 
 def _split_reply(path: Path) -> Reply:
@@ -1019,6 +1023,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             - scan.posts_read
             + scan.reader_records_unread
             + scan.image_answer_unread
+            + scan.model_unread
+            + scan.image_match_unread
         ),
         *([f"unread roster posts: {scan.posts_total - scan.posts_read}"] if scan.posts_total > scan.posts_read else []),
         *([f"unread reference entries: {scan.reference_unread}"] if scan.reference_unread else []),
@@ -1116,7 +1122,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         for reply in source.replies
         if not submissions or reply.path.name in submissions
     )
-    grade = voice_read.apply_completion_gate(
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.path,
         submission if submissions else None,
@@ -1124,14 +1130,9 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             reply.path.name: voice_read.draft_surface(((reply.path, reply.text),))
             for reply in selected_replies
         },
-    )
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.path,
         {reply.path.name: reply.text for reply in selected_replies},
         partial=True,
         known_artifacts={reply.path.name for reply in source.replies},
-        terminal=bool(submissions),
     )
     grade = project_context.apply_completion_gate(
         grade, source.path, submission if submissions else None

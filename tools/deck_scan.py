@@ -46,6 +46,7 @@ import render_pass
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import reference_scan
@@ -133,6 +134,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
 )
@@ -368,6 +370,8 @@ class Scan:
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
     heading_items_report: str = ""
+    model_unread: int = 0
+    image_match_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1544,7 +1548,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  citation key disagreement {len(scan.citation_coverage.disagreements)}",
         run_grader.format_unread_remainder(
             scan.heading_read_unread + scan.unread_members + scan.slide_limit_unread
-            + scan.reference_slides_unread + scan.citation_unread + scan.reader_records_unread + scan.image_answer_unread
+            + scan.reference_slides_unread + scan.citation_unread + scan.reader_records_unread + scan.image_answer_unread + scan.model_unread + scan.image_match_unread
         ),
         *([f"unread slide-limit candidates: {scan.slide_limit_unread}"] if scan.slide_limit_unread else []),
         *([f"unread referenced diagram or chart members: {scan.unread_members}"] if scan.unread_members else []),
@@ -1628,7 +1632,8 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     voice_text = "\n".join(
         tuple(slide.text for slide in source.slides) + source.notes
     )
-    grade = voice_read.apply_completion_gate(
+    submission = _parsed.value("--submission")
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.root,
         _parsed.value("--submission"),
@@ -1636,13 +1641,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
             ((source.deck, voice_text),),
             plantable_text="\n".join(source.notes),
         ),
-    )
-    submission = _parsed.value("--submission")
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.root,
         {submission or source.deck.stem: voice_text},
-        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")

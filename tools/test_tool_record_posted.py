@@ -1,6 +1,7 @@
 """Exercise damaged machine Markdown through each owning public grader command."""
 # phi-scan: synthetic
 import contextlib
+import hashlib
 import io
 from pathlib import Path
 import tempfile
@@ -25,6 +26,13 @@ import assignment_bar
 import assignment_submission
 import frozen_grade
 import test_assignment_bar as bar_fixtures
+
+
+def public_model_resolution():
+    model = Path(__file__).parent / 'testdata' / 'voice-model-synthetic.md'
+    return checks.checks.repo_root.VoiceModelResolution(
+        model, hashlib.sha256(model.read_bytes()).hexdigest(), True,
+    )
 
 
 class PostedRecordCommands(unittest.TestCase):
@@ -109,6 +117,7 @@ class PostedRecordCommands(unittest.TestCase):
             def invoke():
                 out, err = io.StringIO(), io.StringIO()
                 with (
+                    mock.patch.object(command.repo_root, 'canonical_voice_model', return_value=public_model_resolution()),
                     mock.patch.object(command.repo_root, 'output_root', return_value=path.parent / 'output'),
                     mock.patch.object(command.voice_read, 'apply_completion_gate', side_effect=lambda grade, *args, **kwargs: grade),
                     mock.patch.object(command.aar_scan, 'completion_gate', return_value=(False, 'the after-action review: clean')),
@@ -188,10 +197,12 @@ class ContextDependentCommands(unittest.TestCase):
         return status, out.getvalue(), err.getvalue()
 
     def dispatcher(self, run, arguments):
-        with (mock.patch.object(decks.scan.aar_scan, 'completion_gate', return_value=(False, 'AAR: clean')),
+        with (mock.patch.object(course_assignment_scan.voice_model_identity.repo_root,
+                                'canonical_voice_model', return_value=public_model_resolution()),
+              mock.patch.object(decks.scan.aar_scan, 'completion_gate', return_value=(False, 'AAR: clean')),
               mock.patch.object(decks.scan.voice_read, 'apply_completion_gate', side_effect=lambda grade, *args, **kwargs: grade),
               mock.patch.object(assignment_submission.repo_root, 'output_root', return_value=run.root / 'canonical-output')):
-            return self.command(course_assignment_scan, arguments)
+            return self.command(course_assignment_scan, [*arguments, '--paper-language', 'en'])
 
     def exercise(self, root, heading, invoke):
         status, report, error = invoke()

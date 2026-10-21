@@ -1252,6 +1252,11 @@ An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker
 
 The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the extract-entry vocabulary belongs to `aar_scan.ENTRY_KINDS`; this section copies neither object's rows.
 
+The AAR reader's cause pointers and the one-way cause overrule follow ADR 0396 and `aar` steps 2–4.
+Unverified causes land through the warning-bearing tracker body-file route, and reports count them
+per round separately from candidates answered `not shown`. The command grades the recorded
+pointers and publication evidence; the reader still decides whether the extract shows the claimed explanation.
+
 ### Draft revision change list
 
 `tools/change_list.py` compares two retained Markdown showings and prints the sentence changes.
@@ -1445,6 +1450,26 @@ The complete ceiling belongs to `voice_model_identity.DECLARED_LIMITS`; this sec
 row from it.
 
 Covered by `tools/test_voice_model_identity.py`.
+
+### Recorded image match
+
+`tools/recorded_image_match.py` is Required before the first prose in the five coursework skills.
+The shared [Recorded image match](skills/_shared/reference/voice.md#recorded-image-match-before-drafting)
+owns its keyed handwritten record and invocation. The command checks the central point declaration
+and selected whole recorded image against the canonical model before drafting; the six terminal
+artifact graders also check that a selected image appears in the artifact. Missing or invalid
+records and absent named images are findings (exit 1); an unreadable canonical model is incomplete
+coverage (exit 2). A finding wins when both occur. A clean pre-draft check exits 0. Only the existing
+absent-model banner preserves the shared voice rule's unmodeled drafting route; another exit 2
+does not establish absence, and unmodeled drafting does not establish mechanical verification.
+
+The model observation is shared by match, voice and imagery readers. Their model failures contribute
+one model member to the host's unread total, separately from image-answer transcript observations.
+Retained frozen grades bypass new model reads, and each current or unknown key uses its own dated
+checks. The complete ceilings belong to `recorded_image_match.DECLARED_LIMITS` and
+`voice_model_observation.DECLARED_LIMITS`; this section copies no row.
+
+Covered by `tools/test_recorded_image_match.py` and `tools/test_recorded_image_hosts.py`.
 
 ### Coursework voice read
 

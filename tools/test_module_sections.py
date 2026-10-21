@@ -49,6 +49,7 @@ SECTION = re.compile(r"(?m)^### (.+)$")
 # A module described inside a section that also documents its artifact keeps that
 # section's name; the row is the ruling that the arrangement is deliberate.
 DECLARED_SECTIONS = {
+    "recorded_image_match": "Recorded image match",
     "subagent_staging_hook": "Subagent staging hook",
     "fixture_writer_hook": "Fixture writer hook",
     "uptodate_block": "Clinical go-ahead disclosure",

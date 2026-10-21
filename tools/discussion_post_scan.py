@@ -85,6 +85,7 @@ import aar_scan
 import voice_model_identity
 import voice_read
 import imagery_proposals
+import recorded_image_match
 import project_context
 import lms_attachments
 import approval_record
@@ -100,6 +101,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
+    recorded_image_match.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
     lms_attachments.EXPECTED_ROW,
 )
@@ -503,6 +505,8 @@ class Scan:
     image_answer_unread: int = 0
     withheld_rows: tuple[str, ...] = ()
     heading_items_report: str = ""
+    model_unread: int = 0
+    image_match_unread: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -1748,7 +1752,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"heading-read records: {scan.heading_reads}",
         *scan.heading_items_report.splitlines(),
         run_grader.format_unread_remainder(
-            scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread + scan.image_answer_unread
+            scan.heading_read_unread + scan.posted_reading_unread + scan.reader_records_unread + scan.image_answer_unread + scan.model_unread + scan.image_match_unread
         ),
         *([f"posted reading: incomplete coverage - posting is not recorded; unread {scan.posted_reading_unread}"] if scan.posted_reading_unread else []),
         (
@@ -1861,18 +1865,13 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")
     )
-    grade = voice_read.apply_completion_gate(
+    submission = _parsed.value("--submission")
+    grade = recorded_image_match.apply_coursework_gates(
         grade,
         source.path,
         _parsed.value("--submission"),
         voice_read.draft_surface(((source.draft, source.draft_text),)),
-    )
-    submission = _parsed.value("--submission")
-    grade = imagery_proposals.apply_completion_gate(
-        grade,
-        source.path,
         {submission or source.draft.stem: source.draft_text},
-        terminal=submission is not None,
     )
     grade = project_context.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")

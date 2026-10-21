@@ -1426,10 +1426,21 @@ GAPS holds what the rubric needs and the encounter did not supply: an x-ray orde
 
 ### 7. Check for drift
 
-Run `python tools/differential_scan.py <the run directory> --note <the finished note>`
+Run `python tools/differential_scan.py <the run directory> --note <the finished note> --profile <owning checkout>/scratch/medatrax-profile.md`
 before the go-ahead. Its shared visit-times row checks this note's field lines against
 the Times rule and `shift-values.json`. A times finding blocks the go-ahead until
 the note is re-timed; an unread field or unrecorded shift window is incomplete coverage.
+
+Every `filled_vitals_census.py` and `differential_scan.py` run required by either note skill
+passes `--profile <owning checkout>/scratch/medatrax-profile.md`, including their approval and
+terminal runs. Both clinical completion graders apply the same rapid-screen row to that profile.
+An account opts in with the complete line `Rapid screens: negative unless stated`
+in that profile. The row refuses a recognized rapid strep, influenza, COVID-19 or RSV screen
+written as pending; not-performed or declined screens and send-out culture or PCR are outside
+the refusal. An account without the declaration is reported not graded. Keep the same profile
+argument in approval preparation and retained grader arguments, so the shown paired coverage
+and terminal grade use the account's rule. No account file is opened when `--profile` is omitted;
+that row is reported not graded. The exact recognized forms belong to `rapid_screens.DECLARED_LIMITS`.
 
 A note **drifts** when a finding goes in the front and never comes out the back — documented in the shorthand, carried dutifully into Objective, and then absent from the Assessment and the Plan. Drift is what a long day does to documentation, and catching it is the reason this skill exists.
 
@@ -1659,6 +1670,9 @@ an earlier-visit status conflict, and any level-changing E/M question required b
 [icd10-cpt step 5](../icd10-cpt/SKILL.md#5-select-the-em-level-when-the-note-path-asks) in a
 `PRE-APPROVAL PATIENT QUESTIONS` block and obtain the clinician's ruling. Do not enter the portal
 data-entry route or approve the note while that block has an unresolved item.
+Where an answer to this block can be parsed more than one way — a run-together number, a dropped
+word, or an answer that could belong to two encounters — restate the parsed value per encounter
+and wait for the clinician's confirmation before applying it.
 The status question fires only when the shorthand mentions an earlier visit and neither the
 identity map nor Medatrax records the patient: state that the shorthand mentions an earlier visit
 and the records show none, then ask whether it was the clinician's practice within three years.
@@ -1760,7 +1774,7 @@ leave proposals are outside the delegable block. A bare approval cannot leave on
 clinician's own reply must name its number or explicitly cover all proposed leaves.
 Use [icd10-cpt's reader record shapes and retry route](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 
-Run `python tools/differential_scan.py <run> --note <the finished note> --show` for the private
+Run `python tools/differential_scan.py <run> --note <the finished note> --show --profile <owning checkout>/scratch/medatrax-profile.md` for the private
 pair list. Beside the coverage lines, list every proposed-item/Objective pair from the scanner's private
 `--show` output, or `none`. A proposed test written as an actual Plan order is allowed; a
 recommendation promoted to given or ordered without the clinician's words is a defect.
@@ -1830,7 +1844,7 @@ is not ready for the after-action review. The complete boundary belongs to `meda
 **Then invoke `/AAR`.** Use the encounter's run key plus the submission date as the submission key; where `batch-shift` owns the run, use the shift key that skill supplies rather than creating a second review per nested note. For a standalone note, after `/AAR` exits clean run:
 
 ```bash
-python tools/differential_scan.py <the run directory> --submission <encounter-key>-<date>
+python tools/differential_scan.py <the run directory> --submission <encounter-key>-<date> --profile <owning checkout>/scratch/medatrax-profile.md
 ```
 
 The completion output must include both `the after-action review: clean` and `the Medatrax posted reading: clean`. The scanner's clinical floors remain unchanged; a missing review or a missing or stale `SUBMISSION-SHA256` fails completion.

@@ -1,4 +1,15 @@
 check	start	compared-with
+recorded_image_match:completion_gate	2026-10-20T17:31:27Z	approval
+recorded_image_match:recorded image match	2026-10-20T17:31:27Z	approval
+voice_read:unused-recorded-image	2026-10-20T17:31:27Z	approval
+voice_read:recorded-image-plant	2026-10-20T17:54:24Z	approval
+deck_scan:recorded image match	2026-10-20T17:31:27Z	approval
+assignment_docx_scan:recorded image match	2026-10-20T17:31:27Z	approval
+discussion_post_scan:recorded image match	2026-10-20T17:31:27Z	approval
+discussion_reply_scan:recorded image match	2026-10-20T17:31:27Z	approval
+peer_critique_scan:recorded image match	2026-10-20T17:31:27Z	approval
+checks_ledger:recorded image match	2026-10-20T17:31:27Z	approval
+course_assignment_scan:recorded image match	2026-10-20T17:31:27Z	approval
 delegated_answers:note-sections	2026-10-20T07:06:51Z	approval
 delegated_answers:answer-reader	2026-10-20T07:06:51Z	approval
 delegated_answers:shown-answers	2026-10-20T07:06:51Z	approval
@@ -20,6 +31,10 @@ bar_signatures:completion_gate	2026-10-20T05:29:48Z	approval
 bar_signatures:the bar signature	2026-10-20T05:29:48Z	approval
 checks_ledger:bar-walk-signature	2026-10-20T05:29:48Z	approval
 aar_scan:reversal-candidates	2026-10-20T04:30:38Z	extraction
+aar_scan:cause-line	2026-10-20T16:13:19Z	extraction
+aar_scan:cause-overrule	2026-10-20T16:13:19Z	extraction
+aar_scan:unverified-disposition	2026-10-20T16:13:19Z	extraction
+aar_scan:unverified-publication	2026-10-20T16:13:19Z	extraction
 aar_scan:sustain-on-reversal-candidates	2026-10-20T04:30:38Z	extraction
 aar_scan:missing-landing-search	2026-10-20T04:30:38Z	extraction
 run_record_reader:handwritten-damage	2026-10-20T10:59:37Z	approval
@@ -599,3 +614,4 @@ assignment_docx_scan:heading-read-item-quote-missing	2026-10-20T09:53:59Z	approv
 assignment_docx_scan:heading-read-item-quote-absent	2026-10-20T09:53:59Z	approval
 assignment_docx_scan:heading-read-item-quote-repeated	2026-10-20T09:53:59Z	approval
 heading_read:item-quotes	2026-10-20T09:53:59Z	approval
+rapid_screens:pending	2026-10-20T10:30:57Z	approval

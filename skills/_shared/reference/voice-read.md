@@ -40,8 +40,10 @@ reconstruct it from the finished prose.
 
 ## 2. The planter
 
-Send a fresh **Planter** context the final artifact and only the canonical model's discriminating
-pairs. It must not be the artifact's author or the Voice reader. The brief says to rewrite exactly
+Send a fresh **Planter** context the final artifact, the canonical model's discriminating
+pairs, and the exact recorded-image entries already used in that artifact, marked as protected
+text rather than new pair answers. It must not be the artifact's author or the Voice reader. The
+brief says to rewrite exactly
 one sentence toward one pair's generic half without copying that half verbatim. It writes:
 
 - `voice-read-planted.txt`: the full grader-owned voice surface as UTF-8 with LF line endings by convention and
@@ -73,11 +75,17 @@ surface and these two sentence strings; any other text change fails.
 The comparison ignores line endings while every digest binds raw bytes.
 The planter does not change a sentence quoted for a supplied item; the supplied-item verdict must
 bind to the real draft as well as the planted copy.
+It also leaves every used recorded-image entry whole. Otherwise a planted removal could make the
+new reader question report an image as unused when the real draft uses it. A plant that changes
+one of those entries is refused and repeated; it is not an unused-image finding against the real
+draft. The reader still receives only the planted comparison surface, preserving the blind read.
 
 ## 3. The Voice reader
 
-Send a separate fresh **Voice reader** only `voice-read-planted.txt`, `supplied-voice.json`, and the
-canonical model. The brief explicitly includes both model sections headed `Seen in the samples, never reproduce` and
+Send a separate fresh **Voice reader** only `voice-read-planted.txt`, `supplied-voice.json`, the
+canonical model, and the keyed `recorded-image-match.json` entry. For its additional image question,
+the reader asks whether a recorded image fits that entry's central point but is unused by the draft.
+The brief explicitly includes both model sections headed `Seen in the samples, never reproduce` and
 `Seen in the corpus, never reproduce`; it does not include the real draft or
 `voice-read-planter.json`. Supply the real draft's UTF-8 voice-surface path only as an input to the
 quote-check command below; the reader does not open it for comparison. The reader answers every discriminating pair derived from the model at
@@ -101,6 +109,11 @@ profanity for graded copy is not shrinkage. It writes `voice-read.json`, exactly
       "resemblance": "generic"
     }
   ],
+  "unused_recorded_image": {
+    "central_point": "<the exact central point in the keyed match record>",
+    "image": null,
+    "reason": "<why no unused recorded image fits, or why the named unused image fits>"
+  },
   "supplied_voice_answers": [
     {
       "item_id": "input-1",
@@ -113,6 +126,14 @@ profanity for graded copy is not shrinkage. It writes `voice-read.json`, exactly
 
 A verdict answers only the voice question. Put outside problems in `remarks`, one nonempty string
 per problem, and follow [Reader remarks at the go-ahead](sourcing.md#reader-remarks-at-the-go-ahead).
+
+For `unused_recorded_image`, use JSON `null` when no unused recorded image fits; otherwise copy
+the whole recorded image into `image`. Naming a fitting image the draft does not use is a finding
+and returns the draft to its author. This answer supplements every existing pair, supplied-item
+and profanity check. It never replaces them. A verified image ruling for this exact recorded
+central point under [imagery-proposals.md](imagery-proposals.md) settles only this new question;
+it can be omitted in that case. An approval for a different point does not settle it. Historical
+reader records remain accepted under the new question's own approval cutoff.
 
 `resemblance` is `generic`, `his`, or `no counterpart`. `no counterpart` requires `quote: null`;
 the other two require a verbatim quote from the planted copy. Before writing the final record,
