@@ -4,6 +4,9 @@ from contextlib import contextmanager
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
+from contextlib import ExitStack
+import clone_inventory_diagnostic as diagnostic
 
 from clone_inventory_diagnostic import discrepancy, validate_results
 from measure_parallel_readers import inventory, Hold
@@ -20,6 +23,32 @@ def fixture_root():
 
 
 class DiagnosticControls(unittest.TestCase):
+    def test_synthetic_expectation_failure_does_not_block_repository_evidence(self):
+        with fixture_root() as root, ExitStack() as stack:
+            visited = []
+            def compare(commands, seed, candidate, case_root, expected, deadline, allowlist):
+                visited.append(case_root.name)
+                return case_root, ({"guard": "clone_source_inventory_mismatch", "raw_equal": False,
+                                    "missing": 0, "extra": 0, "content_mismatch": 1, "crlf_only": 1}
+                                   if case_root.name == "baseline" else {"guard": "passed", "raw_equal": True})
+            stack.enter_context(patch.object(diagnostic, "synthetic_comparison", return_value=False))
+            stack.enter_context(patch.object(diagnostic, "fresh_checkout"))
+            stack.enter_context(patch.object(diagnostic.proof, "corpus_preflight"))
+            stack.enter_context(patch.object(diagnostic.proof, "inventory", return_value={}))
+            stack.enter_context(patch.object(diagnostic, "clone_comparison", side_effect=compare))
+            negatives = stack.enter_context(patch.object(diagnostic, "negative_controls"))
+            with self.assertRaisesRegex(Hold, "synthetic_controls_failed"):
+                diagnostic.collect_comparisons(None, Path(root), Path(root), b"", 100, set())
+            self.assertEqual(visited, ["baseline", "candidate"])
+            negatives.assert_called_once()
+
+    def test_unsafe_synthetic_hold_stops_before_repository_collection(self):
+        with fixture_root() as root, patch.object(diagnostic, "synthetic_comparison",
+                side_effect=Hold("command_cleanup_unverified")), patch.object(diagnostic, "fresh_checkout") as checkout:
+            with self.assertRaisesRegex(Hold, "command_cleanup_unverified"):
+                diagnostic.collect_comparisons(None, Path(root), Path(root), b"", 100, set())
+            checkout.assert_not_called()
+
     def test_raw_mismatch_is_not_admitted_as_equal(self):
         with fixture_root() as root:
             left, right = Path(root) / "left", Path(root) / "right"

@@ -40,12 +40,15 @@ def discrepancy(left, right, expected, measured, allowlist):
             "unlisted_count": len(different - allowlist)}
 
 
-def fresh_checkout(commands, donor, target, revision, deadline, *, before=False, synthetic=False):
+def fresh_checkout(commands, donor, target, revision, deadline, *, before=False, synthetic=False, eol=None):
     commands.run(["git", "clone", "--no-local", "--no-hardlinks", "--no-checkout",
                   str(donor), str(target)], target.parent, deadline)
     if synthetic:
         # Fixture-local setting only, same in both arms; never changes real seeds.
         commands.git(target, "config", "core.autocrlf", "true", deadline=deadline)
+        if eol is not None:
+            proof.require(eol in {"lf", "crlf"}, "synthetic_eol_invalid")
+            commands.git(target, "config", "core.eol", eol, deadline=deadline)
     else:
         inherited = commands.git(donor, "config", "get", "--default", "unset", "core.autocrlf",
                                  deadline=deadline).strip()
@@ -59,16 +62,18 @@ def fresh_checkout(commands, donor, target, revision, deadline, *, before=False,
     # This is the first status, matching the original clean-seed precondition.
     proof.require(not commands.git(target, "status", "--porcelain=v1", "--untracked-files=all",
                                    deadline=deadline), "fresh_checkout_not_clean")
+    initial_sentinel = (target / "default.txt").read_bytes() if synthetic else None
     commands.git(target, "-c", "core.autocrlf=false", "checkout-index", "--force", "--all",
                  deadline=deadline)
+    return initial_sentinel
 
 
-def synthetic_comparison(commands, root, deadline):
+def synthetic_comparison(commands, root, deadline, *, eol=None):
     donor = root / "synthetic-donor"
     donor.mkdir()
     commands.git(donor, "init", deadline=deadline)
-    files = {".gitattributes": b".gitattributes text eol=lf\n*.txt text\nfixed-lf.txt text eol=lf\nfixed-crlf.txt text eol=crlf\n*.bin -text\n",
-             "default.txt": b"one\ntwo\n", "fixed-lf.txt": b"one\ntwo\n",
+    files = {".gitattributes": b".gitattributes text eol=lf\nnative.txt text\nfixed-lf.txt text eol=lf\nfixed-crlf.txt text eol=crlf\n*.bin -text\n",
+             "default.txt": b"one\ntwo\n", "native.txt": b"one\ntwo\n", "fixed-lf.txt": b"one\ntwo\n",
              "fixed-crlf.txt": b"one\ntwo\n", "opaque.bin": b"\x00one\r\ntwo\xff"}
     for name, data in files.items():
         (donor / name).write_bytes(data)
@@ -78,14 +83,46 @@ def synthetic_comparison(commands, root, deadline):
                  "commit", "-m", "Synthetic checkout fixture", deadline=deadline)
     revision = commands.git(donor, "rev-parse", "HEAD", deadline=deadline).strip()
     baseline, candidate = root / "synthetic-baseline", root / "synthetic-candidate"
-    fresh_checkout(commands, donor, baseline, revision, deadline, synthetic=True)
-    fresh_checkout(commands, donor, candidate, revision, deadline, before=True, synthetic=True)
+    baseline_initial = fresh_checkout(commands, donor, baseline, revision, deadline, synthetic=True, eol=eol)
+    candidate_initial = fresh_checkout(commands, donor, candidate, revision, deadline, before=True, synthetic=True, eol=eol)
+    effective_eol = commands.git(candidate, "config", "get", "--default", "native", "core.eol",
+                                 deadline=deadline).strip()
+    proof.require(effective_eol in {"lf", "crlf", "native"}, "synthetic_eol_invalid")
+    native_crlf = effective_eol == "crlf" or (effective_eol == "native" and os.name == "nt")
+    baseline_expected = dict(files)
+    baseline_expected.update({name: b"one\r\ntwo\r\n" for name in
+                              ("default.txt", "native.txt", "fixed-crlf.txt")})
+    baseline_after = (baseline / "default.txt").read_bytes()
+    # The late command may rewrite the sentinel. Record that observation instead
+    # of assuming a stat-cache outcome from another platform or Git version.
+    sentinel_valid = (baseline_initial == b"one\r\ntwo\r\n"
+                      and candidate_initial == b"one\ntwo\n"
+                      and baseline_after in {b"one\ntwo\n", b"one\r\ntwo\r\n"})
+    baseline_expected["default.txt"] = baseline_after
+    candidate_expected = dict(files)
+    candidate_expected["fixed-crlf.txt"] = b"one\r\ntwo\r\n"
+    if native_crlf:
+        candidate_expected["native.txt"] = b"one\r\ntwo\r\n"
+    controls_passed = sentinel_valid and all((directory / name).read_bytes() == data
+                          for directory, expected in ((baseline, baseline_expected), (candidate, candidate_expected))
+                          for name, data in expected.items())
     result = discrepancy(baseline, candidate, proof.inventory(baseline, deadline=deadline),
                          proof.inventory(candidate, deadline=deadline), set(files))
-    proof.emit("synthetic_inventory", **result)
-    proof.require(result["content_mismatch"] == 1 and result["crlf_only"] == 1
-                  and result["paths"] == ["default.txt"] and not result["missing"] and not result["extra"],
-                  "synthetic_mechanism_not_reproduced")
+    expected_paths = (["default.txt"] if baseline_after != b"one\ntwo\n" else [])
+    if not native_crlf:
+        expected_paths.append("native.txt")
+    controls_passed = (controls_passed and result["paths"] == expected_paths
+                       and result["content_mismatch"] == len(expected_paths)
+                       and result["crlf_only"] == len(expected_paths)
+                       and not result["missing"] and not result["extra"])
+    proof.emit("synthetic_inventory", **result, controls_passed=controls_passed,
+               native_eol="crlf" if native_crlf else "lf",
+               baseline_initial_crlf=baseline_initial == b"one\r\ntwo\r\n",
+               candidate_initial_lf=candidate_initial == b"one\ntwo\n",
+               baseline_late_rewritten=baseline_after != baseline_initial)
+    # A model expectation is not an admission guard. Record it now and fail the
+    # final verdict later, after safe repository evidence has been collected.
+    return controls_passed
 
 
 def clone_comparison(commands, seed, candidate, root, source_inventory, deadline, allowlist):
@@ -157,6 +194,25 @@ def validate_results(results):
                   and results["candidate"]["raw_equal"], "candidate_inventory_not_equal")
 
 
+def collect_comparisons(commands, root, donor, candidate, deadline, allowlist):
+    synthetic_passed = synthetic_comparison(commands, root, deadline)
+    results = {}
+    for label, before in (("baseline", False), ("candidate", True)):
+        case_root = root / label
+        case_root.mkdir()
+        seed = case_root / "seed"
+        fresh_checkout(commands, donor, seed, proof.BASE, deadline, before=before)
+        proof.corpus_preflight((seed,))
+        expected = proof.inventory(seed, deadline=deadline)
+        clone, result = clone_comparison(commands, seed, candidate, case_root, expected, deadline, allowlist)
+        results[label] = result
+        proof.emit("repository_inventory", case=label, **result)
+        if before and result["guard"] == "passed":
+            negative_controls(commands, clone, expected, candidate, case_root, deadline)
+    validate_results(results)
+    proof.require(synthetic_passed, "synthetic_controls_failed")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--observer", type=Path, required=True)
@@ -224,21 +280,7 @@ def main(argv=None):
         commands.run([sys.executable, "-m", "unittest", "discover", "-s", "diagnostics",
                       "-p", "test_clone_inventory_diagnostic.py"], observer, deadline, env=test_env)
         proof.emit("portable_diagnostic_controls", passed=True)
-        synthetic_comparison(commands, root, deadline)
-        results = {}
-        for label, before in (("baseline", False), ("candidate", True)):
-            case_root = root / label
-            case_root.mkdir()
-            seed = case_root / "seed"
-            fresh_checkout(commands, donor, seed, proof.BASE, deadline, before=before)
-            proof.corpus_preflight((seed,))
-            expected = proof.inventory(seed, deadline=deadline)
-            clone, result = clone_comparison(commands, seed, candidate, case_root, expected, deadline, allowlist)
-            results[label] = result
-            proof.emit("repository_inventory", case=label, **result)
-            if before and result["guard"] == "passed":
-                negative_controls(commands, clone, expected, candidate, case_root, deadline)
-        validate_results(results)
+        collect_comparisons(commands, root, donor, candidate, deadline, allowlist)
         proof.require(not commands.git(observer, "status", "--porcelain=v1", "--untracked-files=all",
                                        deadline=deadline), "observer_post_status_not_clean")
         proof.emit("diagnostic_complete", baseline_reproduced=True, candidate_raw_equal=True,
