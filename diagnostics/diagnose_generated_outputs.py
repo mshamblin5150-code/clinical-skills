@@ -23,7 +23,7 @@ CASES = (
     'test_subagent_staging_hook.SubagentStagingLaunch.test_existing_nonempty_folder_accepts_relative_absolute_and_backslash_routes',
     'test_suite.SuiteRunControls.test_a_complete_run_atomically_replaces_the_unit_weights',
 )
-CONTRACT_CONTROL_COUNT = 35
+CONTRACT_CONTROL_COUNT = 41
 
 
 def discovery_child(repo):

@@ -79,10 +79,38 @@ def _safe_directory(path, relative=None):
     return metadata
 
 
+METADATA_FIELDS = ('st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_size',
+                   'st_mtime_ns', 'st_ctime_ns', 'st_file_attributes')
+
+
 def _metadata_key(metadata):
     return (metadata.st_dev, metadata.st_ino, metadata.st_mode, metadata.st_nlink,
             metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns,
             getattr(metadata, 'st_file_attributes', 0))
+
+
+def compare_metadata(stage, left, right, relative):
+    """Observe the existing snapshots only; preserve the complete original key."""
+    need(stage in ('before_open', 'before_after', 'after_final'), 'generated_comparison_stage_invalid')
+    left_key, right_key = _metadata_key(left), _metadata_key(right)
+    if left_key != right_key:
+        equal = {name: a == b for name, a, b in zip(METADATA_FIELDS, left_key, right_key)}
+        def creation_equal(snapshot):
+            birth = getattr(snapshot, 'st_birthtime_ns', None)
+            return snapshot.st_ctime_ns == birth if type(birth) is int else 'unavailable'
+        q.emit('generated_file_comparison', stage=stage,
+               path_token=q.digest(relative.encode('utf-8', errors='surrogatepass')),
+               fields_equal=equal, unequal_fields=[name for name in METADATA_FIELDS if not equal[name]],
+               left_ctime_equals_birthtime=creation_equal(left),
+               right_ctime_equals_birthtime=creation_equal(right))
+        refuse('generated_file_identity_changed', relative)
+
+
+def compare_read_length(actual, expected, relative):
+    if actual != expected:
+        q.emit('generated_file_comparison', stage='read_length',
+               path_token=q.digest(relative.encode('utf-8', errors='surrogatepass')), length_equal=False)
+        refuse('generated_file_identity_changed', relative)
 
 
 def _regular(metadata, limit, relative):
@@ -145,15 +173,16 @@ def safe_read(repo, relative, limit, deadline):
         with os.fdopen(fd, 'rb') as stream:
             opened = os.fstat(stream.fileno())
             _regular(opened, limit, relative)
-            need(_metadata_key(before) == _metadata_key(opened), 'generated_file_identity_changed', relative)
+            compare_metadata('before_open', before, opened, relative)
             raw = stream.read(limit + 1)
             after = os.fstat(stream.fileno())
         final = path.lstat()
     except OSError:
         refuse('generated_file_unread', relative)
     need(len(raw) <= limit, 'generated_file_oversize', relative)
-    need(_metadata_key(before) == _metadata_key(after) == _metadata_key(final)
-         and len(raw) == before.st_size, 'generated_file_identity_changed', relative)
+    compare_metadata('before_after', before, after, relative)
+    compare_metadata('after_final', after, final, relative)
+    compare_read_length(len(raw), before.st_size, relative)
     for ancestor, identity in ancestors.items():
         metadata = _safe_directory(ancestor, relative)
         need(identity == (metadata.st_dev, metadata.st_ino), 'generated_directory_identity_changed', relative)

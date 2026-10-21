@@ -315,4 +315,83 @@ class GeneratedOutputControls(unittest.TestCase):
         self.assertIn('kernel.CloseHandle(handle)',source)
 
 
+    def metadata_fixture(self, **changes):
+        # CPython 23116f998f6789d8c2fbe5ed5b8146854c8c2a4f (v3.14.4):
+        # Modules/posixmodule.c:2289-2299; Python/fileutils.c:1117-1123,1283-1285.
+        # Windows path ctime is CreationTime; handle ctime
+        # is ChangeTime. Synthetic values model semantics, not hosted evidence.
+        from types import SimpleNamespace
+        fields=dict(st_dev=1, st_ino=2, st_mode=0o100666, st_nlink=1,
+                    st_size=3, st_mtime_ns=4, st_ctime_ns=5,
+                    st_file_attributes=32, st_birthtime_ns=5)
+        fields.update(changes)
+        return SimpleNamespace(**fields)
+
+    def test_windows_creation_change_time_model_remains_refused(self):
+        path=self.metadata_fixture(); handle=self.metadata_fixture(st_ctime_ns=6)
+        with self.assertRaisesRegex(g.q.Refused, 'generated_file_identity_changed'):
+            g.compare_metadata('before_open', path, handle, 'fixed.pyc')
+        row=self.emit.call_args_list[-2]
+        self.assertEqual(row.args, ('generated_file_comparison',))
+        self.assertEqual(row.kwargs['unequal_fields'], ['st_ctime_ns'])
+        self.assertTrue(row.kwargs['left_ctime_equals_birthtime'])
+        self.assertFalse(row.kwargs['right_ctime_equals_birthtime'])
+        self.assertEqual(self.emit.call_args_list[-1].args, ('generated_output_rejected',))
+
+    def test_comparison_preserves_every_original_identity_field(self):
+        before=self.metadata_fixture()
+        for field in g.METADATA_FIELDS:
+            self.emit.reset_mock()
+            after=self.metadata_fixture(**{field:getattr(before,field)+1})
+            with self.assertRaises(g.q.Refused):
+                g.compare_metadata('before_after', before, after, 'fixed.pyc')
+            self.assertEqual(self.emit.call_args_list[-2].kwargs['unequal_fields'], [field])
+
+    def test_equal_comparison_emits_nothing_and_absent_birthtime_is_finite(self):
+        left=self.metadata_fixture(); del left.st_birthtime_ns
+        g.compare_metadata('after_final',left,left,'fixed.pyc')
+        self.emit.assert_not_called()
+        right=self.metadata_fixture(st_ino=99); del right.st_birthtime_ns
+        with self.assertRaises(g.q.Refused):g.compare_metadata('after_final',left,right,'fixed.pyc')
+        row=self.emit.call_args_list[-2].kwargs
+        self.assertEqual(row['left_ctime_equals_birthtime'], 'unavailable')
+        self.assertEqual(row['right_ctime_equals_birthtime'], 'unavailable')
+        self.assertNotIn('fixed.pyc', json.dumps(row))
+
+    def test_length_refusal_emits_only_finite_comparison_before_refusal(self):
+        with self.assertRaises(g.q.Refused):g.compare_read_length(2,3,'fixed.pyc')
+        row=self.emit.call_args_list[-2]
+        self.assertEqual(row.kwargs['stage'],'read_length')
+        self.assertFalse(row.kwargs['length_equal'])
+        self.assertNotIn('actual',row.kwargs)
+
+
+    def test_observation_never_adds_filesystem_reads_or_rechecks(self):
+        import ast
+        source = inspect.getsource(g.safe_read)
+        calls = [node.func.attr for node in ast.walk(ast.parse(source))
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
+        self.assertEqual(calls.count('lstat'), 2)
+        self.assertEqual(calls.count('fstat'), 2)
+        self.assertEqual(calls.count('read'), 1)
+        self.assertEqual(source.count('_open_readonly(path)'), 1)
+        for helper in (g.compare_metadata, g.compare_read_length):
+            calls = [node.func.attr for node in ast.walk(ast.parse(inspect.getsource(helper)))
+                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
+            self.assertTrue(set(calls).isdisjoint({'lstat', 'fstat', 'read', 'open', 'stat'}))
+
+    def test_all_comparison_stages_emit_only_finite_flags_and_path_token(self):
+        for stage in ('before_open', 'before_after', 'after_final'):
+            self.emit.reset_mock()
+            with self.assertRaisesRegex(g.q.Refused, 'generated_file_identity_changed'):
+                g.compare_metadata(stage, self.metadata_fixture(), self.metadata_fixture(st_ino=987654321), 'private-name.pyc')
+            row = self.emit.call_args_list[-2].kwargs
+            self.assertEqual(set(row), {'stage', 'path_token', 'fields_equal', 'unequal_fields',
+                                        'left_ctime_equals_birthtime', 'right_ctime_equals_birthtime'})
+            self.assertEqual(set(row['fields_equal']), set(g.METADATA_FIELDS))
+            self.assertTrue(all(type(value) is bool for value in row['fields_equal'].values()))
+            self.assertNotIn('private-name', json.dumps(row))
+            self.assertNotIn('987654321', json.dumps(row))
+
+
 if __name__=='__main__':unittest.main()
