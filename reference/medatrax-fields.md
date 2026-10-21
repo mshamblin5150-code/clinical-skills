@@ -42,6 +42,16 @@ Picklist strings are exact — match them character for character, here and in t
 Start at **Patients**, which opens the Patient Visit List. Keep `Course` at `(All Courses)` while
 matching a returning patient; a course filter can hide the patient's earlier visit.
 
+### Patient and visit field script
+
+Before filling a new patient or visit, run the Required committed builder in
+[Checked Medatrax fields](../skills/_shared/reference/medatrax-fill.md) for the approved submission.
+It writes the checked ordered `medatrax-fill/fill-fields.json` and generates each encounter's
+`fill-note-N.js` from that list. Use the corresponding script on the patient or visit edit form,
+then review the filled fields before the ordinary Create or Submit action. The shared route names
+its refusals and synthetic-only control-targeting limit. Read saved Patient Detail against the
+approved field block after saving. The note-form script below remains a separate step.
+
 ### New patient
 
 1. Click **New Patient** on the Patient Visit List.

@@ -651,6 +651,25 @@ def _matching_item(
     return matches[0] if len(matches) == 1 else None
 
 
+def current_clinical_approval(run: Path, *, batch: bool, submission: str):
+    """Require the retained approval to bind the current manifest and receipt.
+
+    This pre-entry seam does not require a posted reading. Existing approval
+    production owns clinician reply, coverage and other go-ahead checks.
+    """
+    import review_manifest
+    run = Path(run).resolve()
+    binding = review_manifest.approval_binding(run, batch=batch)
+    skill = "batch-shift" if batch else "clinical-note"
+    item = _matching_item(_read(run), skill, submission)
+    if (item is None or item.get("clinical_manifest_binding") is not True
+            or tuple(Path(path).resolve() for path in item["sources"]) != binding.sources
+            or tuple(Path(path).resolve() for path in item["note_sources"]) != binding.notes
+            or item["sha256"] != source_sha256(binding.sources)):
+        raise ApprovalRecordError("current clinical manifest and fields need recorded approval")
+    return binding, item
+
+
 @dataclass(frozen=True)
 class PostedReadingState:
     submission: str

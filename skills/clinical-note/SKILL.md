@@ -1827,6 +1827,11 @@ difference from an existing record without blocking or replacing it. Use `--repl
 deliberately discarding that record. Either command's refusal blocks portal entry until the input is
 corrected and both commands succeed.
 
+Before patient and visit field entry, require the committed builder's clean run under
+[Checked Medatrax fields](../_shared/reference/medatrax-fill.md), using `--notes <final-note>` and
+this run's submission key and profile. Use its checked list and per-note page script under that
+route's synthetic-only limits.
+
 Follow [the Medatrax entry procedure](../../reference/medatrax-fields.md#entering-encounters) one patient at a time. Enter the derived Entry copy in the note form. Put a newly generated Patient Reference into the private identity map immediately through the Required `encounter_openers.py identity` command in [Encounter openers](../_shared/reference/encounter-openers.md), including a reason for every same-name existing reference when they are different people. Leave Add Visit Data empty. Read the saved Patient Detail against the approved field block and the saved note form against the Entry copy. Correct an ordinary mismatch to the approved value and read it again; for any other discrepancy, stop for the clinician. On the `VISIT:` line append `correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A clean first read needs no correction clause.
 
 After an interruption, sign back in, read what saved, and search the Patient Visit List for a record created during the interruption. Resume only when none exists. If a partial record exists, stop for the clinician; never delete it.

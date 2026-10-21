@@ -578,7 +578,10 @@ clean posted reading.
 
 For every final `note-N.md`, run `python tools/entry_copy.py <path to note-N.md>` and require exit 0 before portal entry. The derived files live in that run's `entry-copies/` subdirectory and can be regenerated from a finished note returned to an existing run after its Plan is relabeled. Then run `python tools/form_sections.py <entry-copies/note-N.md>` for each copy and require exit 0. It reports six line counts and lengths, creates a missing `private/form-sections/note-N.json`, and reports a difference from an existing record without blocking or replacing it. Use `--replace` only when deliberately discarding that record. Either refusal blocks the shift's entry until the input is corrected and both commands succeed. Enter each derived Entry copy's four sections, while `SUBMISSION-SHA256` continues to use the finished `note-N.md` bytes.
 
-Enter one patient at a time by the reference procedure. Put each new Patient Reference into the
+Before patient and visit field entry, require the committed builder's clean run under
+[Checked Medatrax fields](../_shared/reference/medatrax-fill.md), using `--batch` and this run's
+submission key and profile. Use its checked list and per-note page script under that route's
+synthetic-only limits. Enter one patient at a time by the reference procedure. Put each new Patient Reference into the
 private identity map immediately after Medatrax generates it through the Required
 `encounter_openers.py identity` command in [Encounter openers](../_shared/reference/encounter-openers.md),
 including a reason for every same-name existing reference when they are different people.
