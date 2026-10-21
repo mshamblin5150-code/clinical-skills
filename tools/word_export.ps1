@@ -40,6 +40,8 @@ try {
     $word.DisplayAlerts = 0
     $opened = $word.Documents.Open($Document, $false, $true, $false)
     Set-OwnedOfficeStage -OwnershipFile $OwnershipFile -ProcessId $ownedWordId -Stage "opened"
+    # Finish layout before either fixed-format export; keep this inside the caller's bound.
+    $opened.Repaginate()
     if ($Mode -eq "pdf") {
         $pdf = Join-Path $OutputDirectory "$Stem.pdf"
         [void]$opened.GetType().InvokeMember(
