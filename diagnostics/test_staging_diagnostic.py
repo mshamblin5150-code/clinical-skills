@@ -143,14 +143,14 @@ class StagingDiagnosticControls(unittest.TestCase):
         source=inspect.getsource(d.setup)
         self.assertLess(source.index('verify_retained_controls('),source.index('q.create_measurement_root('))
 
-    def test_workflow_launches_only_one_narrow_job(self):
+    def test_narrow_workflow_is_dormant_during_full_pair(self):
         root=Path(d.__file__).resolve().parent.parent
         text=(root/'.github/workflows/ci-parallel-proof.yml').read_text()
-        self.assertEqual(text.count('timeout-minutes: 10'),1)
-        self.assertIn('python observer/diagnostics/diagnose_staging_layout.py',text)
-        self.assertNotIn('python observer/diagnostics/measure_maintainer_pair.py',text)
-        self.assertNotIn('needs: baseline',text)
-        self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),2)
+        self.assertEqual(text.count('timeout-minutes: 90'),2)
+        self.assertNotIn('python observer/diagnostics/diagnose_staging_layout.py',text)
+        self.assertEqual(text.count('python observer/diagnostics/measure_maintainer_pair.py'),2)
+        self.assertIn('needs: baseline',text)
+        self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"),4)
         self.assertIn('PROOF_JOB_START_EPOCH',text)
         self.assertIn('github.run_attempt == 1',text)
 

@@ -93,16 +93,29 @@ class PairControls(unittest.TestCase):
             with self.assertRaises(m.q.Refused):m.explicit_controls(session,Path('seed'),Path('repo'))
         self.assertEqual(session.run.call_count,1)
 
-    def test_full_pair_is_dormant_under_active_narrow_workflow(self):
+    def test_full_pair_is_sequential_and_narrow_entrypoint_dormant(self):
         root=Path(m.__file__).resolve().parent.parent
         flow=(root/'.github/workflows/ci-parallel-proof.yml').read_text()
-        self.assertEqual(flow.count('timeout-minutes: 10'),1)
-        self.assertNotIn('needs: baseline',flow)
+        self.assertEqual(flow.count('timeout-minutes: 90'),2)
+        self.assertIn('needs: baseline',flow)
+        self.assertIn("needs.baseline.outputs.safe == 'true'",flow)
+        self.assertEqual(flow.count('python observer/diagnostics/measure_maintainer_pair.py'),2)
+        self.assertNotIn('python observer/diagnostics/diagnose_staging_layout.py',flow)
         self.assertIn('github.run_attempt == 1',flow)
-        self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),2)
-        self.assertEqual(flow.count('python-version: \'3.14.4\''),1)
+        self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),4)
+        self.assertEqual(flow.count('python-version: \'3.14.4\''),2)
         self.assertNotIn('measure_lazy_suite_ids.py --observer',flow)
         self.assertNotIn('upload-artifact',flow)
+
+    def test_hosted_output_controls_precede_real_clone_and_no_temp_benchmark(self):
+        import inspect
+        source=inspect.getsource(m.execute)
+        self.assertIn('verify_retained_controls(session, observer)',source)
+        self.assertLess(source.index('verify_retained_controls(session, observer)'),source.index('workspace_clone_root('))
+        self.assertNotIn('run_arm(',source)
+        self.assertNotIn('classify_case(',source)
+        self.assertIn('preserve_identity(progress',source)
+        self.assertLess(source.index('preserve_identity(progress'),source.index('for name, argv in COMMANDS'))
 
     def test_cleanup_failure_cannot_be_overridden_by_successful_evidence(self):
         from types import SimpleNamespace

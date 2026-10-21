@@ -245,6 +245,9 @@ def execute(session, observer, seed, variant, identity, prior, progress=None):
     q.require(owned['returncode'] == 0, 'owner_controls_failed')
     q.validate_owner_controls(json.loads(owned['stdout']))
     q.emit('owner_controls', passed=True, count=9)
+    # Reuse only the bounded synthetic guard gate, not TEMP layout test cases.
+    from diagnose_staging_layout import verify_retained_controls
+    verify_retained_controls(session, observer)
     clone_root = workspace_clone_root(session.root, observer, seed, expected)
     repo = clone_root / variant
     target = source_context(session, seed, repo, variant, expected, candidate)
