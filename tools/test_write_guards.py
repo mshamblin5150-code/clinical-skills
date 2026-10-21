@@ -174,8 +174,9 @@ class ModuleRootProperty(unittest.TestCase):
                 f"{path.name}:{line}" for line in account_owned_literal_joins(source)
             )
 
-        # #1593 adds a checkout-local Git anchor for registered-worktree discovery.
-        self.assertEqual(len(population), 52)
+        # #1882 adds a checkout-local reference path for the fill builder;
+        # its private account state still comes from the explicit run/profile.
+        self.assertEqual(len(population), 53)
         self.assertEqual(offenders, [])
 
 

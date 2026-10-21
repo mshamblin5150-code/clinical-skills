@@ -309,6 +309,12 @@ render; standalone notes use the same manifest approval binding without renderin
 Every required clean exit is a gate. Their complete boundaries belong to each module's
 `DECLARED_LIMITS`.
 
+**`tools/medatrax_fill.py` is Required before patient and visit field entry for both clinical skills.**
+Follow [Checked Medatrax fields](skills/_shared/reference/medatrax-fill.md). It requires the current
+approved manifest and receipt, checks the field blocks against their sources, retains the ordered
+list and generates the page scripts from that list. A refusal stops entry. Its complete boundary
+belongs to `medatrax_fill.DECLARED_LIMITS`; saved Patient Detail readback remains required.
+
 1. **No PHI is ever committed.** Identifiers become placeholders (`[PT]`, `[DOB]`, `[MRN]`) the moment they are read. Anything committed for testing is a **fixture** — derived from a working file with the visit date and site removed, never a copy of one. See [fixtures/README.md](fixtures/README.md).
 
    **Two gitignored directories, split by stage.** Working material — day files, the identity map, the account profile — lives in `scratch/`. **Anything finished and handed over — a note, a batch document, a case study — is written to `output/`.** Never write a finished note anywhere else, and never into the repo root: everywhere else is tracked, and a note written there is a committed patient record one `git add -A` later.

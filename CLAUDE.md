@@ -181,6 +181,17 @@ the reply and prepare window includes notes, selected worksheets, manifest and r
 layout under the existing output guards. Its installed-Word calibration joins the existing
 padding, wrapping and assignment measurements rather than replacing them.
 
+### Checked patient and visit fields
+
+`python tools/medatrax_fill.py` validates approved field blocks for both clinical skills against
+the opener record, shared visit-time check, profile choices and reference picklists. Course uses
+the profile under ADR 0380 ruling 2; Interaction Level uses the reference scale under ADR 0433
+ruling 2 without enforcing the saved default. `approval_record.current_clinical_approval` requires
+the current manifest/receipt identity before entry. The checked ordered list uses the shared locked
+transaction; generated scripts read that retained list under the compound build lock. Consumer
+steps live in [Checked Medatrax fields](skills/_shared/reference/medatrax-fill.md). The complete
+boundary belongs to `medatrax_fill.DECLARED_LIMITS`.
+
 ### Clinical go-ahead disclosure
 
 `approval_record.prepare` retains the paired clinical completion grade before the ask. Its
