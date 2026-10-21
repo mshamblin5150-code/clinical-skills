@@ -19,13 +19,13 @@ import statistics
 import sys
 import tempfile
 import time
-import zipfile
 
 from lazy_suite_support import (Refused, require, original_payload, child,
                                 classify_probe, parse_child, digest)
 from measure_parallel_readers import inventory, environment_preflight, corpus_preflight
 from parallel_reader_capture import analyze_capture
 from parallel_reader_diagnostics import safe_exception
+from raw_source_inventory import raw_source_inventory, RawIdentityMismatch
 from windows_job_probe import WindowsJobProbe
 from windows_job_probe_controls import DECLARED_CONTROL_IDS
 
@@ -63,6 +63,7 @@ OBSERVER_PATHS = {
     'diagnostics/lazy_suite_support.py', 'diagnostics/suite_id_lazy_controls.py',
     'diagnostics/lazy-qualification-budget.json', 'diagnostics/lazy-qualification-spec.md',
     'diagnostics/test_lazy_qualification_contracts.py',
+    'diagnostics/raw_source_inventory.py', 'diagnostics/test_raw_source_inventory.py',
 }
 BUDGET = {
     'schema_version': 1, 'admission_mode': 'estimate-not-completion-guarantee',
@@ -190,6 +191,11 @@ class Session:
         require(result['returncode'] == 0, 'git_verification_failed')
         return result['stdout']
 
+    def git_bytes(self, repo, *args):
+        result = self.run(['git', '-C', str(repo), *args], repo)
+        require(result['returncode'] == 0, 'git_verification_failed')
+        return Path(result['stdout_path']).read_bytes()
+
     def cleanup(self):
         clean = True
         for owner in self.owners:
@@ -209,17 +215,6 @@ def first_clean(session, repo, head):
     require(session.git(repo, 'rev-parse', 'HEAD').strip() == head, 'wrong_source_head')
     # This must precede normalization, reset, checkout-index, or a candidate copy.
     require(not session.git(repo, 'status', '--porcelain=v1', '--untracked-files=all'), 'first_status_not_clean')
-
-
-def source_archive(session, seed, root):
-    archive = root / 'committed-source.zip'
-    session.git(seed, 'archive', '--format=zip', '--output=' + str(archive), BASE)
-    with zipfile.ZipFile(archive) as stream:
-        expected = {item.filename: digest(stream.read(item)) for item in stream.infolist() if not item.is_dir()}
-    tracked = set(session.git(seed, 'ls-files', '-z').split('\0')) - {''}
-    require(set(expected) == tracked and '.gitignore' in expected, 'source_archive_population_changed')
-    require(inventory(seed, deadline=session.deadline) == expected, 'seed_raw_bytes_differ_from_commit')
-    return expected
 
 
 def make_clone(session, seed, root, variant, expected, candidate):
@@ -336,7 +331,7 @@ def main(argv=None):
         budget = json.loads(budget_bytes)
         require(budget == BUDGET, 'budget_contract_changed')
         observer_snapshot = inventory(observer, deadline=deadline)
-        expected = source_archive(session, seed, root)
+        expected = raw_source_inventory(session, seed, BASE)
         require(expected[SUITE_PATH] == ORIGINAL_HASH, 'baseline_module_hash_changed')
         candidate = read_reviewed_bytes(observer / SUITE_PATH, CANDIDATE_HASH)
         payload = original_payload(seed)
@@ -406,6 +401,8 @@ def main(argv=None):
         # Literal observer codes only; external exception text and raw reports stay private.
         failure = str(error) if isinstance(error, Refused) else 'unexpected_exception_details_withheld'
         details = safe_exception(error, root)
+        if isinstance(error, RawIdentityMismatch):
+            emit('source_discrepancy', **error.diagnostics)
         emit('hold', reason=failure, error_type=type(error).__name__,
              private_detail_retained=details['private_detail_retained'], comparative_claim_allowed=False)
     finally:
