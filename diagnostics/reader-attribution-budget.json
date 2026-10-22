@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "admission_mode": "estimate-not-completion-guarantee",
+  "source_sha": "08db6360b453c2bf969a686f62f0477184d06351",
+  "candidate_sha256": "f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275",
+  "approved_job_seconds": 3600,
+  "setup_controls_estimate_seconds": 900,
+  "measurement_estimate_seconds": 2100,
+  "final_verification_estimate_seconds": 300,
+  "cleanup_reserve_seconds": 300,
+  "minimum_free_bytes": 1073741824,
+  "max_capture_bytes": 16777216,
+  "max_receipt_bytes": 4194304
+}

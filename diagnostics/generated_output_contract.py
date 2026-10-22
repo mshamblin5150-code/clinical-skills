@@ -46,7 +46,7 @@ def validate_state(state):
     need(type(state) is State and state.marker in ('absent', 'required')
          and state.weights in ('absent', 'required') and state.sessions in ('optional', 'required'),
          'generated_state_invalid')
-    need(type(state.max_job_seconds) is int and state.max_job_seconds in (600, 5400), 'generated_state_invalid')
+    need(type(state.max_job_seconds) is int and state.max_job_seconds in (600, 3600, 5400), 'generated_state_invalid')
     need(all(type(value) in (int, float) and math.isfinite(value) for value in (state.job_start_epoch, state.observed_epoch)),
          'generated_date_interval_invalid')
     need(0 <= state.job_start_epoch <= state.observed_epoch

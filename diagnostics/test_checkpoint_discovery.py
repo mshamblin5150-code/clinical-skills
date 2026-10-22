@@ -84,7 +84,7 @@ class CheckpointRoute(unittest.TestCase):
         self.assertEqual(d.q.BASE, '104ee03cd4d37519b12b3edbc4da5fbf31b631cf')
         self.assertEqual(d.SOURCE_SHA, '08db6360b453c2bf969a686f62f0477184d06351')
 
-    def test_established_branch_cannot_start_discovery_beside_the_current_pair(self):
+    def test_established_branch_cannot_restart_discovery_or_the_consumed_pair(self):
         root = Path(d.__file__).resolve().parent.parent
         old = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
         new = (root / '.github/workflows/ci-checkpoint-discovery.yml').read_text()
@@ -92,7 +92,7 @@ class CheckpointRoute(unittest.TestCase):
         self.assertEqual(new.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
                          "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
         self.assertEqual(old.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
-                         'push:\n    branches: [diagnostic/2013-parallel-proof-20261020]')
+                         "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
         self.assertNotIn(d.q.BASE, old)
         self.assertEqual(old.count('ref: ' + d.SOURCE_SHA), 2)
 

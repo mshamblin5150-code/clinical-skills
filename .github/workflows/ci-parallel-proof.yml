@@ -1,9 +1,10 @@
-# One approved current-checkpoint pair. No dispatch, rerun, or adoption route.
+# Completed current-checkpoint pair retained. Branch and tag push routes are disabled.
 name: matched maintainer qualification
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read

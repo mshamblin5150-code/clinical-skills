@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import ast
+import io
 from pathlib import Path
 import re
 
@@ -85,7 +86,12 @@ def summary_counts(text, *, successful):
     return counts
 
 
-def analyze_capture(stdout_path, stderr_path, returncode, lookup, *, private_frames=None, module=None):
+def analyze_capture(stdout_path, stderr_path, returncode, lookup, *, private_frames=None, module=None,
+                    capture_bytes=None):
+    # A caller with coherently verified bytes must not reopen mutable paths.
+    if capture_bytes is not None and (type(capture_bytes) is not tuple or len(capture_bytes) != 2
+                                     or any(type(raw) is not bytes for raw in capture_bytes)):
+        raise ValueError('invalid capture bytes')
     marker = False
     carry = ""
     ran = []
@@ -125,8 +131,9 @@ def analyze_capture(stdout_path, stderr_path, returncode, lookup, *, private_fra
             frames.append(bytes(active["bytes"]))
         active = None
 
-    for source in (Path(stdout_path), Path(stderr_path)):
-        with source.open("rb") as stream:
+    sources = (Path(stdout_path), Path(stderr_path)) if capture_bytes is None else capture_bytes
+    for source in sources:
+        with (source.open("rb") if capture_bytes is None else io.BytesIO(source)) as stream:
             while True:
                 data = stream.readline(LINE_LIMIT)
                 if not data:

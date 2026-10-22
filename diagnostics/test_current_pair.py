@@ -292,12 +292,12 @@ class CurrentPairRoute(unittest.TestCase):
         self.assertEqual(m.q.digest((root / 'tools/test_suite_ids.py').read_bytes()),
                          'f2f97e56313d7f8957bec0bd20fd91c9efd8c48c44871c5c69056eb830d43275')
 
-    def test_only_current_pair_can_start_and_candidate_requires_success(self):
+    def test_consumed_pair_cannot_restart_and_retains_its_historical_candidate_gate(self):
         root = Path(m.__file__).resolve().parent.parent
         pair = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
         discovery = (root / '.github/workflows/ci-checkpoint-discovery.yml').read_text()
         self.assertEqual(pair.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
-                         'push:\n    branches: [diagnostic/2013-parallel-proof-20261020]')
+                         "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
         self.assertEqual(discovery.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
                          "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
         self.assertEqual(pair.count('ref: 08db6360b453c2bf969a686f62f0477184d06351'), 2)
