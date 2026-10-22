@@ -60,6 +60,164 @@ class SyntheticOwner:
 
 
 class OriginalLifecycleControls(unittest.TestCase):
+    def test_original_fixture_shape_binds_only_safe_same_identity_directory_aliases(self):
+        import os
+        import stat
+        import measure_reader_attribution as subject
+        for mode in ('canonical', 'alias', 'different_identity', 'changed_identity', 'post_read_swap',
+                     'parent_traversal', 'symlink', 'reparse', 'ancestor_reparse'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                actual = root / 'long-directory'; actual.mkdir()
+                (actual / 'hop').mkdir()
+                alias = root / 'LONGDI~1'
+                repository = root / 'repository'; repository.mkdir()
+                other = root / 'other'; other.mkdir()
+                calls = []
+                class NativeAliasPath(type(root)):
+                    def native(self):
+                        return actual / self.relative_to(alias) if self.is_relative_to(alias) else Path(self)
+                    def resolve(self, *args, **kwargs):
+                        if mode == 'different_identity' and self == alias / 'tools': return other
+                        return self.native().resolve(*args, **kwargs)
+                    def lstat(self, *args, **kwargs):
+                        metadata = self.native().lstat(*args, **kwargs)
+                        calls.append(self)
+                        unsafe = ((mode in ('symlink', 'reparse') and self == alias / 'tools')
+                                  or (mode == 'ancestor_reparse' and self == alias))
+                        changed = (mode in ('changed_identity', 'post_read_swap') and self == alias / 'tools'
+                                   and calls.count(self) > (1 if mode == 'changed_identity' else 2))
+                        if unsafe or changed:
+                            values = {name: getattr(metadata, name, 0) for name in subject.contract.METADATA_FIELDS}
+                            if changed: values['st_ino'] += 1
+                            elif mode == 'symlink': values['st_mode'] = stat.S_IFLNK | 0o777
+                            else: values['st_file_attributes'] = 0x400
+                            return types.SimpleNamespace(**values)
+                        return metadata
+                    def mkdir(self, *args, **kwargs): return self.native().mkdir(*args, **kwargs)
+                    def write_text(self, *args, **kwargs): return self.native().write_text(*args, **kwargs)
+                    def read_text(self, *args, **kwargs): return self.native().read_text(*args, **kwargs)
+                    def glob(self, pattern):
+                        return (NativeAliasPath(alias / path.relative_to(actual)) for path in self.native().glob(pattern))
+                fixture_directory = str(actual if mode == 'canonical' else alias)
+                if mode == 'parent_traversal': fixture_directory = str(actual / 'hop' / '..')
+                FixturePath = Path if mode in ('canonical', 'parent_traversal') else NativeAliasPath
+                check = synthetic_check(); owner = SyntheticOwner(root)
+                literals = {'icd10_lookup.py': '', 'test_reader.py': 'import icd10_lookup\n'}
+                sources = {name: value.replace('\n', os.linesep).encode('utf-8') for name, value in literals.items()}
+                manifests = {scope: subject.population_from_sources(check, sources) for scope in subject.SCOPES}
+                for name, value in literals.items():
+                    (repository / name).write_text(value, encoding='utf-8')
+                    (other / name).write_text(value, encoding='utf-8')
+                def audit(tools):
+                    trees = {path.stem: ast.parse(path.read_text(encoding='utf-8')) for path in tools.glob('*.py')}
+                    local = frozenset(trees)
+                    graph = {name: check._imports(tree, local) for name, tree in trees.items()}
+                    reaching = frozenset(name for name in trees if name.startswith('test') and check._reaches_lookup(name, graph))
+                    return check._readers_under_refusal(tools, reaching)
+                check.audit = audit
+                class ActualClass(unittest.TestCase):
+                    def test_planted_unpinned_readers_and_a_stale_pin_fail_in_both_directions(self):
+                        tools = FixturePath(fixture_directory) / 'tools'
+                        tools.mkdir()
+                        for name, value in literals.items(): (tools / name).write_text(value, encoding='utf-8')
+                        self.assertEqual(frozenset(), check.audit(tools))
+                    def test_the_repository_reader_population_and_pins_agree(self):
+                        self.assertEqual(frozenset(), check.audit(repository))
+                original_loop, original_binding = check._readers_under_refusal, check.subprocess
+                result = subject.observe_class(check, ActualClass, repository, manifests, owner, lambda: None, 'synthetic payload')
+                if mode in ('canonical', 'alias'):
+                    self.assertTrue(result['complete'])
+                    self.assertEqual((2, 4), (result['tests_run'], len(owner.calls)))
+                    expected_tools = FixturePath(fixture_directory) / 'tools'
+                    self.assertTrue(all(cwd == expected_tools and argv[-3] == str(expected_tools)
+                                        for argv, cwd in owner.calls[:2]))
+                    self.assertEqual(['pass', 'pass'], [row['outcome'] for row in result['methods']])
+                else:
+                    self.assertFalse(result['complete']); self.assertTrue(result['observer_failure'])
+                    self.assertEqual((1, 1, 0), (result['tests_run'], result['errors'], len(owner.calls)))
+                    self.assertFalse(result['methods'][1]['started'])
+                    reason = ('audit_source_root_changed' if mode.endswith('identity') or mode == 'post_read_swap'
+                              else 'audit_source_path_invalid' if mode == 'parent_traversal'
+                              else 'audit_source_directory_unsafe')
+                    self.assertEqual({'stage': 'source_population', 'reason': reason}, result['failure_context'])
+                self.assertIs(check._readers_under_refusal, original_loop)
+                self.assertIs(check.subprocess, original_binding)
+
+    def test_class_failure_context_is_finite_retained_and_preserves_first_cause(self):
+        import measure_reader_attribution as subject
+        for error, reason, guard_fails, subtest in (
+                (subject.q.Refused('audit_source_path_invalid'), 'audit_source_path_invalid', False, False),
+                (subject.q.Refused('PRIVATE_REFUSAL_SENTINEL'), 'unavailable', True, False),
+                (OSError('PRIVATE_PATH_SENTINEL'), 'unavailable', False, False),
+                (AssertionError('PRIVATE_SUBTEST_SENTINEL'), 'unavailable', False, True)):
+            with self.subTest(reason=reason, guard_fails=guard_fails), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve(); check = synthetic_check(); owner = SyntheticOwner(root)
+                manifests = {scope: {'modules': ('test_one',), 'pinned': frozenset(), 'source_file_count': 3}
+                             for scope in subject.SCOPES}
+                class ActualClass(unittest.TestCase):
+                    def test_planted_unpinned_readers_and_a_stale_pin_fail_in_both_directions(self):
+                        if subtest:
+                            with self.subTest(case='synthetic'): raise error
+                        else: raise error
+                    def test_the_repository_reader_population_and_pins_agree(self): self.fail('must not run')
+                guards = []
+                def guard():
+                    guards.append(True)
+                    if guard_fails: raise subject.q.Refused('global_budget_exhausted')
+                record = subject.observe_class(check, ActualClass, root / 'repository', manifests, owner,
+                                               guard, 'synthetic payload')
+                expected = {'stage': 'class_lifecycle', 'reason': reason}
+                self.assertEqual(expected, record['failure_context'])
+                self.assertEqual(expected, subject.summarize(record, manifests)['failure_context'])
+                receipt = subject.retained_receipt(owner, record, manifests,
+                    {'observer_sha': 'a' * 40, 'run_id': '123', 'job_start_epoch': 1000, 'environment_sha256': 'b' * 64})
+                self.assertTrue(receipt['receipt_verified']); self.assertEqual([True], guards)
+                raw = (root / 'reader-receipt.json').read_bytes()
+                self.assertEqual(2, json.loads(raw)['schema_version'])
+                self.assertEqual(expected, json.loads(raw)['class_receipt']['failure_context'])
+                self.assertNotIn(b'PRIVATE', raw); self.assertNotIn('PRIVATE', json.dumps(record))
+                self.assertEqual((1, 1, 0), (record['tests_run'], record['errors'] + record['failures'], len(owner.calls)))
+                self.assertFalse(record['methods'][1]['started'])
+                record['failure_context'] = {'stage': 'class_lifecycle', 'reason': 'PRIVATE_REFUSAL_SENTINEL'}
+                with self.assertRaises(subject.q.Refused): subject.validate_record(record, manifests)
+
+    def test_child_failure_precedes_finally_publication_failure(self):
+        import measure_reader_attribution as subject
+        for cleanup, publication_error in ((False, subject.q.Refused('audit_receipt_limit')),
+                                           (False, OSError('PRIVATE_PUBLICATION_SENTINEL')),
+                                           (True, subject.q.Refused('audit_receipt_limit'))):
+            with self.subTest(cleanup=cleanup), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve(); check = synthetic_check(); owner = SyntheticOwner(root)
+                original_loop, original_binding = check._readers_under_refusal, check.subprocess
+                original_run = owner.run
+                def run(argv, cwd): return {**original_run(argv, cwd), 'cleanup_verified': cleanup}
+                owner.run = run
+                published, guards = [], []
+                def publish(row):
+                    published.append(row)
+                    raise publication_error
+                class ActualClass(unittest.TestCase):
+                    def test_planted_unpinned_readers_and_a_stale_pin_fail_in_both_directions(self):
+                        check._readers_under_refusal(root / 'planted', frozenset(('test_one',)))
+                    def test_the_repository_reader_population_and_pins_agree(self): self.fail('must not run')
+                manifests = {scope: {'modules': ('test_one',), 'pinned': frozenset(), 'source_file_count': 3}
+                             for scope in subject.SCOPES}
+                record = subject.observe_class(check, ActualClass, root / 'repository', manifests,
+                    owner, lambda: guards.append(True), 'synthetic payload', publish)
+                expected = {'stage': 'reader_child', 'reason': 'audit_receipt_limit' if cleanup else 'process_cleanup_unverified'}
+                self.assertEqual(expected, record['failure_context'])
+                self.assertEqual(expected, subject.summarize(record, manifests)['failure_context'])
+                self.assertEqual((1, 1, 1, 1), (record['tests_run'], record['errors'], len(owner.calls), len(published)))
+                self.assertFalse(record['complete']); self.assertTrue(record['observer_failure'])
+                self.assertFalse(record['methods'][1]['started']); self.assertEqual([True], guards)
+                self.assertIs(check._readers_under_refusal, original_loop); self.assertIs(check.subprocess, original_binding)
+                subject.retained_receipt(owner, record, manifests,
+                    {'observer_sha': 'a' * 40, 'run_id': '123', 'job_start_epoch': 1000, 'environment_sha256': 'b' * 64})
+                raw = (root / 'reader-receipt.json').read_bytes()
+                self.assertEqual(expected, json.loads(raw)['class_receipt']['failure_context'])
+                self.assertNotIn(b'PRIVATE', raw); self.assertNotIn('PRIVATE', json.dumps(record))
+
     def test_fatal_interruption_does_not_complete_the_active_method(self):
         import measure_reader_attribution as subject
         with tempfile.TemporaryDirectory() as temporary:

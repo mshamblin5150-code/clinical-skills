@@ -83,6 +83,25 @@ missing pair in the other scope. The planted method's intentional reader/pin
 differences are passing control behavior. Repository reader/pin sets must agree
 in both directions and the original test assertions must pass.
 
+The original planted fixture may supply an unresolved native directory alias.
+Before source verification, validate its entire unresolved directory chain as
+regular directories without symlinks or reparse points. Bind its canonical name
+only when repeated original-name and canonical-name observations have the same
+complete eight-field directory identity key. Reject parent traversal and
+different or changing identities. Recheck the same binding after source hashing.
+This source-reader binding does not change the original child argv, cwd or
+payload, and does not widen generated-output or native handle policy.
+
+Class receipts use envelope schema version 2, adding an exact `failure_context`
+field. It is null for complete observations; otherwise the first captured error
+has only a fixed stage and an allowlisted refusal category. Stages distinguish
+class lifecycle, scope binding, source population, child observation and the
+class guard. Unknown exception messages map to `unavailable`; no message,
+traceback or private path is copied. The same bounded context survives coherent
+receipt readback and the public class summary, including when a later guard
+also fails. A finite category is evidence of that observer failure, not an
+inference about a previous hosted run whose original error was not retained.
+
 ## Current guard chain and qualification selectors
 
 Keep Windows/X64 and exact Python 3.14.4 with the current unchanged environment,

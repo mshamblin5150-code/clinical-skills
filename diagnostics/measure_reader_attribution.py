@@ -26,7 +26,7 @@ import diagnose_generated_outputs as generated
 from diagnose_checkpoint_discovery import CheckpointSession
 from diagnose_staging_layout import verify_retained_controls
 from lazy_suite_support import AUDIT_PATH, AUDIT_HASH
-from diagnostic_observations import unique_json
+from diagnostic_observations import unique_json, REASONS as OBSERVATION_REASONS
 from parallel_reader_capture import analyze_capture
 from parallel_reader_scheduler import Observation, account_pairs, audit_sets
 
@@ -36,6 +36,14 @@ CLASS_ID = 'test_code_set_database_reader_check.TheReaderPopulationAndThePinsMus
 METHODS = ('test_planted_unpinned_readers_and_a_stale_pin_fail_in_both_directions',
            'test_the_repository_reader_population_and_pins_agree')
 SCOPES = ('planted', 'repository')
+FAILURE_STAGES = frozenset(('class_lifecycle', 'scope_binding', 'source_population', 'reader_child', 'class_guard'))
+FAILURE_REASONS = OBSERVATION_REASONS | frozenset(('unavailable', 'audit_source_path_invalid',
+    'audit_source_directory_unsafe', 'audit_source_root_changed', 'audit_source_file_unsafe',
+    'audit_source_population_changed', 'audit_sources_invalid', 'audit_scope_repeated',
+    'audit_scope_order_changed', 'audit_population_changed', 'audit_unexpected_command',
+    'audit_command_changed', 'audit_capture_owner_changed', 'audit_metrics_unread',
+    'audit_capture_contaminated_or_unread', 'audit_pairs_incomplete', 'audit_reader_result_changed',
+    'audit_receipt_invalid', 'audit_receipt_limit', 'audit_method_repeated'))
 BRANCH = 'refs/heads/diagnostic/2013-parallel-proof-20261020'
 BUDGET = {'schema_version': 1, 'admission_mode': 'estimate-not-completion-guarantee',
           'source_sha': SOURCE_SHA, 'candidate_sha256': q.CANDIDATE_HASH,
@@ -90,6 +98,27 @@ def population_from_sources(check, sources):
     pins = frozenset((name, lookup) for name in tests for lookup in check._pins(trees[name]))
     return {'modules': modules, 'pinned': pins, 'source_file_count': len(sources),
             'source_hashes': {name: q.digest(raw) for name, raw in sorted(sources.items())}}
+
+
+def bind_source_root(root, deadline):
+    """Bind an original fixture's native alias, never a reparse or new directory."""
+    q.require(isinstance(root, Path) and root.is_absolute() and '..' not in root.parts,
+              'audit_source_path_invalid')
+    def checked(path):
+        for component in (path, *path.parents):
+            q.require(time.monotonic() < deadline, 'global_budget_exhausted')
+            metadata = component.lstat()
+            q.require(stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode)
+                      and not (getattr(metadata, 'st_file_attributes', 0) & 0x400),
+                      'audit_source_directory_unsafe')
+            if component == path:
+                identity = contract._metadata_key(metadata)
+        return identity
+    before = checked(root)
+    canonical = root.resolve(strict=True)
+    q.require(canonical.resolve(strict=True) == canonical, 'audit_source_path_invalid')
+    q.require(before == checked(root) == checked(canonical), 'audit_source_root_changed')
+    return canonical, before
 
 
 def read_pinned_source(root, relative, expected_hash, deadline):
@@ -246,21 +275,33 @@ class ReaderAdapter:
         self.rows, self.observations, self.invocations = [], {}, []
         self.scope, self.tools, self.expected, self.index = None, None, (), 0
         self.failure = None
+        self.failure_context = None
+        self.stage = 'class_lifecycle'
         self.publish = publish
         self.population_check_seconds = 0.0
         self.pair_observer_seconds = 0.0
         self.sets = {}
 
+    def note_failure(self, error):
+        if self.failure_context is None:
+            value = error.args[0] if type(error) is q.Refused and len(error.args) == 1 else None
+            reason = value if type(value) is str and value in FAILURE_REASONS else 'unavailable'
+            self.failure_context = {'stage': self.stage, 'reason': reason}
+
     def readers(self, tools, reaching):
+        self.stage = 'scope_binding'
         scope = 'repository' if tools == self.repository else 'planted'
         q.require(self.scope is None and scope not in self.invocations, 'audit_scope_repeated')
         q.require(scope == SCOPES[len(self.invocations)], 'audit_scope_order_changed')
         manifest = self.manifests[scope]
         q.require(frozenset(manifest['modules']) == reaching, 'audit_population_changed')
         if 'source_hashes' in manifest:
+            self.stage = 'source_population'
             population_start = time.monotonic()
-            q.require(source_population(self.check, tools, self.session.deadline, manifest['source_hashes']) == manifest,
+            binding = bind_source_root(tools, self.session.deadline)
+            q.require(source_population(self.check, binding[0], self.session.deadline, manifest['source_hashes']) == manifest,
                       'audit_source_population_changed')
+            q.require(bind_source_root(tools, self.session.deadline) == binding, 'audit_source_root_changed')
             self.population_check_seconds += time.monotonic() - population_start
         self.scope, self.tools = scope, tools
         self.expected = tuple((module, lookup) for module in manifest['modules'] for lookup in q.LOOKUPS)
@@ -277,11 +318,13 @@ class ReaderAdapter:
             self.sets[scope] = audit_sets(manifest['modules'], manifest['pinned'], self.observations[scope])
             # Return exactly the original value. The actual test retains both
             # directions of its own assertions, including the planted failures.
+            self.stage = 'class_lifecycle'
             return readers
         finally:
             self.scope = None
 
     def run(self, argv, **kwargs):
+        self.stage = 'reader_child'
         start = time.monotonic()
         q.require(self.scope is not None and self.index < len(self.expected), 'audit_unexpected_command')
         module, lookup = self.expected[self.index]
@@ -348,8 +391,9 @@ class ReaderAdapter:
             if (parsed['unexpected'] or not counts_read) and parsed['classification'] != 'error':
                 raise q.Refused('audit_capture_contaminated_or_unread')
             return subprocess.CompletedProcess(argv, result['returncode'], stdout, stderr)
-        except BaseException:
+        except BaseException as error:
             self.failure = 'observer_failure'
+            self.note_failure(error)
             # Preserve a known terminal root status from an interrupted owned
             # launch/retirement, without crediting that attempt as complete.
             if row['returncode'] is None and len(self.session.owners) > previous_owners:
@@ -396,8 +440,10 @@ def observe_class(check, cls, repository, manifests, session, guard, payload, pu
         def addSuccess(self, test):
             super().addSuccess(test); self.outcome(test, 'pass')
         def addFailure(self, test, err):
+            adapter.note_failure(err[1])
             super().addFailure(test, err); self.outcome(test, 'failure')
         def addError(self, test, err):
+            adapter.note_failure(err[1])
             super().addError(test, err)
             if isinstance(err[1], q.Refused): adapter.failure = 'observer_failure'
             if getattr(test, '_testMethodName', None) in METHODS: self.outcome(test, 'error')
@@ -409,6 +455,9 @@ def observe_class(check, cls, repository, manifests, session, guard, payload, pu
         def addUnexpectedSuccess(self, test):
             super().addUnexpectedSuccess(test); self.outcome(test, 'unexpected_success')
         def addSubTest(self, test, subtest, err):
+            if err is not None:
+                adapter.note_failure(err[1])
+                if isinstance(err[1], q.Refused): adapter.failure = 'observer_failure'
             super().addSubTest(test, subtest, err)
             if err is not None: self.outcome(test, 'failure')
         def stopTest(self, test):
@@ -418,8 +467,16 @@ def observe_class(check, cls, repository, manifests, session, guard, payload, pu
                        wall_seconds=time.monotonic() - self.started_at)
             super().stopTest(test)
             started = time.monotonic()
-            try: guard()
-            finally: guard_seconds += time.monotonic() - started
+            previous_stage = adapter.stage
+            try:
+                adapter.stage = 'class_guard'
+                guard()
+            except BaseException as error:
+                adapter.note_failure(error)
+                raise
+            finally:
+                adapter.stage = previous_stage
+                guard_seconds += time.monotonic() - started
     result = Result()
     old_loop, old_subprocess = check._readers_under_refusal, check.subprocess
     adapter.original_readers = old_loop
@@ -433,6 +490,7 @@ def observe_class(check, cls, repository, manifests, session, guard, payload, pu
                 suite.run(result)
     except BaseException as error:
         adapter.failure = 'observer_failure'
+        adapter.note_failure(error)
         q.safe_exception(error, session.root)
     finally:
         check._readers_under_refusal, check.subprocess = old_loop, old_subprocess
@@ -447,7 +505,7 @@ def observe_class(check, cls, repository, manifests, session, guard, payload, pu
             'pairs': adapter.rows, 'complete': complete, 'class_wall_seconds': class_wall,
             'guard_seconds': guard_seconds, 'population_check_seconds': adapter.population_check_seconds,
             'pair_observer_seconds': adapter.pair_observer_seconds,
-            'observer_failure': adapter.failure is not None}
+            'observer_failure': adapter.failure is not None, 'failure_context': adapter.failure_context}
 
 
 def output_state(origin, observed=None):
@@ -463,12 +521,18 @@ def make_session(root, deadline, hard_deadline):
 def validate_record(record, manifests):
     keys = {'tests_run', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes',
             'methods', 'pairs', 'complete', 'class_wall_seconds', 'guard_seconds',
-            'population_check_seconds', 'pair_observer_seconds', 'observer_failure'}
+            'population_check_seconds', 'pair_observer_seconds', 'observer_failure', 'failure_context'}
     q.require(type(record) is dict and set(record) == keys, 'audit_receipt_invalid')
     for key in ('tests_run', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'):
         q.require(type(record[key]) is int and 0 <= record[key] <= 1000000, 'audit_receipt_invalid')
     q.require(record['tests_run'] <= 2 and type(record['complete']) is bool
               and type(record['observer_failure']) is bool, 'audit_receipt_invalid')
+    context = record['failure_context']
+    q.require(context is None or (type(context) is dict and set(context) == {'stage', 'reason'}
+              and type(context['stage']) is str and context['stage'] in FAILURE_STAGES
+              and type(context['reason']) is str and context['reason'] in FAILURE_REASONS), 'audit_receipt_invalid')
+    q.require(not (record['errors'] or record['failures'] or record['observer_failure']) or context is not None,
+              'audit_receipt_invalid')
     for key in ('class_wall_seconds', 'guard_seconds', 'population_check_seconds', 'pair_observer_seconds'):
         q.require(metric(record[key]) is not None and record[key] < 3600, 'audit_receipt_invalid')
     methods = record['methods']
@@ -483,7 +547,7 @@ def validate_record(record, manifests):
                   'audit_receipt_invalid')
     encode_pairs(record['pairs'], manifests)
     if record['complete']:
-        q.require(record['tests_run'] == 2 and not record['observer_failure']
+        q.require(record['tests_run'] == 2 and not record['observer_failure'] and context is None
                   and all(record[key] == 0 for key in ('failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'))
                   and all(row['completed'] and row['outcome'] == 'pass' for row in methods)
                   and len(record['pairs']) == sum(len(manifests[scope]['modules']) * 2 for scope in SCOPES)
@@ -501,7 +565,7 @@ def retained_receipt(session, record, manifests, context):
               and metric(context['job_start_epoch']) is not None
               and type(context['environment_sha256']) is str and re.fullmatch(r'[0-9a-f]{64}', context['environment_sha256']),
               'audit_receipt_context_invalid')
-    envelope = {'schema_version': 1, 'source_sha': SOURCE_SHA, 'candidate_sha256': q.CANDIDATE_HASH,
+    envelope = {'schema_version': 2, 'source_sha': SOURCE_SHA, 'candidate_sha256': q.CANDIDATE_HASH,
                 **context, 'class_receipt': record,
                 'population_sha256': token([[scope, list(manifests[scope]['modules']),
                     sorted(manifests[scope]['pinned'])] for scope in SCOPES])}
