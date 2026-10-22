@@ -36,6 +36,10 @@ def public_model_resolution():
 
 
 class PostedRecordCommands(unittest.TestCase):
+    def setUp(self):
+        token = mechanics_test_support.begin()
+        self.addCleanup(mechanics_test_support.end, token)
+
     def check_faults(self, run, invoke):
         path = run / 'reread.md'
         original = path.read_bytes()
@@ -66,7 +70,26 @@ class PostedRecordCommands(unittest.TestCase):
     def test_initial_post_command(self):
         with tempfile.TemporaryDirectory() as directory:
             run = posts.APostedInitialEntryHasItsOwnReading().posted_run(Path(directory))
+            status, report, error = run.grade()
+            self.assertEqual(0, status, report + error)
             self.check_faults(run.root, run.grade)
+
+    def test_initial_post_finding_keeps_precedence_over_damaged_reading(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = posts.APostedInitialEntryHasItsOwnReading().posted_run(Path(directory))
+            status, report, error = run.grade()
+            self.assertEqual(0, status, report + error)
+            run.draft.write_text(posts.BODY.replace('12%', '17%', 1), encoding='utf-8')
+            reading = run.root / 'reread.md'
+            reading.write_bytes(b'[]')
+            (run.root / 'frozen-grades.json').unlink(missing_ok=True)
+            status, report, error = run.grade()
+            self.assertEqual(1, status, report + error)
+            self.assertIn('untraced-number: 1', report)
+            self.assertIn('reread.md: unreadable', report + error)
+            self.assertEqual(['unread remainder 1'], [
+                line for line in report.splitlines() if line.startswith('unread remainder ')])
+            self.assertEqual(b'[]', reading.read_bytes())
 
     def test_reply_command(self):
         with tempfile.TemporaryDirectory() as directory:
