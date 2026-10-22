@@ -1,9 +1,10 @@
-# Exactly one sequential matched pair. No performance resampling or production changes.
+# Dormant historical matched pair. All branch and tag push triggers are disabled.
 name: matched maintainer qualification
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read

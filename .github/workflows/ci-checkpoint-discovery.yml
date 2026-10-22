@@ -1,0 +1,65 @@
+# Local preparation only. Publication and this first attempt need separate approval.
+name: fixed checkpoint discovery diagnostic
+
+on:
+  push:
+    branches: [diagnostic/2013-parallel-proof-20261020]
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    if: github.run_attempt == 1
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Record whole-job budget origin before checkout or setup
+        shell: pwsh
+        run: |
+          "PROOF_JOB_START_EPOCH=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Immutable reviewed observer and unchanged lazy candidate
+        uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: 'core.autocrlf'
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: ${{ github.sha }}
+          path: observer
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.gitignore
+            /diagnostics/
+            /.github/workflows/ci-parallel-proof.yml
+            /.github/workflows/ci-checkpoint-discovery.yml
+            /tools/test_suite_ids.py
+            /tools/console_codec.py
+            /tools/python_floor.py
+            /tools/git_paths.py
+
+      - name: Fresh full source at the fixed checkpoint
+        uses: actions/checkout@v7
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: 'core.autocrlf'
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: 08db6360b453c2bf969a686f62f0477184d06351
+          path: source-seed
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact interpreter
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.4'
+
+      - name: Sequential discovery and behavior only with reserved cleanup
+        shell: pwsh
+        run: |
+          python observer/diagnostics/diagnose_checkpoint_discovery.py --observer observer --seed source-seed --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          exit $LASTEXITCODE

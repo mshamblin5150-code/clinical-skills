@@ -313,13 +313,15 @@ def make_clone(session, seed, root, variant, expected, candidate):
     return repo, target
 
 
-def verify_sources(session, repo, expected, candidate=False):
-    require(session.git(repo, 'rev-parse', 'HEAD').strip() == BASE, 'measured_head_changed')
+def verify_sources(session, repo, expected, candidate=False, *, source_sha=None):
+    source_sha = BASE if source_sha is None else source_sha
+    require(session.git(repo, 'rev-parse', 'HEAD').strip() == source_sha, 'measured_head_changed')
     require(not session.git(repo, 'diff', '--cached', '--name-only'), 'measured_index_changed')
     require(session.git(repo, 'diff', '--name-only', 'HEAD').splitlines() == ([SUITE_PATH] if candidate else []),
             'measured_scope_changed')
     require(not session.git(repo, 'ls-files', '--others', '--exclude-standard'), 'untracked_source_changed')
     for name, expected_hash in expected.items():
+        require(time.monotonic() < session.deadline, 'global_budget_exhausted')
         path = repo / name
         for component in (path, *path.parents):
             if component == repo:

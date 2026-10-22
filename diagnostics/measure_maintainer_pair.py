@@ -123,20 +123,21 @@ def observe_suite(result, discovery, identity):
     return row
 
 
-def source_context(session, seed, repo, variant, expected, candidate):
+def source_context(session, seed, repo, variant, expected, candidate, *, source_sha=None):
+    source_sha = q.BASE if source_sha is None else source_sha
     result = session.run(['git', '-c', 'core.autocrlf=false', 'clone', '--no-local', '--no-hardlinks',
                           '--no-checkout', str(seed), str(repo)], repo.parent)
     q.require(result['returncode'] == 0, 'clone_failed')
-    session.git(repo, '-c', 'core.autocrlf=false', 'checkout', '--detach', q.BASE)
+    session.git(repo, '-c', 'core.autocrlf=false', 'checkout', '--detach', source_sha)
     # Only disposable refs change. HEAD/index/workfile source and genuine history do not.
     refs = session.git(repo, 'for-each-ref', '--format=%(refname)').splitlines()
     for ref in refs:
         q.require(re.fullmatch(r'refs/(heads|remotes|tags)/[A-Za-z0-9_./-]+', ref), 'source_ref_unread')
         session.git(repo, 'update-ref', '--no-deref', '-d', ref)
-    session.git(repo, 'update-ref', 'refs/remotes/origin/main', q.BASE)
+    session.git(repo, 'update-ref', 'refs/remotes/origin/main', source_sha)
     session.git(repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
-    verify_refs(session, repo)
-    q.first_clean(session, repo, q.BASE, variant)
+    verify_refs(session, repo, source_sha=source_sha)
+    q.first_clean(session, repo, source_sha, variant)
     q.require(q.inventory(repo, deadline=session.deadline) == expected, 'initial_clone_inventory_changed')
     q.inventory(repo / '.git', exclude_git=False, deadline=session.deadline)
     q.corpus_preflight((repo,))
@@ -148,10 +149,11 @@ def source_context(session, seed, repo, variant, expected, candidate):
     return target
 
 
-def verify_refs(session, repo):
+def verify_refs(session, repo, *, source_sha=None):
+    source_sha = q.BASE if source_sha is None else source_sha
     q.require(session.git(repo, 'rev-parse', '--is-shallow-repository').strip() == 'false', 'source_history_shallow')
     refs = session.git(repo, 'for-each-ref', '--format=%(refname) %(objectname)').splitlines()
-    q.require(set(refs) == {'refs/remotes/origin/main ' + q.BASE, 'refs/remotes/origin/HEAD ' + q.BASE},
+    q.require(set(refs) == {'refs/remotes/origin/main ' + source_sha, 'refs/remotes/origin/HEAD ' + source_sha},
               'source_refs_changed')
     q.require(session.git(repo, 'symbolic-ref', 'refs/remotes/origin/HEAD').strip() == 'refs/remotes/origin/main',
               'source_remote_head_changed')
