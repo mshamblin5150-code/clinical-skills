@@ -71,7 +71,8 @@ class CheckpointRoute(unittest.TestCase):
         self.assertEqual(text.count('github.run_attempt == 1'), 1)
         self.assertIn("python-version: '3.14.4'", text)
         self.assertIn('ref: 08db6360b453c2bf969a686f62f0477184d06351', text)
-        self.assertIn('branches: [diagnostic/2013-parallel-proof-20261020]', text)
+        self.assertIn("branches-ignore: ['**']", text)
+        self.assertIn("tags-ignore: ['**']", text)
         self.assertIn('python observer/diagnostics/diagnose_checkpoint_discovery.py', text)
         self.assertLess(text.index('PROOF_JOB_START_EPOCH='), text.index('uses: actions/checkout'))
         self.assertEqual(text.count("GIT_CONFIG_VALUE_0: 'false'"), 2)
@@ -83,17 +84,17 @@ class CheckpointRoute(unittest.TestCase):
         self.assertEqual(d.q.BASE, '104ee03cd4d37519b12b3edbc4da5fbf31b631cf')
         self.assertEqual(d.SOURCE_SHA, '08db6360b453c2bf969a686f62f0477184d06351')
 
-    def test_established_branch_cannot_start_the_dormant_full_pair(self):
+    def test_established_branch_cannot_start_discovery_beside_the_current_pair(self):
         root = Path(d.__file__).resolve().parent.parent
         old = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
         new = (root / '.github/workflows/ci-checkpoint-discovery.yml').read_text()
         self.assertEqual(d.BRANCH, d.q.BRANCH)
-        self.assertEqual(old.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
-                         "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
         self.assertEqual(new.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
+                         "push:\n    branches-ignore: ['**']\n    tags-ignore: ['**']")
+        self.assertEqual(old.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),
                          'push:\n    branches: [diagnostic/2013-parallel-proof-20261020]')
-        self.assertNotIn(d.SOURCE_SHA, old)
-        self.assertEqual(old.count('ref: ' + d.q.BASE), 2)
+        self.assertNotIn(d.q.BASE, old)
+        self.assertEqual(old.count('ref: ' + d.SOURCE_SHA), 2)
 
     def test_cli_refuses_unsupported_runtime_with_finite_summary(self):
         with mock.patch.object(d.platform, 'python_version', return_value='3.10.11'):

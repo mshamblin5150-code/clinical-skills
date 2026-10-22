@@ -37,7 +37,10 @@ class PairControls(unittest.TestCase):
             ('phi_shape_only', ('tools/phi_scan.py', '--all', '--allow-no-corpus'))))
 
     def test_unsafe_or_wrong_source_baseline_refuses(self):
-        good={'variant':'baseline','safe_to_continue':True,'source_sha':m.q.BASE,'all_commands_passed':True}
+        from test_current_pair import passing_receipt, OBSERVER, RUN_ID
+        good=passing_receipt()
+        patcher=mock.patch.dict(m.os.environ, {'GITHUB_SHA': OBSERVER, 'GITHUB_RUN_ID': RUN_ID})
+        patcher.start(); self.addCleanup(patcher.stop)
         self.assertEqual(m.baseline_receipt(json.dumps(good)),good)
         for delta in ({'variant':'candidate'},{'safe_to_continue':False},{'source_sha':'0'*40},{'all_commands_passed':False},{'all_commands_passed':None},{'all_commands_passed':1}):
             with self.assertRaises(m.q.Refused): m.baseline_receipt(json.dumps(good|delta))
@@ -92,10 +95,10 @@ class PairControls(unittest.TestCase):
         from types import SimpleNamespace
         calls=[]
         state=contract.State(job_start_epoch=time.time(),observed_epoch=time.time(),max_job_seconds=5400)
-        with mock.patch.object(m.q,'verify_sources',side_effect=lambda *a:calls.append('raw')), \
-             mock.patch.object(m,'verify_refs',side_effect=lambda *a:calls.append('refs')), \
+        with mock.patch.object(m.q,'verify_sources',side_effect=lambda *a,**k:calls.append('raw')), \
+             mock.patch.object(m,'verify_refs',side_effect=lambda *a,**k:calls.append('refs')), \
              mock.patch.object(contract,'scan',side_effect=lambda *a:calls.append(a) or {'verified':True}):
-            session=SimpleNamespace(deadline=123)
+            session=SimpleNamespace(deadline=123,run=lambda *a:{'returncode':1,'stdout':''})
             self.assertEqual(m.generated_guard(session,Path('repo'),{'a':'b'},True,state),{'verified':True})
         self.assertEqual(calls[:2],['raw','refs'])
         self.assertEqual(calls[2],(Path('repo'),{'a':'b'},123,state))
@@ -137,7 +140,7 @@ class PairControls(unittest.TestCase):
         self.assertIn("needs.baseline.outputs.safe == 'true' && needs.baseline.outputs.passed == 'true'",flow)
         self.assertEqual(flow.count("GIT_CONFIG_VALUE_0: 'false'"),4)
         self.assertEqual(flow.count("python-version: '3.14.4'"),2)
-        self.assertEqual(flow.count('ref: '+m.q.BASE),2)
+        self.assertEqual(flow.count('ref: '+m.SOURCE_SHA),2)
         self.assertNotIn('upload-artifact',flow)
 
     def test_hosted_output_controls_precede_real_clone_and_no_temp_benchmark(self):
@@ -152,19 +155,23 @@ class PairControls(unittest.TestCase):
 
     def test_cleanup_failure_cannot_be_overridden_by_successful_evidence(self):
         from types import SimpleNamespace
+        from test_current_pair import passing_receipt
         for cleanup, commands_passed, expected in ((False, True, 2), (True, False, 1), (True, True, 0), (True, 'unread', 2)):
             with self.subTest(cleanup=cleanup, commands_passed=commands_passed), tempfile.TemporaryDirectory() as name:
                 root=Path(name); observer=root/'observer'; seed=root/'seed'
                 observer.mkdir(); seed.mkdir()
-                env={'GITHUB_OUTPUT':str(root/'github-output'),'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'push','GITHUB_REF':m.q.BRANCH,'GITHUB_RUN_ATTEMPT':'1'}
+                env={'GITHUB_OUTPUT':str(root/'github-output'),'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'push','GITHUB_REF':m.q.BRANCH,'GITHUB_RUN_ATTEMPT':'1', 'GITHUB_SHA':'a'*40, 'GITHUB_RUN_ID':'12345'}
                 session=mock.Mock(); session.cleanup.return_value=cleanup
                 emitted=[]
+                evidence=passing_receipt()
+                evidence['commands']=[{'command':name,'returncode':code} for name,code in evidence.pop('command_returncodes')]
+                evidence['all_commands_passed']=commands_passed
                 with mock.patch.object(m,'os',SimpleNamespace(name='nt',environ=env)), \
                      mock.patch.object(m.platform,'python_version',return_value='3.14.4'), \
-                     mock.patch.object(m,'environment_identity',return_value={}), \
+                     mock.patch.object(m,'environment_identity',return_value=passing_receipt()['environment']), \
                      mock.patch.object(m.q,'environment_preflight'),mock.patch.object(m.q,'corpus_preflight'), \
-                     mock.patch.object(m.observation,'ObservedSession',return_value=session), \
-                     mock.patch.object(m,'execute',return_value={'all_commands_passed':commands_passed}, side_effect=m.q.Refused('retained_directory_unread') if commands_passed == 'unread' else None), \
+                     mock.patch.object(m,'make_session',return_value=session), \
+                     mock.patch.object(m,'execute',return_value=evidence, side_effect=m.q.Refused('retained_directory_unread') if commands_passed == 'unread' else None), \
                      mock.patch.object(m.q,'safe_exception'), \
                      mock.patch.object(m.q,'emit',side_effect=lambda event,**kw:emitted.append((event,kw))), \
                      mock.patch.object(m.tempfile,'mkdtemp',return_value=str(root/'capture')):
@@ -181,26 +188,24 @@ class PairControls(unittest.TestCase):
         from contextlib import ExitStack
         from types import SimpleNamespace
         import diagnose_generated_outputs as generated
+        import diagnose_checkpoint_discovery as checkpoint
         import diagnose_staging_layout as staging
-        discovery={'test_count':2,'sorted_ids_sha256':'a'*64,'loader_error_count':0,
-                   'module_test_count':1,'executed_test_count':0,
-                   'ids_encoding':'sorted JSON array, ASCII escaped, compact'}
+        from test_current_pair import passing_receipt
+        discovery=passing_receipt()['discovery']
         units=('test_example.Real',)
-        unit_identity={'test_count':2,'test_ids_sha256':'a'*64,'unit_count':1,
-                       'unit_names_sha256':'b'*64,'executed_test_count':0,'loader_errors':0,
-                       'units_derived_from_actual_objects':True}
+        unit_identity=passing_receipt()['unit_discovery']
         for fail_after_suite in (False,True,'unit_mismatch'):
             with self.subTest(fail_after_suite=fail_after_suite), tempfile.TemporaryDirectory() as raw, ExitStack() as stack:
                 root=Path(raw); capture=root/'capture';capture.write_bytes(b'synthetic')
                 result={'returncode':0,'stdout':'{}','stderr':'','wall_seconds':1,
                         'tree_cpu_seconds':1,'stdout_path':str(capture),'stderr_path':str(capture)}
                 session=mock.Mock(root=root,deadline=time.monotonic()+6000)
-                session.run.return_value=result
-                session.git.return_value='\n'.join(sorted(m.q.OBSERVER_PATHS))
+                session.run.side_effect=lambda argv, cwd: {'returncode':1,'stdout':''} if argv[0]=='git' else result
+                session.git.return_value='\n'.join(sorted(m.OBSERVER_PATHS))
                 expected={m.q.SUITE_PATH:m.q.ORIGINAL_HASH}; progress={};states=[]
                 def scan(repo,target,deadline,state):
                     states.append(state)
-                    if fail_after_suite is True and len(states)==3:raise m.q.Refused('generated_output_unexpected')
+                    if fail_after_suite is True and state.marker=='required':raise m.q.Refused('generated_output_unexpected')
                     return {'guard_verified':True}
                 import generated_output_contract as contract
                 patches=((m.q,'first_clean',{}),(m.q,'inventory',{'side_effect':[{},expected]}),
@@ -211,7 +216,8 @@ class PairControls(unittest.TestCase):
                     (m,'source_context',{'return_value':expected}),
                     (m.q,'parse_child',{'side_effect':[{'outside_checkout_temp':True,'temp_environment_unchanged':True},discovery]}),
                     (m,'verify_hook_location',{}),(m,'behavior_controls',{'return_value':sorted(m.q.CONTROL_IDS)}),
-                    (m,'explicit_controls',{}),(generated,'validate_discovery',{'return_value':(units,unit_identity)}),
+                    (m,'explicit_controls',{}),(checkpoint,'validate_identity',{'return_value':{'units':units,'public':unit_identity}}),
+                    (m,'verify_input_sources',{}),
                     (m.q,'verify_sources',{}),(m,'verify_refs',{}),(contract,'scan',{'side_effect':scan}),
                     (m,'observe_suite',{'return_value':{'returncode':0,'accounting_valid':True}}),
                     (m,'parse_suite',{'return_value':{'unaccounted':0}}))
@@ -221,7 +227,7 @@ class PairControls(unittest.TestCase):
                            'behavior_control_ids':sorted(m.q.CONTROL_IDS),'unit_discovery':{}}
                     with self.assertRaisesRegex(m.q.Refused,'matched_environment_or_discovery_changed'):
                         m.execute(session,root/'observer',root/'seed','candidate',prior['environment'],prior,progress,time.time())
-                    self.assertEqual(states,[])
+                    self.assertTrue(all(state.marker=='absent' for state in states))
                     self.assertNotIn('commands',progress)
                     continue
                 if fail_after_suite:
@@ -232,11 +238,13 @@ class PairControls(unittest.TestCase):
                 else:
                     row=m.execute(session,root/'observer',root/'seed','baseline',{'default_workers':3,'cpu_count':4},None,progress,time.time())
                     self.assertTrue(row['all_commands_passed'])
-                    self.assertEqual(len(states),7)
+                    self.assertGreaterEqual(len(states),7)
                     self.assertEqual([r['command'] for r in row['commands']],[name for name,_ in m.COMMANDS])
                 self.assertEqual([(x.marker,x.weights) for x in states[:2]],[('absent','absent')]*2)
-                self.assertTrue(all((x.marker,x.weights,x.sessions)==('required','required','required') for x in states[2:]))
-                self.assertTrue(all(x.units==units and x.max_job_seconds==5400 for x in states))
+                first_required=next(index for index,state in enumerate(states) if state.marker=='required')
+                self.assertTrue(all((x.marker,x.weights,x.sessions)==('required','required','required') for x in states[first_required:]))
+                self.assertTrue(all(x.units==units for x in states[first_required:]))
+                self.assertTrue(all(x.max_job_seconds==5400 for x in states))
 
     def test_no_suite_patch_or_filters(self):
         source=inspect.getsource(m.execute)

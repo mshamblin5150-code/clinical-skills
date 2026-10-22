@@ -102,9 +102,10 @@ class EvidenceBoundaries(unittest.TestCase):
 
     def test_original_suite_exit_and_later_guard_failure_survive_summary(self):
         from types import SimpleNamespace
+        from test_current_pair import passing_receipt
         with tempfile.TemporaryDirectory() as name:
             root=Path(name);observer=root/'observer';seed=root/'seed';observer.mkdir();seed.mkdir()
-            env={'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'push','GITHUB_REF':m.q.BRANCH,'GITHUB_RUN_ATTEMPT':'1'}
+            env={'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'push','GITHUB_REF':m.q.BRANCH,'GITHUB_RUN_ATTEMPT':'1','GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'12345'}
             session=mock.Mock();session.cleanup.side_effect=RuntimeError('private cleanup detail');emitted=[]
             def failed_execute(session, observer, seed, variant, identity, prior, progress, job_start_epoch):
                 m.preserve_identity(progress, {'python':'3.14.4'},
@@ -116,9 +117,9 @@ class EvidenceBoundaries(unittest.TestCase):
                 raise m.q.Refused('generated_output_unexpected')
             with mock.patch.object(m,'os',SimpleNamespace(name='nt',environ=env)), \
                  mock.patch.object(m.platform,'python_version',return_value='3.14.4'), \
-                 mock.patch.object(m,'environment_identity',return_value={}), \
+                 mock.patch.object(m,'environment_identity',return_value=passing_receipt()['environment']), \
                  mock.patch.object(m.q,'environment_preflight'),mock.patch.object(m.q,'corpus_preflight'), \
-                 mock.patch.object(m.observation,'ObservedSession',return_value=session),mock.patch.object(m.q,'safe_exception',side_effect=PermissionError('private evidence detail')), \
+                 mock.patch.object(m,'make_session',return_value=session),mock.patch.object(m.q,'safe_exception',side_effect=PermissionError('private evidence detail')), \
                  mock.patch.object(m,'execute',side_effect=failed_execute), \
                  mock.patch.object(m.q,'emit',side_effect=lambda event,**kw:emitted.append((event,kw))), \
                  mock.patch.object(m.tempfile,'mkdtemp',return_value=str(root/'capture')):

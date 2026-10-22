@@ -1,10 +1,9 @@
-# Dormant historical matched pair. All branch and tag push triggers are disabled.
+# One approved current-checkpoint pair. No dispatch, rerun, or adoption route.
 name: matched maintainer qualification
 
 on:
   push:
-    branches-ignore: ['**']
-    tags-ignore: ['**']
+    branches: [diagnostic/2013-parallel-proof-20261020]
 
 permissions:
   contents: read
@@ -52,7 +51,7 @@ jobs:
           GIT_CONFIG_KEY_0: 'core.autocrlf'
           GIT_CONFIG_VALUE_0: 'false'
         with:
-          ref: 104ee03cd4d37519b12b3edbc4da5fbf31b631cf
+          ref: 08db6360b453c2bf969a686f62f0477184d06351
           path: source-seed
           fetch-depth: 0
           persist-credentials: false
@@ -73,7 +72,7 @@ jobs:
 
   candidate:
     needs: baseline
-    if: always() && github.run_attempt == 1 && needs.baseline.outputs.safe == 'true' && needs.baseline.outputs.passed == 'true'
+    if: github.run_attempt == 1 && needs.baseline.result == 'success' && needs.baseline.outputs.safe == 'true' && needs.baseline.outputs.passed == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     outputs:
@@ -114,7 +113,7 @@ jobs:
           GIT_CONFIG_KEY_0: 'core.autocrlf'
           GIT_CONFIG_VALUE_0: 'false'
         with:
-          ref: 104ee03cd4d37519b12b3edbc4da5fbf31b631cf
+          ref: 08db6360b453c2bf969a686f62f0477184d06351
           path: source-seed
           fetch-depth: 0
           persist-credentials: false

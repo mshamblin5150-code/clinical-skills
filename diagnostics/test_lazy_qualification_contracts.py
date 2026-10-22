@@ -272,14 +272,15 @@ def budget_plan():
 
 
 class BudgetAdmissionContracts(unittest.TestCase):
-    def test_current_pin_and_raw_budget_are_bound_in_active_workflow(self):
+    def test_historical_pin_and_raw_budget_stay_distinct_from_current_workflow(self):
         root = Path(subject.__file__).resolve().parent.parent
         workflow = (root / '.github/workflows/ci-parallel-proof.yml').read_text()
         budget = (root / 'diagnostics/lazy-qualification-budget.json').read_bytes()
         expected_pin = '104ee03cd4d37519b12b3edbc4da5fbf31b631cf'
         self.assertEqual(subject.BASE, expected_pin)
         self.assertEqual(subject.BUDGET['source_sha'], expected_pin)
-        self.assertIn('ref: ' + expected_pin, workflow)
+        self.assertNotIn('ref: ' + expected_pin, workflow)
+        self.assertEqual(workflow.count('ref: 08db6360b453c2bf969a686f62f0477184d06351'), 2)
         self.assertEqual(subject.digest(budget), 'c8a0195e46b954adad9624ad48baa0c70687d8db6a0c7cde3213e0c4c7c550a7')
         self.assertNotIn('measure_lazy_suite_ids.py --observer', workflow)
         self.assertNotIn('cb0507279e4e6b66ad40d10bc746b0e0b699291e', workflow)

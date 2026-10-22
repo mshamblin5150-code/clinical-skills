@@ -1,9 +1,10 @@
-# Local preparation only. Publication and this first attempt need separate approval.
+# Completed discovery evidence retained. Branch and tag push routes are disabled.
 name: fixed checkpoint discovery diagnostic
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read
