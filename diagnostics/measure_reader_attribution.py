@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 from pathlib import Path
 import subprocess
 import sys
@@ -91,9 +92,36 @@ def population_from_sources(check, sources):
             'source_hashes': {name: q.digest(raw) for name, raw in sorted(sources.items())}}
 
 
-def source_population(check, tools, deadline):
-    sources = {path.name: contract.safe_read(tools, path.name, q.BUDGET['max_capture_bytes'], deadline)
-               for path in tools.glob('*.py')}
+def read_pinned_source(root, relative, expected_hash, deadline):
+    """Read only exact source bytes authenticated by the existing raw oracle."""
+    q.require(isinstance(root, Path) and root.is_absolute() and root.resolve() == root
+              and type(relative) is str and re.fullmatch(r'(?:tools/)?[A-Za-z_][A-Za-z0-9_]*\.py', relative)
+              and type(expected_hash) is str and re.fullmatch(r'[0-9a-f]{64}', expected_hash),
+              'audit_source_path_invalid')
+    path = root / relative
+    def verify_path():
+        q.require(time.monotonic() < deadline, 'global_budget_exhausted')
+        for component in (path, *path.parents):
+            metadata = component.lstat()
+            q.require(not component.is_symlink() and not (getattr(metadata, 'st_file_attributes', 0) & 0x400),
+                      'tracked_reparse_path_changed')
+            if component == root:
+                break
+        metadata = path.lstat()
+        q.require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+                  and 0 <= metadata.st_size <= BUDGET['max_capture_bytes'], 'audit_source_file_unsafe')
+    verify_path()
+    raw = q.read_reviewed_bytes(path, expected_hash)
+    verify_path()
+    return raw
+
+
+def source_population(check, tools, deadline, expected_hashes):
+    q.require(type(expected_hashes) is dict and 0 < len(expected_hashes) <= 10000
+              and {path.name for path in tools.glob('*.py')} == set(expected_hashes),
+              'audit_source_population_changed')
+    sources = {name: read_pinned_source(tools, name, digest, deadline)
+               for name, digest in sorted(expected_hashes.items())}
     return population_from_sources(check, sources)
 
 
@@ -231,7 +259,7 @@ class ReaderAdapter:
         q.require(frozenset(manifest['modules']) == reaching, 'audit_population_changed')
         if 'source_hashes' in manifest:
             population_start = time.monotonic()
-            q.require(source_population(self.check, tools, self.session.deadline) == manifest,
+            q.require(source_population(self.check, tools, self.session.deadline, manifest['source_hashes']) == manifest,
                       'audit_source_population_changed')
             self.population_check_seconds += time.monotonic() - population_start
         self.scope, self.tools = scope, tools
@@ -279,10 +307,20 @@ class ReaderAdapter:
                        owned_wall_seconds=metric(result.get('wall_seconds')),
                        tree_cpu_seconds=metric(result.get('tree_cpu_seconds')))
             q.require(type(row['returncode']) is int and row['cleanup_verified'], 'process_cleanup_unverified')
-            raw = tuple(contract.safe_read(self.session.root,
-                        Path(result[key]).relative_to(self.session.root).as_posix(),
-                        q.BUDGET['max_capture_bytes'], self.session.deadline)
-                        for key in ('stdout_path', 'stderr_path'))
+            q.require(len(self.session.owners) == previous_owners + 1, 'audit_capture_owner_changed')
+            finished = self.session.owners[-1].result
+            q.require(finished is not None and finished.snapshot.root_exit_code == row['returncode'],
+                      'audit_capture_owner_changed')
+            row['cleanup_verified'] = row['cleanup_verified'] and finished.snapshot.cleanup_verified is True
+            q.require(row['cleanup_verified'], 'process_cleanup_unverified')
+            captures = []
+            for key, stream in (('stdout_path', 'stdout'), ('stderr_path', 'stderr')):
+                relative = 'command-%04d/%s.bin' % (previous_owners + 1, stream)
+                q.require(Path(result[key]) == Path(getattr(finished, key)) == self.session.root / relative,
+                          'audit_capture_owner_changed')
+                captures.append(contract.read_owned_capture(self.session.root, relative,
+                                q.BUDGET['max_capture_bytes'], self.session.deadline))
+            raw = tuple(captures)
             stdout, stderr = map(original_text, raw)
             row['call_wall_seconds'] = time.monotonic() - start
             analysis_start = time.monotonic()
@@ -584,10 +622,13 @@ def execute(session, observer, seed, origin, progress, environment):
     checked('pair_behavior', lambda: maintainer.behavior_controls(session, observer, repo, 'candidate'))
     checked('pair_explicit', lambda: maintainer.explicit_controls(session, seed, repo))
     guard()
+    progress['phase'] = session.phase = 'reader_source'
     tools = repo / 'tools'
     test_path = 'tools/test_code_set_database_reader_check.py'
-    test_raw = contract.safe_read(repo, test_path, BUDGET['max_capture_bytes'], session.deadline)
-    audit_raw = contract.safe_read(repo, AUDIT_PATH, BUDGET['max_capture_bytes'], session.deadline)
+    q.require(target.get(test_path) == TEST_HASH and target.get(AUDIT_PATH) == AUDIT_HASH,
+              'audit_source_hash_mismatch')
+    test_raw = read_pinned_source(repo, test_path, TEST_HASH, session.deadline)
+    audit_raw = read_pinned_source(repo, AUDIT_PATH, AUDIT_HASH, session.deadline)
     q.require(q.digest(test_raw) == TEST_HASH and q.digest(audit_raw) == AUDIT_HASH, 'audit_source_hash_mismatch')
     payload = q.original_payload(repo)
     # No application import/discovery occurs before this gated point.
@@ -609,7 +650,9 @@ def execute(session, observer, seed, origin, progress, environment):
                   'audit_import_identity_changed')
         cls = getattr(test_module, CLASS_ID.rsplit('.', 1)[-1])
         q.require(cls.__module__ + '.' + cls.__name__ == CLASS_ID, 'audit_class_identity_changed')
-        manifests = {'repository': source_population(check, tools, session.deadline),
+        source_hashes = {Path(name).name: value for name, value in target.items()
+                        if name.startswith('tools/') and '/' not in name[6:] and name.endswith('.py')}
+        manifests = {'repository': source_population(check, tools, session.deadline, source_hashes),
                      'planted': population_from_sources(check, planted_sources(test_raw))}
         q.require(len(manifests['planted']['modules']) == 11, 'planted_population_changed')
         q.require(manifests['repository']['source_hashes'] ==

@@ -46,9 +46,14 @@ class SyntheticOwner:
     def run(self, argv, cwd):
         self.calls.append((argv, cwd))
         output = self.outputs.pop(0) if self.outputs else (0, b'', b'Ran 1 test in 0.1s\r\n\r\nOK\r\n')
-        paths = [self.root / ('capture-%d-%s' % (len(self.calls), stream)) for stream in ('out', 'err')]
+        report = self.root / ('command-%04d' % (len(self.owners) + 1)); report.mkdir()
+        paths = [report / (stream + '.bin') for stream in ('stdout', 'stderr')]
         for path, raw in zip(paths, output[1:]):
             path.write_bytes(raw)
+        self.owners.append(types.SimpleNamespace(result=types.SimpleNamespace(
+            stdout_path=str(paths[0]), stderr_path=str(paths[1]),
+            snapshot=types.SimpleNamespace(root_exit_code=output[0], cleanup_verified=True,
+                                           wall_seconds=0.1, tree_cpu_seconds=0.05))))
         return {'returncode': output[0], 'stdout_path': str(paths[0]), 'stderr_path': str(paths[1]),
                 'stdout': 'DO NOT TRUST THIS SECOND READ', 'stderr': 'DO NOT TRUST THIS SECOND READ',
                 'wall_seconds': 0.1, 'tree_cpu_seconds': 0.05, 'cleanup_verified': True}
@@ -137,6 +142,74 @@ class OriginalLifecycleControls(unittest.TestCase):
 
 
 class CoherentCaptureControls(unittest.TestCase):
+    def test_owned_bin_reads_keep_every_native_identity_dimension_and_generated_refusals(self):
+        import dataclasses
+        import measure_reader_attribution as subject
+        from test_windows_metadata import WindowsMetadataControls
+        fixture = WindowsMetadataControls(); good = fixture.specimen()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); report = root / 'command-0001'; report.mkdir()
+            (report / 'stdout.bin').write_bytes(b'abc')
+            api = fixture.fake_api()
+            with patch.object(subject.contract, 'windows_metadata_api', return_value=api):
+                self.assertEqual(b'abc', subject.contract.read_owned_capture(root, 'command-0001/stdout.bin', 128, time.monotonic() + 10))
+            self.assertEqual((8, 2), (api.record.call_count, api.close.call_count))
+            for field in (*subject.contract.METADATA_FIELDS, 'st_birthtime_ns'):
+                with self.subTest(field=field):
+                    changed = dataclasses.replace(good, **{field: getattr(good, field) + 1})
+                    api = fixture.fake_api([good] * 4 + [changed] * 2)
+                    with patch.object(subject.contract, 'windows_metadata_api', return_value=api), \
+                         patch.object(subject.q, 'emit'), self.assertRaises(subject.q.Refused):
+                        subject.contract.read_owned_capture(root, 'command-0001/stdout.bin', 128, time.monotonic() + 10)
+            for relative in ('command-0001/stdout.bin', 'source.py'):
+                api = fixture.fake_api()
+                with patch.object(subject.contract, 'windows_metadata_api', return_value=api), \
+                     patch.object(subject.q, 'emit'), self.assertRaises(subject.q.Refused):
+                    subject.contract.safe_read(root, relative, 128, time.monotonic() + 10)
+                api.open.assert_not_called()
+            for relative in ('../stdout.bin', 'command-0001/unknown.bin', 'command-0001/stdout.exe', 'stdout.bin'):
+                api = fixture.fake_api()
+                with patch.object(subject.contract, 'windows_metadata_api', return_value=api), \
+                     patch.object(subject.q, 'emit'), self.assertRaises(subject.q.Refused):
+                    subject.contract.read_owned_capture(root, relative, 128, time.monotonic() + 10)
+                api.open.assert_not_called()
+
+    def test_native_path_semantics_integrate_source_population_owned_children_and_receipt(self):
+        import os
+        import measure_reader_attribution as subject
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); check = synthetic_check(); owner = SyntheticOwner(root)
+            sources = {'icd10_lookup.py': b'', 'test_reader.py': b'import icd10_lookup\n'}
+            hashes = {name: subject.q.digest(raw) for name, raw in sources.items()}
+            for scope in subject.SCOPES:
+                (root / scope).mkdir()
+                for name, raw in sources.items(): (root / scope / name).write_bytes(raw)
+            api = unittest.mock.Mock()
+            api.open.side_effect = lambda path: os.open(path, os.O_RDONLY)
+            api.close.side_effect = os.close
+            api.from_fd.side_effect = lambda fd: fd
+            def record(fd):
+                st = os.fstat(fd)
+                return subject.contract.WindowsSnapshot(st.st_dev, st.st_ino, st.st_mode, st.st_nlink,
+                    st.st_size, st.st_mtime_ns, st.st_ctime_ns, 0, st.st_ctime_ns, 1, 0, False)
+            api.record.side_effect = record
+            class ActualClass(unittest.TestCase):
+                def test_planted_unpinned_readers_and_a_stale_pin_fail_in_both_directions(self):
+                    self.assertEqual(frozenset(), check._readers_under_refusal(root / 'planted', frozenset(('test_reader',))))
+                def test_the_repository_reader_population_and_pins_agree(self):
+                    self.assertEqual(frozenset(), check._readers_under_refusal(root / 'repository', frozenset(('test_reader',))))
+            with patch.object(subject.contract, 'windows_metadata_api', return_value=api):
+                manifests = {scope: subject.source_population(check, root / scope, owner.deadline, hashes)
+                             for scope in subject.SCOPES}
+                result = subject.observe_class(check, ActualClass, root / 'repository', manifests, owner,
+                                               lambda: None, 'synthetic payload')
+                receipt = subject.retained_receipt(owner, result, manifests,
+                    {'observer_sha': 'a' * 40, 'run_id': '123', 'job_start_epoch': 1000, 'environment_sha256': 'b' * 64})
+            self.assertTrue(result['complete']); self.assertTrue(receipt['receipt_verified'])
+            self.assertEqual((4, 4), (len(owner.calls), len(owner.owners)))
+            self.assertTrue(all(call.args[0].suffix in ('.bin', '.json') for call in api.open.call_args_list))
+            self.assertEqual(72, api.record.call_count)
+
     def test_parser_consumes_verified_bytes_without_reopening_paths(self):
         result = analyze_capture('missing-stdout', 'missing-stderr', 0, 'icd10_lookup',
                                  capture_bytes=(b'', b'Ran 3 tests in 0.1s\r\n\r\nOK\r\n'))
@@ -145,6 +218,58 @@ class CoherentCaptureControls(unittest.TestCase):
 
 
 class PopulationAndFailureControls(unittest.TestCase):
+    def test_source_population_does_not_use_the_generated_windows_path_kind_policy(self):
+        import measure_reader_attribution as subject
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / 'icd10_lookup.py').write_bytes(b'')
+            (root / 'test_reader.py').write_bytes(b'import icd10_lookup\n')
+            with patch.object(subject.contract, 'windows_metadata_api', return_value=object()):
+                hashes = {path.name: subject.q.digest(path.read_bytes()) for path in root.glob('*.py')}
+                population = subject.source_population(synthetic_check(), root, time.monotonic() + 10, hashes)
+            self.assertEqual(('test_reader',), population['modules'])
+
+    def test_source_identity_and_path_kind_refuse_before_population_admission(self):
+        import measure_reader_attribution as subject
+        import os
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); raw = b'import icd10_lookup\n'
+            (root / 'test_reader.py').write_bytes(raw)
+            expected = {'test_reader.py': subject.q.digest(raw)}
+            for relative in ('../test_reader.py', '/test_reader.py', 'test_reader.bin', 'test_reader.json'):
+                with self.subTest(relative=relative), self.assertRaises(subject.q.Refused):
+                    subject.read_pinned_source(root, relative, expected['test_reader.py'], time.monotonic() + 10)
+            with self.assertRaises(subject.q.Refused):
+                subject.read_pinned_source(root, 'test_reader.py', 'a' * 64, time.monotonic() + 10)
+            with self.assertRaises(subject.q.Refused):
+                subject.read_pinned_source(root, 'test_reader.py', expected['test_reader.py'], time.monotonic() - 1)
+            (root / 'test_extra.py').write_bytes(raw)
+            with self.assertRaises(subject.q.Refused):
+                subject.source_population(synthetic_check(), root, time.monotonic() + 10, expected)
+            (root / 'test_extra.py').unlink()
+            os.link(root / 'test_reader.py', root / 'linked.py')
+            with self.assertRaises(subject.q.Refused):
+                subject.read_pinned_source(root, 'test_reader.py', expected['test_reader.py'], time.monotonic() + 10)
+
+    def test_owned_capture_path_and_owner_identity_cannot_be_substituted(self):
+        import measure_reader_attribution as subject
+        for change in ('wrong_path', 'wrong_owner', 'unretired_owner'):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve(); check = synthetic_check(); owner = SyntheticOwner(root)
+                original = owner.run
+                def run(argv, cwd):
+                    result = original(argv, cwd)
+                    if change == 'wrong_path': result['stdout_path'] = result['stderr_path']
+                    elif change == 'wrong_owner': owner.owners[-1].result.stdout_path = result['stderr_path']
+                    else: owner.owners[-1].result.snapshot.cleanup_verified = False
+                    return result
+                owner.run = run
+                adapter = subject.ReaderAdapter(check, root / 'repository',
+                    {'planted': {'modules': ('test_one',), 'pinned': frozenset()}}, owner, 'synthetic payload')
+                adapter.original_readers = check._readers_under_refusal; check.subprocess = adapter
+                with self.assertRaises(subject.q.Refused): adapter.readers(root / 'planted', frozenset(('test_one',)))
+                self.assertEqual('incomplete', adapter.rows[0]['completion'])
+
     def test_interrupted_owner_keeps_known_root_status_without_completing_row(self):
         import measure_reader_attribution as subject
         with tempfile.TemporaryDirectory() as temporary:
@@ -274,7 +399,7 @@ class PopulationAndFailureControls(unittest.TestCase):
             (tools / 'test_one.py').write_bytes(b'import icd10_lookup\n"icd10_lookup"\n')
             adapter = subject.ReaderAdapter(check, root / 'repository', {'planted': manifest}, owner, 'synthetic payload')
             adapter.original_readers = check._readers_under_refusal; check.subprocess = adapter
-            with self.assertRaisesRegex(subject.q.Refused, 'audit_source_population_changed'):
+            with self.assertRaisesRegex(subject.q.Refused, 'reviewed_raw_bytes_changed'):
                 adapter.readers(tools, frozenset(('test_one',)))
             self.assertEqual([], owner.calls)
 

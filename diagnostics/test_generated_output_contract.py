@@ -381,7 +381,7 @@ class GeneratedOutputControls(unittest.TestCase):
 
     def test_observation_never_adds_filesystem_reads_or_rechecks(self):
         import ast
-        source = inspect.getsource(g.safe_read)
+        source = inspect.getsource(g._safe_read)
         calls = [node.func.attr for node in ast.walk(ast.parse(source))
                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
         self.assertEqual(calls.count('lstat'), 2)

@@ -265,6 +265,10 @@ def _compare_windows(stage, left, right, relative):
 
 def read_windows(path, limit, relative, deadline, api):
     need(path.suffix.lower() in ('.pyc', '.json'), 'generated_native_path_kind_unsupported', relative)
+    return _read_windows_regular(path, limit, relative, deadline, api)
+
+
+def _read_windows_regular(path, limit, relative, deadline, api):
     before = _windows_path_snapshot(api, path, limit, relative, deadline)
     fd = _open_readonly(path)  # Existing access, sharing, no-follow and ownership transfer.
     stream, primary = None, False
@@ -319,6 +323,17 @@ def _open_readonly(path):
 
 
 def safe_read(repo, relative, limit, deadline):
+    return _safe_read(repo, relative, limit, deadline, read_windows)
+
+
+def read_owned_capture(repo, relative, limit, deadline):
+    """Only fixed owner-created streams; callers bind the completed owner receipt."""
+    need(type(relative) is str and re.fullmatch(r'command-[0-9]{4,10}/(?:stdout|stderr)\.bin', relative),
+         'generated_native_path_kind_unsupported')
+    return _safe_read(repo, relative, limit, deadline, _read_windows_regular)
+
+
+def _safe_read(repo, relative, limit, deadline, windows_reader):
     need(isinstance(repo, Path) and repo.is_absolute() and repo.resolve() == repo, 'generated_root_invalid')
     for ancestor in (repo, *repo.parents):
         _safe_directory(ancestor)
@@ -336,7 +351,7 @@ def safe_read(repo, relative, limit, deadline):
     try:
         api = windows_metadata_api()
         if api is not None:
-            raw, before = read_windows(path, limit, relative, deadline, api)
+            raw, before = windows_reader(path, limit, relative, deadline, api)
         else:
             before = path.lstat()
             _regular(before, limit, relative)
