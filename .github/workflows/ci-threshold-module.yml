@@ -1,9 +1,10 @@
-# Local preparation is not authority to publish or launch this timing screen.
+# Consumed timing-screen evidence retained. Branch and tag push routes are disabled.
 name: threshold module timing screen
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read

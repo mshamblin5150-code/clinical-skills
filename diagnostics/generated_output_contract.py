@@ -333,7 +333,20 @@ def read_owned_capture(repo, relative, limit, deadline):
     return _safe_read(repo, relative, limit, deadline, _read_windows_regular)
 
 
-def _safe_read(repo, relative, limit, deadline, windows_reader):
+def read_owned_capture_snapshot(repo, relative, limit, deadline):
+    """Return exact bytes and their coherent native record, never a Python stat ID.
+
+    Like the existing byte reader, this closes all read handles before returning.
+    Compact consumers must separately acquire and authenticate their retained handle.
+    """
+    need(type(relative) is str and re.fullmatch(r'command-[0-9]{4,10}/(?:stdout|stderr)\.bin', relative),
+         'generated_native_path_kind_unsupported')
+    need(type(limit) is int and 0 <= limit <= MAX_FILE_BYTES, 'compact_read_limit_invalid')
+    need(type(deadline) in (int, float) and math.isfinite(deadline), 'compact_read_deadline_invalid')
+    return _safe_read(repo, relative, limit, deadline, _read_windows_regular, return_snapshot=True)
+
+
+def _safe_read(repo, relative, limit, deadline, windows_reader, *, return_snapshot=False):
     need(isinstance(repo, Path) and repo.is_absolute() and repo.resolve() == repo, 'generated_root_invalid')
     for ancestor in (repo, *repo.parents):
         _safe_directory(ancestor)
@@ -350,6 +363,7 @@ def _safe_read(repo, relative, limit, deadline, windows_reader):
             break
     try:
         api = windows_metadata_api()
+        need(not return_snapshot or api is not None, 'generated_native_snapshot_unavailable', relative)
         if api is not None:
             raw, before = windows_reader(path, limit, relative, deadline, api)
         else:
@@ -374,7 +388,7 @@ def _safe_read(repo, relative, limit, deadline, windows_reader):
         metadata = _safe_directory(ancestor, relative)
         need(identity == (metadata.st_dev, metadata.st_ino), 'generated_directory_identity_changed', relative)
     need(time.monotonic() < deadline, 'global_budget_exhausted')
-    return raw
+    return (raw, before) if return_snapshot else raw
 
 
 def _json(raw, relative):

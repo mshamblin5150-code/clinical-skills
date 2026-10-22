@@ -163,6 +163,9 @@ class Session:
         self.git_exe = shutil.which('git')
         require(self.git_exe is not None and Path(self.git_exe).is_absolute(), 'git_unavailable')
 
+    def _check_resources(self):
+        """Optional live admission check; other serial routes remain unchanged."""
+
     def run(self, argv, cwd):
         require(time.monotonic() < self.deadline, 'global_budget_exhausted')
         require(shutil.disk_usage(self.root).free >= BUDGET['minimum_free_bytes'], 'disk_reserve_exhausted')
@@ -180,6 +183,15 @@ class Session:
         self.owners.append(owner)
         while time.monotonic() < self.deadline:
             snapshot = owner.poll()
+            try:
+                self._check_resources()
+            except BaseException:
+                try:
+                    owner.cancel('resource_check_refused', timeout=5)
+                except BaseException:
+                    # Keep the refusal primary and this owner visible to cleanup.
+                    pass
+                raise
             if snapshot.root_reaped and snapshot.active_processes == 0:
                 result = owner.finish(timeout=5)
                 require(result.snapshot.cleanup_verified and result.reason == 'completed', 'process_cleanup_unverified')
@@ -273,8 +285,12 @@ def first_clean(session, repo, head, role):
     status = session.git_bytes(repo, 'status', '--porcelain=v1', '--untracked-files=all')
     if status:
         # This exact captured result determines refusal. No second status or repair.
-        emit('first_status_discrepancy', role=role, **status_receipt(status))
-        emit('first_status_config', role=role, effective_values=conversion_config_receipt(session, repo))
+        try:
+            emit('first_status_discrepancy', role=role, **status_receipt(status))
+            emit('first_status_config', role=role, effective_values=conversion_config_receipt(session, repo))
+        finally:
+            # Optional diagnostics cannot replace the already known first cause.
+            require(False, 'first_status_not_clean')
     require(not status, 'first_status_not_clean')
 
 
