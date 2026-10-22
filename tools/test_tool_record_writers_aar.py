@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+from threading import Event
 import unittest
 from unittest import mock
 
@@ -121,9 +122,31 @@ class WriterTransactions(unittest.TestCase):
                 with mock.patch.object(outbound_search, '_decode_records', side_effect=decode):
                     self.assertEqual(0, self.capture(lambda: invoke('checked'))[0])
                 with ThreadPoolExecutor(max_workers=2) as pool:
-                    self.assertEqual([0, 0], list(pool.map(invoke, ('left', 'right'))))
-                self.assertEqual({'initial', 'checked', 'left', 'right'},
-                                 {row['search_id'] for row in outbound_search.records(target)})
+                    def checked_invoke(key):
+                        with records.capture_errors() as faults:
+                            status = invoke(key)
+                        if status != 0:
+                            self.assertEqual(2, status)
+                            self.assertEqual({target.resolve()}, set(faults))
+                            self.assertTrue(faults[target.resolve()].cause.startswith('held by another task: process '))
+                        else:
+                            self.assertEqual({}, faults)
+                        return key, status
+                    outcomes = list(pool.map(checked_invoke, ('left', 'right')))
+                successful = {key for key, status in outcomes if status == 0}
+                self.assertTrue(successful, outcomes)
+                rows = outbound_search.records(target)
+                self.assertEqual({'initial', 'checked'} | successful, {row['search_id'] for row in rows})
+                self.assertEqual(2 + len(successful), len(rows))
+                # Fresh serial requests require both distinct updates regardless of
+                # how the OS scheduled the concurrent wave. No failed call is retried.
+                for key in ('serial-left', 'serial-right'):
+                    self.assertEqual(0, self.capture(lambda: invoke(key))[0])
+                rows = outbound_search.records(target)
+                self.assertEqual({'initial', 'checked', 'serial-left', 'serial-right'} | successful,
+                                 {row['search_id'] for row in rows})
+                self.assertEqual(4 + len(successful), len(rows))
+                self.assertTrue(target.read_bytes().startswith(before))
                 target.write_bytes(b'{')
                 status, output = self.capture(lambda: invoke('bad'))
                 self.assertEqual(2, status, output)
@@ -329,13 +352,94 @@ class WriterTransactions(unittest.TestCase):
 
     def test_aar_concurrent_rounds_allocate_distinct_records(self):
         fixture = self.aar()
+        def invoke(_key):
+            try:
+                return aar_scan.write_extract(fixture.run, fixture.transcript, fixture.submission, fixture.memory)
+            except records.UnreadableRecord as failure:
+                self.assertEqual((fixture.run / 'aar' / '.record-allocation').resolve(), failure.path)
+                self.assertTrue(failure.cause.startswith('held by another task: process '))
+                return None
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(lambda _: aar_scan.write_extract(
-                fixture.run, fixture.transcript, fixture.submission, fixture.memory), range(2)))
+            outcomes = list(pool.map(invoke, range(2)))
+        results = [result for result in outcomes if result is not None]
+        self.assertTrue(results, outcomes)
         self.assertEqual({aar_scan.extract_path(fixture.run, fixture.submission, round_number)
-                          for round_number in (1, 2)}, {path for path, _count in results})
-        for round_number in (1, 2):
+                          for round_number in range(1, len(results) + 1)}, {path for path, _count in results})
+        self.assertEqual(len(results), len({path for path, _count in results}))
+        self.assertEqual({path for path, _count in results}, set((fixture.run / 'aar').glob('*.extract.md')))
+        for round_number in range(1, len(results) + 1):
             self.assertTrue(aar_scan.baseline_path(fixture.run, fixture.submission, round_number).is_file())
+        self.assertEqual(len(results), len(list((fixture.run / 'aar').glob('*.baseline.json'))))
+        # A separate serial control always requires two successful, distinct rounds.
+        serial = self.aar()
+        paths = [aar_scan.write_extract(serial.run, serial.transcript, serial.submission, serial.memory)[0]
+                 for _ in range(2)]
+        self.assertEqual([aar_scan.extract_path(serial.run, serial.submission, n) for n in (1, 2)], paths)
+        for n in (1, 2):
+            self.assertTrue(aar_scan.baseline_path(serial.run, serial.submission, n).is_file())
+
+    def test_suspended_native_owner_refuses_contender_without_losing_evidence(self):
+        # A process can be descheduled longer than locked_record's wall-clock
+        # budget. Wait for the real refusal before releasing the native owner;
+        # neither the clock nor the production timeout is patched.
+        for kind in ('aar', 'outbound'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                if kind == 'aar':
+                    fixture = self.aar()
+                    target = fixture.run / 'aar' / '.record-allocation'
+                    def invoke(key):
+                        return aar_scan.write_extract(fixture.run, fixture.transcript,
+                                                      fixture.submission, fixture.memory)
+                else:
+                    root = Path(directory)
+                    target = root / outbound_search.SEARCHES
+                    target.write_bytes(b'{"search_id":"prior","query":"synthetic","passed":true}\n')
+                    before = target.read_bytes()
+                    def invoke(key):
+                        return outbound_search.main(['check', 'synthetic', '--run', str(root), '--search-id', key])
+                acquired, release = Event(), Event()
+                native = artifact_lock.hold
+                @contextlib.contextmanager
+                def paused(path, action, **kwargs):
+                    with native(path, action, **kwargs) as held:
+                        if Path(path) == target and not acquired.is_set():
+                            acquired.set()
+                            release.wait()
+                        yield held
+                with mock.patch.object(artifact_lock, 'hold', paused), \
+                     mock.patch.object(outbound_search, 'refusal', return_value=None), \
+                     ThreadPoolExecutor(max_workers=2) as pool:
+                    owner = pool.submit(invoke, 'owner')
+                    try:
+                        self.assertTrue(acquired.wait(10), 'native owner never acquired')
+                        if kind == 'aar':
+                            with self.assertRaises(records.UnreadableRecord) as caught:
+                                pool.submit(invoke, 'contender').result(timeout=10)
+                            self.assertEqual(target.resolve(), caught.exception.path)
+                            self.assertTrue(caught.exception.cause.startswith('held by another task: process '))
+                            self.assertFalse(list((fixture.run / 'aar').glob('*.extract.md')))
+                            self.assertFalse(list((fixture.run / 'aar').glob('*.baseline.json')))
+                        else:
+                            def contend():
+                                with records.capture_errors() as faults:
+                                    status = invoke('contender')
+                                return status, faults
+                            status, faults = pool.submit(contend).result(timeout=10)
+                            self.assertEqual(2, status)
+                            self.assertEqual({target.resolve()}, set(faults))
+                            self.assertTrue(faults[target.resolve()].cause.startswith('held by another task: process '))
+                            self.assertEqual(before, target.read_bytes())
+                    finally:
+                        release.set()
+                    result = owner.result(timeout=10)
+                if kind == 'aar':
+                    self.assertEqual(aar_scan.extract_path(fixture.run, fixture.submission), result[0])
+                    self.assertTrue(aar_scan.baseline_path(fixture.run, fixture.submission).is_file())
+                    self.assertFalse(aar_scan.extract_path(fixture.run, fixture.submission, 2).exists())
+                else:
+                    self.assertEqual(0, result)
+                    self.assertTrue(target.read_bytes().startswith(before))
+                    self.assertEqual(['prior', 'owner'], [row['search_id'] for row in outbound_search.records(target)])
 
     def test_busy_legacy_retirement_preserves_independent_review_grade(self):
         fixture = self.aar()
