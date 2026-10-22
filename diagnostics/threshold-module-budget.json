@@ -1,0 +1,11 @@
+{
+  "max_job_seconds": 600,
+  "cleanup_reserve_seconds": 60,
+  "initial_setup_estimate_seconds": 140,
+  "arm_control_reserve_seconds": 40,
+  "probe_reserve_seconds": 75,
+  "final_verification_reserve_seconds": 20,
+  "max_capture_bytes": 16777216,
+  "max_receipt_bytes": 4194304,
+  "minimum_free_bytes": 1073741824
+}

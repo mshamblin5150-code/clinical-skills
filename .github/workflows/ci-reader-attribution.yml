@@ -1,9 +1,10 @@
-# Candidate-only original class attribution. Local preparation is not launch authority.
+# Consumed attribution evidence retained. Branch and tag push routes are disabled.
 name: candidate reader attribution
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read

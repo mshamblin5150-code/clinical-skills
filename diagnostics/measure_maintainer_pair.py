@@ -142,7 +142,8 @@ def observe_suite(result, discovery, identity):
     return row
 
 
-def source_context(session, seed, repo, variant, expected, candidate, *, source_sha=None):
+def source_context(session, seed, repo, variant, expected, candidate, *, source_sha=None, candidate_path=q.SUITE_PATH):
+    q.require(candidate_path in (q.SUITE_PATH, 'tools/test_threshold_sheet.py'), 'measured_scope_changed')
     source_sha = q.BASE if source_sha is None else source_sha
     result = session.run(['git', '-c', 'core.autocrlf=false', 'clone', '--no-local', '--no-hardlinks',
                           '--no-checkout', str(seed), str(repo)], repo.parent)
@@ -162,8 +163,8 @@ def source_context(session, seed, repo, variant, expected, candidate, *, source_
     q.corpus_preflight((repo,))
     target = dict(expected)
     if variant == 'candidate':
-        (repo / q.SUITE_PATH).write_bytes(candidate)
-        target[q.SUITE_PATH] = q.digest(candidate)
+        (repo / candidate_path).write_bytes(candidate)
+        target[candidate_path] = q.digest(candidate)
     q.require(q.inventory(repo, deadline=session.deadline) == target, 'prepared_clone_inventory_changed')
     return target
 
@@ -221,10 +222,11 @@ def retained_guard(session, repo, target, candidate):
             'ephemeral_or_unknown_absolute_writes_proved_absent': False}
 
 
-def generated_guard(session, repo, target, candidate, state):
+def generated_guard(session, repo, target, candidate, state, *, candidate_path=q.SUITE_PATH):
     """Real-output admission uses the complete native-validated contract."""
     import generated_output_contract as contract
-    q.verify_sources(session, repo, target, candidate, source_sha=SOURCE_SHA)
+    options = {} if candidate_path == q.SUITE_PATH else {'candidate_path': candidate_path}
+    q.verify_sources(session, repo, target, candidate, source_sha=SOURCE_SHA, **options)
     verify_refs(session, repo, source_sha=SOURCE_SHA)
     detached = session.run(['git', '-C', str(repo), 'symbolic-ref', '-q', 'HEAD'], repo)
     q.require(detached['returncode'] == 1 and not detached['stdout'], 'source_refs_changed')

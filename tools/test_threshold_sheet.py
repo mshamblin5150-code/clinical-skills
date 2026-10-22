@@ -349,9 +349,11 @@ def two_source_sheet(rows: str, coverage: str = "", header_text: str = "") -> ga
     return gate.parse(text, Path("test-sheet.md"))
 
 
-def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
-           built_from: str | None = None, cor: dict[str, str] | None = None) -> dict:
-    """A `guidelines_recs.py` record. ``cor`` gives a class where a test needs one.
+def record_payload(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
+                   built_from: str | None = None, cor: dict[str, str] | None = None) -> dict:
+    """Recommendation content for direct gate tests, without producer provenance.
+
+    ``cor`` gives a class where a test needs one.
 
     ``built_from`` is the ``source`` field -- the PDF the record was extracted from --
     and it is left off by default so the document cross-check stays out of the way of
@@ -366,7 +368,15 @@ def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
     }
     if built_from is not None:
         record_["source"] = built_from
-    return trust_recommendation_record(record_)
+    return record_
+
+
+def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
+           built_from: str | None = None, cor: dict[str, str] | None = None) -> dict:
+    """A trusted recommendation record for consumer-seam tests."""
+    return trust_recommendation_record(
+        record_payload(*rec_ids, mode=mode, doc_id=doc_id, built_from=built_from, cor=cor)
+    )
 
 
 class EditionCurrencyReport(unittest.TestCase):
@@ -3904,7 +3914,7 @@ class CoverageIsPerSource(unittest.TestCase):
         sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
         result = gate.gate_coverage(
             sheet_,
-            {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1", "p9/kdigo/2")},
+            {"aha": record_payload("p1/aha/1"), "kdigo": record_payload("p9/kdigo/1", "p9/kdigo/2")},
         )
         refusals = result.findings
         self.assertFalse(result.not_graded)
@@ -3921,7 +3931,7 @@ class CoverageIsPerSource(unittest.TestCase):
         sheet_ = two_source_sheet(row(rec="p1/goal/1", source="aha"))
         result = gate.gate_coverage(
             sheet_,
-            {"aha": record("p1/goal/1"), "kdigo": record("p1/goal/1")},
+            {"aha": record_payload("p1/goal/1"), "kdigo": record_payload("p1/goal/1")},
         )
         refusals = result.findings
         self.assertEqual(len(refusals), 1)
@@ -3942,7 +3952,7 @@ class CoverageIsPerSource(unittest.TestCase):
         half still refuses, and the ungraded half is named rather than absorbed."""
         sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
         result = gate.gate_coverage(
-            sheet_, {"aha": record("p1/aha/1", "p1/aha/2"), "kdigo": None}
+            sheet_, {"aha": record_payload("p1/aha/1", "p1/aha/2"), "kdigo": None}
         )
         refusals = result.findings
         self.assertTrue(result.not_graded)
@@ -3958,7 +3968,7 @@ class CoverageIsPerSource(unittest.TestCase):
             coverage="- `p9/kdigo/1` - no number stated\n",
         )
         result = gate.gate_coverage(
-            sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
+            sheet_, {"aha": record_payload("p1/aha/1"), "kdigo": record_payload("p9/kdigo/1")}
         )
         refusals = result.findings
         self.assertEqual(refusals, [])
@@ -3971,8 +3981,8 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_,
             {
-                "aha": record("p1/aha/1"),
-                "kdigo": record("p9/kdigo/1", mode="bound"),
+                "aha": record_payload("p1/aha/1"),
+                "kdigo": record_payload("p9/kdigo/1", mode="bound"),
             },
         )
         refusals, warnings = result.findings, result.warnings
@@ -3995,8 +4005,8 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_,
             {
-                "aha": record("p1/aha/1", built_from="C:/corpus/Society/lipids.pdf"),
-                "kdigo": record("p9/kdigo/1", built_from="C:/corpus/Society/kdigo.pdf"),
+                "aha": record_payload("p1/aha/1", built_from="C:/corpus/Society/lipids.pdf"),
+                "kdigo": record_payload("p9/kdigo/1", built_from="C:/corpus/Society/kdigo.pdf"),
             },
         )
         refusals = result.findings
@@ -4012,8 +4022,8 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_,
             {
-                "aha": record("p1/aha/1", built_from="D:/elsewhere/whatever/aha.pdf"),
-                "kdigo": record("p9/kdigo/1", built_from="C:\\corpus\\Society\\kdigo.pdf"),
+                "aha": record_payload("p1/aha/1", built_from="D:/elsewhere/whatever/aha.pdf"),
+                "kdigo": record_payload("p9/kdigo/1", built_from="C:\\corpus\\Society\\kdigo.pdf"),
             },
         )
         refusals = result.findings
@@ -4022,7 +4032,7 @@ class CoverageIsPerSource(unittest.TestCase):
     def test_a_record_that_names_no_document_is_not_guessed_at(self):
         sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
         result = gate.gate_coverage(
-            sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
+            sheet_, {"aha": record_payload("p1/aha/1"), "kdigo": record_payload("p9/kdigo/1")}
         )
         refusals = result.findings
         self.assertEqual([message for message in refusals if "was built from" in message], [])
@@ -4035,8 +4045,8 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_,
             {
-                "aha": record("p9/kdigo/1", cor={"p9/kdigo/1": "1"}),
-                "kdigo": record("p9/kdigo/1", cor={"p9/kdigo/1": "2a"}),
+                "aha": record_payload("p9/kdigo/1", cor={"p9/kdigo/1": "1"}),
+                "kdigo": record_payload("p9/kdigo/1", cor={"p9/kdigo/1": "2a"}),
             },
         )
         refusals = result.findings
