@@ -2,6 +2,7 @@
 # phi-scan: synthetic
 import artifact_lock_test_support
 import artifact_lock
+import hashlib
 import io
 import json
 import os
@@ -19,6 +20,7 @@ import completion_checks
 import run_record_reader
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Event
 
 
 class SharedBarSigning(unittest.TestCase):
@@ -121,11 +123,82 @@ class SharedBarSigning(unittest.TestCase):
             run = Path(directory)
             (run / "bar.md").write_text("SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n", encoding="utf-8")
             verification = approval_record.ReplyVerification("not verified", "synthetic unread transcript")
+            def invoke(reply):
+                try:
+                    return bar_signatures.sign(run, reply, skill="discussion-reply")
+                except run_record_reader.UnreadableRecord as failure:
+                    self.assertEqual((run / bar_signatures.RECORD).resolve(), failure.path)
+                    self.assertTrue(failure.cause.startswith("held by another task: process "))
+                    return None
             with mock.patch.object(approval_record, "verify_clinician_reply", return_value=verification), ThreadPoolExecutor(max_workers=2) as pool:
-                entries = list(pool.map(lambda reply: bar_signatures.sign(run, reply, skill="discussion-reply"), ("first whole reply", "second whole reply")))
+                outcomes = list(pool.map(invoke, ("first whole reply", "second whole reply")))
+            entries = [entry for entry in outcomes if entry is not None]
+            self.assertTrue(entries, outcomes)
             history = json.loads((run / bar_signatures.RECORD).read_text())["signatures"]
-            self.assertEqual({entry["copy"] for entry in entries}, {"signed-bars/bar-1.md", "signed-bars/bar-2.md"})
-            self.assertEqual({entry["clinician_reply"] for entry in history}, {"first whole reply", "second whole reply"})
+            self.assertEqual({entry["copy"] for entry in entries},
+                             {f"signed-bars/bar-{n}.md" for n in range(1, len(entries) + 1)})
+            self.assertEqual(len(entries), len({entry["copy"] for entry in entries}))
+            self.assertEqual(sorted(entries, key=lambda entry: entry["copy"]), history)
+            self.assertEqual({run / entry["copy"] for entry in entries}, set((run / "signed-bars").iterdir()))
+            for entry in entries:
+                self.assertEqual(entry["sha256"], hashlib.sha256((run / entry["copy"]).read_bytes()).hexdigest())
+            self.assertEqual((run / "bar.md").read_bytes(), (run / history[-1]["copy"]).read_bytes())
+            self.assertFalse(bar_signatures.completion_gate(run, skill="discussion-reply")[0])
+
+    def test_serial_shared_signs_require_distinct_successful_revisions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            text = "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n"
+            entries = [self.sign(run, "discussion-reply", text, reply, moment)
+                       for reply, moment in (("first whole reply", "2100-01-01T00:00:00Z"),
+                                             ("second whole reply", "2100-01-01T00:01:00Z"))]
+            self.assertEqual(["signed-bars/bar-1.md", "signed-bars/bar-2.md"],
+                             [entry["copy"] for entry in entries])
+            self.assertEqual(entries, json.loads((run / bar_signatures.RECORD).read_text())["signatures"])
+            for entry in entries:
+                self.assertEqual(entry["sha256"], hashlib.sha256((run / entry["copy"]).read_bytes()).hexdigest())
+            self.assertEqual((run / "bar.md").read_bytes(), (run / entries[-1]["copy"]).read_bytes())
+            self.assertFalse(bar_signatures.completion_gate(run, skill="discussion-reply")[0])
+
+    def test_suspended_signer_refuses_contender_without_changing_retained_evidence(self):
+        # Pause inside reply verification, which runs under the real native lock.
+        # Release only after the contender exhausts the unchanged production wait.
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            self.sign(run, "discussion-reply", "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\n")
+            before = {path.relative_to(run): path.read_bytes() for path in run.rglob("*") if path.is_file()}
+            acquired, release = Event(), Event()
+            verification = approval_record.ReplyVerification("not verified", "synthetic unread transcript")
+            def paused(*args, **kwargs):
+                acquired.set()
+                release.wait()
+                return verification
+            with mock.patch.object(approval_record, "verify_clinician_reply", side_effect=paused) as verify, \
+                 ThreadPoolExecutor(max_workers=2) as pool:
+                owner = pool.submit(bar_signatures.sign, run, "owner reply", skill="discussion-reply")
+                try:
+                    self.assertTrue(acquired.wait(10), "native owner never reached reply verification")
+                    contender = pool.submit(bar_signatures.sign, run, "contender reply", skill="discussion-reply")
+                    with self.assertRaises(run_record_reader.UnreadableRecord) as caught:
+                        contender.result(timeout=10)
+                    self.assertEqual((run / bar_signatures.RECORD).resolve(), caught.exception.path)
+                    self.assertTrue(caught.exception.cause.startswith("held by another task: process "))
+                    self.assertEqual(1, verify.call_count)
+                    self.assertEqual(before, {path.relative_to(run): path.read_bytes()
+                                             for path in run.rglob("*") if path.is_file()})
+                finally:
+                    release.set()
+                entry = owner.result(timeout=10)
+            self.assertEqual("signed-bars/bar-2.md", entry["copy"])
+            history = json.loads((run / bar_signatures.RECORD).read_text())["signatures"]
+            self.assertEqual(["2", "owner reply"], [row["clinician_reply"] for row in history])
+            self.assertEqual(entry, history[-1])
+            self.assertEqual((run / "bar.md").read_bytes(), (run / entry["copy"]).read_bytes())
+            self.assertEqual(before[Path("signed-bars/bar-1.md")], (run / "signed-bars/bar-1.md").read_bytes())
+            self.assertEqual({"bar-1.md", "bar-2.md"}, {path.name for path in (run / "signed-bars").iterdir()})
+            with mock.patch.object(approval_record, "verify_clinician_reply", return_value=verification):
+                following = bar_signatures.sign(run, "following reply", skill="discussion-reply")
+            self.assertEqual("signed-bars/bar-3.md", following["copy"])
             self.assertFalse(bar_signatures.completion_gate(run, skill="discussion-reply")[0])
 
     def test_retained_signature_boundary_names_the_shared_owner(self):
