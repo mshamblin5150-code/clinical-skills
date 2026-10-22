@@ -2,6 +2,7 @@
 # phi-scan: synthetic
 import artifact_lock_test_support
 import artifact_lock
+import hashlib
 import io
 import json
 import os
@@ -140,7 +141,8 @@ class SharedBarSigning(unittest.TestCase):
             self.assertEqual(sorted(entries, key=lambda entry: entry["copy"]), history)
             self.assertEqual({run / entry["copy"] for entry in entries}, set((run / "signed-bars").iterdir()))
             for entry in entries:
-                self.assertEqual((run / "bar.md").read_bytes(), (run / entry["copy"]).read_bytes())
+                self.assertEqual(entry["sha256"], hashlib.sha256((run / entry["copy"]).read_bytes()).hexdigest())
+            self.assertEqual((run / "bar.md").read_bytes(), (run / history[-1]["copy"]).read_bytes())
             self.assertFalse(bar_signatures.completion_gate(run, skill="discussion-reply")[0])
 
     def test_serial_shared_signs_require_distinct_successful_revisions(self):
@@ -154,7 +156,8 @@ class SharedBarSigning(unittest.TestCase):
                              [entry["copy"] for entry in entries])
             self.assertEqual(entries, json.loads((run / bar_signatures.RECORD).read_text())["signatures"])
             for entry in entries:
-                self.assertEqual((run / "bar.md").read_bytes(), (run / entry["copy"]).read_bytes())
+                self.assertEqual(entry["sha256"], hashlib.sha256((run / entry["copy"]).read_bytes()).hexdigest())
+            self.assertEqual((run / "bar.md").read_bytes(), (run / entries[-1]["copy"]).read_bytes())
             self.assertFalse(bar_signatures.completion_gate(run, skill="discussion-reply")[0])
 
     def test_suspended_signer_refuses_contender_without_changing_retained_evidence(self):
