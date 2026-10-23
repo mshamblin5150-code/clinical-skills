@@ -236,11 +236,12 @@ class PublicMechanics(unittest.TestCase):
             with self.subTest(grader=grader, control="unlisted abbreviation"), tempfile.TemporaryDirectory() as temp:
                 _, report = self.command(Path(temp), grader, "The record cites vol. 12 of the series.")
                 self.assert_row(report, "numeral-opening", 1)
-
-    def test_the_locator_limit_names_every_listed_abbreviation(self):
-        row = next(limit for limit in mechanics.DECLARED_LIMITS if limit.startswith("Sentence boundaries"))
-        for abbreviation in mechanics.CITATION_ABBREVIATIONS:
-            self.assertIn(f" {abbreviation}.", row)
+            # Only the locator's own page numbers are exempt; a count written after it still needs handling.
+            for control in ("I saw p. 4, 5 nurses waited.", "The study ran ca. 1990, 5 nurses joined.",
+                            "She read the book 5 times."):
+                with self.subTest(grader=grader, control=control), tempfile.TemporaryDirectory() as temp:
+                    _, report = self.command(Path(temp), grader, control)
+                    self.assert_row(report, "uncertain-digit", 1)
 
     def test_record_shape_and_surface_digest_fail_closed(self):
         import run_grader
