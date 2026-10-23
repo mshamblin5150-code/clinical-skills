@@ -217,6 +217,32 @@ class PublicMechanics(unittest.TestCase):
                             "uncertain-digit", "large-number-word", "numeral-opening"):
                     self.assert_row(report, row, 0)
 
+    def test_apa_citation_locators_are_not_sentence_openings(self):
+        # APA 7 requires page, paragraph, and circa locators; their periods end no sentence.
+        body = (
+            'The guideline says "query the provider" (Example Agency, 2026, p. 1, p. 12). '
+            'The brief agrees (Example Agency, 2026, pp. 2–3, 7; Example Agency, 2026, para. 4). '
+            'The emperor wrote it (Marcus Aurelius, ca. 180/2023, 5.20; Book 5, Section 20).'
+        )
+        for grader in GRADERS:
+            with self.subTest(grader=grader), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, body)
+                for row in ("uncertain-digit", "numeral-opening"):
+                    self.assert_row(report, row, 0)
+            with self.subTest(grader=grader, twin="opening"), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, "The visit ended. 2026 brought a change.")
+                self.assert_row(report, "numeral-opening", 1)
+            # The declared limit: an abbreviation outside the locator list still reads as a boundary.
+            with self.subTest(grader=grader, control="unlisted abbreviation"), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, "The record cites vol. 12 of the series.")
+                self.assert_row(report, "numeral-opening", 1)
+            # Only the locator's own page numbers are exempt; a count written after it still needs handling.
+            for control in ("I saw p. 4, 5 nurses waited.", "The study ran ca. 1990, 5 nurses joined.",
+                            "She read the book 5 times."):
+                with self.subTest(grader=grader, control=control), tempfile.TemporaryDirectory() as temp:
+                    _, report = self.command(Path(temp), grader, control)
+                    self.assert_row(report, "uncertain-digit", 1)
+
     def test_record_shape_and_surface_digest_fail_closed(self):
         import run_grader
         with tempfile.TemporaryDirectory() as temp:

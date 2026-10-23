@@ -71,12 +71,16 @@ ROWS = (
     "uncertain-prefix", "small-count", "uncertain-digit", "large-number-word",
     "numeral-opening", "british-body-form", "mechanics-record", "mechanics-language",
 )
+CITATION_ABBREVIATIONS = ("p", "pp", "para", "paras", "ca")
+# Only the plural page and paragraph forms introduce a list or range of locators.
+CITATION_SPAN_ABBREVIATIONS = ("pp", "paras")
+_CITATION_LIST = ", ".join(f"{word}." for word in CITATION_ABBREVIATIONS[:-1]) + f", and {CITATION_ABBREVIATIONS[-1]}."
 DECLARED_LIMITS = (
     "Lowercase and mixed-case abbreviations are not recognized.",
     "Mixed terms and count nouns outside the committed lists have no dedicated list row; bare small digits still require handling.",
     "The truth of a recorded dictionary entry, APA exception, or changed disposition is not graded.",
     "The country variant row grades consistency; a noun-use directive was not established by the bounded Manual read.",
-    "Sentence boundaries follow punctuation; a period inside an abbreviation can produce an opening candidate.",
+    f"Sentence boundaries follow punctuation; the lowercase APA citation abbreviations {_CITATION_LIST} and the lists and ranges after {' and '.join(f'{word}.' for word in CITATION_SPAN_ABBREVIATIONS)} are not boundaries for any opening or digit row, but a period inside any other abbreviation can produce an opening candidate.",
     "Only reference titles parsed from an italic span or the title immediately after the reference date are excluded as cited titles.",
     "A group author is recognized from the reference author field without personal-name initials; ambiguous author grammar remains outside this read.",
     "Word surfaces inherit coursework_style's projection limits.",
@@ -89,6 +93,15 @@ SMALL_DIGIT = re.compile(r"(?<!\w)([0-9])(?!\w)")
 LARGE_WORD = re.compile(r"\b(?:" + "|".join(sorted(NUMBER_WORDS)) + r")\b", re.I)
 DATE = re.compile(r"\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,?\s+\d{4})?)\b", re.I)
 QUOTATION = re.compile(r'"[^"\n]*"|“[^”]*”|(?<!\w)‘[^’]*’(?!\w)|(?<!\w)\x27[^\x27\n]*\x27(?!\w)')
+def _abbreviation_pattern(words: tuple[str, ...]) -> str:
+    return r"(?<![A-Za-z])(?:" + "|".join(map(re.escape, words)) + r")\."
+
+
+CITATION_ABBREVIATION = re.compile(_abbreviation_pattern(CITATION_ABBREVIATIONS) + r"$")
+CITATION_CONTINUATION = re.compile(
+    _abbreviation_pattern(CITATION_SPAN_ABBREVIATIONS)
+    + r"\s*\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*\s*[–,-]\s*$"
+)
 
 
 @dataclass(frozen=True)
@@ -147,20 +160,33 @@ def _exclusions(markdown: str) -> tuple[str, tuple[str, ...]]:
     return body, tuple(groups)
 
 
+def _unmarked(text: str) -> str:
+    return re.sub(r"[*_`]", "", text)
+
+
+def _cited(before: str) -> bool:
+    # APA page, paragraph, and circa abbreviations end in a period that ends no sentence.
+    return bool(CITATION_ABBREVIATION.search(before) or CITATION_CONTINUATION.search(before))
+
+
 def _opening(text: str, start: int) -> bool:
-    before = re.sub(r"[*_`]", "", text[:start]).rstrip()
+    before = _unmarked(text[:start]).rstrip()
+    if _cited(before):
+        return False
     return not before or before[-1] in ".!?"
 
 
 def _numeric_exclusion(text: str, match: re.Match[str]) -> bool:
     after = text[match.end():]
-    before = text[:match.start()]
+    before = _unmarked(text[:match.start()])
     following = re.match(r"\s*-?\s*([A-Za-z]+)", after)
     return bool(
         re.match(r"\s*[%°]", after)
         or re.match(r"\.\d", after) or re.search(r"\d\.$", before)
         or (following and following[1].casefold() in UNITS)
         or re.search(r"\b(?:Table|Figure|Step|Stage|Grade|Chapter|Module|Item|Section)\s+$", before, re.I)
+        or re.search(r"\bBook\s+$", before)
+        or _cited(before.rstrip())
         or any(date.start() <= match.start() < date.end() for date in DATE.finditer(text))
         or re.search(r"[$€£]\s*$", before)
     )
