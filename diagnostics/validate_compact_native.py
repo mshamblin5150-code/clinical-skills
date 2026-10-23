@@ -186,7 +186,15 @@ def perform_controls(root, runtime, progress):
         progress['failed_control'] = name
         before = len(runtime.owners) + runtime.nested_command_slots
         control_started = time.monotonic()
-        row = run(name, root / name, runtime)
+        runtime.control_observation = None
+        try:
+            row = run(name, root / name, runtime)
+        except BaseException:
+            try:
+                progress['failure_witness'] = native.failure_witness(runtime)
+            except BaseException:
+                progress['failure_witness'] = None
+            raise
         elapsed = time.monotonic() - control_started
         q.require(math.isfinite(elapsed) and 0 <= elapsed <= 540, 'global_budget_exhausted')
         q.require(not any(api.handles or api.close_uncertain for api in runtime.apis),
@@ -249,7 +257,7 @@ def _run(argv, public):
     clean = complete = False
     progress = {'stage': 'preflight', 'source_integrity_verified': False,
         'controls_verified': False, 'receipt_verified': False, 'receipt_sha256': None,
-        'failed_control': None, 'control_count': 0}
+        'failed_control': None, 'control_count': 0, 'failure_witness': None}
     try:
         parser = Parser(description=__doc__, add_help=False)
         parser.add_argument('--observer', type=Path)

@@ -1,0 +1,11 @@
+{
+  "conservative_capture_pairs": 19,
+  "conservative_streams": 38,
+  "including_public_content_bytes": 642891830,
+  "native_owned_commands": 1,
+  "nested_reserved_slots": 0,
+  "private_content_bytes": 638697526,
+  "raw_content_bytes": 637534208,
+  "success_capture_pairs": 16,
+  "success_source_commands": 15
+}

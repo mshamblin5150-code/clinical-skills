@@ -53,3 +53,50 @@ The 53-pair raw ceiling is 106 streams × 16 MiB = 1,778,384,896 content bytes (
 ## Release boundary
 
 Portable tests use only fresh disposable synthetic fixtures and injected owners/native APIs. They do not verify Windows behavior. Both independent reviews must bind the exact immutable publication tree and manifest before an approval request for one upload and one first-attempt ten-minute synthetic validation job. A passing native result, if later authorized, is not authority to run the held comparison or deploy an optimization.
+
+## Finite failure witness correction
+
+This local-only correction follows inconclusive run 39874952202 at published tree
+`65ae215e963146e1ebf04b27f05b8da94a6fc6d1`. That run's first control failed without
+publishing its inner retirement result. Its original raw-disposition outcome
+remains unknown, bounded at zero to two streams. New instrumentation cannot
+resolve that historical uncertainty or establish its Windows root cause.
+
+On a core control exception, the driver copies one finite failure witness before
+process cleanup. The unchanged terminal summary carries it alongside the original
+failure and independent process-cleanup status. It contains a fixed control ID,
+finite proof phase and authority-challenge phase; a returned, not-returned or
+invalid outcome status; the exact validated store result (complete, finite first
+reason, pair ordinal, retention, two stream mark/close states, receipt-authority
+recheck/close states and three receipt digests); and read-only receipt
+reconstruction phase, finite reason and close status. The first control also
+records a bounded zero-to-two authority-callback count and same-authority
+Boolean/null without exposing handle values. Copies are detached before cleanup.
+
+The witness is capped at 2 KiB within the existing 4 KiB terminal reserve and
+4 MiB aggregate public limit. No file, owner, capture slot, receipt, native call,
+launch, private payload, path, exception string or OS error detail is added.
+Malformed outcome values produce `invalid` plus null, never raw diagnostic
+fallback. If the witness projector itself throws, witness collection stays null
+and the exact original control exception is re-raised; observation cannot replace
+the primary failure. A control without instrumented core evidence has null witness; this is
+not a general result-observer framework or coverage claim for consumer internals.
+
+`overall_retention` in every failure witness is `unknown`, including when the
+inner store returned complete but reconstruction or another proof failed.
+`not_returned` does not mean no disposition happened. An uncertain mark can arise
+before a native call in the authority callback, or after a call with uncertain
+outcome; callback counts and mark states are not syscall or erasure counts.
+Reconstruction preserves its primary finite read/proof boundary even if closing
+the reader also fails. Missing terminal output still means unknown, and no retry
+or destructive continuation is introduced. Original guards, order, native access,
+sharing, ownership, disposal, deadlines and cleanup logic remain unchanged.
+
+Portable integration checks exercise the real first control and store with fresh
+synthetic files and injected owners/native APIs: before/partial marking,
+authority challenge failure, eligibility/outcome/recheck/authority-close/terminal
+receipt failure, successful store return followed by reconstruction failure,
+missing-invocation proof failure, malformed private sentinels, and primary versus
+cleanup/publication failures. These prove observation behavior, not native Windows
+qualification. The existing 18-control route remains unchanged; no isolated mode,
+new trigger, upload or native execution is part of this correction.

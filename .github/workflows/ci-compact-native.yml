@@ -3,7 +3,8 @@ name: synthetic compact native validation
 
 on:
   push:
-    branches: [diagnostic/2013-parallel-proof-20261020]
+    branches-ignore: ['**']
+    tags-ignore: ['**']
 
 permissions:
   contents: read

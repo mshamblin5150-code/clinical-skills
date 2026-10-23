@@ -75,6 +75,84 @@ def _canonical(value):
 
 
 
+WITNESS_PHASES = frozenset({"prepare", "coordinator", "read_share", "capture_snapshot",
+    "capture_bytes", "capture_share", "retirement", "retirement_proof",
+    "receipt_reconstruction", "missing_invocation_proof"})
+AUTHORITY_PHASES = frozenset({"not_attempted", "binding", "write", "delete_open",
+                            "replace", "delete", "readback"})
+MAX_FAILURE_WITNESS_BYTES = 2048
+
+
+def failure_witness(runtime):
+    """Copy only finite control evidence before cleanup, never exception text.
+
+    A returned store outcome is not the containing control's verdict. Missing or
+    malformed evidence stays unknown; mark states never imply syscall counts.
+    """
+    source = getattr(runtime, "control_observation", None)
+    if type(source) is not dict or type(source.get("control")) is not str or source.get("control") not in CONTROL_IDS:
+        return None
+    witness = {"version": 1, "control": source["control"],
+        "phase": source.get("phase") if type(source.get("phase")) is str and source.get("phase") in WITNESS_PHASES else "unknown",
+        "authority_phase": source.get("authority_phase")
+            if type(source.get("authority_phase")) is str and source.get("authority_phase") in AUTHORITY_PHASES else "unknown",
+        "outcome_state": "not_returned", "outcome": None,
+        "reconstruction": source.get("reconstruction")
+            if source.get("reconstruction") in ("not_attempted", "unknown", "disposition_verified") else "unknown",
+        "overall_retention": "unknown",
+        "authority_callbacks": source.get("authority_callbacks")
+            if type(source.get("authority_callbacks")) is int and 0 <= source["authority_callbacks"] <= 2 else None,
+        "same_authority": source.get("same_authority") if type(source.get("same_authority")) is bool else None,
+        "receipt_observation": {"kind": None, "phase": "not_attempted", "reason": None, "close": "not_opened"}}
+    receipt = source.get("receipt_observation")
+    if type(receipt) is dict:
+        witness["receipt_observation"] = {
+            "kind": receipt.get("kind") if receipt.get("kind") in ("eligibility", "outcome", "terminal") else None,
+            "phase": receipt.get("phase") if receipt.get("phase") in ("open", "snapshot_before", "read",
+                "snapshot_after", "bytes_proof", "decode", "close", "chain") else "unknown",
+            "reason": receipt.get("reason") if receipt.get("reason") in
+                (None, "control_proof_failed", "receipt_operation_unavailable", "receipt_chain_mismatch")
+                else "receipt_operation_unavailable",
+            "close": receipt.get("close") if receipt.get("close") in
+                ("not_opened", "pending", "verified", "uncertain") else "uncertain"}
+    if source.get("outcome_state") == "returned":
+        witness["outcome_state"] = "invalid"
+        try:
+            row = source["outcome"]
+            require(type(row) is dict and set(row) == {"complete", "reason", "pair", "retention",
+                "streams", "receipt_authority", "receipt_files"})
+            require(type(row["complete"]) is bool
+                and (row["reason"] is None or type(row["reason"]) is str and row["reason"] in retention.REASONS)
+                and (row["pair"] is None or type(row["pair"]) is int and 1 <= row["pair"] <= retention.MAX_PAIRS)
+                and row["retention"] in ("unknown", "disposition_verified"))
+            require(type(row["streams"]) is list and len(row["streams"]) == 2)
+            for name, stream in zip(("stdout", "stderr"), row["streams"]):
+                require(type(stream) is dict and set(stream) == {"stream", "mark", "close"}
+                    and stream["stream"] == name
+                    and stream["mark"] in ("not_requested", "uncertain", "verified")
+                    and stream["close"] in ("not_opened", "pending", "uncertain", "verified"))
+            authority = row["receipt_authority"]
+            require(type(authority) is dict and set(authority) == {"recheck", "close"}
+                and authority["recheck"] in ("not_attempted", "uncertain", "verified")
+                and authority["close"] in ("not_opened", "pending", "uncertain", "verified"))
+            receipts = row["receipt_files"]
+            require(type(receipts) is dict and set(receipts) == {"eligibility", "outcome", "terminal"}
+                and all(value is None or type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value)
+                        for value in receipts.values()))
+            witness["outcome"] = json.loads(_canonical(row))
+            witness["outcome_state"] = "returned"
+            require(len(_canonical(witness)) <= MAX_FAILURE_WITNESS_BYTES)
+        except BaseException:
+            witness.update(outcome_state="invalid", outcome=None)
+    return witness
+
+
+def _phase(runtime, phase):
+    observation = getattr(runtime, "control_observation", None)
+    if observation is not None:
+        observation["phase"] = phase
+
+
 class ObservedAPI:
     """Delegate every successful native operation; faults may only raise.
 
@@ -267,11 +345,18 @@ class PreparedPair:
     owner: object
     result: object
     reads: tuple
+    runtime: object
 
     def retire(self):
         from compact_parallel_consumers import helper_evidence
         record = {"reads": self.reads, "result": {"returncode": self.result.snapshot.root_exit_code}}
-        return self.store.retire(self.ticket, "helper_result", helper_evidence(record))
+        _phase(self.runtime, "retirement")
+        result = self.store.retire(self.ticket, "helper_result", helper_evidence(record))
+        observation = getattr(self.runtime, "control_observation", None)
+        if observation is not None:
+            observation.update(outcome_state="returned", outcome=result)
+        _phase(self.runtime, "retirement_proof")
+        return result
 
 
 def prepare_pair(root, runtime, stdout=b"synthetic output\n", stderr=b"", exit_code=0):
@@ -285,7 +370,7 @@ def prepare_pair(root, runtime, stdout=b"synthetic output\n", stderr=b"", exit_c
     ticket = store.reserve(root, report, {"payload_sha256": _digest(SYNTHETIC_CHILD.encode("ascii"))})
     owner, result, reads = runtime.launch(report, stdout, stderr, exit_code)
     store.register(ticket, owner, result, reads)
-    return PreparedPair(root, store, ticket, api, owner, result, reads)
+    return PreparedPair(root, store, ticket, api, owner, result, reads, runtime)
 
 
 FAULT_EXPECTATIONS = {
@@ -300,7 +385,7 @@ FAULT_EXPECTATIONS = {
 }
 
 
-def reconstruct_retention(root, api, deadline, *, outcome=None, invocation_complete=False):
+def reconstruct_retention(root, api, deadline, *, outcome=None, invocation_complete=False, observation=None):
     """Read-only chain check. Receipts alone NEVER certify an invocation's exit.
 
     A missing containing successful result, missing/corrupt record, read/close
@@ -313,27 +398,43 @@ def reconstruct_retention(root, api, deadline, *, outcome=None, invocation_compl
             or outcome.get("reason") is not None or outcome.get("retention") != "disposition_verified"):
         return "unknown"
     records = {}
+    receipt_observation = {"kind": None, "phase": "not_attempted", "reason": None, "close": "not_opened"}
+    if observation is not None:
+        observation["receipt_observation"] = receipt_observation
     for kind in ("eligibility", "outcome", "terminal"):
         handle = None
         try:
             digest = expected[kind]
             require(type(digest) is str and re.fullmatch(r"[0-9a-f]{64}", digest))
             path = root / ("compact-%06d-%s.json" % (outcome["pair"], kind))
+            receipt_observation.update(kind=kind, phase="open", close="not_opened")
             handle = api.open(path)
+            receipt_observation.update(phase="snapshot_before", close="pending")
             before = contract.windows_snapshot(api, handle, MAX_RECEIPT_BYTES, "compact-control", deadline)
+            receipt_observation["phase"] = "read"
             raw = api.read(handle, MAX_RECEIPT_BYTES, deadline)
+            receipt_observation["phase"] = "snapshot_after"
             after = contract.windows_snapshot(api, handle, MAX_RECEIPT_BYTES, "compact-control", deadline)
+            receipt_observation["phase"] = "bytes_proof"
             require(before == after and len(raw) == before.st_size and _digest(raw) == digest)
+            receipt_observation["phase"] = "decode"
             records[kind] = json.loads(raw)
             closing, handle = handle, None
+            receipt_observation.update(phase="close", close="uncertain")
             api.close(closing)
-        except BaseException:
+            receipt_observation["close"] = "verified"
+        except BaseException as error:
+            receipt_observation["reason"] = ("control_proof_failed" if type(error) is ControlError
+                and error.code == "control_proof_failed" else "receipt_operation_unavailable")
             if handle is not None:
+                receipt_observation["close"] = "uncertain"
                 try:
                     api.close(handle)
+                    receipt_observation["close"] = "verified"
                 except BaseException:
                     pass
             return "unknown"
+    receipt_observation.update(kind=None, phase="chain")
     terminal, recorded = records["terminal"], records["outcome"]
     if (terminal.get("eligibility_sha256") != expected["eligibility"]
             or terminal.get("outcome_sha256") != expected["outcome"]
@@ -344,6 +445,7 @@ def reconstruct_retention(root, api, deadline, *, outcome=None, invocation_compl
             or terminal.get("receipt_authority") != {"recheck": "verified", "close": "verified"}
             or any(row != {"stream": name, "mark": "verified", "close": "verified"}
                    for name, row in zip(("stdout", "stderr"), outcome.get("streams", ())))):
+        receipt_observation["reason"] = "receipt_chain_mismatch"
         return "unknown"
     return "disposition_verified"
 
@@ -402,6 +504,7 @@ def _authority_denials(pair):
     api = pair.api.native
     denials = []
     for label, access in (("write", 0x40000000), ("delete_open", 0x00010000)):
+        pair.runtime.control_observation["authority_phase"] = label
         opened = api.kernel.CreateFileW(str(path), access, 1, None, 3, 0x08200000, None)
         if opened not in (None, api.c.c_void_p(-1).value):
             pair.api.handles[opened] = path
@@ -417,34 +520,42 @@ def _authority_denials(pair):
     import ctypes as c
     move = api.kernel.MoveFileExW
     move.argtypes, move.restype = (c.c_wchar_p, c.c_wchar_p, c.c_uint32), c.c_int
+    pair.runtime.control_observation["authority_phase"] = "replace"
     require(not move(str(replacement), str(path), 1)
             and api.c.get_last_error() == 32, "control_native_sharing_unexpected")
     denials.append("replace")
     delete = api.kernel.DeleteFileW
     delete.argtypes, delete.restype = (c.c_wchar_p,), c.c_int
+    pair.runtime.control_observation["authority_phase"] = "delete"
     require(not delete(str(path)) and api.c.get_last_error() == 32,
             "control_native_sharing_unexpected")
     denials.append("delete")
     # The same acquired handle must still identify and read the original receipt.
+    pair.runtime.control_observation["authority_phase"] = "readback"
     require(pair.api.read(handle, MAX_RECEIPT_BYTES, pair.store.deadline))
     return denials
 
 
 def _snapshot_share_success(pair, runtime):
     path = Path(pair.owner.stdout_path)
+    _phase(runtime, "read_share")
     with _owned_handle(pair.api, path):
         require(pair.api.native.opens[-1] == (0x80000000, 1, 3, 0x08200000))
         _denied_by_sharing(lambda: pair.api.open_capture(path), pair.api)
+    _phase(runtime, "capture_snapshot")
     with _owned_handle(pair.api, path, capture=True) as capture:
         require(pair.api.native.opens[-1] == (0x80010000, 1, 3, 0x08200000))
         observed = contract.windows_snapshot(pair.api, capture, MAX_STREAM_BYTES,
                                              "compact-control", runtime.work_deadline)
         require(observed == pair.reads[0][1])
+        _phase(runtime, "capture_bytes")
         require(pair.api.read(capture, MAX_STREAM_BYTES, runtime.work_deadline) == pair.reads[0][0])
+        _phase(runtime, "capture_share")
         _denied_by_sharing(lambda: pair.api.open(path), pair.api)
     denials = []
     authority_handles = []
     def before_mark(handle):
+        runtime.control_observation["authority_phase"] = "binding"
         authorities = [h for h, p in pair.api.handles.items() if p.name.endswith("-eligibility.json")]
         require(len(authorities) == 1)
         authority_handles.append(authorities[0])
@@ -452,11 +563,18 @@ def _snapshot_share_success(pair, runtime):
             denials.extend(_authority_denials(pair))
     pair.api.before_mark = before_mark
     result = pair.retire()
+    runtime.control_observation.update(authority_callbacks=len(authority_handles),
+        same_authority=(authority_handles[0] == authority_handles[1]) if len(authority_handles) == 2 else None)
     require(result["complete"] is True and len(authority_handles) == 2
             and authority_handles[0] == authority_handles[1])
+    _phase(runtime, "receipt_reconstruction")
+    runtime.control_observation["reconstruction"] = "unknown"
     retained = reconstruct_retention(pair.root, pair.api, runtime.work_deadline,
-                                      outcome=result, invocation_complete=True)
+                                      outcome=result, invocation_complete=True,
+                                      observation=runtime.control_observation)
+    runtime.control_observation["reconstruction"] = retained
     require(retained == "disposition_verified")
+    _phase(runtime, "missing_invocation_proof")
     require(reconstruct_retention(pair.root, pair.api, runtime.work_deadline, outcome=result) == "unknown")
     return {"outcome": result, "retention": retained, "authority_denials": denials,
             "snapshot_fields": list(contract.METADATA_FIELDS), "events": pair.api.events}
@@ -577,8 +695,12 @@ def _coordinator_death(root, runtime):
 def run_control(control_id, root, runtime):
     """One fixed control, used by the complete packet and portable seam tests."""
     require(control_id in CONTROL_IDS)
+    runtime.control_observation = {"control": control_id, "phase": "prepare",
+        "authority_phase": "not_attempted", "outcome_state": "not_returned",
+        "outcome": None, "reconstruction": "not_attempted"}
     runtime.check_time()
     if control_id == "coordinator_death_unknown":
+        _phase(runtime, "coordinator")
         return _coordinator_death(root, runtime)
     pair = prepare_pair(root, runtime)
     if control_id == "snapshot_share_receipt_success":

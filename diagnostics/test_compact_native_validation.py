@@ -302,3 +302,312 @@ class FirstStatusOwnershipControls(unittest.TestCase):
                         session.run(['git', '-C', str(root), 'config', '--get', 'core.eol'], root)
                 launch.start.assert_not_called()
                 self.assertEqual([owner], session.owners)
+
+class FailureWitnessControls(unittest.TestCase):
+    def test_retirement_failure_keeps_inner_outcome_before_cleanup(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        api = SharingNative()
+        api.failures.add(('mark', 'stderr.bin'))
+        runtime, _, _ = NativePacketControls().runtime(api)
+        progress = {'failed_control': None, 'control_count': 0}
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            witness = progress['failure_witness']
+            self.assertEqual('snapshot_share_receipt_success', witness['control'])
+            self.assertEqual('retirement_proof', witness['phase'])
+            self.assertEqual('returned', witness['outcome_state'])
+            self.assertEqual('compact_disposition_failed', witness['outcome']['reason'])
+            self.assertEqual(['verified', 'uncertain'], [row['mark'] for row in witness['outcome']['streams']])
+            self.assertEqual('unknown', witness['outcome']['retention'])
+            self.assertEqual('not_attempted', witness['reconstruction'])
+            self.assertEqual(1, len(runtime.owners))
+            self.assertEqual(0, progress['control_count'])
+            self.assertTrue(runtime.cleanup())
+
+    def test_receipt_reconstruction_failure_keeps_successful_inner_result_but_unknown_overall(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        api = SharingNative()
+        api.read_fail_at = ('compact-000001-terminal.json', 2)
+        runtime, _, _ = NativePacketControls().runtime(api)
+        progress = {'failed_control': None, 'control_count': 0}
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            witness = progress['failure_witness']
+            self.assertEqual('receipt_reconstruction', witness['phase'])
+            self.assertEqual(True, witness['outcome']['complete'])
+            self.assertEqual(None, witness['outcome']['reason'])
+            self.assertEqual(['verified', 'verified'], [row['mark'] for row in witness['outcome']['streams']])
+            self.assertEqual('unknown', witness['reconstruction'])
+            self.assertEqual('unknown', witness['overall_retention'])
+            self.assertEqual({'kind': 'terminal', 'phase': 'bytes_proof', 'reason': 'control_proof_failed', 'close': 'verified'},
+                             witness['receipt_observation'])
+            self.assertTrue(runtime.cleanup())
+
+    def test_first_control_failure_matrix_preserves_finite_retirement_and_authority_boundary(self):
+        import contextlib, io, json
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        class FaultNative(SharingNative):
+            def __init__(self, fault):
+                super().__init__()
+                self.fault = fault
+                if fault == 'first_mark': self.failures.add(('mark', 'stdout.bin'))
+                if fault == 'authority_close': self.failures.add(('close', 'compact-000001-eligibility.json'))
+                if fault == 'authority_delete': self.kernel.DeleteFileW.call = lambda *args: 1
+            def read(self, handle, limit, deadline):
+                name = self.handles[handle]['path'].name
+                if (self.fault == 'eligibility' and name.endswith('-eligibility.json')
+                    or self.fault == 'outcome' and name.endswith('-outcome.json')
+                    or self.fault == 'terminal' and name.endswith('-terminal.json')
+                    or self.fault == 'authority_recheck' and name.endswith('-eligibility.json')
+                       and self.reads.get(name, 0) == 2):
+                    raise OSError('PRIVATE_CAPTURE_PATH_AND_PAYLOAD_SENTINEL')
+                return super().read(handle, limit, deadline)
+        for fault, reason, marks, authority_phase in (
+            ('eligibility', 'compact_eligibility_receipt_failed', ['not_requested', 'not_requested'], 'not_attempted'),
+            ('first_mark', 'compact_disposition_failed', ['uncertain', 'not_requested'], 'readback'),
+            ('authority_delete', 'compact_disposition_failed', ['uncertain', 'not_requested'], 'delete'),
+            ('outcome', 'compact_outcome_receipt_failed', ['verified', 'verified'], 'binding'),
+            ('authority_recheck', 'compact_authority_recheck_failed', ['verified', 'verified'], 'binding'),
+            ('authority_close', 'compact_authority_close_failed', ['verified', 'verified'], 'binding'),
+            ('terminal', 'compact_terminal_receipt_failed', ['verified', 'verified'], 'binding'),
+        ):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+                runtime, _, _ = NativePacketControls().runtime(FaultNative(fault))
+                progress = {'failed_control': None, 'control_count': 0}
+                with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                    subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+                witness = progress['failure_witness']
+                self.assertEqual(reason, witness['outcome']['reason'])
+                self.assertEqual(marks, [row['mark'] for row in witness['outcome']['streams']])
+                self.assertEqual(authority_phase, witness['authority_phase'])
+                self.assertEqual('unknown', witness['overall_retention'])
+                self.assertNotIn('PRIVATE_', json.dumps(witness))
+                self.assertLessEqual(len(json.dumps(witness).encode()), 4096)
+                self.assertEqual(1, len(runtime.owners))
+                runtime.cleanup()
+
+    def test_no_retirement_result_is_not_fabricated_as_unmarked(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        api = SharingNative()
+        api.failures.add(('open', 'stdout.bin'))
+        runtime, _, _ = NativePacketControls().runtime(api)
+        progress = {'failed_control': None, 'control_count': 0}
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(PermissionError):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            self.assertEqual('read_share', progress['failure_witness']['phase'])
+            self.assertEqual('not_returned', progress['failure_witness']['outcome_state'])
+            self.assertIsNone(progress['failure_witness']['outcome'])
+            self.assertEqual('unknown', progress['failure_witness']['overall_retention'])
+            self.assertTrue(runtime.cleanup())
+
+    def test_malformed_outcome_cannot_publish_private_value_or_change_primary_exception(self):
+        import contextlib, io, json
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        sentinel = 'PRIVATE_PATH_PAYLOAD_SECRET_SENTINEL'
+        for field, value in (('reason', sentinel), ('receipt_files', {'eligibility': sentinel}),
+                             ('streams', [sentinel]), ('pair', sentinel), ('extra', sentinel)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+                runtime, _, _ = NativePacketControls().runtime(SharingNative())
+                progress = {'failed_control': None, 'control_count': 0}
+                original = native.retention.CompactStore.retire
+                def malformed(store, *args):
+                    result = original(store, *args)
+                    result.update(complete=False, **{field: value})
+                    return result
+                with mock.patch.object(native.retention.CompactStore, 'retire', malformed):
+                    with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                        subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+                witness = progress['failure_witness']
+                self.assertEqual('invalid', witness['outcome_state'])
+                self.assertIsNone(witness['outcome'])
+                self.assertNotIn(sentinel, json.dumps(witness))
+                self.assertTrue(runtime.cleanup())
+
+    def test_cli_primary_witness_survives_failed_cleanup_and_failed_publication(self):
+        import json
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        for fail_publication in (False, True):
+            with self.subTest(fail_publication=fail_publication):
+                harness = FinalizationControls()
+                args = harness.harness(clean=False)
+                try:
+                    api = SharingNative()
+                    api.failures.add(('mark', 'stderr.bin'))
+                    runtime, _, _ = NativePacketControls().runtime(api)
+                    runtime.clock = lambda: harness.clock[0]
+                    cleanup = runtime.cleanup
+                    runtime.cleanup = mock.Mock(side_effect=cleanup)
+                    events = []
+                    original_emit = q.emit
+                    def emit(event, **fields):
+                        events.append((event, fields))
+                        if event == 'compact_native_summary' and fail_publication:
+                            raise OSError('PRIVATE_TERMINAL_PUBLICATION_SENTINEL')
+                        original_emit(event, **fields)
+                    def execute(session, runtime, observer, progress):
+                        progress['stage'] = 'controls'
+                        subject.perform_controls(observer.parent, runtime, progress)
+                    with mock.patch.object(subject, 'make_runtime', return_value=runtime), \
+                         mock.patch.object(subject, 'execute', execute), mock.patch.object(q, 'emit', emit):
+                        self.assertEqual(2, subject.main(args))
+                    terminal = [row for event, row in events if event == 'compact_native_summary']
+                    self.assertEqual(1, len(terminal))
+                    self.assertLessEqual(len(json.dumps({'event': 'compact_native_summary', **terminal[0]}).encode()), 4096)
+                    self.assertEqual({'stage': 'controls', 'reason': 'control_proof_failed'}, terminal[0]['failure'])
+                    self.assertEqual(False, terminal[0]['process_cleanup_verified'])
+                    self.assertEqual('compact_disposition_failed', terminal[0]['failure_witness']['outcome']['reason'])
+                    self.assertEqual(['verified', 'uncertain'],
+                        [row['mark'] for row in terminal[0]['failure_witness']['outcome']['streams']])
+                    self.assertEqual(1, len(runtime.owners))
+                    runtime.cleanup.assert_called_once()
+                    harness.session.cleanup.assert_called_once()
+                    self.assertNotIn('PRIVATE_', harness.stdout.getvalue() + harness.stderr.getvalue())
+                    self.assertNotIn('Traceback', harness.stdout.getvalue() + harness.stderr.getvalue())
+                finally:
+                    harness.doCleanups()
+
+    def test_containing_invocation_proof_failure_stays_inconclusive(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        progress = {'failed_control': None, 'control_count': 0}
+        original = native.reconstruct_retention
+        def wrong_uncontained(*args, **kwargs):
+            if not kwargs.get('invocation_complete'):
+                return 'disposition_verified'
+            return original(*args, **kwargs)
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch.object(native, 'reconstruct_retention', wrong_uncontained):
+            with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            witness = progress['failure_witness']
+            self.assertEqual('missing_invocation_proof', witness['phase'])
+            self.assertEqual(True, witness['outcome']['complete'])
+            self.assertEqual('disposition_verified', witness['reconstruction'])
+            self.assertEqual('unknown', witness['overall_retention'])
+            self.assertEqual(2, witness['authority_callbacks'])
+            self.assertEqual(True, witness['same_authority'])
+            self.assertTrue(runtime.cleanup())
+
+    def test_reconstruction_primary_read_fault_survives_secondary_close_fault(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        class FaultNative(SharingNative):
+            def read(self, handle, limit, deadline):
+                name = self.handles[handle]['path'].name
+                if name.endswith('-terminal.json') and self.reads.get(name, 0) == 1:
+                    self.failures.add(('close', name))
+                    raise OSError('PRIVATE_READ_PRIMARY_SENTINEL')
+                return super().read(handle, limit, deadline)
+        runtime, _, _ = NativePacketControls().runtime(FaultNative())
+        progress = {'failed_control': None, 'control_count': 0}
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            self.assertEqual({'kind': 'terminal', 'phase': 'read',
+                              'reason': 'receipt_operation_unavailable', 'close': 'uncertain'},
+                             progress['failure_witness']['receipt_observation'])
+            self.assertTrue(progress['failure_witness']['outcome']['complete'])
+            self.assertEqual('unknown', progress['failure_witness']['overall_retention'])
+            self.assertFalse(runtime.cleanup())
+
+    def test_complete_retirement_cannot_hide_failed_same_authority_proof(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        progress = {'failed_control': None, 'control_count': 0}
+        def bypass_callback(api, handle):
+            api.native.mark_delete(handle)
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch.object(native.ObservedAPI, 'mark_delete', bypass_callback):
+            with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            witness = progress['failure_witness']
+            self.assertEqual(True, witness['outcome']['complete'])
+            self.assertEqual('retirement_proof', witness['phase'])
+            self.assertEqual(0, witness['authority_callbacks'])
+            self.assertIsNone(witness['same_authority'])
+            self.assertEqual('unknown', witness['overall_retention'])
+            self.assertTrue(runtime.cleanup())
+
+    def test_finite_witness_fits_existing_terminal_reserve_and_is_detached(self):
+        import contextlib, io, json
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            result = native.run_control('snapshot_share_receipt_success', Path(temporary).resolve() / 'new', runtime)
+            result['outcome']['reason'] = max(native.retention.REASONS, key=len)
+            result['outcome']['pair'] = native.retention.MAX_PAIRS
+            witness = native.failure_witness(runtime)
+            self.assertEqual('returned', witness['outcome_state'])
+            self.assertLessEqual(len(json.dumps(witness).encode()), 2048)
+            self.assertEqual({'recheck': 'verified', 'close': 'verified'}, witness['outcome']['receipt_authority'])
+            result['outcome']['streams'][0]['mark'] = 'PRIVATE_LATE_MUTATION_SENTINEL'
+            self.assertEqual('verified', witness['outcome']['streams'][0]['mark'])
+            self.assertNotIn('PRIVATE_', json.dumps(witness))
+            self.assertTrue(runtime.cleanup())
+
+    def test_entered_reconstruction_exception_is_unknown_not_unattempted(self):
+        import contextlib, io, json
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        progress = {'failed_control': None, 'control_count': 0}
+        primary = OSError('PRIVATE_RECONSTRUCTION_SENTINEL')
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch.object(native, 'reconstruct_retention', side_effect=primary):
+            with self.assertRaises(OSError) as caught:
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            self.assertIs(primary, caught.exception)
+            witness = progress['failure_witness']
+            self.assertEqual('receipt_reconstruction', witness['phase'])
+            self.assertEqual('unknown', witness['reconstruction'])
+            self.assertEqual(True, witness['outcome']['complete'])
+            self.assertEqual('unknown', witness['overall_retention'])
+            self.assertEqual(['verified', 'verified'], [row['mark'] for row in witness['outcome']['streams']])
+            self.assertNotIn('PRIVATE_', json.dumps(witness))
+            self.assertEqual(1, len(runtime.owners))
+            self.assertTrue(runtime.cleanup())
+
+    def test_projector_exception_cannot_replace_original_control_exception(self):
+        import contextlib, io
+        from test_compact_native_controls import NativePacketControls, SharingNative
+        import compact_native_controls as native
+        api = SharingNative()
+        api.failures.add(('mark', 'stderr.bin'))
+        runtime, _, _ = NativePacketControls().runtime(api)
+        progress = {'failed_control': None, 'control_count': 0, 'failure_witness': None}
+        original_run, original_errors = native.run_control, []
+        def remember_original(*args):
+            try:
+                return original_run(*args)
+            except BaseException as error:
+                original_errors.append(error)
+                raise
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
+             mock.patch.object(native, 'run_control', remember_original), \
+             mock.patch.object(native, 'failure_witness', side_effect=OSError('PRIVATE_PROJECTOR_SENTINEL')):
+            with self.assertRaises(BaseException) as caught:
+                subject.perform_controls(Path(temporary).resolve(), runtime, progress)
+            self.assertEqual(1, len(original_errors))
+            self.assertIs(original_errors[0], caught.exception)
+            self.assertEqual('control_proof_failed', subject.reason(caught.exception))
+            self.assertIsNone(progress['failure_witness'])
+            self.assertEqual(0, progress['control_count'])
+            self.assertEqual(1, len(runtime.owners))
+            self.assertTrue(runtime.cleanup())
