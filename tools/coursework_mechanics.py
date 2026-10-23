@@ -80,7 +80,7 @@ DECLARED_LIMITS = (
     "Mixed terms and count nouns outside the committed lists have no dedicated list row; bare small digits still require handling.",
     "The truth of a recorded dictionary entry, APA exception, or changed disposition is not graded.",
     "The country variant row grades consistency; a noun-use directive was not established by the bounded Manual read.",
-    f"Sentence boundaries follow punctuation; the lowercase APA citation abbreviations {_CITATION_LIST} and the lists and ranges after pp. and paras. are not boundaries for any opening or digit row, but a period inside any other abbreviation can produce an opening candidate.",
+    f"Sentence boundaries follow punctuation; the lowercase APA citation abbreviations {_CITATION_LIST} and the lists and ranges after {' and '.join(f'{word}.' for word in CITATION_SPAN_ABBREVIATIONS)} are not boundaries for any opening or digit row, but a period inside any other abbreviation can produce an opening candidate.",
     "Only reference titles parsed from an italic span or the title immediately after the reference date are excluded as cited titles.",
     "A group author is recognized from the reference author field without personal-name initials; ambiguous author grammar remains outside this read.",
     "Word surfaces inherit coursework_style's projection limits.",
