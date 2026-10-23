@@ -106,6 +106,9 @@ def reason(error):
     native = sys.modules.get('compact_native_controls')
     if native is not None and type(error) is native.ControlError:
         return error.code if error.code in native.DIAGNOSTICS else 'unknown_failure'
+    calibration = sys.modules.get('compact_replacement_calibration')
+    if calibration is not None and type(error) is calibration.CalibrationRefused:
+        return 'replacement_calibration_inconclusive'
     return 'unknown_failure'
 
 
@@ -301,6 +304,67 @@ def execute(session, runtime, observer, progress):
     progress.update(receipt_verified=True, receipt_sha256=receipt['receipt_sha256'])
 
 
+
+def perform_calibration(root, runtime, progress):
+    """Isolated calibration only: never invokes a native qualification control."""
+    import compact_replacement_calibration as calibration
+    q.require(not runtime.owners and runtime.nested_command_slots == 0 and not runtime.apis,
+              'native_population_changed')
+    runtime.check_time()
+    runtime.resource_check()
+    progress['stage'] = 'replacement_calibration'
+    result = calibration.run_calibration(root / 'replacement-calibration', runtime.api(),
+                                        runtime.work_deadline, progress)
+    q.require(result['status'] == 'verified' and result['cleanup'] == 'verified'
+              and not any(api.handles or api.close_uncertain for api in runtime.apis)
+              and not runtime.owners and runtime.nested_command_slots == 0,
+              'native_handle_cleanup_unverified')
+    runtime.check_time()
+    progress['calibration_verified'] = True
+    return result
+
+
+def retain_calibration_receipt(session, raw):
+    """Reserve fixture bytes explicitly within the unchanged aggregate allowance."""
+    import compact_replacement_calibration as calibration
+    q.require(calibration.FIXTURE_BYTES == 74
+              and calibration.AGGREGATE_BYTES + calibration.FIXTURE_BYTES == 1024 * 1024
+              and type(raw) is bytes and len(raw) <= calibration.AGGREGATE_BYTES,
+              'native_receipt_limit')
+    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
+    return comparison.retained_json(session, 'replacement-calibration-validation.json', raw)
+
+
+def execute_calibration(session, runtime, observer, progress):
+    """Same authenticated source envelope, no first-control call or fallback."""
+    source = os.environ['GITHUB_SHA']
+    progress['stage'] = 'source'
+    q.first_clean(session, observer, source, 'observer')
+    original = q.raw_source_inventory(session, observer, source)
+    validate_core_pins(observer, original)
+    q.verify_sources(session, observer, original, source_sha=source)
+    plan = observation.unique_json((observer / 'diagnostics/compact-first-control-budget.json').read_bytes())
+    q.require(plan == BUDGET and all(type(plan[key]) is type(value) for key, value in BUDGET.items()),
+              'budget_contract_changed')
+    progress['source_integrity_verified'] = True
+    admit_controls(session.deadline, time.monotonic())
+    row = perform_calibration(session.root.parent, runtime, progress)
+    progress['stage'] = 'final_source'
+    q.require(q.raw_source_inventory(session, observer, source) == original, 'native_source_changed')
+    q.verify_sources(session, observer, original, source_sha=source)
+    q.require(len(session.owners) == 15 and not runtime.owners and runtime.nested_command_slots == 0,
+              'native_population_changed')
+    progress['stage'] = 'receipt'
+    raw = json.dumps({'schema': 'replacement-calibration-v1', 'source_sha': source,
+        'cleared_tree': CORE_TREE, 'synthetic_only': True, 'calibration_only': True,
+        'native_control_qualified': False, 'calibration': row},
+        sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+    receipt = retain_calibration_receipt(session, raw)
+    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
+    q.require(receipt['receipt_verified'] is True, 'native_source_receipt_invalid')
+    progress.update(receipt_verified=True, receipt_sha256=receipt['receipt_sha256'])
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise q.Refused('arguments_invalid')
@@ -311,15 +375,21 @@ def _run(argv, public):
     session = runtime = root = hard = admission = None
     failure = None
     clean = complete = False
+    calibration_only = False
     progress = {'stage': 'preflight', 'source_integrity_verified': False,
         'controls_verified': False, 'receipt_verified': False, 'receipt_sha256': None,
         'failed_control': None, 'control_count': 0, 'failure_witness': None,
         'failure_emission_control': None}
     try:
         parser = Parser(description=__doc__, add_help=False)
+        parser.add_argument('--replacement-calibration', action='store_true')
         parser.add_argument('--observer', type=Path)
         parser.add_argument('--job-start-epoch', type=float)
         args = parser.parse_args(argv)
+        calibration_only = args.replacement_calibration
+        if calibration_only:
+            progress.update(calibration_only=True, native_control_qualified=False,
+                            calibration_verified=False, calibration_witness=None)
         authorize_route(os.name, platform.python_version(), dict(os.environ))
         q.require(args.observer is not None, 'arguments_missing')
         deadline, hard = budget_deadlines(args.job_start_epoch, time.time(), start)
@@ -342,7 +412,12 @@ def _run(argv, public):
         runtime = make_runtime(deadline, hard, admission)
         q.emit('compact_first_environment', **identity, cleared_tree=CORE_TREE,
                synthetic_only=True, job_seconds=600, cleanup_seconds=60)
-        execute(session, runtime, observer, progress)
+        if calibration_only:
+            execute_calibration(session, runtime, observer, progress)
+            q.require(not runtime.owners and runtime.nested_command_slots == 0
+                      and progress.get('calibration_verified') is True, 'native_population_changed')
+        else:
+            execute(session, runtime, observer, progress)
         complete = True
     except BaseException as error:
         failure = {'stage': progress['stage'], 'reason': reason(error)}
@@ -363,7 +438,7 @@ def _run(argv, public):
     passed = complete and clean and within and failure is None
     public.terminal = True
     try:
-        emit_terminal('compact_first_summary', status='passed' if passed else 'inconclusive',
+        emit_terminal('compact_replacement_calibration_summary' if calibration_only else 'compact_first_summary', status='passed' if passed else 'inconclusive',
                **progress, failure=failure, process_cleanup_verified=clean,
                hard_budget_verified=within, observer_seconds=elapsed,
                synthetic_only=True, application_executed=False,

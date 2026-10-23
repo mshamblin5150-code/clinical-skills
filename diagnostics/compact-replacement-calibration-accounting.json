@@ -1,0 +1,15 @@
+{
+  "aggregate_receipt_max_bytes": 1048502,
+  "calibration_fixture_max_bytes": 74,
+  "calibration_native_owned_commands": 0,
+  "calibration_capture_disposition_calls": 0,
+  "calibration_replacement_attempts": 2,
+  "conservative_capture_pairs_ceiling": 19,
+  "conservative_streams_ceiling": 38,
+  "including_public_content_bytes_ceiling": 642891830,
+  "private_content_bytes_ceiling": 638697526,
+  "source_success_commands": 15,
+  "work_seconds": 540,
+  "cleanup_seconds": 60,
+  "total_job_seconds": 600
+}

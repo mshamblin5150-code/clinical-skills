@@ -1,3 +1,8 @@
+> Current workflow selection: the single job now selects the separately reviewed
+> calibration-only route described in compact-replacement-calibration-spec.md.
+> The first control specified below remains callable but is not executed by that
+> route; its strict acceptance and historical findings are unchanged.
+
 # Fixed first-control probe
 
 This is a separately reviewed source-only route, not a subset flag or a patched
