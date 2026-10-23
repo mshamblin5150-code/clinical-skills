@@ -80,6 +80,9 @@ WITNESS_PHASES = frozenset({"prepare", "coordinator", "read_share", "capture_sna
     "receipt_reconstruction", "missing_invocation_proof"})
 AUTHORITY_PHASES = frozenset({"not_attempted", "binding", "write", "delete_open",
                             "replace", "delete", "readback"})
+REPLACEMENT_CALLS = frozenset({"not_returned", "entered", "returned_false",
+                             "returned_true", "call_raised", "error_read_raised"})
+REPLACEMENT_ERRORS = frozenset({"sharing_32", "access_5", "other"})
 MAX_FAILURE_WITNESS_BYTES = 2048
 
 
@@ -96,6 +99,7 @@ def failure_witness(runtime):
         "phase": source.get("phase") if type(source.get("phase")) is str and source.get("phase") in WITNESS_PHASES else "unknown",
         "authority_phase": source.get("authority_phase")
             if type(source.get("authority_phase")) is str and source.get("authority_phase") in AUTHORITY_PHASES else "unknown",
+        "replacement_call": None, "replacement_error": None,
         "outcome_state": "not_returned", "outcome": None,
         "reconstruction": source.get("reconstruction")
             if source.get("reconstruction") in ("not_attempted", "unknown", "disposition_verified") else "unknown",
@@ -104,6 +108,12 @@ def failure_witness(runtime):
             if type(source.get("authority_callbacks")) is int and 0 <= source["authority_callbacks"] <= 2 else None,
         "same_authority": source.get("same_authority") if type(source.get("same_authority")) is bool else None,
         "receipt_observation": {"kind": None, "phase": "not_attempted", "reason": None, "close": "not_opened"}}
+    call, error = source.get("replacement_call"), source.get("replacement_error")
+    if (type(call) is str and call in REPLACEMENT_CALLS
+            and "replacement_error" in source
+            and ((call == "returned_false" and type(error) is str and error in REPLACEMENT_ERRORS)
+                 or (call != "returned_false" and error is None))):
+        witness.update(replacement_call=call, replacement_error=error)
     receipt = source.get("receipt_observation")
     if type(receipt) is dict:
         witness["receipt_observation"] = {
@@ -492,6 +502,14 @@ def _owned_handle(api, path, *, capture=False):
                 raise
 
 
+def _replacement_observation(runtime, call, error=None):
+    """Best-effort finite evidence must not replace a native/control exception."""
+    try:
+        runtime.control_observation.update(replacement_call=call, replacement_error=error)
+    except BaseException:
+        pass
+
+
 def _authority_denials(pair):
     """Attack only the fresh eligibility name while its read authority is held.
 
@@ -521,8 +539,25 @@ def _authority_denials(pair):
     move = api.kernel.MoveFileExW
     move.argtypes, move.restype = (c.c_wchar_p, c.c_wchar_p, c.c_uint32), c.c_int
     pair.runtime.control_observation["authority_phase"] = "replace"
-    require(not move(str(replacement), str(path), 1)
-            and api.c.get_last_error() == 32, "control_native_sharing_unexpected")
+    # This is the Python invocation boundary, not evidence of Windows entry.
+    _replacement_observation(pair.runtime, "entered")
+    try:
+        returned_false = not move(str(replacement), str(path), 1)
+    except BaseException:
+        _replacement_observation(pair.runtime, "call_raised")
+        raise
+    error = None
+    if returned_false:
+        try:
+            error = api.c.get_last_error()
+        except BaseException:
+            _replacement_observation(pair.runtime, "error_read_raised")
+            raise
+    _replacement_observation(pair.runtime,
+        "returned_false" if returned_false else "returned_true",
+        ("sharing_32" if error == 32 else "access_5" if error == 5 else "other")
+            if returned_false else None)
+    require(returned_false and error == 32, "control_native_sharing_unexpected")
     denials.append("replace")
     delete = api.kernel.DeleteFileW
     delete.argtypes, delete.restype = (c.c_wchar_p,), c.c_int
@@ -697,6 +732,7 @@ def run_control(control_id, root, runtime):
     require(control_id in CONTROL_IDS)
     runtime.control_observation = {"control": control_id, "phase": "prepare",
         "authority_phase": "not_attempted", "outcome_state": "not_returned",
+        "replacement_call": "not_returned", "replacement_error": None,
         "outcome": None, "reconstruction": "not_attempted"}
     runtime.check_time()
     if control_id == "coordinator_death_unknown":

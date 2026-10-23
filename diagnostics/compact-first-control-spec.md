@@ -15,7 +15,7 @@ retry, fallback, full-packet continuation, or upload-artifact step.
 The driver retains first-status, complete raw Git-object inventory, clean/raw
 workfile verification, original core-pin authentication, and final verification.
 New tracked route files are included in that full inventory, not exempted from it.
-The source session and all original native control code are unchanged. The driver
+The source session and original native operations and guards are unchanged. The driver
 creates its own runtime subclass solely to refuse a second or nested owner before
 launch. It invokes exactly `snapshot_share_receipt_success` with its original
 native permissions, sharing, guards, receipt chain and proof predicates.
@@ -45,6 +45,28 @@ Witnesses retain the original 2 KiB cap. Both emitted self-control output and fi
 summary share the existing 4 MiB aggregate public allowance; the self-control does
 not consume the final terminal reserve. A failed/missing terminal or failed cleanup
 is inconclusive. The primary failure survives cleanup or publication failure.
+
+### Replacement-call observation
+
+The existing replacement denial has two finite observational fields, without
+changing its proof predicate: only a false return and sharing error 32 pass.
+`replacement_call` is `not_returned`, `entered`, `returned_false`, `returned_true`,
+`call_raised`, or `error_read_raised`. `entered` means the Python invocation
+boundary, not proven Windows syscall entry. `not_returned` is initialized
+observation, not proof that no call was attempted. `error_read_raised` means a
+false result was observed but its last-error query raised.
+
+Only `returned_false` carries `replacement_error`: `sharing_32`, `access_5`, or
+`other`. All other states carry null. Missing, malformed, or inconsistent pairs
+project to two nulls, never negative execution proof. No raw error number, path,
+handle, or exception text is exposed. Observation writes are best effort and
+cannot replace the original exception; a lost update proves no execution fact.
+The original single replacement call and immediate false-only last-error query
+remain, with no query on success, changed native rights, retry, or fallback.
+
+Portable injected return/error and exception cases distinguish these observations,
+not actual Windows behavior. In particular the nonzero-return fake does not
+replace any pathname and cannot prove the physical effects of native success.
 
 ## Boundaries and accounting
 
