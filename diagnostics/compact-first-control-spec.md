@@ -104,3 +104,47 @@ other seventeen controls, consumer behavior, a held application comparison,
 performance, physical reclamation or secure erasure. Historical run 39874952202
 remains inconclusive with unknown zero-to-two stream disposition. No native cause
 has been inferred or repaired. A pass does not authorize another run or full packet.
+
+## Supplemental sampled replacement poststate (source-only preparation)
+
+The dedicated first-control route now opts into a separate supplemental proof.
+The original `returned_false and error == 32` guard is unchanged in meaning:
+false/error5 remains inconclusive even if the supplemental proof verifies. True
+returns and call/getter exceptions fail closed without adopting poststate as
+acceptance. A known original sharing refusal stays primary if proof also fails.
+No new native qualification, calibration, rerun or acceptance branch is authorized.
+
+The diagnostic API samples the original eligibility handle during the core
+store's handoff read; the store authenticates that same read before entering the
+first mark callback. Only there is the sample admitted as the baseline, bound to
+the actual held handle and its per-open lifetime. The core store and native API
+are unchanged. The proof compares the original authority, a freshly opened
+destination name and a freshly opened replacement source using the existing
+READ/shareREAD API, two-record full native snapshots before/after exact bounded
+reads, full volume/FileId identity, and observed parent/ancestor lstat identities.
+The parent samples are the existing safe chain, not text equality and not native
+128-bit directory-handle snapshots. No parent observer handle is added.
+
+Source bytes remain the fixed 37-byte payload. Source and original must have
+observed same volume and distinct IDs. Full metadata, single-link ordinary files,
+no reparse or delete-pending state, and absence of readonly/hidden/system/temporary
+attributes are required; unsupported attributes are refused, never changed. They
+do not establish ACL rights or exclude filters as an alternate refusal cause.
+All added preflight observers close with verified acknowledgment before the move;
+all post observers close before DeleteFile and capture marks. Ledger/lifetime or
+close uncertainty refuses without retry. Every read is charged to the existing
+work deadline and 16-KiB receipt or 37-byte source limit. No capture, owner, file,
+command population, storage allowance, permission or cleanup policy is added.
+
+The single finite supplemental field `replacement_poststate` is `not_checked`,
+`prepared`, `verified`, or `failed`; absent/malformed values project to null
+(unknown). Only an explicitly recorded initial `not_checked` has that meaning.
+Status writes are best-effort and invalidate prior status before writing; a failed
+write leaves unknown evidence and cannot replace the original proof exception.
+It is included in the bounded failure witness and retained success evidence,
+never raw paths, IDs, bytes, attributes or exceptions. Existing 2-KiB witness,
+4-KiB actual terminal, and aggregate public limits remain enforced. Verified
+means only destination/source namespace-object-content survival at sampled
+observations with the original authority held. It proves neither continuous
+namespace presence, absence of transient mutations, nor sharing as the sole cause
+of denial. Separate positive native calibration is outside this preparation.

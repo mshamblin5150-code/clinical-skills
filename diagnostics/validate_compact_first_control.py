@@ -238,6 +238,7 @@ def failure_emission_control():
 
 def perform_controls(root, runtime, progress):
     import compact_native_controls as native
+    runtime.replacement_poststate = True
     population = [('snapshot_share_receipt_success', 1, native.run_control)]
     rows = []
     for name, count, run in population:

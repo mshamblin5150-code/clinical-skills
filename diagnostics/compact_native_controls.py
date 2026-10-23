@@ -17,6 +17,7 @@ import sys
 import time
 
 import compact_capture_retention as retention
+import compact_replacement_poststate as poststate
 from compact_capture_native import WindowsCompactAPI
 import generated_output_contract as contract
 from windows_job_probe import WindowsJobProbe
@@ -100,6 +101,8 @@ def failure_witness(runtime):
         "authority_phase": source.get("authority_phase")
             if type(source.get("authority_phase")) is str and source.get("authority_phase") in AUTHORITY_PHASES else "unknown",
         "replacement_call": None, "replacement_error": None,
+        "replacement_poststate": source.get("replacement_poststate")
+            if type(source.get("replacement_poststate")) is str and source["replacement_poststate"] in poststate.STATUSES else None,
         "outcome_state": "not_returned", "outcome": None,
         "reconstruction": source.get("reconstruction")
             if source.get("reconstruction") in ("not_attempted", "unknown", "disposition_verified") else "unknown",
@@ -173,6 +176,8 @@ class ObservedAPI:
         self.native, self.handles, self.events = native, {}, []
         self.mode, self.mark_count, self.read_counts = None, 0, {}
         self.close_uncertain = False
+        self.lifetimes, self.next_lifetime = {}, 0
+        self.observe_authority_handoff, self.authority_handoff = False, None
         self.after_mark = self.after_close = self.before_mark = None
         self.check_work = check_work
 
@@ -186,6 +191,8 @@ class ObservedAPI:
         handle = (self.native.open_capture if capture else self.native.open)(path)
         require(handle not in self.handles)
         self.handles[handle] = Path(path)
+        self.next_lifetime += 1
+        self.lifetimes[handle] = self.next_lifetime
         self.events.append(("capture_open" if capture else "read_open", Path(path).name))
         return handle
 
@@ -202,6 +209,17 @@ class ObservedAPI:
                 or (self.mode == "authority_recheck_partial" and name.endswith("-eligibility.json") and count == 2)
                 or (self.mode == "terminal_readback_unknown" and name.endswith("-terminal.json"))):
             raise OSError("injected exact read operation failure")
+        if (self.observe_authority_handoff and self.authority_handoff is None
+                and name.endswith("-eligibility.json")):
+            # This read is the core store's original handoff read. The store
+            # authenticates its returned bytes and records before entering the
+            # first mark callback; the callback may then use this exact sample.
+            before = contract.windows_snapshot(self, handle, limit, "replacement-handoff", deadline)
+            raw = self.native.read(handle, limit, deadline)
+            after = contract.windows_snapshot(self, handle, limit, "replacement-handoff", deadline)
+            require(before == after and type(raw) is bytes and len(raw) == before.st_size)
+            self.authority_handoff = (handle, self.lifetimes[handle], before, raw)
+            return raw
         return self.native.read(handle, limit, deadline)
 
     def mark_delete(self, handle):
@@ -220,6 +238,7 @@ class ObservedAPI:
 
     def close(self, handle):
         path = self.handles.pop(handle)
+        self.lifetimes.pop(handle, None)
         try:
             self.native.close(handle)
         except BaseException:
@@ -535,6 +554,15 @@ def _authority_denials(pair):
     replacement = pair.root / "receipt-replacement.bin"
     with replacement.open("xb") as stream:
         stream.write(b"synthetic replacement must be denied\n")
+    supplemental = None
+    if getattr(pair.runtime, "replacement_poststate", False):
+        bound = pair.api.authority_handoff
+        require(bound is not None and bound[0] == handle
+                and pair.api.lifetimes.get(handle) == bound[1])
+        supplemental = poststate.ReplacementPoststate(pair.api, handle, path, replacement,
+            baseline=bound[2:], deadline=pair.store.deadline,
+            observation=pair.runtime.control_observation)
+        supplemental.prepare()
     import ctypes as c
     move = api.kernel.MoveFileExW
     move.argtypes, move.restype = (c.c_wchar_p, c.c_wchar_p, c.c_uint32), c.c_int
@@ -557,7 +585,21 @@ def _authority_denials(pair):
         "returned_false" if returned_false else "returned_true",
         ("sharing_32" if error == 32 else "access_5" if error == 5 else "other")
             if returned_false else None)
-    require(returned_false and error == 32, "control_native_sharing_unexpected")
+    primary = None
+    try:
+        require(returned_false and error == 32, "control_native_sharing_unexpected")
+    except ControlError as refused:
+        primary = refused
+    # Sample after a failed call, even error5, but never adopt that sample as
+    # acceptance. The known original refusal remains primary if proof also fails.
+    if supplemental is not None and returned_false:
+        try:
+            supplemental.verify()
+        except BaseException:
+            if primary is None:
+                raise
+    if primary is not None:
+        raise primary
     denials.append("replace")
     delete = api.kernel.DeleteFileW
     delete.argtypes, delete.restype = (c.c_wchar_p,), c.c_int
@@ -597,6 +639,7 @@ def _snapshot_share_success(pair, runtime):
         if not denials:
             denials.extend(_authority_denials(pair))
     pair.api.before_mark = before_mark
+    pair.api.observe_authority_handoff = getattr(runtime, "replacement_poststate", False)
     result = pair.retire()
     runtime.control_observation.update(authority_callbacks=len(authority_handles),
         same_authority=(authority_handles[0] == authority_handles[1]) if len(authority_handles) == 2 else None)
@@ -612,6 +655,7 @@ def _snapshot_share_success(pair, runtime):
     _phase(runtime, "missing_invocation_proof")
     require(reconstruct_retention(pair.root, pair.api, runtime.work_deadline, outcome=result) == "unknown")
     return {"outcome": result, "retention": retained, "authority_denials": denials,
+            "replacement_poststate": runtime.control_observation.get("replacement_poststate"),
             "snapshot_fields": list(contract.METADATA_FIELDS), "events": pair.api.events}
 
 

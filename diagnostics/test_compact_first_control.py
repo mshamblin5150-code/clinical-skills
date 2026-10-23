@@ -324,7 +324,6 @@ class FailureWitnessControls(unittest.TestCase):
                 super().__init__()
                 self.fault = fault
                 if fault == 'first_mark': self.failures.add(('mark', 'stdout.bin'))
-                if fault == 'authority_close': self.failures.add(('close', 'compact-000001-eligibility.json'))
                 if fault == 'authority_delete': self.kernel.DeleteFileW.call = lambda *args: 1
             def read(self, handle, limit, deadline):
                 name = self.handles[handle]['path'].name
@@ -332,9 +331,16 @@ class FailureWitnessControls(unittest.TestCase):
                     or self.fault == 'outcome' and name.endswith('-outcome.json')
                     or self.fault == 'terminal' and name.endswith('-terminal.json')
                     or self.fault == 'authority_recheck' and name.endswith('-eligibility.json')
-                       and self.reads.get(name, 0) == 2):
+                       and len(self.disposed) == 2):
                     raise OSError('PRIVATE_CAPTURE_PATH_AND_PAYLOAD_SENTINEL')
                 return super().read(handle, limit, deadline)
+            def close(self, handle):
+                # Target the original post-disposition authority close, not a
+                # new temporary observer sharing its pathname before marks.
+                if (self.fault == 'authority_close' and len(self.disposed) == 2
+                        and self.handles[handle]['path'].name.endswith('-eligibility.json')):
+                    self.failures.add(('close', 'compact-000001-eligibility.json'))
+                return super().close(handle)
         for fault, reason, marks, authority_phase in (
             ('eligibility', 'compact_eligibility_receipt_failed', ['not_requested', 'not_requested'], 'not_attempted'),
             ('first_mark', 'compact_disposition_failed', ['uncertain', 'not_requested'], 'readback'),
