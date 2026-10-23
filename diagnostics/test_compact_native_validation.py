@@ -5,6 +5,7 @@ import tempfile
 import math
 import validate_compact_native as subject
 import measure_lazy_suite_ids as q
+from test_compact_full_property import full_runtime
 
 class BudgetControls(unittest.TestCase):
     def test_setup_is_charged_and_cleanup_reserve_cannot_be_borrowed(self):
@@ -77,7 +78,7 @@ class IntegratedPortableControls(unittest.TestCase):
     def test_driver_executes_exact_native_and_consumer_population_with_one_owner_ledger(self):
         import contextlib, io, json, time
         from test_compact_native_controls import NativePacketControls, SharingNative, SyntheticCoordinatorOwners
-        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        runtime, _, _ = full_runtime(SharingNative())
         runtime.owner_factory = SyntheticCoordinatorOwners()
         runtime.environment = {}
         runtime.terminate_coordinator = lambda owner: setattr(owner, 'stopped', True)
@@ -216,7 +217,7 @@ class SourceOwnerControls(unittest.TestCase):
         def run(*args):
             runtime.owners.append(object())
             return {}
-        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(native, 'run_control', side_effect=run) as call:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(subject, 'run_first_property', side_effect=run) as call:
             with self.assertRaisesRegex(q.Refused, '^native_handle_cleanup_unverified$'):
                 subject.perform_controls(Path(temporary).resolve(), runtime, {})
             self.assertEqual(1, call.call_count)
@@ -310,7 +311,7 @@ class FailureWitnessControls(unittest.TestCase):
         import compact_native_controls as native
         api = SharingNative()
         api.failures.add(('mark', 'stderr.bin'))
-        runtime, _, _ = NativePacketControls().runtime(api)
+        runtime, _, _ = full_runtime(api)
         progress = {'failed_control': None, 'control_count': 0}
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
@@ -333,7 +334,7 @@ class FailureWitnessControls(unittest.TestCase):
         import compact_native_controls as native
         api = SharingNative()
         api.read_fail_at = ('compact-000001-terminal.json', 2)
-        runtime, _, _ = NativePacketControls().runtime(api)
+        runtime, _, _ = full_runtime(api)
         progress = {'failed_control': None, 'control_count': 0}
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
@@ -358,15 +359,19 @@ class FailureWitnessControls(unittest.TestCase):
                 super().__init__()
                 self.fault = fault
                 if fault == 'first_mark': self.failures.add(('mark', 'stdout.bin'))
-                if fault == 'authority_close': self.failures.add(('close', 'compact-000001-eligibility.json'))
                 if fault == 'authority_delete': self.kernel.DeleteFileW.call = lambda *args: 1
+            def close(self, handle):
+                name = self.handles[handle]['path'].name
+                if self.fault == 'authority_close' and name.endswith('-eligibility.json') and len(self.disposed) == 2:
+                    self.failures.add(('close', name))
+                return super().close(handle)
             def read(self, handle, limit, deadline):
                 name = self.handles[handle]['path'].name
                 if (self.fault == 'eligibility' and name.endswith('-eligibility.json')
                     or self.fault == 'outcome' and name.endswith('-outcome.json')
                     or self.fault == 'terminal' and name.endswith('-terminal.json')
                     or self.fault == 'authority_recheck' and name.endswith('-eligibility.json')
-                       and self.reads.get(name, 0) == 2):
+                       and len(self.disposed) == 2):
                     raise OSError('PRIVATE_CAPTURE_PATH_AND_PAYLOAD_SENTINEL')
                 return super().read(handle, limit, deadline)
         for fault, reason, marks, authority_phase in (
@@ -379,7 +384,7 @@ class FailureWitnessControls(unittest.TestCase):
             ('terminal', 'compact_terminal_receipt_failed', ['verified', 'verified'], 'binding'),
         ):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
-                runtime, _, _ = NativePacketControls().runtime(FaultNative(fault))
+                runtime, _, _ = full_runtime(FaultNative(fault))
                 progress = {'failed_control': None, 'control_count': 0}
                 with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
                     subject.perform_controls(Path(temporary).resolve(), runtime, progress)
@@ -399,7 +404,7 @@ class FailureWitnessControls(unittest.TestCase):
         import compact_native_controls as native
         api = SharingNative()
         api.failures.add(('open', 'stdout.bin'))
-        runtime, _, _ = NativePacketControls().runtime(api)
+        runtime, _, _ = full_runtime(api)
         progress = {'failed_control': None, 'control_count': 0}
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(PermissionError):
@@ -418,7 +423,7 @@ class FailureWitnessControls(unittest.TestCase):
         for field, value in (('reason', sentinel), ('receipt_files', {'eligibility': sentinel}),
                              ('streams', [sentinel]), ('pair', sentinel), ('extra', sentinel)):
             with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
-                runtime, _, _ = NativePacketControls().runtime(SharingNative())
+                runtime, _, _ = full_runtime(SharingNative())
                 progress = {'failed_control': None, 'control_count': 0}
                 original = native.retention.CompactStore.retire
                 def malformed(store, *args):
@@ -444,7 +449,7 @@ class FailureWitnessControls(unittest.TestCase):
                 try:
                     api = SharingNative()
                     api.failures.add(('mark', 'stderr.bin'))
-                    runtime, _, _ = NativePacketControls().runtime(api)
+                    runtime, _, _ = full_runtime(api)
                     runtime.clock = lambda: harness.clock[0]
                     cleanup = runtime.cleanup
                     runtime.cleanup = mock.Mock(side_effect=cleanup)
@@ -481,7 +486,7 @@ class FailureWitnessControls(unittest.TestCase):
         import contextlib, io
         from test_compact_native_controls import NativePacketControls, SharingNative
         import compact_native_controls as native
-        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        runtime, _, _ = full_runtime(SharingNative())
         progress = {'failed_control': None, 'control_count': 0}
         original = native.reconstruct_retention
         def wrong_uncontained(*args, **kwargs):
@@ -512,7 +517,7 @@ class FailureWitnessControls(unittest.TestCase):
                     self.failures.add(('close', name))
                     raise OSError('PRIVATE_READ_PRIMARY_SENTINEL')
                 return super().read(handle, limit, deadline)
-        runtime, _, _ = NativePacketControls().runtime(FaultNative())
+        runtime, _, _ = full_runtime(FaultNative())
         progress = {'failed_control': None, 'control_count': 0}
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(native.ControlError, '^control_proof_failed$'):
@@ -528,7 +533,7 @@ class FailureWitnessControls(unittest.TestCase):
         import contextlib, io
         from test_compact_native_controls import NativePacketControls, SharingNative
         import compact_native_controls as native
-        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        runtime, _, _ = full_runtime(SharingNative())
         progress = {'failed_control': None, 'control_count': 0}
         def bypass_callback(api, handle):
             api.native.mark_delete(handle)
@@ -566,7 +571,7 @@ class FailureWitnessControls(unittest.TestCase):
         import contextlib, io, json
         from test_compact_native_controls import NativePacketControls, SharingNative
         import compact_native_controls as native
-        runtime, _, _ = NativePacketControls().runtime(SharingNative())
+        runtime, _, _ = full_runtime(SharingNative())
         progress = {'failed_control': None, 'control_count': 0}
         primary = OSError('PRIVATE_RECONSTRUCTION_SENTINEL')
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
@@ -590,9 +595,9 @@ class FailureWitnessControls(unittest.TestCase):
         import compact_native_controls as native
         api = SharingNative()
         api.failures.add(('mark', 'stderr.bin'))
-        runtime, _, _ = NativePacketControls().runtime(api)
+        runtime, _, _ = full_runtime(api)
         progress = {'failed_control': None, 'control_count': 0, 'failure_witness': None}
-        original_run, original_errors = native.run_control, []
+        original_run, original_errors = subject.run_first_property, []
         def remember_original(*args):
             try:
                 return original_run(*args)
@@ -600,7 +605,7 @@ class FailureWitnessControls(unittest.TestCase):
                 original_errors.append(error)
                 raise
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()), \
-             mock.patch.object(native, 'run_control', remember_original), \
+             mock.patch.object(subject, 'run_first_property', remember_original), \
              mock.patch.object(native, 'failure_witness', side_effect=OSError('PRIVATE_PROJECTOR_SENTINEL')):
             with self.assertRaises(BaseException) as caught:
                 subject.perform_controls(Path(temporary).resolve(), runtime, progress)

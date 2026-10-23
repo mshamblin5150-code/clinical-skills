@@ -588,19 +588,17 @@ class FailureWitnessControls(unittest.TestCase):
 class DedicatedRouteControls(unittest.TestCase):
     def test_exact_route_and_all_other_workflows_are_held(self):
         directory = Path(subject.__file__).parent.parent / '.github/workflows'
-        active = []
-        for path in directory.glob('*.yml'):
-            text = path.read_text()
-            if "branches-ignore: ['**']" not in text:
-                active.append(path.name)
-            else:
-                self.assertIn("tags-ignore: ['**']", text)
-        self.assertEqual(['ci-compact-first-control.yml'], active)
+        from test_compact_full_property import selected_push_workflows
+        active = selected_push_workflows(directory, 'diagnostic/2013-parallel-proof-20261020')
+        self.assertEqual(['ci-compact-native.yml'], active)
+        isolated = (directory / 'ci-compact-first-control.yml').read_text()
+        self.assertIn("branches-ignore: ['**']", isolated)
+        self.assertIn("tags-ignore: ['**']", isolated)
         text = (directory / active[0]).read_text()
         self.assertIn('branches: [diagnostic/2013-parallel-proof-20261020]', text)
         self.assertIn('github.run_attempt == 1', text)
-        self.assertIn('validate_compact_first_control.py', text)
-        self.assertNotIn('validate_compact_native.py', text)
+        self.assertIn('validate_compact_native.py', text)
+        self.assertNotIn('validate_compact_first_control.py', text)
         self.assertNotIn('workflow_dispatch', text)
         self.assertNotIn('upload-artifact', text)
         self.assertIn('timeout-minutes: 10', text)

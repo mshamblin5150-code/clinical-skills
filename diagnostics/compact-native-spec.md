@@ -1,8 +1,53 @@
 # Dedicated synthetic Windows compact validation
 
+## Full property-v1 migration
+
+The current full route uses the reviewed `run_property_control` in its first
+`snapshot_share_receipt_success` slot. It owns fresh calibration and the existing
+first-control pair without double preparation. All other core and consumer
+callables, order, arguments, access/sharing, ownership and disposal behavior remain
+unchanged. The complete ordered population is checked before any control starts.
+The property requires empty invocation ledgers and must remain first.
+
+The full retained receipt has schema `compact-native-property-v1`, identifies
+`replacement-property-v1` as its first route, and includes its complete calibration
+and live evidence. It explicitly denies production qualification. The live numeric
+condition permits false/error5 or false/error32 only with mandatory authenticated
+exact poststate and fresh private same-invocation calibration; newly admitted5
+requires matching held5 calibration. Historical/public status cannot authorize it.
+Original direct-open32, DeleteFile32 and same-object READ|DELETE disposal remain.
+
+Only the migrated full workflow is selected for the diagnostic push. The isolated
+first-control workflow is disabled atomically in the same tree; the other existing
+workflows' exact push filters are checked across the complete workflow population.
+No extra job, dispatch, retry, application, benchmark, merge or adoption is added.
+
+Fresh calibration is funded by deducting its fixed fixture bytes exactly once from
+the actual encoded full aggregate cap. `compact-native-property-accounting.json`
+is independently equality-bound to executed full CLI/owner population, the actual
+encoded cap/readback, existing budget and a complete auxiliary-object inventory.
+Every field has a mutation discriminator. The existing live replacement source,
+retained extra replacement copy, and coordinator-ready allowance remain funded;
+capture aliases do not imply additional body allocation. No disposal credit is
+used. These are content ceilings, not a proof of physical storage or TEMP usage.
+The approved larger full capture envelope is a maximum, not expected usage.
+
+`first_property_witness` is detached only around the first entry and retains that
+identity on later failures. `failure_witness` describes the current failed control.
+Together they are capped within the existing witness allowance, and actual terminal
+serialization enforces its existing reserve. Malformed/oversize observation becomes
+unknown, never authorization; projector failure cannot replace the primary failure.
+Calibration/live proof or uncertain cleanup stops before the next control.
+
+This is sampled-state evidence, not continuous-presence, transient-change or ABA
+exclusion, identical ACL/filter behavior, sole-cause attribution or secure erasure.
+The numeric condition is broader than strict32, with additional mandatory evidence.
+All original total/work/cleanup deadlines, admission and free-space checks remain.
+Portable tests do not qualify native Windows behavior. Historical evidence stays.
+
 ## Authority and isolation
 
-This is a locally prepared validation packet, not publication or execution authority. It preserves the cleared compact implementation tree `658ccdae556c73508b38d8ab8c6ed39645d3af78` through the exact 30-file source pin map. The complete publication delta is against observer commit `05434f875f7e1af570335cff3f324d15e65c0fe7`, tree `9316da7140771a03f48fa60c8b9f261cccf05d8e`, not the sparse scratch HEAD.
+This is a locally prepared validation packet, not publication or execution authority. It preserves the cleared compact implementation tree `658ccdae556c73508b38d8ab8c6ed39645d3af78` through the exact 30-file source pin map. The migration publication delta is against observer commit `105236e1ba7f6760c00a06e22fa50dd67f840754`, tree `e3073daa03a90650d78bc7f5ee761003424512d3`, not the sparse scratch HEAD.
 
 Only `ci-compact-native.yml` admits the first push on the established diagnostic branch. Current parallel, threshold, reader, full-pair and discovery push/tag routes are disabled. Unchanged general workflows were read from their exact base blobs: checks `c3c7ca2e8abca1d42ad2d10b2585317184220c97` pushes only on main; tracker `98914a86441b38bc080a5e8bdbe6c3dfe0a66e80` has no push event. No PR, application/source clone, application import, suite, benchmark, automatic rerun, artifact upload, main/canary change or adoption is part of this route. The full observer checkout is read solely to authenticate its raw Git objects; its application code is never imported or executed.
 
@@ -40,7 +85,7 @@ The driver uses one native runtime ledger: 34 top-level native owners plus one n
 
 There are 15 real source commands on success: first_clean 3; raw inventory 2 and verify_sources 4 before controls; raw inventory 2 and verify_sources 4 afterward. The source session caps commands at 18, conservatively allowing three dirty-status diagnostics. This is an allowance, not a claim that all eighteen can occur on a successful path. Native controls cap their pair admission at 35. Thus success is 50 capture pairs and the conservative packet ceiling is 53, including the inner pair. Every stream retains the existing 16 MiB cap. Source captures are retained. Consumer controls retain eleven intentional refusal pairs and retire ten fully acknowledged pairs.
 
-Public output consists of bounded source diagnostics, environment identity, exact finite control IDs/counts, per-control wall time and hashes, and a finite terminal record. An aggregate 4 MiB public limit includes terminal reserve. No raw output, private fixture path or arbitrary exception text is public. Per-control private evidence is limited to 16 KiB; the assembled verified retained JSON is capped at 1 MiB. The terminal reports measured minimum free bytes, not inferred reclaimed space. Control wall times include fixture/child/receipt work and are not isolated disposition overhead or an application speedup measurement. The expected compact receipts contain their original owner timing/identity evidence; missing or refused receipts are not invented.
+Public output consists of bounded source diagnostics, environment identity, exact finite control IDs/counts, per-control wall time and hashes, and a finite terminal record. An aggregate 4 MiB public limit includes terminal reserve. No raw output, private fixture path or arbitrary exception text is public. Per-control private evidence is limited to 16 KiB; the assembled verified retained JSON is capped at 1 MiB minus the fixed calibration fixture allocation. The terminal reports measured minimum free bytes, not inferred reclaimed space. Control wall times include fixture/child/receipt work and are not isolated disposition overhead or an application speedup measurement. The expected compact receipts contain their original owner timing/identity evidence; missing or refused receipts are not invented.
 
 The final retained JSON uses the existing coherent retained-receipt reader. It is verified retained evidence, not a power-loss durability promise. Compact eligibility receipts separately use the cleared flush/fsync and held-authority protocol. Successful raw output that is disposed cannot later be reanalysed. Mark-plus-close does not prove secure erasure, absent pathname or reclaimed allocation. Existing historical evidence is untouched and raw captures are never uploaded.
 
@@ -48,13 +93,13 @@ The final retained JSON uses the existing coherent retained-receipt reader. It i
 
 No volume capacity is assumed from the runner label. Both fresh evidence root and observer root must remain canonical non-reparse directories with the originally recorded device/file identities. Actual free bytes are checked before launches and during live polls. Evidence volume must retain a constant conservative 4 GiB of measured free space; observer volume must retain 1 GiB. On one volume these checks do not create an additional 1 GiB reservation. No disposal credit is added and no lower capture cap or fallback route is selected.
 
-The 53-pair raw ceiling is 106 streams × 16 MiB = 1,778,384,896 content bytes (1,696 MiB). Compact records have a conservative 69 × 16 KiB = 1,130,496-byte content allowance. Additional content allowance is one coordinator-ready payload of at most 16 KiB, one final aggregate of at most 1 MiB, one private failure file of at most 64 KiB, and fixed fixture bodies of 37 and 17 bytes. The independent accounting receipt binds these source counts; pending ready-file rename does not create a second body. The remaining 4 GiB threshold is conservative planning headroom for the 1 GiB floor, small receipt/fixture allocations, interpreter/Git temporary activity and filesystem overhead. It is not a hard physical quota, a source-proved TEMP bound or a promise the runner can admit the packet. No clone or future checkout is performed after admission. Pre-existing checkout storage is already reflected in measured free space. Capacity failure is inconclusive, not authority to reclaim historical files or retry another route.
+The 53-pair raw ceiling is 106 streams × 16 MiB = 1,778,384,896 content bytes (1,696 MiB). Compact records have a conservative 69 × 16 KiB = 1,130,496-byte content allowance. Additional content allowance is one coordinator-ready payload of at most 16 KiB, one final aggregate of at most 1 MiB minus the calibration fixture allocation, that same fixture allocation, one private failure file of at most 64 KiB, and fixed fixture bodies of 37 and 17 bytes. The independent accounting receipt binds these source counts; pending ready-file rename does not create a second body. The remaining 4 GiB threshold is conservative planning headroom for the 1 GiB floor, small receipt/fixture allocations, interpreter/Git temporary activity and filesystem overhead. It is not a hard physical quota, a source-proved TEMP bound or a promise the runner can admit the packet. No clone or future checkout is performed after admission. Pre-existing checkout storage is already reflected in measured free space. Capacity failure is inconclusive, not authority to reclaim historical files or retry another route.
 
 ## Release boundary
 
 Portable tests use only fresh disposable synthetic fixtures and injected owners/native APIs. They do not verify Windows behavior. Both independent reviews must bind the exact immutable publication tree and manifest before an approval request for one upload and one first-attempt ten-minute synthetic validation job. A passing native result, if later authorized, is not authority to run the held comparison or deploy an optimization.
 
-## Finite failure witness correction
+## Historical finite failure witness correction
 
 This local-only correction follows inconclusive run 39874952202 at published tree
 `65ae215e963146e1ebf04b27f05b8da94a6fc6d1`. That run's first control failed without
@@ -98,5 +143,8 @@ authority challenge failure, eligibility/outcome/recheck/authority-close/termina
 receipt failure, successful store return followed by reconstruction failure,
 missing-invocation proof failure, malformed private sentinels, and primary versus
 cleanup/publication failures. These prove observation behavior, not native Windows
-qualification. The existing 18-control route remains unchanged; no isolated mode,
-new trigger, upload or native execution is part of this correction.
+qualification. That historical correction left the 18-control route unchanged and introduced no
+isolated mode, trigger, upload or native execution. The current migration above
+is separately identified and reviewed.
+
+Observation fault contract: full-driver witness getters, projectors, serialization and writes are best-effort only. A failed recording or combined-size check invalidates affected evidence to null (unknown), including a write that mutates before raising. Dictionary-subclass hooks are not used for invalidation. Neither malformed public evidence nor failed invalidation hooks may replace the exact primary control exception or authorize continuation.

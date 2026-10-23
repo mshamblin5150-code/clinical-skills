@@ -170,6 +170,51 @@ def make_runtime(deadline, hard, admission):
     return runtime
 
 
+FULL_POPULATION = (
+    ('snapshot_share_receipt_success', 1), ('replacement_identity_refusal', 1),
+    ('hardlink_refusal', 1), ('reparse_refusal', 1), ('before_first_mark_refusal', 1),
+    ('second_mark_partial', 1), ('deadline_after_first_close', 1), ('raw_close_partial', 1),
+    ('outcome_readback_partial', 1), ('authority_recheck_partial', 1),
+    ('authority_close_partial', 1), ('terminal_readback_unknown', 1),
+    ('coordinator_death_unknown', 2), ('source_guard_success', 6),
+    ('source_guard_refusal', 10), ('detached_expected_nonzero', 1),
+    ('outer_control_full_receipt', 1), ('measured_original_outcomes', 3))
+
+
+def run_first_property(name, root, runtime):
+    """Only the first slot changes; the property owns its fresh pair itself."""
+    import compact_replacement_property as property_control
+    q.require(name == 'snapshot_share_receipt_success', 'native_population_changed')
+    return property_control.run_property_control(root, runtime)
+
+
+def invalidate_witnesses(progress, *keys):
+    """Unknown observation, using dict storage without fallible subclass hooks."""
+    if isinstance(progress, dict):
+        for key in keys:
+            dict.__setitem__(progress, key, None)
+
+
+def record_witness(progress, key, project):
+    """Observation-only writes never mask control errors or retain stale success."""
+    invalidate_witnesses(progress, key)
+    try:
+        progress[key] = project()
+    except BaseException:
+        invalidate_witnesses(progress, key)
+
+
+def bound_witnesses(progress):
+    """Observation failures cannot replace a primary control exception."""
+    keys = ('failure_witness', 'first_property_witness')
+    try:
+        raw = json.dumps({key: progress.get(key) for key in keys}, allow_nan=False).encode()
+        if len(raw) > 2048:
+            invalidate_witnesses(progress, *keys)
+    except BaseException:
+        invalidate_witnesses(progress, *keys)
+
+
 def perform_controls(root, runtime, progress):
     import compact_native_controls as native
     import compact_native_consumers as consumers
@@ -177,8 +222,10 @@ def perform_controls(root, runtime, progress):
                   for name, count in zip(native.CONTROL_IDS, native.CONTROL_COMMAND_COUNTS)]
     population += [(name, consumers.COMMAND_COUNTS[name], consumers.run_consumer_control)
                    for name in consumers.CONTROL_IDS]
-    q.require(len(population) == 18 and len({name for name, _, _ in population}) == 18
-              and sum(count for _, count, _ in population) == 35, 'native_population_changed')
+    q.require(tuple((name, count) for name, count, _ in population) == FULL_POPULATION
+              and all(type(name) is str and type(count) is int for name, count, _ in population),
+              'native_population_changed')
+    population[0] = (*population[0][:2], run_first_property)
     rows = []
     for name, count, run in population:
         q.require(time.monotonic() < runtime.work_deadline, 'global_budget_exhausted')
@@ -190,11 +237,15 @@ def perform_controls(root, runtime, progress):
         try:
             row = run(name, root / name, runtime)
         except BaseException:
-            try:
-                progress['failure_witness'] = native.failure_witness(runtime)
-            except BaseException:
-                progress['failure_witness'] = None
+            record_witness(progress, 'failure_witness', lambda: native.failure_witness(runtime))
             raise
+        finally:
+            if name == 'snapshot_share_receipt_success':
+                def project_property():
+                    import compact_replacement_property as property_control
+                    return property_control.property_witness(runtime)
+                record_witness(progress, 'first_property_witness', project_property)
+            bound_witnesses(progress)
         elapsed = time.monotonic() - control_started
         q.require(math.isfinite(elapsed) and 0 <= elapsed <= 540, 'global_budget_exhausted')
         q.require(not any(api.handles or api.close_uncertain for api in runtime.apis),
@@ -212,6 +263,17 @@ def perform_controls(root, runtime, progress):
     q.require(len(runtime.owners) == 34 and runtime.nested_command_slots == 1,
               'native_population_changed')
     return rows
+
+
+def retain_native_receipt(session, raw):
+    """Fund the fresh calibration bytes within the existing aggregate allowance."""
+    import compact_replacement_calibration as calibration
+    q.require(calibration.FIXTURE_BYTES == 74
+        and calibration.AGGREGATE_BYTES + calibration.FIXTURE_BYTES == 1024 * 1024
+        and type(raw) is bytes and len(raw) <= calibration.AGGREGATE_BYTES,
+        'native_receipt_limit')
+    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
+    return comparison.retained_json(session, 'native-validation.json', raw)
 
 
 def execute(session, runtime, observer, progress):
@@ -234,12 +296,11 @@ def execute(session, runtime, observer, progress):
     q.verify_sources(session, observer, original, source_sha=source)
     q.require(len(session.owners) == 15, 'native_population_changed')
     progress['stage'] = 'receipt'
-    raw = json.dumps({'schema': 'compact-native-validation-v1', 'source_sha': source,
+    raw = json.dumps({'schema': 'compact-native-property-v1', 'source_sha': source,
+        'first_property_route': 'replacement-property-v1', 'production_qualified': False,
         'cleared_tree': CORE_TREE, 'synthetic_only': True, 'controls': rows},
         sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
-    q.require(len(raw) <= 1024 * 1024, 'native_receipt_limit')
-    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
-    receipt = comparison.retained_json(session, 'native-validation.json', raw)
+    receipt = retain_native_receipt(session, raw)
     q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
     q.require(receipt['receipt_verified'] is True, 'native_source_receipt_invalid')
     progress.update(receipt_verified=True, receipt_sha256=receipt['receipt_sha256'])
@@ -250,6 +311,12 @@ class Parser(argparse.ArgumentParser):
         raise q.Refused('arguments_invalid')
 
 
+def emit_terminal(event, **fields):
+    raw = json.dumps({'event': event, **fields}, sort_keys=True, allow_nan=False).encode()
+    q.require(len(raw) + 1 <= 4096, 'native_receipt_limit')
+    q.emit(event, **fields)
+
+
 def _run(argv, public):
     start = time.monotonic()
     session = runtime = root = hard = admission = None
@@ -257,7 +324,9 @@ def _run(argv, public):
     clean = complete = False
     progress = {'stage': 'preflight', 'source_integrity_verified': False,
         'controls_verified': False, 'receipt_verified': False, 'receipt_sha256': None,
-        'failed_control': None, 'control_count': 0, 'failure_witness': None}
+        'failed_control': None, 'control_count': 0, 'failure_witness': None,
+        'first_property_witness': None, 'first_property_route': 'replacement-property-v1',
+        'production_qualified': False}
     try:
         parser = Parser(description=__doc__, add_help=False)
         parser.add_argument('--observer', type=Path)
@@ -306,7 +375,7 @@ def _run(argv, public):
     passed = complete and clean and within and failure is None
     public.terminal = True
     try:
-        q.emit('compact_native_summary', status='passed' if passed else 'inconclusive',
+        emit_terminal('compact_native_summary', status='passed' if passed else 'inconclusive',
                **progress, failure=failure, process_cleanup_verified=clean,
                hard_budget_verified=within, observer_seconds=elapsed,
                synthetic_only=True, application_executed=False,

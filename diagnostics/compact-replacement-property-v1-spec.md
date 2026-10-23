@@ -1,6 +1,7 @@
 # Replacement property v1 workflow selection
 
-The existing diagnostic workflow selects this versioned combined route.
+The full diagnostic driver invokes this versioned route as its first control.
+The isolated first-control workflow is disabled; its explicit CLI remains callable.
 `--replacement-property-v1` is mutually exclusive with calibration-only mode.
 The original strict first-control route and the unselected calibration-only route
 retain their behavior. Implementation/review is not publication, native execution,
@@ -80,6 +81,6 @@ or qualify production. Only the successful calibration rename comparison permits
 ChangeTime to differ; live held-denial poststate remains exact.
 
 Portable tests use real synthetic namespace changes and open descriptors. They
-are not Windows qualification. The existing workflow changes only its selected
-route and step label. Its branch, single job, first-attempt guard, time limit,
-and source-authentication setup remain unchanged.
+are not Windows qualification. The full migration selects only the full workflow and disables the isolated
+workflow atomically. This property implementation is unchanged; the full driver
+preserves its source-authentication, deadline, ownership and evidence requirements.
