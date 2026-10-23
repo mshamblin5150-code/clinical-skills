@@ -221,8 +221,8 @@ class PublicMechanics(unittest.TestCase):
         # APA 7 requires page, paragraph, and circa locators; their periods end no sentence.
         body = (
             'The guideline says "query the provider" (Example Agency, 2026, p. 1, p. 12). '
-            'The brief agrees (Example Agency, 2026, pp. 2–3; Example Agency, 2026, para. 4). '
-            'The emperor wrote it (Marcus Aurelius, ca. 180/2023, Book 5, Section 20).'
+            'The brief agrees (Example Agency, 2026, pp. 2–3, 7; Example Agency, 2026, para. 4). '
+            'The emperor wrote it (Marcus Aurelius, ca. 180/2023, 5.20; Book 5, Section 20).'
         )
         for grader in GRADERS:
             with self.subTest(grader=grader), tempfile.TemporaryDirectory() as temp:
@@ -232,6 +232,15 @@ class PublicMechanics(unittest.TestCase):
             with self.subTest(grader=grader, twin="opening"), tempfile.TemporaryDirectory() as temp:
                 _, report = self.command(Path(temp), grader, "The visit ended. 2026 brought a change.")
                 self.assert_row(report, "numeral-opening", 1)
+            # The declared limit: an abbreviation outside the locator list still reads as a boundary.
+            with self.subTest(grader=grader, control="unlisted abbreviation"), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, "The record cites vol. 12 of the series.")
+                self.assert_row(report, "numeral-opening", 1)
+
+    def test_the_locator_limit_names_every_listed_abbreviation(self):
+        row = next(limit for limit in mechanics.DECLARED_LIMITS if limit.startswith("Sentence boundaries"))
+        for abbreviation in mechanics.CITATION_ABBREVIATIONS:
+            self.assertIn(f" {abbreviation}.", row)
 
     def test_record_shape_and_surface_digest_fail_closed(self):
         import run_grader
