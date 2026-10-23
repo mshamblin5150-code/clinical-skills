@@ -38,8 +38,8 @@ jobs:
         with:
           python-version: '3.14.4'
 
-      - name: Fresh replacement calibration only; original control unexecuted
+      - name: Fresh calibration and versioned first-control property; diagnostic only
         shell: pwsh
         run: |
-          python observer/diagnostics/validate_compact_first_control.py --replacement-calibration --observer observer --job-start-epoch $env:PROOF_JOB_START_EPOCH
+          python observer/diagnostics/validate_compact_first_control.py --replacement-property-v1 --observer observer --job-start-epoch $env:PROOF_JOB_START_EPOCH
           exit $LASTEXITCODE

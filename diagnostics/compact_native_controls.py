@@ -613,7 +613,7 @@ def _authority_denials(pair):
     return denials
 
 
-def _snapshot_share_success(pair, runtime):
+def _snapshot_share_success(pair, runtime, *, authority_check=None):
     path = Path(pair.owner.stdout_path)
     _phase(runtime, "read_share")
     with _owned_handle(pair.api, path):
@@ -637,9 +637,9 @@ def _snapshot_share_success(pair, runtime):
         require(len(authorities) == 1)
         authority_handles.append(authorities[0])
         if not denials:
-            denials.extend(_authority_denials(pair))
+            denials.extend(_authority_denials(pair) if authority_check is None else authority_check(pair))
     pair.api.before_mark = before_mark
-    pair.api.observe_authority_handoff = getattr(runtime, "replacement_poststate", False)
+    pair.api.observe_authority_handoff = authority_check is not None or getattr(runtime, "replacement_poststate", False)
     result = pair.retire()
     runtime.control_observation.update(authority_callbacks=len(authority_handles),
         same_authority=(authority_handles[0] == authority_handles[1]) if len(authority_handles) == 2 else None)

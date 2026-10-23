@@ -1,0 +1,18 @@
+{
+  "aggregate_receipt_max_bytes": 1048502,
+  "calibration_fixture_max_bytes": 74,
+  "live_replacement_source_bytes": 37,
+  "native_owned_commands": 1,
+  "nested_reserved_slots": 0,
+  "capture_disposition_calls": 2,
+  "replacement_attempts": 3,
+  "success_capture_pairs": 16,
+  "source_success_commands": 15,
+  "conservative_capture_pairs_ceiling": 19,
+  "conservative_streams_ceiling": 38,
+  "private_content_bytes_ceiling": 638697526,
+  "including_public_content_bytes_ceiling": 642891830,
+  "work_seconds": 540,
+  "cleanup_seconds": 60,
+  "total_job_seconds": 600
+}

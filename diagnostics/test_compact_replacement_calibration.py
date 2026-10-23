@@ -311,15 +311,12 @@ class ReceiptAndTransportTests(unittest.TestCase):
         import validate_compact_first_control as first
         import test_compact_first_control as fixtures
         import test_compact_native_controls as native_fixtures
-        workflow = (Path(first.__file__).parent.parent/'.github/workflows/ci-compact-first-control.yml').read_text()
-        commands = [line.strip().split()[2:] for line in workflow.splitlines()
-                    if line.strip().startswith('python ')]
-        self.assertEqual(1, len(commands))
         for failed_close in (False, True):
             harness = fixtures.FinalizationControls()
             original_args = harness.harness()
-            args = [original_args[1] if arg == 'observer' else '1000'
-                    if arg == '$env:PROOF_JOB_START_EPOCH' else arg for arg in commands[0]]
+            # The retained calibration-only route remains callable. The combined
+            # property test now exercises the actual workflow-selected command.
+            args = original_args + ['--replacement-calibration']
             try:
                 observer = Path(args[args.index('--observer')+1])
                 (observer/'diagnostics').mkdir()

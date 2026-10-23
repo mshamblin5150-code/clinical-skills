@@ -365,6 +365,57 @@ def execute_calibration(session, runtime, observer, progress):
     progress.update(receipt_verified=True, receipt_sha256=receipt['receipt_sha256'])
 
 
+
+def retain_property_receipt(session, raw):
+    import compact_replacement_calibration as calibration
+    q.require(calibration.FIXTURE_BYTES == 74
+        and calibration.AGGREGATE_BYTES + calibration.FIXTURE_BYTES == 1024 * 1024
+        and type(raw) is bytes and len(raw) <= calibration.AGGREGATE_BYTES, 'native_receipt_limit')
+    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
+    return comparison.retained_json(session, 'replacement-property-v1-validation.json', raw)
+
+
+def execute_property(session, runtime, observer, progress):
+    """Inactive versioned opt-in; source authentication precedes all native work."""
+    import compact_replacement_property as property_control
+    source = os.environ['GITHUB_SHA']
+    progress['stage'] = 'source'
+    q.first_clean(session, observer, source, 'observer')
+    original = q.raw_source_inventory(session, observer, source)
+    validate_core_pins(observer, original)
+    q.verify_sources(session, observer, original, source_sha=source)
+    plan = observation.unique_json((observer / 'diagnostics/compact-first-control-budget.json').read_bytes())
+    q.require(plan == BUDGET and all(type(plan[key]) is type(value) for key, value in BUDGET.items()),
+              'budget_contract_changed')
+    progress['source_integrity_verified'] = True
+    admit_controls(session.deadline, time.monotonic())
+    progress['stage'] = 'replacement_property_v1'
+    try:
+        row = control_boundary(lambda: property_control.run_property_control(
+            session.root.parent / 'replacement-property-v1', runtime), runtime, progress)
+    finally:
+        try:
+            progress['property_witness'] = property_control.property_witness(runtime)
+        except BaseException:
+            progress['property_witness'] = None
+    q.require(len(json.dumps(row['control'], allow_nan=False).encode()) <= 16384, 'native_receipt_limit')
+    q.require(len(runtime.owners) == 1 and runtime.nested_command_slots == 0
+        and not any(api.handles or api.close_uncertain for api in runtime.apis), 'native_population_changed')
+    progress.update(property_verified=True, controls_verified=True, control_count=1)
+    progress['stage'] = 'final_source'
+    q.require(q.raw_source_inventory(session, observer, source) == original, 'native_source_changed')
+    q.verify_sources(session, observer, original, source_sha=source)
+    q.require(len(session.owners) == 15, 'native_population_changed')
+    progress['stage'] = 'receipt'
+    raw = json.dumps({'schema': 'replacement-property-v1', 'source_sha': source,
+        'cleared_tree': CORE_TREE, 'synthetic_only': True, 'production_qualified': False,
+        'property': row}, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+    receipt = retain_property_receipt(session, raw)
+    q.require(time.monotonic() < session.deadline, 'global_budget_exhausted')
+    q.require(receipt['receipt_verified'] is True, 'native_source_receipt_invalid')
+    progress.update(receipt_verified=True, receipt_sha256=receipt['receipt_sha256'])
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise q.Refused('arguments_invalid')
@@ -376,17 +427,24 @@ def _run(argv, public):
     failure = None
     clean = complete = False
     calibration_only = False
+    property_v1 = False
     progress = {'stage': 'preflight', 'source_integrity_verified': False,
         'controls_verified': False, 'receipt_verified': False, 'receipt_sha256': None,
         'failed_control': None, 'control_count': 0, 'failure_witness': None,
         'failure_emission_control': None}
     try:
         parser = Parser(description=__doc__, add_help=False)
-        parser.add_argument('--replacement-calibration', action='store_true')
+        routes = parser.add_mutually_exclusive_group()
+        routes.add_argument('--replacement-calibration', action='store_true')
+        routes.add_argument('--replacement-property-v1', action='store_true')
         parser.add_argument('--observer', type=Path)
         parser.add_argument('--job-start-epoch', type=float)
         args = parser.parse_args(argv)
         calibration_only = args.replacement_calibration
+        property_v1 = args.replacement_property_v1
+        if property_v1:
+            progress.update(property_route='replacement-property-v1', production_qualified=False,
+                            property_verified=False)
         if calibration_only:
             progress.update(calibration_only=True, native_control_qualified=False,
                             calibration_verified=False, calibration_witness=None)
@@ -412,7 +470,11 @@ def _run(argv, public):
         runtime = make_runtime(deadline, hard, admission)
         q.emit('compact_first_environment', **identity, cleared_tree=CORE_TREE,
                synthetic_only=True, job_seconds=600, cleanup_seconds=60)
-        if calibration_only:
+        if property_v1:
+            execute_property(session, runtime, observer, progress)
+            q.require(len(runtime.owners) == 1 and runtime.nested_command_slots == 0
+                      and progress.get('property_verified') is True, 'native_population_changed')
+        elif calibration_only:
             execute_calibration(session, runtime, observer, progress)
             q.require(not runtime.owners and runtime.nested_command_slots == 0
                       and progress.get('calibration_verified') is True, 'native_population_changed')
@@ -438,7 +500,7 @@ def _run(argv, public):
     passed = complete and clean and within and failure is None
     public.terminal = True
     try:
-        emit_terminal('compact_replacement_calibration_summary' if calibration_only else 'compact_first_summary', status='passed' if passed else 'inconclusive',
+        emit_terminal('compact_replacement_property_v1_summary' if property_v1 else 'compact_replacement_calibration_summary' if calibration_only else 'compact_first_summary', status='passed' if passed else 'inconclusive',
                **progress, failure=failure, process_cleanup_verified=clean,
                hard_budget_verified=within, observer_seconds=elapsed,
                synthetic_only=True, application_executed=False,

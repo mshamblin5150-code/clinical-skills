@@ -6,7 +6,7 @@ Evidence is sampled, not an ACL theorem, continuous-presence or erasure claim.
 import errno
 import os
 import time
-from dataclasses import fields
+from dataclasses import dataclass, fields
 
 import compact_capture_retention as retention
 import compact_replacement_poststate as poststate
@@ -72,7 +72,23 @@ def calibration_witness(state):
     return row
 
 
+@dataclass(frozen=True)
+class _CalibrationSuccess:
+    api: object
+    root: object
+    deadline: float
+    held_error: int
+    volume: int
+    witness: dict
+
+
 def run_calibration(root, api, deadline, observation, *, move=None, get_error=None,
+                    missing=sampled_missing, directory=retention._directory):
+    return _run_calibration(root, api, deadline, observation, move=move,
+        get_error=get_error, missing=missing, directory=directory).witness
+
+
+def _run_calibration(root, api, deadline, observation, *, move=None, get_error=None,
                     missing=sampled_missing, directory=retention._directory):
     """Public injected seam. Native defaults retain READ/shareREAD and flags1.
 
@@ -84,6 +100,7 @@ def run_calibration(root, api, deadline, observation, *, move=None, get_error=No
              'released_call': 'not_attempted', 'released_error': None,
              'held_poststate': 'unknown', 'namespace_transition': 'unknown', 'cleanup': 'unknown'}
     authority = None
+    held_error = None
     primary = None
     target, source = root/'target.bin', root/'source.bin'
 
@@ -167,6 +184,7 @@ def run_calibration(root, api, deadline, observation, *, move=None, get_error=No
                    for item in fields(contract.WindowsSnapshot) if item.name not in allowed)
 
     def attempt(leg):
+        nonlocal held_error
         check()
         state.update({leg+'_call': 'entered', leg+'_error': None})
         publish()
@@ -182,6 +200,8 @@ def run_calibration(root, api, deadline, observation, *, move=None, get_error=No
             except BaseException:
                 state[leg+'_call'] = 'error_read_raised'
                 raise
+        if leg == 'held':
+            held_error = error
         state.update({leg+'_call': 'returned_false' if returned_false else 'returned_true',
                       leg+'_error': ('sharing_32' if error == 32 else 'access_5' if error == 5 else 'other')
                       if returned_false else None})
@@ -258,4 +278,4 @@ def run_calibration(root, api, deadline, observation, *, move=None, get_error=No
                     raise
         state['cleanup'] = 'verified' if not api.handles and not api.close_uncertain else 'unknown'
         publish()
-    return calibration_witness(state)
+    return _CalibrationSuccess(api, root, deadline, held_error, original[0].st_dev, calibration_witness(state))
