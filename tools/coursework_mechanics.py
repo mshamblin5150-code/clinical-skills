@@ -76,7 +76,7 @@ DECLARED_LIMITS = (
     "Mixed terms and count nouns outside the committed lists have no dedicated list row; bare small digits still require handling.",
     "The truth of a recorded dictionary entry, APA exception, or changed disposition is not graded.",
     "The country variant row grades consistency; a noun-use directive was not established by the bounded Manual read.",
-    "Sentence boundaries follow punctuation; a period inside an abbreviation can produce an opening candidate.",
+    "Sentence boundaries follow punctuation; the APA locator abbreviations p., pp., para., paras., and ca. are not boundaries, but a period inside any other abbreviation can produce an opening candidate.",
     "Only reference titles parsed from an italic span or the title immediately after the reference date are excluded as cited titles.",
     "A group author is recognized from the reference author field without personal-name initials; ambiguous author grammar remains outside this read.",
     "Word surfaces inherit coursework_style's projection limits.",
@@ -147,8 +147,14 @@ def _exclusions(markdown: str) -> tuple[str, tuple[str, ...]]:
     return body, tuple(groups)
 
 
+LOCATOR = re.compile(r"(?<![A-Za-z])(?:pp?|paras?|ca)\.$")
+
+
 def _opening(text: str, start: int) -> bool:
     before = re.sub(r"[*_`]", "", text[:start]).rstrip()
+    if LOCATOR.search(before):
+        # APA page, paragraph, and circa locators end in a period that ends no sentence.
+        return False
     return not before or before[-1] in ".!?"
 
 
@@ -160,7 +166,9 @@ def _numeric_exclusion(text: str, match: re.Match[str]) -> bool:
         re.match(r"\s*[%°]", after)
         or re.match(r"\.\d", after) or re.search(r"\d\.$", before)
         or (following and following[1].casefold() in UNITS)
-        or re.search(r"\b(?:Table|Figure|Step|Stage|Grade|Chapter|Module|Item|Section)\s+$", before, re.I)
+        or re.search(r"\b(?:Table|Figure|Step|Stage|Grade|Chapter|Module|Item|Section|Book)\s+$", before, re.I)
+        or LOCATOR.search(before.rstrip()) is not None
+        or re.search(r"(?<![A-Za-z])(?:pp|paras)\.\s*\d+\s*[–-]\s*$", before) is not None
         or any(date.start() <= match.start() < date.end() for date in DATE.finditer(text))
         or re.search(r"[$€£]\s*$", before)
     )

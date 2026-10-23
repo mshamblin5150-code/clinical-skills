@@ -217,6 +217,22 @@ class PublicMechanics(unittest.TestCase):
                             "uncertain-digit", "large-number-word", "numeral-opening"):
                     self.assert_row(report, row, 0)
 
+    def test_apa_citation_locators_are_not_sentence_openings(self):
+        # APA 7 requires page, paragraph, and circa locators; their periods end no sentence.
+        body = (
+            'The guideline says "query the provider" (Example Agency, 2026, p. 1, p. 12). '
+            'The brief agrees (Example Agency, 2026, pp. 2–3; Example Agency, 2026, para. 4). '
+            'The emperor wrote it (Marcus Aurelius, ca. 180/2023, Book 5, Section 20).'
+        )
+        for grader in GRADERS:
+            with self.subTest(grader=grader), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, body)
+                for row in ("uncertain-digit", "numeral-opening"):
+                    self.assert_row(report, row, 0)
+            with self.subTest(grader=grader, twin="opening"), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, "The visit ended. 2026 brought a change.")
+                self.assert_row(report, "numeral-opening", 1)
+
     def test_record_shape_and_surface_digest_fail_closed(self):
         import run_grader
         with tempfile.TemporaryDirectory() as temp:
