@@ -1362,6 +1362,10 @@ _Avoid_: reviewer, verifier, double check, second pass
 A problem a reader notices outside the question it was asked, written beside its verdict and never changing it. Every one is shown to the clinician at the go-ahead with what was changed or a proposal to leave it, and one is left only on the clinician's word naming it. Distinct from a **Coverage qualifier**, which states what a run could not establish and is shown rather than waived.
 _Avoid_: advisory, aside, side finding, observation, note
 
+**Grader disagreement**:
+A grader's refusal of a form that a shared reference sheet blesses, such as a citation written exactly as the house APA sheet prescribes. The run may change the draft only to another form the sheet also blesses, and it names the disagreement at the go-ahead with the sheet section and the grader's finding, so the cause is recorded when it happens rather than reconstructed from the orchestrator's account afterward. Distinct from a **Reader remark**, which a reader writes about the draft; a grader disagreement is evidence against the grader.
+_Avoid_: false positive, grader bug, workaround, override
+
 **Grader handoff**:
 A **Briefing surface** giving a non-authoring context a completed artifact and a committed command. It writes no record and returns a result, which is why it takes neither the prewrite rule nor the one-writer rule, and why its result survives being produced by the author so long as it is reported verbatim rather than summarized.
 _Avoid_: check, independent check, grading pass, review step
