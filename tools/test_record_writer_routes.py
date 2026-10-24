@@ -15,6 +15,7 @@ TOOLS = Path(__file__).resolve().parent
 # Owning operation, not filename, decides whether a write is mutable run bookkeeping.
 # New direct-write shapes fail until their ownership and transaction route are read.
 EXCLUDED_MODULES = {
+    'ci_diagnostics': 'Engineering CI diagnostic receipt and summary, outside clinical run-directory records.',
     'adr_next': 'Maintainer ADR number reservations, outside clinical runs.',
     'adr_supersession_population': 'Maintainer ADR audit reports.',
     'anchor_scan': 'Answer-free agreement brief is a reader input, not later tool-read bookkeeping.',

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import multiprocessing
@@ -22,6 +23,7 @@ from typing import TextIO
 
 import run_grader
 import repo_root
+import ci_diagnostics
 from console_codec import require_python_floor, use_utf8
 
 
@@ -322,6 +324,7 @@ def run_suite(
     scratch: Path,
     stream: TextIO,
     job_derivation: str = "requested",
+    diagnostics: bool = False,
 ) -> int:
     """Run the suite discovered under ``module_dir`` and return its status."""
     started = time.perf_counter()
@@ -417,9 +420,40 @@ def run_suite(
     )
     if discovered and not incomplete:
         _write_weights(scratch, unit_times)
-    if has_test_failure:
-        return 1
-    return 2 if incomplete else 0
+    status = 1 if has_test_failure else (2 if incomplete else 0)
+    if diagnostics:
+        try:
+            ci_diagnostics.write_receipt({
+                "full_suite_execution": not incomplete,
+                "mode": "full",
+                "discovered": len(discovered),
+                "population_sha256": hashlib.sha256(json.dumps(sorted(discovered_ids)).encode("utf-8")).hexdigest(),
+                "outcomes": {
+                    kind.value: sum(outcome.status is kind for outcome in outcomes)
+                    for kind in OutcomeKind
+                },
+                "unaccounted": len(mismatched),
+                "duplicate_discovered_ids": len(duplicate_ids),
+                "duplicate_worker_ids": len(duplicate_worker_ids),
+                "unexpected_ids": len(unexpected_ids),
+                "loader_failures": len(loader.errors),
+                "fixture_failures": sum(len(report.fixture_failures) for report in reports),
+                "missing_workers": len(missing_workers),
+                "requested_workers": jobs,
+                "actual_workers": 1 if jobs == 1 else len(assignments),
+                "reporting_workers": len(reports),
+                "elapsed_seconds": round(wall, 6),
+                "exit_code": status,
+                "top_classes": [
+                    {"class_sha256": hashlib.sha256(name.encode("utf-8")).hexdigest(),
+                     "elapsed_seconds": round(elapsed, 6)}
+                    for name, elapsed in ordered_times[:5]
+                ],
+            })
+        except Exception:
+            # Diagnostics must never replace a test verdict or leak exception text.
+            print("CI diagnostic receipt unavailable", file=sys.stderr)
+    return status
 
 
 def _positive(value: str) -> int:
@@ -467,6 +501,7 @@ def main(
         scratch=scratch if scratch is not None else repo_root.scratch_root(),
         stream=stream if stream is not None else sys.stdout,
         job_derivation=derivation,
+        diagnostics=module_dir == TOOLS and bool(os.environ.get("CI_DIAGNOSTIC_RECEIPT")),
     )
 
 

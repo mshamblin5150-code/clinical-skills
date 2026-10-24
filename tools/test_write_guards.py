@@ -176,7 +176,9 @@ class ModuleRootProperty(unittest.TestCase):
 
         # #1882 adds a checkout-local reference path for the fill builder;
         # its private account state still comes from the explicit run/profile.
-        self.assertEqual(len(population), 53)
+        # CI diagnostics also reads checkout-local source digests and Git identity,
+        # with no account-owned state selected from that root.
+        self.assertEqual(len(population), 54)
         self.assertEqual(offenders, [])
 
 
