@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import tree_walk
 
+import errno
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -53,12 +55,16 @@ RUN_KINDS = (
 RUN_KIND_BY_SKILL = {item.skill: item for item in RUN_KINDS}
 MODULE_ROOT = Path(__file__).resolve().parent.parent
 STATE_RECORD = "run-status.json"
+RUN_KEY = r"[A-Za-z0-9][A-Za-z0-9._-]*"
+# A run name is the status-line key grammar with no trailing period, and it
+# must end at a separator or punctuation so a name outside that grammar is not
+# misread as one of its prefixes. #2042.
 RUN_PATH = re.compile(
     r"(?i)(?<![\w./\\:-])(?:(?:[A-Z]:[\\/]|/|(?:\.\.?[\\/])+)[^\r\n\"'`<>|]*?)?scratch[\\/]runs[\\/]"
-    r"[^\\/\s\"'`<>|]+"
+    + RUN_KEY + r"(?<!\.)(?![^\s\\/\"'`<>|.,;:!?)\]}])"
 )
 STATUS_LINE = re.compile(
-    r"(?m)^Run status: (?P<run_key>[A-Za-z0-9][A-Za-z0-9._-]*) — "
+    r"(?m)^Run status: (?P<run_key>" + RUN_KEY + r") — "
     r"(?P<status>awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped(?: - (?P<reason>\S.*))?)\s*$"
 )
 ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
@@ -79,6 +85,7 @@ DECLARED_LIMITS = (
     "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
     "Malformed transcript rows cannot establish an open run; an unreadable durable approval or status record instead requires a keyed stopped reason and is never repaired by this hook.",
     "A missing transcript path allows the stop without grading.",
+    "A run directory whose name falls outside the status-line key grammar, or ends in a period, is not recognized as a run.",
 )
 
 
@@ -197,10 +204,23 @@ def _run_mentions(value: str) -> tuple[Path, ...]:
         values = (value, *shlex.split(value, posix=False))
     except ValueError:
         values = (value,)
-    return tuple(
+    paths = (
         Path(match.group(0).strip()).resolve()
         for part in values for match in RUN_PATH.finditer(part)
     )
+    return tuple(path for path in paths if not _invalid_name(path))
+
+
+def _invalid_name(path: Path) -> bool:
+    # A span of prose read as one path can hold a second drive colon, which
+    # Windows refuses as an invalid name rather than as not found. Like a
+    # not-found whole-command path in _changed_after, it names no directory;
+    # any other open failure still counts the run as touched. #2042.
+    try:
+        os.stat(path)
+    except OSError as error:
+        return error.errno == errno.EINVAL
+    return False
 
 
 def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:

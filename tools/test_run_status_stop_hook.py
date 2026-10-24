@@ -339,6 +339,38 @@ class RunStatusContract(unittest.TestCase):
             with self.subTest(inputs=inputs):
                 self.assertEqual((run.resolve(),), hook.touched_runs((self.start_record(), record)))
 
+    def brief_record(self, prompt: str) -> dict[str, object]:
+        return {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Agent", "input": {"prompt": prompt}}
+        ]}}
+
+    def test_a_brief_naming_a_checkout_and_a_run_binds_only_the_run(self) -> None:
+        # #2042: the whole sentence was read as one path, which Windows refuses
+        # as an invalid name, and every reply became unsatisfiable.
+        checkout = self.root / "worktrees" / "w1"
+        line = f"Run status: {self.run.name} — awaiting posting"
+        for ending in (".", ""):
+            prompt = f"Repo checkout: {checkout}. Run directory: {self.run}{ending}"
+            with self.subTest(ending=ending):
+                self.write_session(self.start_record(), self.brief_record(prompt))
+                self.assertEqual((self.run.resolve(),), hook.touched_runs(hook._records(self.transcript)))
+                self.assertEqual({}, self.grade(f"Briefed.\n\n{line}"))
+
+    def test_trailing_punctuation_ends_the_run_name(self) -> None:
+        for mention in (f"(see {self.run}),", f"Run directory: {self.run}:", f"{self.run};", f"[{self.run}]!"):
+            with self.subTest(mention=mention):
+                self.write_session(self.start_record(), self.brief_record(mention))
+                self.assertEqual((self.run.resolve(),), hook.touched_runs(hook._records(self.transcript)))
+
+    def test_a_name_outside_the_status_key_rule_is_not_recognized(self) -> None:
+        # The key-grammar prefix exists too, so the name must not be misread as it.
+        odd = self.run.parent / "odd+run"
+        for folder in (odd, self.run.parent / "odd"):
+            folder.mkdir()
+            (folder / "reply.md").write_text("draft", encoding="utf-8")
+        self.write_session(self.start_record(), self.brief_record(f"Run directory: {odd}"))
+        self.assertEqual((), hook.touched_runs(hook._records(self.transcript)))
+
     def test_only_hook_state_changed_binds_nothing(self) -> None:
         self.make_run_old()
         (self.run / hook.STATE_RECORD).write_text("{}", encoding="utf-8")
