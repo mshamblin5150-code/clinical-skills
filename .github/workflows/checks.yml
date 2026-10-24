@@ -130,6 +130,8 @@ jobs:
       # line said 1093 and was stale inside its own branch.
       - name: Test suite
         if: always()
+        env:
+          CI_DIAGNOSTIC_RECEIPT: ${{ runner.temp }}/ci-suite.json
         run: |
           $report = python tools/suite.py 2>&1
           $status = $LASTEXITCODE
@@ -186,6 +188,15 @@ jobs:
         if: always()
         run: python tools/phi_scan.py --all --allow-no-corpus
 
+      - name: Diagnostic receipt (missing means unavailable)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-diagnostic-suite-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-suite.json
+          retention-days: 3
+          if-no-files-found: warn
+
   # ADR 0431: early warning when a newer Python breaks code before an upgrade.
   canary:
     name: newer Python 3.14 canary (may fail before the maintainer upgrades)
@@ -210,7 +221,18 @@ jobs:
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Test suite on newest Python 3.14
+        env:
+          CI_DIAGNOSTIC_RECEIPT: ${{ runner.temp }}/ci-canary.json
         run: python tools/suite.py
+
+      - name: Diagnostic receipt (missing means unavailable)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-diagnostic-canary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-canary.json
+          retention-days: 3
+          if-no-files-found: warn
 
   # ADR 0187's executable floor. The full suite is deliberate: an import-only
   # smoke job stays green below the runtime APIs the consumer commands call.
@@ -235,4 +257,15 @@ jobs:
         run: python -VV
 
       - name: Test complete suite at the declared floor
+        env:
+          CI_DIAGNOSTIC_RECEIPT: ${{ runner.temp }}/ci-floor.json
         run: python tools/suite.py
+
+      - name: Diagnostic receipt (missing means unavailable)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-diagnostic-floor-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-floor.json
+          retention-days: 3
+          if-no-files-found: warn
