@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import io
 import json
+import re
 from pathlib import Path
 import tempfile
 from threading import Event
@@ -91,13 +92,98 @@ class WriterTransactions(unittest.TestCase):
         self.assertEqual(2, status)  # Replacing an existing member still requires the explicit option.
         self.assertEqual(before, target.read_bytes())
 
+    def assert_portal_result(self, target, status, faults):
+        self.assertIn(status, (0, 2))
+        if status == 0:
+            self.assertEqual({}, faults)
+        else:
+            self.assertEqual({target.resolve()}, set(faults))
+            self.assertRegex(faults[target.resolve()].cause,
+                             r'^held by another task: process [1-9][0-9]*$')
+
+    def portal_attempt(self, fixture, key):
+        with records.capture_errors() as faults:
+            status = self.portal_write(fixture, key)
+        self.assert_portal_result(fixture.run / 'reread.md', status, faults)
+        return key, status
+
+    def assert_portal_contents(self, target, prior, keys):
+        text = target.read_bytes().decode('utf-8')
+        blocks = re.findall(r'(?ms)^## REREAD:.*?(?=^## REREAD:|\Z)', text)
+        self.assertEqual(text, ''.join(blocks))
+        self.assertEqual(len(keys), len(blocks))
+        self.assertEqual(sorted(prior.rstrip('\n').replace('## REREAD: prior',
+                         f'## REREAD: {key}', 1) for key in keys),
+                         sorted(block.rstrip('\n') for block in blocks))
+        readings = medatrax_posting.read_posted_readings(text)
+        self.assertEqual(len(keys), len(readings))
+        self.assertEqual(set(keys), {item.artifact for item in readings})
+
     def test_concurrent_portal_members_survive(self):
         fixture = self.portal()
+        self.assertEqual(('prior', 0), self.portal_attempt(fixture, 'prior'))
+        target = fixture.run / 'reread.md'
+        prior = target.read_text(encoding='utf-8')
         with ThreadPoolExecutor(max_workers=2) as pool:
-            statuses = list(pool.map(lambda key: self.portal_write(fixture, key), ('left', 'right')))
-        self.assertEqual([0, 0], statuses)
-        self.assertEqual({'left', 'right'}, {item.artifact for item in
-            medatrax_posting.read_posted_readings((fixture.run / 'reread.md').read_text(encoding='utf-8'))})
+            outcomes = list(pool.map(lambda key: self.portal_attempt(fixture, key), ('left', 'right')))
+        successful = {key for key, status in outcomes if status == 0}
+        self.assertTrue(successful, outcomes)
+        self.assert_portal_contents(target, prior, {'prior'} | successful)
+        # Fresh requests prove serial progress without retrying a refused call.
+        for key in ('serial-left', 'serial-right'):
+            self.assertEqual((key, 0), self.portal_attempt(fixture, key))
+        self.assert_portal_contents(target, prior,
+                                   {'prior', 'serial-left', 'serial-right'} | successful)
+        self.assertEqual([], list(fixture.run.glob('*.partial')))
+
+    def test_portal_controls_reject_unexplained_refusal_and_record_loss(self):
+        fixture = self.portal()
+        self.assertEqual(('prior', 0), self.portal_attempt(fixture, 'prior'))
+        target = fixture.run / 'reread.md'
+        for faults in ({}, {target.resolve(): records.UnreadableRecord(target, 'unreadable')},
+                       {(fixture.run / 'other').resolve(): records.UnreadableRecord(
+                           fixture.run / 'other', 'held by another task: process 1')}):
+            with self.subTest(faults=len(faults)), self.assertRaises(AssertionError):
+                self.assert_portal_result(target, 2, faults)
+        prior = target.read_text(encoding='utf-8')
+        other = prior.replace('## REREAD: prior', '## REREAD: owner', 1)
+        target.write_bytes((prior + '\n' + other).encode('utf-8'))
+        self.assert_portal_contents(target, prior, {'prior', 'owner'})
+        for text in (prior, prior + '\n' + other + '\n' + other,
+                     (prior + '\n' + other).replace('P-3', 'P-4', 1),
+                     (prior + '\n' + other).replace('matches\n', 'matches \n', 1)):
+            with self.subTest(record_bytes=len(text)), self.assertRaises(AssertionError):
+                target.write_bytes(text.encode('utf-8'))
+                self.assert_portal_contents(target, prior, {'prior', 'owner'})
+
+    def test_suspended_portal_owner_preserves_records_on_refusal(self):
+        fixture = self.portal()
+        self.assertEqual(('prior', 0), self.portal_attempt(fixture, 'prior'))
+        target = fixture.run / 'reread.md'
+        before = target.read_bytes()
+        prior = target.read_text(encoding='utf-8')
+        acquired, release = Event(), Event()
+        native = artifact_lock.hold
+        @contextlib.contextmanager
+        def paused(path, action, **kwargs):
+            with native(path, action, **kwargs) as held:
+                if Path(path) == target and not acquired.is_set():
+                    acquired.set()
+                    release.wait()
+                yield held
+        with mock.patch.object(artifact_lock, 'hold', paused), ThreadPoolExecutor(max_workers=2) as pool:
+            owner = pool.submit(self.portal_attempt, fixture, 'owner')
+            try:
+                self.assertTrue(acquired.wait(10), 'native owner never acquired')
+                self.assertEqual(('contender', 2),
+                                 pool.submit(self.portal_attempt, fixture, 'contender').result(timeout=10))
+                self.assertEqual(before, target.read_bytes())
+                self.assertEqual([], list(fixture.run.glob('*.partial')))
+            finally:
+                release.set()
+            self.assertEqual(('owner', 0), owner.result(timeout=10))
+        self.assert_portal_contents(target, prior, {'prior', 'owner'})
+        self.assertEqual([], list(fixture.run.glob('*.partial')))
 
     def test_outbound_appends_validate_under_lock_and_keep_distinct_updates(self):
         with tempfile.TemporaryDirectory() as directory:
