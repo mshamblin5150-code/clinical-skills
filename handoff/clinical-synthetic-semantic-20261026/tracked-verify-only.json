@@ -1,0 +1,145 @@
+[
+  {
+    "filename": "tools/tracker_coordinates.py",
+    "bytes": 11563,
+    "sha256": "ec8b3e9c455b687a4fc68128b12bf7c526ef2e860a76d6243d50e07fa3377fbf",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "independent unchanged oracle",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/console_codec.py",
+    "bytes": 5666,
+    "sha256": "198badb4dfacb61fd7eb3894c9dc64f12ec613ffb1b1fc32b57666ccbf641164",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/git_paths.py",
+    "bytes": 2672,
+    "sha256": "c25513b957e8fc9d201a430a7fff0fbe9551c280bf27f7134b869bd71a527662",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/prose_bind.py",
+    "bytes": 13717,
+    "sha256": "7ed5585f5fa98727f740c366cdc13f29f3fed8b5ffdad43f1488dc67f47e1da4",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/tracker_bodies.py",
+    "bytes": 41209,
+    "sha256": "15d3875bd7dad7ce2de4265cb64e69b1facce960008a21d0e00b0c29e6ed994c",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/tracker_records.py",
+    "bytes": 5570,
+    "sha256": "aaca0a1c53f185a6d606f5330d6d3fed6e55f34bff457607391f8abd7b29ecf9",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/tracker_scan.py",
+    "bytes": 52914,
+    "sha256": "807da2be03fb6c4ea36d1762cfaac8e0e4270766a2cadfb7c5a0d0a0182059f8",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/phi_scan.py",
+    "bytes": 88064,
+    "sha256": "d0d7f948cc883ab36ce2962ca81dd9670307866d4ebcc4b35a10413ce6679a8a",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/name_index.py",
+    "bytes": 29559,
+    "sha256": "586d16555421277dd56e64719e9336cdb899cd7e34871c006dfa9df5cd55af2c",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/repo_root.py",
+    "bytes": 15028,
+    "sha256": "9dce44b6ec2fd29ef3fbe9ece7de41fc5808626369b147e645e5406bd521fdec",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/tracker_publish_marker.py",
+    "bytes": 2058,
+    "sha256": "f311afbaace7744b0af5ab689a28b9306d5b34e887ba62dd4465c396f0e94a49",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/corpus_census.py",
+    "bytes": 127955,
+    "sha256": "8d0261db41c2ebb3b719eb0d70e603d257bdeed653f71d504b9307dc04ad5e4a",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "tracked import closure",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  },
+  {
+    "filename": "tools/python_floor.py",
+    "bytes": 21734,
+    "sha256": "09019007ce1b7232fca446a0e62191724966b8250a824c704ff697e383d19024",
+    "actual_mode": "Windows attributes: Archive",
+    "posix_mode": null,
+    "transfer": false,
+    "role": "conditional floor helper (not imported by normal in-process qualification)",
+    "base": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+    "frozen_match": true
+  }
+]

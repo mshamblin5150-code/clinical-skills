@@ -1,0 +1,96 @@
+{
+  "status": "prepared only; no transfer or execution",
+  "base_sha": "61440f0d7a8a4c4fccf12c9a9404daf199c23e53",
+  "source_revision_manifest_sha256": "72136e8e329fa7db134a27f408bdf3323c5a392d9a41976aca9be6214a898515",
+  "candidate_sha256": "4e351389bf7955af676c84f3555bc973f997f09d822803d1ca7f3562f88a8ab8",
+  "independent_oracle": "tools/tracker_coordinates.py",
+  "oracle_sha256": "ec8b3e9c455b687a4fc68128b12bf7c526ef2e860a76d6243d50e07fa3377fbf",
+  "files": [
+    {
+      "filename": "candidate.py",
+      "bytes": 5396,
+      "sha256": "4e351389bf7955af676c84f3555bc973f997f09d822803d1ca7f3562f88a8ab8",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "unmodified synthetic-only private source from git-qualification-maintenance-20261026",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "harness.py",
+      "bytes": 13585,
+      "sha256": "e1301216552b95233b54f0bcd27c5002d421d11ac62b698192cb0948e3ff8dd6",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "unmodified synthetic-only private source from git-qualification-maintenance-20261026",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "fixtures.py",
+      "bytes": 5667,
+      "sha256": "d8b5e2ed78593b8b2c0ea517b1b92f732259a3937e0274e01f24ad82046e81fb",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "unmodified synthetic-only private source from git-qualification-maintenance-20261026",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "failure_evidence.py",
+      "bytes": 3234,
+      "sha256": "64d3a9ef5a057879f42c37dd3d16e297e2ee75a94732c240cc60262ecc26f122",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "unmodified synthetic-only private source from git-qualification-maintenance-20261026",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "budget.py",
+      "bytes": 655,
+      "sha256": "68d0745c8b787e55b3679efaf418fda32bd9122363937294485e3c0a8e46135a",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "unmodified synthetic-only private source from git-qualification-maintenance-20261026",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "inventory.md",
+      "bytes": 9027,
+      "sha256": "c6d91dcffaed63e5f06e63a97a89531178c03134df1c8bb14c691bc19d7a5706",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "new agent-authored synthetic-only handoff/control metadata; no account/run data",
+      "transfer_authorized": false
+    },
+    {
+      "filename": "tracked-verify-only.json",
+      "bytes": 4995,
+      "sha256": "fbe98a015268acff1294320cb83d85fac9c9552c5e27c1c9038739d4410a2874",
+      "actual_mode": "Windows attributes: Archive",
+      "actual_posix_mode": null,
+      "proposed_future_wire_mode": "0644 (not applied)",
+      "provenance": "new agent-authored synthetic-only handoff/control metadata; no account/run data",
+      "transfer_authorized": false
+    }
+  ],
+  "payload_code_bytes": 28537,
+  "listed_file_bytes": 42559,
+  "transport_control": "manifest.json itself; SHA256 reported externally to avoid self-hash recursion",
+  "tracked_policy": "verify existing cloud files only; do not transfer oracle/import modules",
+  "cloud_python": "3.12.14",
+  "maintainer_python": "3.14.4",
+  "cloud_git": "2.52.0",
+  "resource_equivalence": "none asserted; admission adapter and resource decision still required",
+  "reservation": "Clinical Windows reservation retained",
+  "exclusions": [
+    "surrounding checkout/.git",
+    "corpus/patients/accounts/secrets",
+    "run records/logs",
+    "Windows runtime machinery",
+    "private frozen population"
+  ]
+}
