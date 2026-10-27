@@ -108,10 +108,11 @@ class PostedReadingMembers(unittest.TestCase):
             self.assert_gate_controls(record, lambda: medatrax_posting.completion_gate(run, portal.SUBMISSION, batch=True))
 
     def test_approval_gate_results(self):
+        # Posted-reading mutation controls isolate transcript prerequisites.
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(approval_record, '_preflight_grader', return_value=None), mock.patch.object(
             approval_record, 'verify_clinician_reply',
             return_value=approval_record.ReplyVerification('verified', 'synthetic whole reply matched', 4102444800),
-        ):
+        ), mock.patch.object(approval_record.canvas_load_route, 'require_shown'):
             run = Path(temporary)
             note = run / 'post.md'
             note.write_bytes(b'approved post')

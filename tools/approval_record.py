@@ -28,6 +28,7 @@ import delegated_answers
 import reader_remarks
 import run_grader
 import project_context
+import canvas_load_route
 
 
 DECLARED_LIMITS = (
@@ -493,6 +494,13 @@ def approve(
             raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
         if preceding.state == "unreadable":
             verification = preceding
+        if approval_kind == "content" and skill in canvas_load_route.CONTENT_SKILLS:
+            try:
+                canvas_load_route.require_shown(root, submission,
+                    after=max(source_modified_at, after or source_modified_at),
+                    before=verification.matched_at)
+            except canvas_load_route.LoadRouteError as failure:
+                raise ApprovalRecordError(str(failure)) from failure
         grade_status, grade_report = _pre_post_grade(skill, grader_args)
         if skill in CLINICAL_SKILLS:
             grade_status, grade_report = delegated_answers.pre_approval(root, submission, grade_status, grade_report)

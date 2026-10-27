@@ -3,7 +3,7 @@
 import artifact_lock_test_support
 import artifact_lock
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import json
 from pathlib import Path
 import tempfile
@@ -49,6 +49,12 @@ class ApprovalFamilyWriters(unittest.TestCase):
         fixture = approval_fixtures.ApprovalRecordContract("runTest")
         fixture.setUp()
         try:
+            rows = [json.loads(line) for line in fixture.transcript.read_text(encoding="utf-8").splitlines()]
+            rows[0]["message"]["content"] += "".join(
+                f"Canvas load route ({key}): Raw HTML — cost: confirm raw textarea and return to formatted view.\n"
+                for key in ("first", "left", "right")
+            )
+            fixture.transcript.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
             with mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "grade clean")):
                 self.approve(fixture)
                 yield fixture
@@ -59,9 +65,14 @@ class ApprovalFamilyWriters(unittest.TestCase):
     @contextmanager
     def command_case(self, kind):
         if kind in {"approve", "agent-post", "clinician-post"}:
-            with self.approval_case() as fixture:
+            with self.approval_case() as fixture, ExitStack() as transcript_seam:
                 if kind == "approve":
-                    fixture.transcript.unlink()  # The existing incomplete-reply route remains usable.
+                    # These native storage controls intentionally seed the old
+                    # incomplete-reply state, not transcript/route verification.
+                    fixture.transcript.unlink()
+                    transcript_seam.enter_context(mock.patch.object(approval_record, "verify_clinician_reply",
+                        return_value=approval_record.ReplyVerification("not verified", "synthetic unavailable transcript")))
+                    transcript_seam.enter_context(mock.patch.object(approval_record.canvas_load_route, "require_shown"))
                     call = lambda: self.approve(fixture)
                 else:
                     writer = (approval_record.record_agent_posting if kind == "agent-post"
