@@ -3,6 +3,13 @@
 The live pull retains the page title and topicArticle outer HTML after every
 Expand All. Ordinary clipboard text loses the indication/body boundaries; this
 reader therefore refuses it rather than claiming the doses were present.
+
+Every ``collapsible-indication-title`` must be expanded. Each one is held to the
+dosing-text requirement, except the title inside the brand-names accordion: a div
+whose class carries ``brand-names-accordion`` or ``drugBrandNames``. Lexidrug
+renders the brand list with the indication accordion markup, so that title stays
+a section heading and still counts as folded, but its body is a brand list rather
+than an indication. No other heading class is exempt.
 """
 from __future__ import annotations
 
@@ -12,6 +19,7 @@ from datetime import date
 from html.parser import HTMLParser
 
 VERSION_LINE = re.compile(r"(?m)^\s*Topic\s+(\d+)\s+Version\s+([\d.]+)\s*$")
+BRAND_NAMES_CLASSES = frozenset({"brand-names-accordion", "drugBrandNames"})
 DRUG_HEADER = re.compile(r"(?im)^\s*(?:UpToDate Lexidrug|[^\n]+:\s*(?:Pediatric\s+)?Drug information)\s*$")
 
 
@@ -48,20 +56,32 @@ class _RenderedDrug(HTMLParser):
         self.indication = False
         self.heading_start = 0
         self.folded = 0
+        self.div_depth = 0
+        self.brand_depth: int | None = None
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
-        indication = "collapsible-indication-title" in attributes.get("class", "").split()
-        if indication and attributes.get("aria-expanded") != "true":
+        classes = attributes.get("class", "").split()
+        if tag == "div":
+            self.div_depth += 1
+            if self.brand_depth is None and BRAND_NAMES_CLASSES.intersection(classes):
+                self.brand_depth = self.div_depth
+        accordion = "collapsible-indication-title" in classes
+        if accordion and attributes.get("aria-expanded") != "true":
             self.folded += 1
-        if tag in {"h1", "h2", "h3", "h4"} or attributes.get("role") == "heading" or indication:
+        if tag in {"h1", "h2", "h3", "h4"} or attributes.get("role") == "heading" or accordion:
             self.heading_start = len(self.parts)
-            self.heading, self.heading_tag, self.indication = [], tag, indication
+            self.heading, self.heading_tag = [], tag
+            self.indication = accordion and self.brand_depth is None
             self.parts.append("\n")
         elif tag in {"p", "div", "br", "li", "tr"}:
             self.parts.append("\n")
 
     def handle_endtag(self, tag):
+        if tag == "div":
+            if self.brand_depth == self.div_depth:
+                self.brand_depth = None
+            self.div_depth = max(self.div_depth - 1, 0)
         if self.heading is not None and tag == self.heading_tag:
             title = " ".join("".join(self.heading).split())
             if title:

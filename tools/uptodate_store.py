@@ -51,6 +51,7 @@ DECLARED_LIMITS = (
     "A drug following a topic whose ending was cut off can evade the absorbed-page check when its header did not survive the paste.",
     "Drug filing reads retained rendered HTML headings and indication controls; a fabricated or omitted heading is not proved to match the live page.",
     "Whether a dose applies to a patient and revisions between reads remain reader judgments.",
+    "The brand-names accordion is recognized only by its own class on an enclosing div; an indication title rendered inside such a div escapes the dosing-text check, and a brand list rendered without that class is still held to it.",
 )
 
 SCHEMA_VERSION = 1

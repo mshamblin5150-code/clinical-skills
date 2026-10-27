@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_lock_test_support
 import uptodate_store as store
+from uptodate_drug import parse_drug
 from prose_bind import bind, NAMING
 from test_uptodate_store import topic
 
@@ -107,6 +108,39 @@ class DrugCommands(unittest.TestCase):
                 self.assertIn('5 mg', hits[0].body)
                 self.assertEqual(hits[0].version, '4.0')
                 self.assertEqual(hits[0].read_on, date.today().isoformat())
+
+    # Lexidrug renders its brand list with the indication accordion markup;
+    # the observed page carries brand-names-accordion on the parent div only.
+    # Country codes and trade names below are synthetic; no digit, no dosing word.
+    BRAND_BODY = '<div class="collapsible-indication-content"><p>Examplebrand (XA, XB); Otherbrand (XC)</p><a>show table</a></div>'
+
+    def brand_page(self, accordion_class, *, expanded=True):
+        state = 'true' if expanded else 'false'
+        return ('<h1>Example: Drug information</h1>'
+                f'<div class="{accordion_class}"><span class="collapsible-indication-title" '
+                f'role="button" aria-expanded="{state}">International Brand Names by Country</span>'
+                f'{self.BRAND_BODY}</div>'
+                '<h2>Dosing: Adult</h2><div class="collapsible-indication all-expanded">'
+                '<span class="collapsible-indication-title" aria-expanded="true">Example indication</span>'
+                '<div class="collapsible-indication-content"><p>Oral: 5 mg once daily.</p></div></div>'
+                '<h2>References</h2><p>Example reference.</p><div>Topic 123 Version 4.0</div>')
+
+    def test_brand_names_accordion_without_dosing_text_parses(self):
+        page = parse_drug(self.brand_page('collapsible-indication brand-names-accordion drugBrandNames all-expanded'),
+                          date.today().isoformat())
+        brands = [section for section in page.sections if section.heading == 'International Brand Names by Country']
+        self.assertEqual(len(brands), 1)
+        self.assertIn('Examplebrand', brands[0].body)
+        self.assertNotIn('5 mg', brands[0].body)
+
+    def test_brand_list_body_under_a_real_indication_heading_still_refuses(self):
+        with self.assertRaisesRegex(ValueError, 'drug indication has no dosing text: International Brand Names by Country'):
+            parse_drug(self.brand_page('collapsible-indication all-expanded'), date.today().isoformat())
+
+    def test_folded_brand_names_accordion_still_refuses(self):
+        with self.assertRaisesRegex(ValueError, r'drug page has 1 folded indication'):
+            parse_drug(self.brand_page('collapsible-indication brand-names-accordion drugBrandNames', expanded=False),
+                       date.today().isoformat())
 
     def test_folded_or_empty_adult_and_pediatric_indications_refuse(self):
         for pediatric in (False, True):
