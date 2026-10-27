@@ -21,6 +21,10 @@ class PostingGateTests(unittest.TestCase):
         self.tick = 2100000000.0
         patch = mock.patch.object(approvals, 'verify_clinician_reply', side_effect=self.reply)
         patch.start(); self.addCleanup(patch.stop)
+        # This posting-transition seam supplies synthetic transcript verification,
+        # including the separate route declaration prerequisite.
+        patch = mock.patch.object(approvals.canvas_load_route, 'require_shown')
+        patch.start(); self.addCleanup(patch.stop)
         patch = mock.patch.object(approvals, '_recheck_replies', side_effect=lambda *a: approvals.ReplyVerification('verified', 'synthetic', self.tick))
         patch.start(); self.addCleanup(patch.stop)
 

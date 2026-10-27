@@ -1,7 +1,7 @@
 """Whole clinician messages bind approvals to their source revision. #1474."""
 
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
-from datetime import datetime
+from datetime import datetime, timedelta
 from hashlib import sha256
 import io
 import json
@@ -70,8 +70,17 @@ class WholeReplyApproval(unittest.TestCase):
         shown_at = datetime.fromtimestamp(max(101, self.source.stat().st_mtime + 1), tz=datetime.fromisoformat(LATER.replace("Z", "+00:00")).tzinfo).isoformat()
         presentation = ({"type": "assistant", "timestamp": shown_at,
                          "message": {"content": self.source.read_text(encoding="utf-8")}},) if shown else ()
+        # Route disclosure is a separate prerequisite from the body presentation
+        # these tests deliberately omit or corrupt. Reapprovals need a new line.
+        with_routes = []
+        for row in rows:
+            if row.get("type") == "user" or row.get("payload", {}).get("role") == "user":
+                route_at = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) - timedelta(microseconds=1)
+                with_routes.append({"type": "assistant", "timestamp": route_at.isoformat(),
+                    "message": {"content": "Canvas load route (synthetic-post): Raw HTML — cost: confirm raw textarea and return to formatted view."}})
+            with_routes.append(row)
         (path or self.transcript).write_text(
-            "\n".join(json.dumps(row) for row in (reference, *presentation, *rows)) + "\n",
+            "\n".join(json.dumps(row) for row in (reference, *presentation, *with_routes)) + "\n",
             encoding="utf-8",
         )
 
@@ -220,7 +229,10 @@ class WholeReplyApproval(unittest.TestCase):
 
     def test_unreadable_shown_text_is_incomplete_without_completion_recheck(self):
         self.transcript.write_text("{unreadable\n", encoding="utf-8")
-        result = self.approve()
+        # Isolate the established shown-text fallback from the independent,
+        # fail-closed route disclosure gate covered by test_canvas_load_route.
+        with mock.patch.object(approvals.canvas_load_route, "require_shown"):
+            result = self.approve()
         self.assertIn("shown-text transcript unreadable", result.pregrade_report)
         self.assertEqual("incomplete", self.record()["items"][0]["pregrade_status"])
 
@@ -256,7 +268,9 @@ class WholeReplyApproval(unittest.TestCase):
 
     def test_unreadable_approval_is_rechecked_as_found_absent_or_incomplete(self):
         self.transcript.write_text("{unreadable\n", encoding="utf-8")
-        self.approve()
+        # This control owns legacy reply rechecking, not route verification.
+        with mock.patch.object(approvals.canvas_load_route, "require_shown"):
+            self.approve()
         self.assertEqual("not verified", self.record()["items"][0]["reply_verification"])
         self.posted(clinician=True)
         result = approvals.completion_gate(self.run, "discussion-post", "synthetic-post")
@@ -273,7 +287,9 @@ class WholeReplyApproval(unittest.TestCase):
 
     def test_no_transcript_records_incomplete_and_legacy_items_keep_the_old_grade(self):
         self.transcript.unlink()
-        self.approve()
+        # Seed a legacy incomplete approval without claiming a route was shown.
+        with mock.patch.object(approvals.canvas_load_route, "require_shown"):
+            self.approve()
         self.posted()
         payload = self.record()
         item = payload["items"][0]
@@ -285,7 +301,9 @@ class WholeReplyApproval(unittest.TestCase):
 
     def test_pending_gate_one_cannot_reuse_its_only_reply_at_gate_two(self):
         self.transcript.unlink()
-        self.approve()
+        # Seed the old pending-reply state; route failure has its own controls.
+        with mock.patch.object(approvals.canvas_load_route, "require_shown"):
+            self.approve()
         self.write(human())
         with self.assertRaises(approvals.ApprovalRecordError):
             self.approve()
@@ -296,7 +314,9 @@ class WholeReplyApproval(unittest.TestCase):
 
     def test_two_unreadable_gates_need_two_messages_at_completion(self):
         self.transcript.unlink()
-        self.approve()
+        # Seed the old pending-reply state; route failure has its own controls.
+        with mock.patch.object(approvals.canvas_load_route, "require_shown"):
+            self.approve()
         self.approve(kind="posting")
         self.posted()
         self.write(human())

@@ -108,7 +108,13 @@ class ApprovalSurfaces(unittest.TestCase):
         self.outcomes = (remarks.Outcome('fixed', 'The draft identifies the original body with the secondary citation.'),)
 
     def show(self, text, reply='go', *, before=None, codex=False):
-        at = before if before is not None else time.time() + 10
+        at = before if before is not None else max(time.time() + 10, getattr(self, '_last_reply_at', 0) + 1)
+        self._last_reply_at = at + 1
+        if self.source.suffix == '.md':
+            text += '\n' + '\n'.join(
+                f'Canvas load route ({key}): Raw HTML — cost: confirm raw textarea and return to formatted view.'
+                for key in ('draft', self.source.name)
+            )
         def row(role, value, stamp):
             timestamp = datetime.fromtimestamp(stamp, timezone.utc).isoformat()
             if codex:

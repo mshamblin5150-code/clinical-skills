@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import run_grader
 import completion_checks
 import file_digest
+import canvas_load_route
 from console_codec import use_utf8, require_python_floor
 from run_record_reader import (read_tool_record, object_record, RecordShapeError,
                                UnreadableRecord, collecting_errors, fault_report, mark_not_graded,
@@ -138,6 +139,13 @@ def _sign(run: Path, clinician_reply: str, previous_record: dict | None, *, skil
         source_modified_at=boundary.timestamp() if boundary else None)
     if verification.state == "not found":
         raise run_grader.SourceError("the clinician bar reply was not found: " + verification.reason)
+    if skill == "practicum-case-study" and re.search(r"(?mi)^SUBMISSION-TYPE:[ \t]*canvas-composer[ \t]*\r?$", text):
+        try:
+            canvas_load_route.require_shown(run, "bar.md",
+                after=boundary.timestamp() if boundary else bar.stat().st_mtime,
+                before=verification.matched_at)
+        except canvas_load_route.LoadRouteError as failure:
+            raise run_grader.SourceError(str(failure)) from failure
     if bar.read_bytes() != original:
         raise run_grader.SourceError(f"bar changed during signing; {REMEDY}")
     copies = run / "signed-bars"

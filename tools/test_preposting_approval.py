@@ -22,7 +22,8 @@ class PrepostingApproval(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        # Only transcript recognition is synthetic. The paired preflight, grader
+        # Transcript recognition and its external route prerequisite are synthetic.
+        # The paired preflight, grader
         # subprocess, durable records, and posting transition remain real.
         remarks_check = mock.patch.object(approval_record.reader_remarks, "verify", return_value=[])
         remarks_check.start()
@@ -34,6 +35,9 @@ class PrepostingApproval(unittest.TestCase):
             )
             patch.start()
             self.addCleanup(patch.stop)
+        route = mock.patch.object(approval_record.canvas_load_route, "require_shown")
+        route.start()
+        self.addCleanup(route.stop)
 
     def approve(self, run, skill, artifact):
         return approval_record.approve(

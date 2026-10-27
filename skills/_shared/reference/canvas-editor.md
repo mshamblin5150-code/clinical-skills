@@ -65,6 +65,32 @@ skill's existing clinician gate, and keep it for this load:
 A non-clean readback stops at the clinician. It never causes the agent to switch routes or retry
 the load on its own.
 
+### Declare the route at its approval gate
+
+Show one plain line with the chosen route and its cost before asking for approval:
+
+```text
+Canvas load route (<item key>): <Raw HTML|Content interface|Typing> — cost: <the chosen route's burdens>
+```
+
+Use the contribution's `submission` key for a discussion post or reply, the approved artifact's
+filename without its extension for a course assignment, and `bar.md` for a practicum case-study
+bar. The declaration belongs to that item; another reply's declaration cannot cover it.
+
+For discussion posts and replies, show it with every content approval ask, after the latest source
+change and any preceding approval. For a Canvas course assignment, show it at Gate 1. For a
+`canvas-composer` practicum case study, show it at the existing bar approval before drafting;
+the later draft approval does not move that disclosure to a new gate. File uploads and the
+plain Peer-review comment do not use this Composer declaration.
+
+Name the route actually selected from the live Composer. Explain its burdens in the clinician's
+terms: the raw textarea confirmation and switch back, the content-interface registration
+keystroke and autolink risk, or the typing route's manual formatting and URL links. Do not invent
+a time estimate. `tools/canvas_load_route.py` checks the item key, one named route, nonblank cost,
+and that the latest declaration was shown before the matched approval. It cannot establish live
+support, the accuracy of the stated cost or which route is subsequently used. A declaration first
+shown at the loaded-box stop cannot satisfy the earlier approval.
+
 ## Read back the loaded contribution
 
 Run this fixed page script verbatim after the switch back. Supply the identified editor id and a

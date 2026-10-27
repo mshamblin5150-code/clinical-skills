@@ -27,7 +27,8 @@ import reader_remarks
 import file_digest
 import repo_root
 import project_context
-from run_grader import EvidenceDisposition
+import canvas_load_route
+from run_grader import EvidenceDisposition, SourceError
 
 
 DECLARED_LIMITS = (
@@ -201,10 +202,32 @@ def stage(
             raise GateError("project-context go-ahead result could not be written") from failure
         if context.finding:
             raise GateError("project-context go-ahead has a finding: " + context.report)
+        from run_record_reader import read_handwritten_record
+        try:
+            envelope = assignment_bar.parse(read_handwritten_record(root / "bar.md", "raw-text").require_text(force=True))
+        except SourceError as failure:
+            raise GateError("Gate 1 bar could not be read: " + str(failure)) from failure
+        composer = envelope.fields.get("SUBMISSION-TYPE") == "canvas-composer"
+        previous_reply = None
+        if composer and previous is not None:
+            boundary = completion_checks.instant(previous.get("reply_matched_at"))
+            if boundary is None:
+                boundary = completion_checks.instant(previous.get("gate1_recorded_at"))
+            if boundary is None:
+                raise GateError("previous Canvas content approval time unreadable; cannot verify a fresh route declaration")
+            previous_reply = boundary.timestamp()
         from approval_record import verify_clinician_reply
-        verification = verify_clinician_reply(root, clinician_reply, (path,))
+        verification = verify_clinician_reply(root, clinician_reply, (path,),
+            **({"after": previous_reply} if composer else {}))
         if verification.state != "verified":
             raise GateError("Gate 1 needs a verified whole clinician reply: " + verification.reason)
+        if composer:
+            try:
+                canvas_load_route.require_shown(root, path.stem,
+                    after=max(path.stat().st_mtime, previous_reply or 0),
+                    before=verification.matched_at)
+            except canvas_load_route.LoadRouteError as failure:
+                raise GateError(str(failure)) from failure
         prepared_report = reader_remarks.approval_report(grade_report, context.report, root, (path.name,))
         try:
             remarks = reader_remarks.verify(root, "course-assignment", path.stem, (path,), prepared_report,
