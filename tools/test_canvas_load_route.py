@@ -10,11 +10,20 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
+from prose_bind import NAMING, bind
 
 import approval_record
 import bar_signatures
 import assignment_submission
 import canvas_load_route
+
+
+class DeclaredLimitsAreBound(unittest.TestCase):
+    def test_canvas_editor_names_the_limits_without_copying_them(self):
+        path = Path(__file__).resolve().parents[1] / "skills/_shared/reference/canvas-editor.md"
+        sheet = path.read_text(encoding="utf-8")
+        self.assertIn("canvas_load_route.DECLARED_LIMITS", sheet)
+        self.assertEqual((), bind(canvas_load_route.DECLARED_LIMITS, sheet, mode=NAMING))
 
 
 class CanvasContentApproval(unittest.TestCase):

@@ -90,6 +90,7 @@ a time estimate. `tools/canvas_load_route.py` checks the item key, one named rou
 and that the latest declaration was shown before the matched approval. It cannot establish live
 support, the accuracy of the stated cost or which route is subsequently used. A declaration first
 shown at the loaded-box stop cannot satisfy the earlier approval.
+The complete mechanical boundary belongs to `canvas_load_route.DECLARED_LIMITS`.
 
 ## Read back the loaded contribution
 
