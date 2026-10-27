@@ -385,8 +385,24 @@ class TheWrittenContract(unittest.TestCase):
         scan = coordinates.grade_adrs(REPO_ROOT)
         self.assertGreater(scan.eligible, 0)
         self.assertNotIn(path.relative_to(REPO_ROOT).as_posix(), [row.locator for row in scan.findings])
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            self.assertEqual(coordinates.CLEAN, coordinates.main([]))
+        with mock.patch.object(coordinates, "grade_adrs", return_value=scan) as grade_adrs:
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(coordinates.CLEAN, coordinates.main([]))
+        grade_adrs.assert_called_once_with(REPO_ROOT)
+
+    def test_the_command_preserves_findings_from_the_adr_scan(self):
+        finding = coordinates.Finding(
+            coordinates.UNANCHORED, "docs/adr/0001-synthetic.md", "tools/example.py:12"
+        )
+        scan = coordinates.AdrScan(1, 1, (finding,))
+        stdout = io.StringIO()
+        with mock.patch.object(coordinates, "grade_adrs", return_value=scan) as grade_adrs:
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                self.assertEqual(coordinates.FOUND, coordinates.main([]))
+        grade_adrs.assert_called_once_with(REPO_ROOT)
+        self.assertIn(f"{coordinates.UNANCHORED} 1", stdout.getvalue())
+        self.assertIn(finding.locator, stdout.getvalue())
+        self.assertIn(finding.coordinate, stdout.getvalue())
 
     def test_the_grader_family_records_its_own_refusal_reason(self):
         reason = run_grader.REFUSED["tracker_coordinates"]
