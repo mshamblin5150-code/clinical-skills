@@ -85,6 +85,7 @@ DECLARED_LIMITS = (
     "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
     "Malformed transcript rows cannot establish an open run; an unreadable durable approval or status record instead requires a keyed stopped reason and is never repaired by this hook.",
     "A missing transcript path allows the stop without grading.",
+    "Transcript reply fallback reads string content and text/output_text blocks; other content blocks and their metadata cannot supply status lines.",
     "A run directory whose name falls outside the status-line key grammar, or ends in a period, is not recognized as a run.",
 )
 
@@ -99,6 +100,21 @@ def _string_values(value: object) -> tuple[str, ...]:
     return ()
 
 
+def _reply_text(content: object) -> str:
+    """Read visible message text, excluding tool inputs and block metadata."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            block if isinstance(block, str) else block["text"] for block in content
+            if isinstance(block, str) or (
+                isinstance(block, dict) and block.get("type") in {"text", "output_text"}
+                and isinstance(block.get("text"), str)
+            )
+        )
+    return ""
+
+
 def _assistant_text(record: Mapping[str, Any]) -> str:
     payload = record.get("payload")
     if isinstance(payload, dict):
@@ -107,13 +123,13 @@ def _assistant_text(record: Mapping[str, Any]) -> str:
             and payload.get("type") == "message"
             and payload.get("role") == "assistant"
         ):
-            return "\n".join(_string_values(payload.get("content")))
+            return _reply_text(payload.get("content"))
         item = payload.get("item")
         if isinstance(item, dict) and item.get("type") == "AgentMessage":
-            return "\n".join(_string_values(item.get("content")))
+            return _reply_text(item.get("content"))
     message = record.get("message")
     if isinstance(message, dict) and message.get("role") == "assistant":
-        return "\n".join(_string_values(message.get("content")))
+        return _reply_text(message.get("content"))
     return ""
 
 

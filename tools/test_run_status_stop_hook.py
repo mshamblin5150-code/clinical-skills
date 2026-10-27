@@ -499,6 +499,104 @@ class RunStatusContract(unittest.TestCase):
             ),
         )
 
+    def test_tool_input_after_final_text_is_not_part_of_the_reply(self) -> None:
+        message = f"Ready.\n\nRun status: {self.run.name} — awaiting posting"
+        record = claude_assistant_record(message)
+        record["message"]["content"].append(
+            {"type": "tool_use", "id": "synthetic-read", "name": "Read",
+             "input": {"file_path": str(self.run / "bar.md")}}
+        )
+        self.transcript.write_text(
+            "\n".join(json.dumps(row) for row in (command_record(self.run), record)) + "\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual({}, hook.handle({"transcript_path": str(self.transcript)}))
+
+    def test_tool_input_cannot_supply_a_missing_or_wrong_reply_status(self) -> None:
+        correct = f"Run status: {self.run.name} — awaiting posting"
+        for reply in ("Ready.", "Run status: another-run — awaiting posting"):
+            with self.subTest(reply=reply):
+                record = claude_assistant_record(reply)
+                record["message"]["content"].append(
+                    {"type": "tool_use", "name": "Write", "input": {"content": correct}}
+                )
+                self.transcript.write_text(
+                    "\n".join(json.dumps(row) for row in (command_record(self.run), record)) + "\n",
+                    encoding="utf-8",
+                )
+                result = hook.handle({"transcript_path": str(self.transcript)})
+                self.assertEqual("block", result["decision"])
+
+    def test_tool_only_message_does_not_replace_the_final_reply(self) -> None:
+        message = f"Ready.\n\nRun status: {self.run.name} — awaiting posting"
+        tool_only = {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": str(self.run / "bar.md")}}
+        ]}}
+        self.transcript.write_text(
+            "\n".join(json.dumps(row) for row in (
+                command_record(self.run), claude_assistant_record(message), tool_only,
+            )) + "\n", encoding="utf-8",
+        )
+
+        result = self.command_grade(json.dumps({"transcript_path": str(self.transcript)}).encode("utf-8"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(b"", result.stdout)
+
+    def test_final_visible_text_wins_over_earlier_reply_and_text_metadata(self) -> None:
+        correct = f"Run status: {self.run.name} — awaiting posting"
+        content = [{"type": "output_text", "text": correct, "annotations": [{"type": "synthetic-metadata"}]}]
+        for final in (
+            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": content}},
+            {"type": "event_msg", "payload": {"item": {"type": "AgentMessage", "content": content}}},
+            {"type": "assistant", "message": {"role": "assistant", "content": correct}},
+        ):
+            with self.subTest(final=final):
+                self.transcript.write_text(
+                    "\n".join(json.dumps(row) for row in (
+                        command_record(self.run), claude_assistant_record("Working."), final,
+                    )) + "\n", encoding="utf-8",
+                )
+                self.assertEqual({}, hook.handle({"transcript_path": str(self.transcript)}))
+
+        self.transcript.write_text(
+            "\n".join(json.dumps(row) for row in (
+                command_record(self.run), claude_assistant_record(correct), claude_assistant_record("No status here."),
+            )) + "\n", encoding="utf-8",
+        )
+        self.assertEqual("block", hook.handle({"transcript_path": str(self.transcript)})["decision"])
+
+    def test_repeated_tool_mentions_and_command_punctuation_need_one_status(self) -> None:
+        line = f"Run status: {self.run.name} — awaiting posting"
+        records = [command_record(self.run), command_record(self.run)]
+        for command in (f"python tool.py {self.run};", f'python tool.py "{self.run}"'):
+            records.append({"type": "response_item", "payload": {
+                "type": "function_call", "arguments": json.dumps({"cmd": command}),
+            }})
+        records.append(claude_assistant_record(line))
+        self.transcript.write_text(
+            "\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8",
+        )
+
+        self.assertEqual({}, hook.handle({"transcript_path": str(self.transcript)}))
+
+    def test_string_content_parts_still_require_a_keyed_status(self) -> None:
+        for parts, allowed in (
+            (["Ready.", f"Run status: {self.run.name} — awaiting posting"], True),
+            (["Ready.", "No status here."], False),
+        ):
+            with self.subTest(parts=parts):
+                record = {"type": "assistant", "message": {"role": "assistant", "content": parts}}
+                self.transcript.write_text(
+                    "\n".join(json.dumps(row) for row in (command_record(self.run), record)) + "\n",
+                    encoding="utf-8",
+                )
+                result = hook.handle({"transcript_path": str(self.transcript)})
+                if allowed:
+                    self.assertEqual({}, result)
+                else:
+                    self.assertEqual("block", result.get("decision"))
+
     def test_early_complete_is_retracted(self) -> None:
         with mock.patch.object(hook, "completion_is_clean", return_value=False):
             result = self.grade(
