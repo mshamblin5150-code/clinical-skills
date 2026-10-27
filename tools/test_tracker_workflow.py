@@ -322,6 +322,16 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertIn("github.event.repository.default_branch", text)
         self.assertNotRegex(text, r"github\.event\.pull_request\.head")
 
+    def test_the_changed_record_checkout_has_history_for_branch_state_ancestry(self):
+        job = workflow_text().partition("  changed-record:")[2].partition(
+            "\n  merge-receipts:"
+        )[0]
+        checkout = job.partition("- uses: actions/checkout@")[2].partition(
+            "\n      - "
+        )[0]
+        self.assertRegex(checkout, r"(?m)^          fetch-depth: 0$")
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkout)
+
 
 class TheRulingIsWrittenBesideTheMaintainerWorkflow(unittest.TestCase):
     def test_claude_md_names_the_event_trigger_and_incremental_boundary(self):
