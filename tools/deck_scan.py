@@ -23,6 +23,7 @@ from discussion_artifact import posted_reading_unavailable
 from discussion_artifact import check_posted_reading
 
 import completion_checks
+import element_coverage
 from run_record_reader import outbound_text_damage
 import re
 import sys
@@ -129,6 +130,7 @@ KINDS = ROWS
 HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
 HEADING_READ_ROWS[heading_read.VERDICT_SHAPE] = "a heading-read verdict line is malformed"
 EXPECTED_COMPLETION_CHECKS = (
+    element_coverage.EXPECTED_ROW,
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
@@ -1626,6 +1628,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         diagnostics=tuple(diagnostics),
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.deck.name,)), rendered.report, gate_report, aar_report),
     )
+    grade = element_coverage.apply_completion_gate(grade, source.root, source.deck, submission)
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
     )

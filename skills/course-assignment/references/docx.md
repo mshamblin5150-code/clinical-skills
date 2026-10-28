@@ -118,7 +118,8 @@ the producer's formatting, and the per-run visual reader still checks each suppl
 
 ## Read headings before rendering
 
-After the producer writes the `.docx`, run the real, recorded
+After the producer writes or repairs the `.docx`, first take the
+[element coverage read](element-coverage.md) on its new bytes. Then run the real, recorded
 [heading read for both artifacts](../SKILL.md#heading-read-for-both-artifacts) on that file.
 Repair each finding through the authoritative JSON specification, rebuild the `.docx`, and take
 a fresh complete read until `heading-read.md` is clean. Only then proceed to

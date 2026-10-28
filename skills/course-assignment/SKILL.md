@@ -81,7 +81,10 @@ page overrides the syllabus on the same element; the syllabus fills silence. Rec
 or ambiguous precedence for the clinician instead of choosing silently.
 
 Write the page language verbatim as block quotes in `assignment-<date>.md`, with its URL and read
-date. Then write these mechanical fields exactly once at the top of `bar.md`:
+date. Capture the rubric and assignment point value under
+[Element coverage read](references/element-coverage.md#capture-before-drafting), including the
+explicit no-rubric declaration when applicable. Then write these mechanical fields exactly once
+at the top of `bar.md`:
 
 ```text
 ASSIGNMENT: <live assignment URL>
@@ -133,6 +136,9 @@ another run signed `market source`. `FONT-DIRECTION` is a signed reading of the 
 the grader does not decide whether that reading was correct.
 
 ## 2. Research before production
+
+Before drafting either artifact, write the drafting agent's identified required-element list to
+`elements.md` under [Element coverage read](references/element-coverage.md#capture-before-drafting).
 
 Derive the research questions from the assignment and planned deck, covering every factual point
 and figure a slide or speaker note will need; read the canonical voice model's stated principles and invoked sources
@@ -193,6 +199,11 @@ coverage inventory is `research_ledger.DECLARED_LIMITS`; the source-support judg
 reader's work.
 
 ## 3. Produce the deck
+
+After each build, take the [independent element coverage read](references/element-coverage.md)
+before rendering or any heading, visual, or voice reader. Its reader builds its own list before
+seeing `elements.md`, then reconciles the lists. A layout repair changes the artifact too and
+requires a new coverage read on the new bytes. This read applies to the DOCX branch as well.
 
 Before that first prose, write `voice-reads/<key-stem>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
@@ -528,6 +539,10 @@ projected-prose digest, and allowed handling. Decks declare those prose mechanic
 At the go-ahead, show the reuse list required by [Course history](../_shared/reference/voice.md#course-history).
 
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
+That surface includes the element coverage counts, every named signed-bar omission, and each
+thin-coverage remark. Keep the full element-to-location map in the run and show it on request;
+an element answered nowhere stops the grade before this ask.
 
 Before asking for this go-ahead, run `python tools/project_context.py <run-directory>
 --go-ahead <artifact-stem>`. Show its moved places and every added memory-index line. A moved
