@@ -254,6 +254,7 @@ from discussion_artifact import (
     UPPER,
     citation_year,
     group_abbreviation_definitions,
+    group_citation_parts,
     legal_citation_spans,
     LEGAL_CITATION_SECTION_FORM,
     legal_section_detail,
@@ -1515,6 +1516,13 @@ def _is_reference_heading(text: str) -> bool:
     return bool(RENDERER_HEADING.match(stripped)) or lowered in WRONG_HEADINGS
 
 
+def _group_citation_parts(author: str, body: str, entries: tuple[Entry, ...]) -> tuple[str, ...]:
+    groups = {entry.title_proper_key for entry in entries if entry.title_proper_key}
+    aliases = {definition.alias for definition in
+               group_abbreviation_definitions(body, groups, citation_phrase_key)}
+    return group_citation_parts(author, groups | aliases, citation_phrase_key)
+
+
 def _evidenced_parenthetical(
     part: str,
     entries: tuple[Entry, ...],
@@ -1523,6 +1531,18 @@ def _evidenced_parenthetical(
 ) -> tuple[str, tuple[str, ...]] | None:
     """Read a parenthetical's author/date split from a reference first element."""
 
+    for date_match in EVIDENCE_COMMA_DATE.finditer(part):
+        written = part[:date_match.start()].strip()
+        if (len(_group_citation_parts(written, body, entries)) > 1
+                and "\n" not in written
+                and re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written) is None
+                and not _inside_code(body, start, start + len(part))):
+            dates = [date_match.group(1)]
+            rest = part[date_match.end():]
+            while (extra := EXTRA_YEAR.match(rest)) is not None:
+                dates.append(extra.group(1))
+                rest = rest[extra.end():]
+            return written, tuple(dates)
     for entry in entries:
         author = entry.citation_author
         key = citation_key(author, entries)
@@ -1793,6 +1813,11 @@ def read_citations(
     )
 
     def add(author: str, token: str, start: int = -1) -> None:
+        parts = _group_citation_parts(author, body, entries)
+        if len(parts) > 1:
+            for part in parts:
+                add(part, token, start)
+            return
         key = citation_key(author, entries)
         if not key:
             return

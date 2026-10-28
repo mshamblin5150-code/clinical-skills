@@ -1572,6 +1572,19 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
 
 class NoSurnameCitationResolution(unittest.TestCase):
+    JOINT_AGENCY_ENTRIES = (
+        "Centers for Medicare & Medicaid Services. (2026). Synthetic guidance. Publisher.",
+        "National Center for Health Statistics. (2026). Synthetic guidance. Publisher.",
+    )
+    JOINT_AGENCY_INTRO = (
+        "The agencies agree (Centers for Medicare & Medicaid Services [CMS] & "
+        "National Center for Health Statistics [NCHS], 2026). "
+    )
+
+    def joint_agency_result(self, body, entries=None):
+        entries = self.JOINT_AGENCY_ENTRIES if entries is None else entries
+        return scan.survey(scan.read_document(draft(*entries, body=body)), date(2026, 10, 28), "en")
+
     def check(self, entry: str, body: str) -> list[str]:
         return kinds(draft(entry, body="# Case\n\n" + body + "\n"))
 
@@ -1624,6 +1637,87 @@ class NoSurnameCitationResolution(unittest.TestCase):
         self.assertNotIn(scan.UNLISTED_CITATION, self.check(rows[0][0], prose))
         wrapped = "American Psychological\nAssociation (APA) reported this (APA, 2017)."
         self.assertNotIn(scan.UNLISTED_CITATION, self.check(rows[0][0], wrapped))
+
+    def test_joint_agency_definitions_and_aliases_cite_both_reference_entries(self):
+        result = self.joint_agency_result(self.JOINT_AGENCY_INTRO + "Their later guidance agrees (CMS & NCHS, 2026).")
+
+        self.assertEqual(2, result.entries)
+        self.assertEqual((), result.findings)
+        self.assertEqual(0, result.citation_coverage.unread)
+
+    def test_joint_agency_aliases_introduced_separately_cite_both_entries(self):
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        result = self.joint_agency_result(body)
+        self.assertEqual((), result.findings)
+        self.assertEqual(0, result.citation_coverage.unread)
+
+    def test_joint_agency_narrative_aliases_cite_both_entries(self):
+        result = self.joint_agency_result(
+            self.JOINT_AGENCY_INTRO + "CMS and NCHS (2026) agree on the later guidance."
+        )
+        self.assertEqual((), result.findings)
+        self.assertEqual(0, result.citation_coverage.unread)
+
+    def test_joint_agency_unknown_alias_refuses_without_unciting_the_known_entry_in_either_order(self):
+        intro = "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+        for author in ("CMS & XYZ", "XYZ & CMS"):
+            with self.subTest(author=author):
+                result = self.joint_agency_result(intro + f"The agencies agree ({author}, 2026).",
+                                                  self.JOINT_AGENCY_ENTRIES[:1])
+                found = {finding.kind for finding in result.findings}
+                self.assertIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.UNCITED_ENTRY, found)
+
+    def test_joint_agency_one_wrong_year_is_still_a_year_mismatch(self):
+        entries = (self.JOINT_AGENCY_ENTRIES[0], self.JOINT_AGENCY_ENTRIES[1].replace("2026", "2025"))
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        result = self.joint_agency_result(body, entries)
+        self.assertIn(scan.INTEXT_YEAR_MISMATCH, {finding.kind for finding in result.findings})
+        uncited = {finding.detail for finding in result.findings if finding.kind == scan.UNCITED_ENTRY}
+        self.assertNotIn(entries[0], uncited)
+        self.assertIn(entries[1], uncited)
+
+    def test_joint_agency_alias_collision_keeps_the_uncollided_entry_cited(self):
+        other = "Community Medical Services. (2026). Synthetic guidance. Publisher."
+        entries = (self.JOINT_AGENCY_ENTRIES[0], other, self.JOINT_AGENCY_ENTRIES[1])
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "Community Medical Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        result = self.joint_agency_result(body, entries)
+        self.assertIn(scan.UNLISTED_CITATION, {finding.kind for finding in result.findings})
+        uncited = {finding.detail for finding in result.findings if finding.kind == scan.UNCITED_ENTRY}
+        self.assertNotIn(self.JOINT_AGENCY_ENTRIES[1], uncited)
+
+    def test_joint_agency_aliases_before_definition_are_unlisted_even_with_later_valid_citations(self):
+        body = "An early claim (CMS & NCHS, 2026). " + self.JOINT_AGENCY_INTRO + "Later (CMS & NCHS, 2026)."
+        result = self.joint_agency_result(body)
+        self.assertIn(scan.UNLISTED_CITATION, {finding.kind for finding in result.findings})
+        self.assertNotIn(scan.UNCITED_ENTRY, {finding.kind for finding in result.findings})
+
+    def test_joint_agency_repair_preserves_single_agencies_coauthors_and_internal_conjunctions(self):
+        controls = (
+            (self.JOINT_AGENCY_ENTRIES[0], "The Centers for Medicare & Medicaid Services (CMS) agreed (CMS, 2026)."),
+            ("Smith, A., & Jones, B. (2026). Synthetic study. Publisher.", "The authors agree (Smith & Jones, 2026)."),
+            (self.JOINT_AGENCY_ENTRIES[0], "The agency agrees (Centers for Medicare & Medicaid Services, 2026)."),
+            ("American College of Obstetricians and Gynecologists. (2026). Synthetic guidance. Publisher.",
+             "The agency agrees (American College of Obstetricians and Gynecologists, 2026)."),
+        )
+        for entry, body in controls:
+            with self.subTest(body=body):
+                result = self.joint_agency_result(body, (entry,))
+                found = {finding.kind for finding in result.findings}
+                self.assertFalse(found & {scan.UNLISTED_CITATION, scan.UNCITED_ENTRY, scan.INTEXT_YEAR_MISMATCH})
 
     def test_alias_before_definition_and_collision_remain_unlisted(self):
         entry = "American Psychological Association. (2017). Report. Publisher."

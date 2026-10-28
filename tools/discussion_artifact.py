@@ -123,7 +123,7 @@ GROUP_DEFINITION = re.compile(
     r"(?:\((?P<narrative>[" + UPPER + r"][A-Z0-9.\-]*)"
     r"(?:,[ \t]*(?P<year>" + YEAR + r"))?\)"
     r"|[ \t]*\[(?P<parenthetical>[" + UPPER + r"][A-Z0-9.\-]*)\]"
-    r",[ \t]*" + YEAR + r")"
+    r"(?=[ \t]*(?:,[ \t]*" + YEAR + r"|(?:&|and)[ \t]+)))"
 )
 NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
@@ -898,6 +898,43 @@ def group_abbreviation_definitions(
     return tuple(definitions)
 
 
+def group_citation_parts(
+    author: str, group_keys: Collection[str], key: Callable[[str], str],
+) -> tuple[str, ...]:
+    """Partition a group-backed joint phrase without losing unknown members.
+
+    An evidenced whole organization takes precedence over its internal
+    connectors. Personal coauthors without group evidence remain one work.
+    """
+    known = set(group_keys)
+
+    def recognized(value: str) -> bool:
+        return key(re.sub(r"\s*\[[^\]]+\]\s*$", "", value)) in known
+
+    if recognized(author):
+        return (author,)
+    separators = tuple(re.finditer(r"\s+(?:&|and)\s+", author))
+    if not separators:
+        return (author,)
+    starts = (0, *(match.end() for match in separators))
+    ends = (*(match.start() for match in separators), len(author))
+    parts: list[str] = []
+    evidenced = False
+    index = 0
+    while index < len(starts):
+        for stop in range(len(ends) - 1, index - 1, -1):
+            candidate = author[starts[index]:ends[stop]].strip()
+            if recognized(candidate):
+                parts.append(candidate)
+                evidenced = True
+                index = stop + 1
+                break
+        else:
+            parts.append(author[starts[index]:ends[index]].strip())
+            index += 1
+    return tuple(parts) if evidenced else (author,)
+
+
 @dataclass(frozen=True)
 class CitationCoverage:
     candidates: int = 0
@@ -1303,6 +1340,9 @@ def _evidenced_citations(
     if not reference_key_set:
         return ()
     max_key_length = max(len(key) for key, _year in reference_key_set)
+    groups = {group for group, _year in reference_key_set.prefix_keys}
+    group_keys = groups | {definition.alias for definition in
+        group_abbreviation_definitions(body, groups, author_key)}
     found: list[Citation] = []
     identities: set[tuple[int, int, str]] = set()
 
@@ -1321,8 +1361,9 @@ def _evidenced_citations(
                 author = stripped[: date_match.start()].rstrip(" ,")
                 key = author_key(author)
                 if (
-                    len(key) <= max_key_length
-                    and reference_key_set.recognizes_author(key)
+                    ((len(key) <= max_key_length
+                      and reference_key_set.recognizes_author(key))
+                     or len(group_citation_parts(author, group_keys, author_key)) > 1)
                     and _valid_evidenced_author(body, author, start, end)
                 ):
                     for remaining in EVIDENCE_DATE_VALUE.finditer(
@@ -1407,6 +1448,9 @@ def _read_citations(
         {group for group, _year in reference_key_set.prefix_keys},
         author_key,
     )
+    group_keys = {group for group, _year in reference_key_set.prefix_keys} | {
+        definition.alias for definition in recognized_definitions
+    }
     definitions = tuple(
         match
         for match in NARRATIVE_DEFINITION.finditer(body)
@@ -1566,7 +1610,13 @@ def _read_citations(
         unread=unread,
         disagreements=tuple(dict.fromkeys(disagreements)),
     )
-    return deduplicated, coverage
+    # Coverage counts written citation spans; each group's tracing obligation
+    # is separate so one resolving agency cannot conceal an unlisted member.
+    return tuple(
+        Citation(part, citation.year, citation.start, citation.end)
+        for citation in deduplicated
+        for part in group_citation_parts(citation.author, group_keys, author_key)
+    ), coverage
 
 
 def read_citations(

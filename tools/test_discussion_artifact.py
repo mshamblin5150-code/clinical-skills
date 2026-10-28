@@ -167,6 +167,37 @@ class ReferenceKeysUseTheTitleProper(unittest.TestCase):
 
 
 class CitationResolutionIsDirectional(unittest.TestCase):
+    JOINT_AGENCY_ENTRIES = (
+        "Centers for Medicare & Medicaid Services. (2026). Synthetic guidance. Publisher.",
+        "National Center for Health Statistics. (2026). Synthetic guidance. Publisher.",
+    )
+    JOINT_AGENCY_INTRO = (
+        "The agencies agree (Centers for Medicare & Medicaid Services [CMS] & "
+        "National Center for Health Statistics [NCHS], 2026). "
+    )
+
+    def joint_agency_groups(self, body, entries=None):
+        entries = self.JOINT_AGENCY_ENTRIES if entries is None else entries
+        references = artifact.ReferenceKeySet.from_references(entries)
+        citations = artifact.read_citations(body, references)
+        occurrences = artifact.citation_occurrence_keys(citations, body, references)
+        self.assertTrue(citations)
+        self.assertEqual(len(citations), len(occurrences))
+        entry_keys = [artifact.ReferenceKeySet.from_references((entry,)) for entry in entries]
+        groups = {}
+        for citation, occurrence in zip(citations, occurrences):
+            groups.setdefault((citation.start, citation.end), []).append({
+                index for index, keys in enumerate(entry_keys)
+                if any(keys.resolves(key) for key in occurrence)
+            })
+        return groups
+
+    def assert_both_joint_agencies_trace_independently(self, obligations):
+        # Candidate keys are alternatives for ONE obligation. A single tuple
+        # resolving either agency must not stand in for two required sources.
+        self.assertTrue(all(len(resolved) == 1 for resolved in obligations), obligations)
+        self.assertEqual({0, 1}, set().union(*obligations))
+
     def test_multiword_surnames_keep_the_first_author_and_coauthor(self):
         cases = (
             ("Garcia Lopez, M. (2020). Study. Journal.",
@@ -306,6 +337,84 @@ class CitationResolutionIsDirectional(unittest.TestCase):
         citations = artifact.read_citations(body, references)
         keys = artifact.citation_occurrence_keys(citations, body, references)
         self.assertFalse(any(references.resolves(key) for key in keys[-1]))
+
+    def test_joint_agency_definitions_and_aliases_resolve_both_reference_entries(self):
+        body = self.JOINT_AGENCY_INTRO + "Their later guidance agrees (CMS & NCHS, 2026)."
+        groups = self.joint_agency_groups(body)
+
+        self.assertEqual(2, len(groups))  # Physical spans, not obligation count.
+        for span, obligations in groups.items():
+            with self.subTest(span=span):
+                self.assert_both_joint_agencies_trace_independently(obligations)
+
+    def test_joint_agency_aliases_introduced_separately_still_trace_both_sources(self):
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        groups = self.joint_agency_groups(body)
+        self.assert_both_joint_agencies_trace_independently(groups[max(groups)])
+
+    def test_joint_agency_narrative_aliases_still_trace_both_sources(self):
+        body = self.JOINT_AGENCY_INTRO + "CMS and NCHS (2026) agree on the later guidance."
+        groups = self.joint_agency_groups(body)
+        self.assert_both_joint_agencies_trace_independently(groups[max(groups)])
+
+    def test_joint_agency_unknown_alias_is_not_hidden_by_a_known_alias_in_either_order(self):
+        intro = "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+        for author in ("CMS & XYZ", "XYZ & CMS"):
+            with self.subTest(author=author):
+                groups = self.joint_agency_groups(intro + f"The agencies agree ({author}, 2026).",
+                                                  self.JOINT_AGENCY_ENTRIES[:1])
+                obligations = groups[max(groups)]
+                self.assertIn({0}, obligations)
+                self.assertIn(set(), obligations)
+
+    def test_joint_agency_wrong_year_does_not_resolve_because_the_other_agency_matches(self):
+        entries = (self.JOINT_AGENCY_ENTRIES[0], self.JOINT_AGENCY_ENTRIES[1].replace("2026", "2025"))
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        groups = self.joint_agency_groups(body, entries)
+        obligations = groups[max(groups)]
+        self.assertIn({0}, obligations)
+        self.assertIn(set(), obligations)
+
+    def test_joint_agency_alias_collision_preserves_the_other_agency_obligation(self):
+        entries = (*self.JOINT_AGENCY_ENTRIES, "Community Medical Services. (2026). Synthetic guidance. Publisher.")
+        body = (
+            "The Centers for Medicare & Medicaid Services (CMS) issued guidance. "
+            "Community Medical Services (CMS) issued guidance. "
+            "The National Center for Health Statistics (NCHS) issued guidance. "
+            "The agencies agree (CMS & NCHS, 2026)."
+        )
+        groups = self.joint_agency_groups(body, entries)
+        obligations = groups[max(groups)]
+        self.assertIn({1}, obligations)
+        self.assertIn(set(), obligations)
+        self.assertTrue(all(not ({0, 2} & resolved) for resolved in obligations))
+
+    def test_joint_agency_aliases_before_their_definition_remain_unresolved(self):
+        body = "An early claim (CMS & NCHS, 2026). " + self.JOINT_AGENCY_INTRO + "Later (CMS & NCHS, 2026)."
+        groups = self.joint_agency_groups(body)
+        self.assertTrue(all(not resolved for resolved in groups[min(groups)]))
+        self.assert_both_joint_agencies_trace_independently(groups[max(groups)])
+
+    def test_joint_agency_repair_keeps_single_agencies_people_and_internal_conjunctions_whole(self):
+        controls = (
+            (self.JOINT_AGENCY_ENTRIES[0], "The Centers for Medicare & Medicaid Services (CMS) agreed (CMS, 2026)."),
+            ("Smith, A., & Jones, B. (2026). Synthetic study. Publisher.", "The authors agree (Smith & Jones, 2026)."),
+            (self.JOINT_AGENCY_ENTRIES[0], "The agency agrees (Centers for Medicare & Medicaid Services, 2026)."),
+            ("American College of Obstetricians and Gynecologists. (2026). Synthetic guidance. Publisher.",
+             "The agency agrees (American College of Obstetricians and Gynecologists, 2026)."),
+        )
+        for entry, body in controls:
+            with self.subTest(body=body):
+                groups = self.joint_agency_groups(body, (entry,))
+                self.assertTrue(all(resolved == {0} for obligations in groups.values() for resolved in obligations))
 
     def test_a_shortened_title_resolves_without_becoming_a_member(self):
         references = artifact.ReferenceKeySet.from_references(
