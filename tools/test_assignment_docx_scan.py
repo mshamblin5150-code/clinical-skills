@@ -474,6 +474,65 @@ class CitationReaderCoverage(unittest.TestCase):
 
 
 class CitationClaimTraceTest(unittest.TestCase):
+    def test_joint_agency_docx_citations_require_both_agencies_current_claim_records(self):
+        entries = (
+            "Centers for Medicare & Medicaid Services. (2026). Synthetic guidance. Publisher.",
+            "National Center for Health Statistics. (2026). Synthetic guidance. Publisher.",
+        )
+        paragraph = (
+            "The agencies agree (Centers for Medicare & Medicaid Services [CMS] & "
+            "National Center for Health Statistics [NCHS], 2026). "
+            "Their later guidance agrees (CMS & NCHS, 2026)."
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            artifact = run / "joint-agencies.docx"
+            spec = replace(
+                assignment_docx.fixture_spec(),
+                sections=(assignment_docx.Section("Synthetic Agency Guidance", (paragraph,)),),
+                command_rows=(), figure_image="", references=entries,
+            )
+            # This control tests loading/tracing package bytes, not the guarded
+            # assignment_docx.build destination contract or a complete run grade.
+            with zipfile.ZipFile(artifact, "w") as archive:
+                for name, payload in assignment_docx.parts(spec).items():
+                    archive.writestr(name, payload)
+            (run / "bar.md").write_text(
+                "ASSIGNMENT: https://example.invalid/synthetic-assignment\n"
+                "SIGNED: 2026-10-28\nARTIFACT: docx\nSUBMISSION-TYPE: file-upload\n"
+                "WORD-MIN: 1\nWORD-MAX: 1000\nREFERENCE-MIN: 2\n"
+                "SOURCE-CLASSES: government\nRECENCY-WINDOW-YEARS: 5\nPAPER-LANGUAGE: en\n",
+                encoding="utf-8",
+            )
+            claims = []
+            for alias, entry in zip(("CMS", "NCHS"), entries):
+                heading = f"The synthetic {alias} guidance remains available."
+                claims.append(
+                    f"\n## CLAIM: {heading}\nSTATUS: sourced\nREFERENCE: {entry}\n"
+                    "REFUTATION: stands - the synthetic source supports this statement.\n"
+                    f"TESTED-HEADING: {research_ledger.heading_digest(heading)}\n"
+                    "SECOND-ROUTE: public source page -> independent synthetic reader\n"
+                )
+            ledger = run / "claims.md"
+            ledger.write_text("DATE: 2026-10-28\n" + "".join(claims), encoding="utf-8")
+            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact), "--paper-language": "en"})
+
+            complete = scan.survey(scan.load(parsed))
+
+            self.assertEqual(2, complete.references_read)
+            self.assertFalse(any(finding.kind == scan.UNTRACED_CITATION for finding in complete.findings), complete.findings)
+            wrong_year = claims[1].replace(entries[1], entries[1].replace("2026", "2025"))
+            for case, second_claim in (("missing second claim", ""), ("wrong second-claim year", wrong_year)):
+                with self.subTest(case=case):
+                    ledger.write_text("DATE: 2026-10-28\n" + claims[0] + second_claim, encoding="utf-8")
+                    result = scan.survey(scan.load(parsed))
+                    untraced = [finding for finding in result.findings if finding.kind == scan.UNTRACED_CITATION]
+                    self.assertTrue(untraced, result.findings)
+                    self.assertTrue(all(
+                        "NCHS" in finding.detail or "National Center for Health Statistics" in finding.detail
+                        for finding in untraced
+                    ), untraced)
+
     def test_a_parenthesized_schedule_year_remains_an_untraced_citation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             inputs = empty_population_input(Path(directory))
