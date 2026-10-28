@@ -438,7 +438,9 @@ content_approved=True, clinician_reply=clinician_reply, approval_kind="posting")
 using the clinician's whole reply. On unchanged text, carry forward the content approval's
 reader-remark outcomes; its display remains in the remark-list and coverage-line windows, and
 approved leave proposals need no repeated naming. Show a changed project-context notice and
-renew approval before clicking. A changed reply requires a new content approval shown in full,
+renew approval before clicking. Before the posting ask, prepare the paired grade again and show
+every coverage line verbatim, because loading changes the editor coverage line and a changed line
+is not carried forward. A changed reply requires a new content approval shown in full,
 then a reload and the same stop. If the submit click shows a message-size refusal, read the board for a
 created entry, report the outcome, and stop at the clinician; this Reply has no attachment
 fallback. Submit it, then call `approval_record.record_agent_posting(run,
