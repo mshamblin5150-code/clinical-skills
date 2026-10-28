@@ -28,6 +28,7 @@ import discussion_reply_scan
 import peer_critique_scan
 from test_assignment_docx_scan import empty_population_input as docx_input
 from test_deck_scan import Run as DeckRun, slide_xml
+from element_coverage_test_support import finalize_current_docx_fixture
 from test_discussion_post_scan import Run as PostRun
 from test_discussion_reply_scan import Run as ReplyRun
 from test_peer_critique_scan import FILLER, build_run
@@ -52,15 +53,6 @@ def marked(text: str, marker: str, placement: str) -> str:
         first, rest = text.split(" ", 1)
         return first + " " + marker + " " + rest
     return text
-
-
-def refresh_heading(run: Path, artifact: Path) -> None:
-    path = run / "heading-read.md"
-    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-    path.write_text(
-        re.sub(r"(?m)^DRAFT:.*$", f"DRAFT: {digest}", path.read_text(encoding="utf-8")),
-        encoding="utf-8",
-    )
 
 
 class ProposedImageWorkingMarkers(unittest.TestCase):
@@ -132,7 +124,7 @@ class ProposedImageWorkingMarkers(unittest.TestCase):
             figure_image="",
         )
         assignment_docx.build(spec, artifact, force=True)
-        refresh_heading(run, artifact)
+        finalize_current_docx_fixture(run, artifact)
         self.assert_marker_present(artifact, placement)
         if target == "dispatch-docx":
             return course_assignment_scan, [str(run), "--artifact", str(artifact)], "body words"

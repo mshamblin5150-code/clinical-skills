@@ -18,6 +18,7 @@ import recorded_image_match
 import project_context
 import lms_attachments
 import case_video
+import element_coverage
 import artifact_lock_test_support
 
 
@@ -211,7 +212,7 @@ class ScopedCompletionGraders(unittest.TestCase):
                 module = importlib.import_module(module_name)
                 self.assertEqual(
                     module.EXPECTED_COMPLETION_CHECKS,
-                    (
+                    ((element_coverage.EXPECTED_ROW,) if skill == "course-assignment" else ()) + (
                         "the after-action review",
                         identity.EXPECTED_ROW,
                         voice_read.EXPECTED_ROW,

@@ -232,7 +232,7 @@ def read_report(text: str) -> tuple[Remark, ...]:
 
 def coverage_lines(report_text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(line for line in report_text.splitlines() if not line.startswith(PREFIX) and re.search(
-        r"\bunread\b|not[ -](?:graded|scanned|checked|compared|run|verified)|never[ -]graded|incomplete coverage", line, re.I)))
+        r"\bunread\b|not[ -](?:graded|scanned|checked|compared|run|verified)|never[ -]graded|incomplete coverage|^the assignment element coverage read:|^element omission:", line, re.I)))
 
 
 def _receipt_path(run: Path, skill: str, key: str) -> Path:

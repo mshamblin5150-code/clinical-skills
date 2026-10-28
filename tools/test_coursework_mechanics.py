@@ -18,6 +18,7 @@ from xml.etree import ElementTree
 from zipfile import ZipFile
 
 import assignment_docx
+from element_coverage_test_support import finalize_current_docx_fixture
 import assignment_docx_scan
 import case_study_scan
 import coursework_mechanics as mechanics
@@ -54,6 +55,7 @@ class PublicMechanics(unittest.TestCase):
                            sections=(assignment_docx.Section("Purpose", (body,)),),
                            references=(reference,))
             assignment_docx.build(spec, path, force=True)
+            finalize_current_docx_fixture(Path(case.argv[0]), path)
             with ZipFile(path) as archive:
                 document = ElementTree.fromstring(archive.read("word/document.xml"))
             text = mechanics.word_surface(document)

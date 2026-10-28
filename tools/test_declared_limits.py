@@ -34,6 +34,7 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
+    "element_coverage_test_support": "synthetic coverage-record fixtures for unrelated grader contracts; production validation and its limits remain in element_coverage",
     "ci_diagnostics": "a diagnostic receipt adapter and conservative event classifier; suite accounting owns execution coverage",
     "approval_record_test_support": "isolated approval fixtures for existing nonmanifest checks, not a public binding or coverage claim",
     "assignment_bar": "compatibility envelope parser and caller; retained signature reading, signing and coverage limits belong to bar_signatures.DECLARED_LIMITS",

@@ -10,6 +10,7 @@ from __future__ import annotations
 from discussion_artifact import read_record_text, record_unavailable
 
 import completion_checks
+import element_coverage
 import re
 import sys
 import zipfile
@@ -90,6 +91,7 @@ KINDS = ROWS
 HEADING_READ_ROWS = {kind: kind for kind in heading_read.KINDS}
 HEADING_READ_ROWS[heading_read.VERDICT_SHAPE] = "a heading-read verdict line is malformed"
 EXPECTED_COMPLETION_CHECKS = (
+    element_coverage.EXPECTED_ROW,
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
@@ -668,6 +670,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         diagnostics=("DOCX findings require review",) if scan.findings else (),
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text, (source.docx.name,)), gate_report, aar_report),
     )
+    grade = element_coverage.apply_completion_gate(grade, source.root, source.docx, submission)
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission
     )

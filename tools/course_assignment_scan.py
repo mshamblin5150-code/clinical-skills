@@ -10,6 +10,7 @@ The shared completion rows' ceilings belong to
 from __future__ import annotations
 
 import completion_checks
+import element_coverage
 import importlib
 import sys
 from pathlib import Path
@@ -30,6 +31,7 @@ from console_codec import require_python_floor, use_utf8
 
 
 EXPECTED_COMPLETION_CHECKS = (
+    element_coverage.EXPECTED_ROW,
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,

@@ -26,6 +26,7 @@ import docx_write
 import file_digest
 import research_ledger
 import run_grader
+from element_coverage_test_support import finalize_current_docx_fixture
 from grader_conformance import EmptyPopulationInput, for_module
 
 
@@ -450,20 +451,14 @@ class CitationReaderCoverage(unittest.TestCase):
                             *section.paragraphs, f"The claim stands {citation}.",
                         )),),
                     ), artifact, force=True)
-                    digest = file_digest.sha256(artifact)
-                    heading_path = run / "heading-read.md"
-                    heading_text = heading_path.read_text(encoding="utf-8")
-                    heading_path.write_text(re.sub(
-                        r"(?m)^DRAFT: .*", f"DRAFT: {digest}", heading_text,
-                    ), encoding="utf-8")
-                    file_digest.write_recorded_sha256(
-                        run / "render" / "pass-1" / scan.FINGERPRINT_FILE, digest,
-                    )
                     (run / "bar.md").write_text(
                         (run / "bar.md").read_text(encoding="utf-8").replace(
                             "WORD-MIN: 1\n", "WORD-MIN: 1000\n" if finding else "WORD-MIN: 1\n",
                         ), encoding="utf-8",
                     )
+                    # Keep the coverage prerequisite current while this control
+                    # varies only citation readability and finding precedence.
+                    finalize_current_docx_fixture(run, artifact)
                     output = io.StringIO()
                     with redirect_stdout(output), redirect_stderr(io.StringIO()):
                         status = scan.main([*case.argv, "--paper-language", "en", "--show"])
@@ -583,6 +578,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         "VERDICT: clean - all content is readable\n",
         encoding="utf-8",
     )
+    finalize_current_docx_fixture(run, artifact)
     return EmptyPopulationInput(
         argv=(str(run), "--docx", str(artifact)),
         population_size=lambda result: result.claim_records,
