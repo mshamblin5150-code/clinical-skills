@@ -36,6 +36,7 @@ import test_peer_critique_scan as peer_fixture
 import test_recorded_image_match as image_fixture
 import test_heading_item_quotes as quote_fixture
 import tool_record_test_support as record_fixture
+from element_coverage_test_support import finalize_current_docx_fixture
 
 HOSTS = ("deck_scan", "assignment_docx_scan", "discussion_post_scan",
          "discussion_reply_scan", "peer_critique_scan", "checks_ledger")
@@ -103,11 +104,7 @@ class RecordedImageHosts(unittest.TestCase):
         run, artifact = Path(fixture.argv[0]), Path(fixture.argv[2])
         spec = docx_fixture.assignment_docx.fixture_spec()
         docx_fixture.assignment_docx.build(replace(spec, title_page=replace(spec.title_page, title="Synthetic document")), artifact, force=True)
-        digest = docx_fixture.file_digest.sha256(artifact)
-        heading = run / "heading-read.md"
-        heading.write_text(heading.read_text(encoding="utf-8").replace(
-            next(line for line in heading.read_text(encoding="utf-8").splitlines() if line.startswith("DRAFT:")), "DRAFT: " + digest), encoding="utf-8")
-        docx_fixture.file_digest.write_recorded_sha256(run / "render/pass-1" / module.FINGERPRINT_FILE, digest)
+        finalize_current_docx_fixture(run, artifact)
         claim = "The example connects authority."
         (run / "claims.md").write_text(
             "DATE: 2026-09-13\n\n## CLAIM: " + claim + "\nSTATUS: sourced\nREFERENCE: "

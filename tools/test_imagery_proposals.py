@@ -421,7 +421,7 @@ class CompletionGraderIntegration(unittest.TestCase):
         import assignment_docx
         import assignment_docx_scan
         from test_assignment_docx_scan import empty_population_input
-        from element_coverage_test_support import write_synthetic_element_coverage
+        from element_coverage_test_support import finalize_current_docx_fixture
         import test_checks_ledger as checks_tests
 
         marker = "[[PROPOSED IMAGE ghost]]"
@@ -463,12 +463,7 @@ class CompletionGraderIntegration(unittest.TestCase):
                         assignment_docx.build(spec, artifact, force=True)
                         run_root = Path(case.argv[0])
                         (run_root / "claims.md").write_text("DATE: 2026-09-13\n\n## CLAIM: Safe words.\nSTATUS: sourced\nREFERENCE: " + entry + "\nREFUTATION: stands - this synthetic source supports the statement\nTESTED-HEADING: " + hashlib.sha256(b"Safe words.").hexdigest() + "\nSECOND-ROUTE: journal page -> independent reader\n", encoding="utf-8")
-                        import file_digest
-                        file_digest.write_recorded_sha256(run_root / "render" / "pass-1" / assignment_docx_scan.FINGERPRINT_FILE, file_digest.sha256(artifact))
-                        heading = run_root / "heading-read.md"
-                        import re
-                        heading.write_text(re.sub(r"(?m)^DRAFT:.*$", "DRAFT: " + hashlib.sha256(artifact.read_bytes()).hexdigest(), heading.read_text(encoding="utf-8")), encoding="utf-8")
-                        write_synthetic_element_coverage(run_root, artifact)
+                        finalize_current_docx_fixture(run_root, artifact)
                         return captured(assignment_docx_scan.main, [*case.argv, "--paper-language", "English"])
                     document = root / "draft.md"
                     document.write_bytes((checks_tests.DRAFT_TEXT + ("\n" + extra if marked else "")).encode("utf-8"))

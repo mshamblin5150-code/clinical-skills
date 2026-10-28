@@ -9,6 +9,10 @@ unanswered and omission controls belong to ``test_element_coverage``.
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
+
+import assignment_docx
+import file_digest
 
 
 def write_synthetic_element_coverage(run: Path, artifact: Path) -> None:
@@ -39,3 +43,24 @@ def write_synthetic_element_coverage(run: Path, artifact: Path) -> None:
         "reconciliation": [{"draft_id": "E1", "element_ids": ["C1"]}],
     }
     (run / "element-coverage.json").write_text(json.dumps(record), encoding="utf-8")
+
+
+def finalize_current_docx_fixture(run: Path, artifact: Path) -> None:
+    """Explicitly refresh the existing synthetic DOCX reader bindings together.
+
+    The fixture producer supplies its current named heading record and retained
+    first-pass fingerprint. This refreshes their hashes, not their observations
+    or actual reader evidence, and no grader invokes it automatically.
+    """
+    heading = run / "heading-read.md"
+    fingerprint = run / "render" / "pass-1" / assignment_docx.FINGERPRINT_FILE
+    text = heading.read_text(encoding="utf-8")
+    digest = file_digest.sha256(artifact)
+    updated, count = re.subn(r"(?m)^DRAFT:[^\r\n]*", "DRAFT: " + digest, text)
+    if count != 1 or f"## HEADING-READ: {artifact.name}" not in text.splitlines():
+        raise ValueError("finalization needs one existing named synthetic heading read")
+    if not fingerprint.is_file():
+        raise ValueError("finalization needs an existing retained synthetic fingerprint")
+    heading.write_text(updated, encoding="utf-8")
+    file_digest.write_recorded_sha256(fingerprint, digest)
+    write_synthetic_element_coverage(run, artifact)

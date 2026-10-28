@@ -23,6 +23,7 @@ import assignment_docx_scan
 import file_digest
 from repo_root import main_repo_root
 from research_ledger import heading_digest
+from element_coverage_test_support import finalize_current_docx_fixture
 
 
 DOCX_BAR = """\
@@ -371,6 +372,7 @@ class DocxGrader(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            finalize_current_docx_fixture(run, artifact)
             status = assignment_docx_scan.main(
                 [str(run), "--docx", str(artifact)]
             )

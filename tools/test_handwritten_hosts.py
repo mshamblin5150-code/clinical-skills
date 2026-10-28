@@ -37,6 +37,7 @@ import completion_checks
 from datetime import timedelta
 from dataclasses import replace
 from unittest import mock
+from element_coverage_test_support import finalize_current_docx_fixture
 
 
 class HandwrittenHosts(unittest.TestCase):
@@ -69,12 +70,7 @@ class HandwrittenHosts(unittest.TestCase):
                     spec = docx_fixture.assignment_docx.fixture_spec()
                     docx_fixture.assignment_docx.build(replace(spec,
                         title_page=replace(spec.title_page, title='Synthetic document')), artifact, force=True)
-                    digest = docx_fixture.file_digest.sha256(artifact)
-                    heading_path = run / 'heading-read.md'
-                    heading_path.write_text(re.sub(r'(?m)^DRAFT: .*', 'DRAFT: ' + digest,
-                        heading_path.read_text(encoding='utf-8')), encoding='utf-8')
-                    docx_fixture.file_digest.write_recorded_sha256(
-                        run / 'render/pass-1' / assignment_docx_scan.FINGERPRINT_FILE, digest)
+                    finalize_current_docx_fixture(run, artifact)
                     path = run / 'claims.md'
                     reference = spec.references[0]
                     heading = 'The example connects authority.'
@@ -277,6 +273,7 @@ class HandwrittenHosts(unittest.TestCase):
                     with zipfile.ZipFile(artifact, 'w') as archive:
                         for name, value in parts.items():
                             archive.writestr(name, value)
+                    finalize_current_docx_fixture(run, artifact)
                     def direct():
                         output = io.StringIO()
                         with redirect_stdout(output):
