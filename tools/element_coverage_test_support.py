@@ -13,6 +13,7 @@ import re
 
 import assignment_docx
 import file_digest
+from run_record_reader import read_handwritten_record
 
 
 def write_synthetic_element_coverage(run: Path, artifact: Path) -> None:
@@ -54,7 +55,7 @@ def finalize_current_docx_fixture(run: Path, artifact: Path) -> None:
     """
     heading = run / "heading-read.md"
     fingerprint = run / "render" / "pass-1" / assignment_docx.FINGERPRINT_FILE
-    text = heading.read_text(encoding="utf-8")
+    text = read_handwritten_record(heading).require_text(force=True)
     digest = file_digest.sha256(artifact)
     updated, count = re.subn(r"(?m)^DRAFT:[^\r\n]*", "DRAFT: " + digest, text)
     if count != 1 or f"## HEADING-READ: {artifact.name}" not in text.splitlines():

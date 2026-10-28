@@ -1,5 +1,7 @@
 """Synthetic DOCX fixture lifecycle checks, not independent reader evidence."""
 
+import artifact_lock_test_support
+
 from pathlib import Path
 import json
 import re
@@ -12,6 +14,7 @@ import assignment_docx
 import element_coverage
 import element_coverage_test_support as fixtures
 import file_digest
+from run_record_reader import DamagedRecord
 
 
 class ExplicitDocxFixtureFinalization(unittest.TestCase):
@@ -82,6 +85,21 @@ class ExplicitDocxFixtureFinalization(unittest.TestCase):
         self.assertEqual(before, (self.heading.read_bytes(), self.fingerprint.read_bytes()))
         fixtures.finalize_current_docx_fixture(self.run, self.artifact)
         self.assertFalse(element_coverage.survey(self.run, self.artifact).failed)
+
+    def test_damaged_heading_refuses_without_changing_any_reader_binding(self):
+        fixtures.finalize_current_docx_fixture(self.run, self.artifact)
+        self.artifact.write_bytes(b"abcd")
+        self.heading.write_bytes(self.heading.read_bytes().replace(
+            b"unrelated reader observation", b"unrelated\x0breader observation",
+        ))
+        coverage = self.run / "element-coverage.json"
+        paths = (self.heading, self.fingerprint, coverage)
+        before = tuple(path.read_bytes() for path in paths)
+
+        with self.assertRaises(DamagedRecord):
+            fixtures.finalize_current_docx_fixture(self.run, self.artifact)
+
+        self.assertEqual(before, tuple(path.read_bytes() for path in paths))
 
     def test_a_renamed_artifact_needs_rebinding_after_its_reader_is_retargeted(self):
         fixtures.finalize_current_docx_fixture(self.run, self.artifact)
