@@ -25,6 +25,7 @@ import render_pass
 import research_ledger
 import repo_root
 import completion_checks
+from element_coverage_test_support import write_synthetic_element_coverage
 from datetime import timedelta
 from grader_conformance import (
     EmptyPopulationInput,
@@ -263,6 +264,9 @@ class Run:
         self.write_heading_read()
 
     def write_heading_read(self) -> None:
+        # These fixtures simulate current readers for the other deck contracts;
+        # they do not establish actual independent coverage-reader execution.
+        write_synthetic_element_coverage(self.root, self.deck)
         digest = hashlib.sha256(self.deck.read_bytes()).hexdigest()
         (self.root / "heading-read.md").write_text(
             f"## HEADING-READ: {self.deck.name}\nDRAFT: {digest}\n"
@@ -281,6 +285,9 @@ class Run:
                 self.write_adversarial()
             if not (self.root / "intent.md").is_file():
                 self.write_intent()
+            # An explicitly bound fixture supplies all unrelated prerequisites
+            # after any synthetic bar edit. bind=False preserves current records.
+            write_synthetic_element_coverage(self.root, self.deck)
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(self.root), "--pptx", str(self.deck), *extra])
@@ -500,6 +507,7 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
             trusted_claim("$99,000", "325", "42%"), encoding="utf-8"
         )
         run.write_adversarial()
+        write_synthetic_element_coverage(run.root, run.deck)
         return run
 
     unread = configured(unread_root, MISSING_DIAGRAM_FIXTURE)

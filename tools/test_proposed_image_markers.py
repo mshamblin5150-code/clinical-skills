@@ -28,6 +28,7 @@ import discussion_reply_scan
 import peer_critique_scan
 from test_assignment_docx_scan import empty_population_input as docx_input
 from test_deck_scan import Run as DeckRun, slide_xml
+from element_coverage_test_support import write_synthetic_element_coverage
 from test_discussion_post_scan import Run as PostRun
 from test_discussion_reply_scan import Run as ReplyRun
 from test_peer_critique_scan import FILLER, build_run
@@ -133,6 +134,7 @@ class ProposedImageWorkingMarkers(unittest.TestCase):
         )
         assignment_docx.build(spec, artifact, force=True)
         refresh_heading(run, artifact)
+        write_synthetic_element_coverage(run, artifact)
         self.assert_marker_present(artifact, placement)
         if target == "dispatch-docx":
             return course_assignment_scan, [str(run), "--artifact", str(artifact)], "body words"

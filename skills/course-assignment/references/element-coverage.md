@@ -17,7 +17,7 @@ unscored criterion. An exception never makes malformed or negative points valid.
 {
   "assignment_points": "10",
   "criteria": [
-    {"id": "R1", "criterion": "Comparison", "descriptor": "Explain the comparison.", "points": "10"}
+    {"id": "<rubric-row-id>", "criterion": "Comparison", "descriptor": "Explain the comparison.", "points": "10"}
   ],
   "points_exception": ""
 }
@@ -31,11 +31,12 @@ Before drafting, the drafting agent writes `<run>/elements.md`, one identified r
 line, from the assignment page, syllabus, linked faculty documents and rubric. Use this grammar:
 
 ```text
-- E1: Explain the comparison.
+- <draft-element-id>: Explain the comparison.
 ```
 
 Blank lines and a `# ` title are allowed. Identifiers begin with a letter and contain letters,
 digits, hyphens or underscores. They are unique within their list.
+Replace the angle-bracket identifiers in these schema examples with the run's own identifiers.
 
 ## Independent read, then reconciliation
 
@@ -66,17 +67,17 @@ named input; it does not discover an omitted faculty document.
   },
   "elements": [
     {
-      "id": "C1",
+      "id": "<coverage-element-id>",
       "requirement": "Explain the comparison.",
       "origin": "rubric",
-      "rubric_id": "R1",
+      "rubric_id": "<rubric-row-id>",
       "status": "answered",
       "location": "body paragraph 1",
       "bar_quote": "",
       "remark": ""
     }
   ],
-  "reconciliation": [{"draft_id": "E1", "element_ids": ["C1"]}]
+  "reconciliation": [{"draft_id": "<draft-element-id>", "element_ids": ["<coverage-element-id>"]}]
 }
 ```
 

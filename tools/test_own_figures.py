@@ -18,6 +18,7 @@ from unittest import mock
 
 import assignment_docx
 import heading_read
+from element_coverage_test_support import write_synthetic_element_coverage
 from test_assignment_docx_scan import empty_population_input as docx_fixture
 from test_deck_scan import Run as DeckRun, slide_xml
 from test_discussion_post_scan import Run as PostRun
@@ -56,6 +57,7 @@ def fixture(name: str, root: Path, sentence: str) -> tuple[Path, Path, list[str]
             command_rows=(), figure_image="", references=(),
         )
         assignment_docx.build(spec, artifact, force=True)
+        write_synthetic_element_coverage(run, artifact)
         argv = list(case.argv)
     elif name == "deck_scan":
         deck = DeckRun(root)

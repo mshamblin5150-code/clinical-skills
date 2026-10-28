@@ -421,6 +421,7 @@ class CompletionGraderIntegration(unittest.TestCase):
         import assignment_docx
         import assignment_docx_scan
         from test_assignment_docx_scan import empty_population_input
+        from element_coverage_test_support import write_synthetic_element_coverage
         import test_checks_ledger as checks_tests
 
         marker = "[[PROPOSED IMAGE ghost]]"
@@ -467,6 +468,7 @@ class CompletionGraderIntegration(unittest.TestCase):
                         heading = run_root / "heading-read.md"
                         import re
                         heading.write_text(re.sub(r"(?m)^DRAFT:.*$", "DRAFT: " + hashlib.sha256(artifact.read_bytes()).hexdigest(), heading.read_text(encoding="utf-8")), encoding="utf-8")
+                        write_synthetic_element_coverage(run_root, artifact)
                         return captured(assignment_docx_scan.main, [*case.argv, "--paper-language", "English"])
                     document = root / "draft.md"
                     document.write_bytes((checks_tests.DRAFT_TEXT + ("\n" + extra if marked else "")).encode("utf-8"))

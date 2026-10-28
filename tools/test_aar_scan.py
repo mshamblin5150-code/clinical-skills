@@ -37,6 +37,7 @@ import voice_read
 import project_context
 import lms_attachments
 import case_video
+import element_coverage
 
 
 GraderConformance = grader_conformance.for_module(aar_scan)
@@ -3592,7 +3593,7 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
         for skill, module_name in aar_scan.COMPLETION_GRADERS.items():
             with self.subTest(skill=skill, grader=module_name):
                 module = importlib.import_module(module_name)
-                expected = (aar_scan.EXPECTED_ROW,)
+                expected = ((element_coverage.EXPECTED_ROW,) if skill == "course-assignment" else ()) + (aar_scan.EXPECTED_ROW,)
                 if skill in voice_model_identity.SCOPED_SKILLS:
                     expected += (voice_model_identity.EXPECTED_ROW,)
                     expected += (
