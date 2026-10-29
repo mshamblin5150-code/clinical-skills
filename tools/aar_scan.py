@@ -219,6 +219,9 @@ CLAUDE_ROW_TYPES = frozenset(
 NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
     {
         "last-prompt": "A 200-character echo of a turn the review already reads (ADR 0285 ruling 4).",
+        "api-request": "Request bookkeeping: model parameters, cache control and digests (#2052).",
+        "api-request-shape": "Request bookkeeping: the system prompt and tool definitions (#2052).",
+        "api-request-blob": "The API-request copy of turns the review already reads (#2052).",
         "bridge-session": "Session and harness state.",
         "atis-latch": "Session and harness state.",
         "mode": "Session and harness state.",
@@ -327,6 +330,10 @@ DECLARED_LIMITS = (
     (
         "last-prompt-only text",
         "Text that appears only in last-prompt is not reachable.",
+    ),
+    (
+        "api-request-blob-only text",
+        "Text that appears only in an api-request-blob is not reachable (#2052).",
     ),
     (
         "wrong unread reason",

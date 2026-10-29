@@ -1,5 +1,8 @@
 {"type": "agent-name"}
 {"type": "ai-title"}
+{"type": "api-request"}
+{"type": "api-request-blob"}
+{"type": "api-request-shape"}
 {"type": "artifact-autoreact-ledger"}
 {"type": "artifact-comment-monitor"}
 {"type": "assistant"}
