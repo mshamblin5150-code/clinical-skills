@@ -445,6 +445,7 @@ class CommandModes(SyntheticSnapshotCase):
             "    memory index outside the sitting\n"
             "    reasoning-only correction\n"
             "    last-prompt-only text\n"
+            "    api-request-blob-only text\n"
             "    wrong unread reason\n"
             "    nested named content\n"
             "    semantic classification\n"
@@ -1524,7 +1525,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
         self.assertIn("unread remainder 0", stdout.splitlines())
 
     def test_api_request_rows_are_named_unread(self) -> None:
-        # #2052: the request bookkeeping rows Claude Code 2.1.306 and later write, in their real field shapes.
+        # #2052: the request bookkeeping rows observed on Claude Code 2.1.308, in their real field shapes.
         rows = (
             {"type": "api-request", "id": "req-1", "version": "2.1.308", "querySource": "repl_main_thread",
              "shapeHash": "shape-1", "params": {"model": "m", "betas": [], "max_tokens": 1, "thinking": {},
@@ -1548,7 +1549,11 @@ class SubmissionRecord(SyntheticSnapshotCase):
                 self.assertIn("unread remainder 0", stdout.splitlines())
                 fields, _ = aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
                 self.assertEqual(fields["UNDECLARED-ROW-TYPES"], "0")
-                self.assertIn(item["type"], aar_scan.NAMED_UNREAD_TYPES)
+                unnamed = {key: reason for key, reason in aar_scan.NAMED_UNREAD_TYPES.items() if key != item["type"]}
+                with mock.patch.object(aar_scan, "NAMED_UNREAD_TYPES", unnamed):
+                    status, stdout, stderr = invoke_main(argv)
+                self.assertEqual((status, stderr), (2, ""), stdout)
+                self.assertIn("unread remainder 1", stdout.splitlines())
 
     def test_unknown_codex_payload_is_unread_and_named_twin_is_clean(self) -> None:
         write_codex_transcript(self.transcript)
