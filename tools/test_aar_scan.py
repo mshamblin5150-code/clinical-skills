@@ -1535,6 +1535,8 @@ class SubmissionRecord(SyntheticSnapshotCase):
              "message": {"role": "user", "content": [{"type": "text", "text": "Tool loaded."}]}},
             {"type": "api-request-shape", "shapeHash": "shape-1", "version": "2.1.308",
              "shape": {"system": [], "tools": []}},
+            # #2072: the row Claude Code 2.1.312 writes at a context summary, in its real field shape.
+            {"type": "tools-used", "tools": ["Bash"], "sessionId": "session-1"},
         )
         argv = [str(self.run), "--submission", self.submission,
                 "--transcript", str(self.transcript),
