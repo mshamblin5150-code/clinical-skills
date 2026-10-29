@@ -805,6 +805,34 @@ class RunStatusContract(unittest.TestCase):
             ),
         )
 
+    def test_distinct_runs_with_the_same_key_refuse_before_completion_grading(self) -> None:
+        other = self.root / "other-checkout" / "scratch" / "runs" / self.run.name
+        other.mkdir(parents=True)
+        other_artifact = other / "other-assignment.pptx"
+        other_artifact.write_bytes(b"another synthetic approved deck")
+        approval = json.loads((self.run / "submission-gates.json").read_text(encoding="utf-8"))
+        approval.update(artifact=other_artifact.name, artifact_path=str(other_artifact))
+        (other / "submission-gates.json").write_text(json.dumps(approval), encoding="utf-8")
+        self.write_session(command_record(self.run), command_record(other))
+        complete = f"Run status: {self.run.name} — complete"
+        waiting = f"Run status: {self.run.name} — awaiting posting"
+        for message, retry in ((complete, False), (complete + "\n" + complete, False),
+                               (waiting, False), (complete, True)):
+            with self.subTest(message=message, retry=retry):
+                with mock.patch.object(hook, "completion_is_clean", return_value=False) as grade:
+                    result = hook.handle({"transcript_path": str(self.transcript),
+                                          "last_assistant_message": message,
+                                          "stop_hook_active": retry})
+                self.assertEqual({"systemMessage"} if retry else {"decision", "reason"}, set(result))
+                if not retry:
+                    self.assertEqual("block", result["decision"])
+                reason = result["systemMessage"] if retry else result["reason"]
+                self.assertIn("share a run key", reason)
+                self.assertNotIn(str(self.root), reason)
+                grade.assert_not_called()
+                self.assertFalse((self.run / hook.STATE_RECORD).exists())
+                self.assertFalse((other / hook.STATE_RECORD).exists())
+
     def test_two_reply_run_stays_open_while_one_approved_reply_is_unposted(self) -> None:
         run = self.root / "scratch" / "runs" / "nur-5042-module-7-discussion"
         run.mkdir(parents=True)
