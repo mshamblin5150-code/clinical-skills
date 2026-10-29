@@ -472,6 +472,13 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     def refuse(reason: str) -> dict[str, object]:
         return _blocked(reason, expected_keys, message, retry)
 
+    if len(expected_keys) != len(open_runs):
+        return refuse(
+            "Distinct touched approved run directories share a run key; "
+            "their status lines cannot identify each run unambiguously. "
+            "No completion grade was attempted for this reply."
+        )
+
     lines = tuple(ANY_STATUS_LINE.finditer(message))
     failures: list[str] = []
     if len(lines) != len(open_runs):
