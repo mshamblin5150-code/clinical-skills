@@ -1533,13 +1533,9 @@ def _sum_browser_diagnostics(
     )
 
 
-def extract_diagnostics(
-    transcripts: Iterable[Path], population: Iterable[Candidate]
-) -> ExtractDiagnostics:
-    candidates = tuple(population)
-    transcript_rows = [read_transcript(path) for path in transcripts]
-    rows = [row for source_rows in transcript_rows for row in source_rows]
-    versions = tuple(sorted({_text(row.get("version")) for row in rows if _text(row.get("version"))}))
+def _undeclared_counts(rows: Iterable[Mapping[str, Any]]) -> tuple[int, int, int]:
+    """Undeclared row types, Codex payload types and system subtypes, in that order."""
+    rows = tuple(rows)
     undeclared_rows = sum(
         1
         for row in rows
@@ -1557,6 +1553,17 @@ def extract_diagnostics(
         if row.get("type") == "system"
         and _text(row.get("subtype")) not in READ_SYSTEM_SUBTYPES | NAMED_UNREAD_SYSTEM_SUBTYPES.keys()
     )
+    return undeclared_rows, undeclared_payloads, undeclared_system_subtypes
+
+
+def extract_diagnostics(
+    transcripts: Iterable[Path], population: Iterable[Candidate]
+) -> ExtractDiagnostics:
+    candidates = tuple(population)
+    transcript_rows = [read_transcript(path) for path in transcripts]
+    rows = [row for source_rows in transcript_rows for row in source_rows]
+    versions = tuple(sorted({_text(row.get("version")) for row in rows if _text(row.get("version"))}))
+    undeclared_rows, undeclared_payloads, undeclared_system_subtypes = _undeclared_counts(rows)
     undeclared_envelopes = sum(
         1
         for candidate in candidates
@@ -1855,6 +1862,58 @@ def _rebuild_population(
     return rebuilt
 
 
+def _rows_through_watermark(path: Path, watermark: str) -> list[dict[str, Any]] | None:
+    """The transcript rows through the row that produced the round's watermark entry."""
+    rows = read_transcript(path)
+    for ordinal, row in enumerate(rows, 1):
+        uuid = _text(row.get("uuid")) or f"{path.stem}#row-{ordinal}"
+        if watermark == uuid or watermark.startswith(uuid + "#"):
+            return rows[:ordinal]
+    return None
+
+
+def _recounted_header(header: str, fields: Mapping[str, str]) -> str:
+    """Recount undeclared rows with the current code over the round's own rows (#2074).
+
+    A round refused because the extractor did not yet name a harness row type is
+    drained by a rebuild once the type is named. Rows appended after the round's
+    watermarks stay outside the count. A header without per-transcript watermarks,
+    or whose watermark row cannot be located, keeps its recorded counts.
+    """
+    watermarks = _transcript_watermarks(fields.get("TRANSCRIPT-WATERMARKS", ""))
+    paths = [
+        Path(value.strip()).expanduser().resolve()
+        for value in fields.get("TRANSCRIPT-PATHS", "").split("|")
+        if value.strip()
+    ]
+    if not watermarks or {path.stem for path in paths} != set(watermarks):
+        return header
+    rows: list[dict[str, Any]] = []
+    for path in paths:
+        bounded = _rows_through_watermark(path, watermarks[path.stem])
+        if bounded is None:
+            return header
+        rows.extend(bounded)
+    row_types, payload_types, system_subtypes = _undeclared_counts(rows)
+    try:
+        remainder = (row_types + payload_types + system_subtypes
+                     + int(fields.get("TRANSCRIPTS-UNREAD", "0"))
+                     + int(fields.get("UNREADABLE-DIRECTORIES", "0")))
+    except ValueError:
+        return header
+    values = {
+        "UNDECLARED-ROW-TYPES": row_types,
+        "UNDECLARED-CODEX-PAYLOAD-TYPES": payload_types,
+        "UNDECLARED-SYSTEM-SUBTYPES": system_subtypes,
+        "UNREAD-REMAINDER": remainder,
+    }
+    lines = []
+    for line in header.split("\n"):
+        key, separator, _value = line.partition(": ")
+        lines.append(f"{key}: {values[key]}" if separator and key in values else line)
+    return "\n".join(lines)
+
+
 def _render_rebuilt_extract(header: str, population: Iterable[Candidate]) -> str:
     lines = [header, ""]
     for candidate in population:
@@ -1931,7 +1990,7 @@ def _rebuilt_update(run: Path, submission: str, round_number: int,
                 "rebuilt extract changed a non-notification entry identifier"
             )
     header = "\n".join(refused_text.splitlines()).split("\n\n", 1)[0]
-    rebuilt_text = _render_rebuilt_extract(header, population)
+    rebuilt_text = _render_rebuilt_extract(_recounted_header(header, fields), population)
     _extract_document_text(rebuilt_text)
     refused_root = run / "aar" / "refused"
     archived = refused_root / destination.name
