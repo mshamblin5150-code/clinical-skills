@@ -2,6 +2,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Write|Edit|NotebookEdit|Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/subagent_write_hook.py\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
         "matcher": "Agent|Task",
         "hooks": [
           {

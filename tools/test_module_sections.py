@@ -51,6 +51,7 @@ SECTION = re.compile(r"(?m)^### (.+)$")
 DECLARED_SECTIONS = {
     "recorded_image_match": "Recorded image match",
     "subagent_staging_hook": "Subagent staging hook",
+    "subagent_write_hook": "Subagent write hook",
     "fixture_writer_hook": "Fixture writer hook",
     "uptodate_block": "Clinical go-ahead disclosure",
     "medatrax_posting": "Medatrax posted-reading writer",

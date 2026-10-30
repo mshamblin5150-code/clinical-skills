@@ -283,6 +283,15 @@ ordinary builder calls always check. The boundary belongs to
 This section documents command implementations for maintainers. Consumer requirements belong
 to [AGENTS.md](AGENTS.md) and each skill; commands marked Required there remain consumer dependencies.
 
+### Subagent write hook
+
+`tools/subagent_write_hook.py` reads a Claude subagent's brief from its transcript at
+each modeled file write and fences the write to the brief's staging folder under
+[ADR 0439](docs/adr/0439-a-patient-work-subagent-writes-only-inside-the-staging-folder-its-brief-names.md).
+An unreadable brief refuses recognized private or temporary targets and warns on other
+writes. Refusals tell the subagent to report them in its result. The measured harness
+contract and complete reading boundary belong to `subagent_write_hook.DECLARED_LIMITS`.
+
 ### Heredoc write guard
 
 `tools/heredoc_write_hook.py` is a `PreToolUse` hook for the tools modeled by
