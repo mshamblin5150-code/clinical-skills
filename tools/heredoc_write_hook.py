@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
+import re
 import shlex
 import sys
 from typing import NamedTuple
@@ -23,9 +24,12 @@ DECLARED_LIMITS = (
     ("Unresolvable targets are unread", "Variables, substitutions, unknown command folders, "
      "and malformed shell or Python text do not establish where a write lands."),
     ("PowerShell here-strings are unread", "Only command_reader's modeled Bash tools are read."),
-    ("Shell reading is a floor", "Single-line heredoc headers and literal >, >> and tee file writes "
-     "are read; continued headers, generated shell commands, and runtime shell state are unread."),
+    ("Shell reading is a floor", "Single-line heredoc headers and literal >, >>, &>, &>>, >& and tee "
+     "file writes are read; continued headers, generated shell commands, and runtime shell state "
+     "are unread."),
 )
+OUTPUT_REDIRECTIONS = frozenset({'>', '>>', '&>', '&>>', '>&'})
+DESCRIPTOR_WORD = re.compile(r'\d+-?|-')
 
 
 def _private_target(source: str, cwd: Path | None) -> bool | None:
@@ -272,7 +276,8 @@ def write_targets(command: str, cwd: Path | None, *, include_plain: bool = False
         if tokens is None:
             unread = True
             continue
-        fragments = shell_reader.shell_pieces(header) if include_plain else [header]
+        fragments = (shell_reader.shell_pieces(header, keep_redirect_ampersand=True)
+                     if include_plain else [header])
         preceding = prefix[:-len(header)] if header else prefix
         for fragment in fragments:
             preceding += fragment
@@ -294,10 +299,11 @@ def write_targets(command: str, cwd: Path | None, *, include_plain: bool = False
                 folder = shell_reader.literal_command_folder(prefix, lambda piece: '<<' in piece)
                 if folder is None and not shell_reader.has_executable(prefix, 'cd'):
                     folder = cwd
-            targets = [fragment_tokens[index + 1].value
-                       for index, token in enumerate(fragment_tokens[:-1])
-                       if token.operator and token.value in {'>', '>>'}]
-            if fragment_tokens and fragment_tokens[-1].operator and fragment_tokens[-1].value in {'>', '>>'}:
+            targets = [following.value
+                       for token, following in zip(fragment_tokens, fragment_tokens[1:])
+                       if token.operator and token.value in OUTPUT_REDIRECTIONS
+                       and not (token.value == '>&' and DESCRIPTOR_WORD.fullmatch(following.value))]
+            if fragment_tokens and fragment_tokens[-1].operator and fragment_tokens[-1].value in OUTPUT_REDIRECTIONS:
                 unread = True
             for piece in shell_reader.shell_pieces(fragment):
                 arguments = _write_tokens(piece)

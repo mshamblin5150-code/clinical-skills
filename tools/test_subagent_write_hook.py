@@ -172,6 +172,48 @@ class SubagentWrites(unittest.TestCase):
         self.assertEqual({}, self.response('Bash', {'command': f"tee '{inside}' 2>'{errors}'"}))
         self.assert_denied(self.response('Bash', {'command': f"tee 2 >'{inside}'"}))
 
+    def test_descriptor_duplications_and_null_devices_are_not_file_writes(self):
+        for command in ('ls a 2>&1', 'ls a 2>&1 | head -5', 'echo x >&2', 'echo x 1>&2',
+                        'ls a 2>/dev/null', 'ls a >/dev/null 2>&1', 'ls a &>/dev/null',
+                        'ls a 2> /dev/null; ls b'):
+            with self.subTest(command=command):
+                self.assertEqual({}, self.response('Bash', {'command': command}))
+        self.brief_path.unlink()
+        self.assertEqual({}, self.response('Bash', {'command': 'ls a 2>&1'}))
+
+    def test_combined_output_redirections_are_fenced(self):
+        for operator in ('&>', '&>>', '>&'):
+            with self.subTest(operator=operator):
+                inside, outside = self.stage / 'inside.md', self.folder / 'outside.md'
+                self.assertEqual({}, self.response('Bash', {'command': f"echo x {operator} '{inside}'"}))
+                self.assert_denied(self.response('Bash', {'command': f"echo x {operator} '{outside}'"}))
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Git Bash drive spelling is Windows only')
+    def test_git_bash_drive_spelling_names_the_same_path(self):
+        def spelled(path):
+            text = path.as_posix()
+            return f'/{text[0].lower()}/{text[3:]}'
+        inside, outside = spelled(self.stage / 'inside.md'), spelled(self.folder / 'outside.md')
+        self.assertEqual({}, self.response('Bash', {'command': f"echo x > '{inside}'"}))
+        self.assertEqual({}, self.response('Write', {'file_path': inside}))
+        self.assert_denied(self.response('Bash', {'command': f"echo x > '{outside}'"}))
+        self.brief(f'Read output/synthetic/; stage in `{spelled(self.stage)}`.')
+        self.assertEqual({}, self.response('Write', {'file_path': str(self.stage / 'inside.md')}))
+        self.brief_path.unlink()
+        self.assert_denied(self.response('Bash', {'command': f"echo x > '{spelled(ROOT / 'output/synthetic.md')}'"}))
+
+    def test_a_mention_of_the_namespace_or_a_template_names_no_staging_folder(self):
+        target = str(ROOT / 'tools/synthetic.py')
+        for mention in ('`scratch/sessions/<key>/<pass-label>/`', 'scratch/sessions/<key>/',
+                        'scratch/sessions/', '`scratch/sessions/`', '`scratch/sessions/$KEY/pass/`',
+                        '`scratch/sessions/{key}/`'):
+            with self.subTest(mention=mention):
+                self.brief(f'Review the tools; working material goes under {mention} by convention.')
+                self.assertEqual({}, self.response('Write', {'file_path': target}))
+        self.brief(f'See `scratch/sessions/<key>/`; stage in `{self.stage}`.')
+        self.assert_denied(self.response('Write', {'file_path': target}))
+        self.assertEqual({}, self.response('Write', {'file_path': str(self.stage / 'inside.md')}))
+
 
 class SubagentWriteInstallation(unittest.TestCase):
     def test_hook_is_registered_for_file_tools_and_modeled_shell_tools(self):

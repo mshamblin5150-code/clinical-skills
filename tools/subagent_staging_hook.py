@@ -12,6 +12,7 @@ import tempfile
 from console_codec import require_python_floor, use_utf8
 from hook_payload import read_payload
 from repo_root import scratch_path
+from shell_reader import candidate_paths
 
 
 DECLARED_LIMITS = (
@@ -88,14 +89,18 @@ def registered_roots() -> list[Path]:
             for row in result.stdout.split(b"\0") if row.startswith(b"worktree ")]
 
 
-def staging_paths(prompt: str, cwd: str | None) -> list[Path]:
-    """Resolve the brief's literal staging tokens, using the launch payload's cwd."""
+def staging_tokens(prompt: str) -> list[str]:
+    """Return the brief's literal tokens under scratch/sessions/, as written."""
+    tokens = (next(group for group in match.groups() if group is not None).rstrip(".")
+              for match in TOKENS.finditer(normalized(prompt)))
+    return [token for token in tokens if STAGING.search(token)]
+
+
+def resolve_staging(tokens: list[str], cwd: str | None) -> list[Path]:
+    """Resolve staging tokens, using the payload's cwd for a relative one."""
     paths = []
-    for match in TOKENS.finditer(normalized(prompt)):
-        token = next(group for group in match.groups() if group is not None).rstrip(".")
-        if not STAGING.search(token):
-            continue
-        path = Path(token)
+    for token in tokens:
+        path = Path(candidate_paths(token)[-1])
         if not path.is_absolute():
             if not isinstance(cwd, str) or not Path(cwd).is_absolute():
                 raise ValueError("relative staging path requires absolute cwd")
@@ -114,7 +119,7 @@ def handle(payload: dict) -> dict:
         return {}
     try:
         roots = registered_roots()
-        paths = staging_paths(prompt, payload.get("cwd"))
+        paths = resolve_staging(staging_tokens(prompt), payload.get("cwd"))
         for path in paths:
             if not path.is_dir() or not any(
                 path != (base := scratch_path(root / "scratch", "sessions").resolve())

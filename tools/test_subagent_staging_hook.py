@@ -70,6 +70,12 @@ class SubagentStagingLaunch(unittest.TestCase):
         spaced.mkdir()
         self.assertEqual({}, self.command('Read output/example/; stage in "' + str(spaced) + '"'))
 
+    @unittest.skipUnless(sys.platform == "win32", "Git Bash drive spelling is Windows only")
+    def test_git_bash_drive_spelling_names_the_existing_folder(self):
+        text = self.stage.as_posix()
+        spelled = f"/{text[0].lower()}/{text[3:]}"
+        self.assertEqual({}, self.command("Read output/example/; stage in `" + spelled + "`"))
+
     def test_reused_brief_fails_after_cleanup_removed_its_folder(self):
         prompt = 'Read scratch/runs/example/; stage in `' + str(self.stage) + '`'
         self.assertEqual({}, self.command(prompt))

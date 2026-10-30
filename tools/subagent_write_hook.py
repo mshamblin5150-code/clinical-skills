@@ -4,37 +4,55 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import sys
 
 from console_codec import require_python_floor, use_utf8
 from hook_payload import read_payload
 import command_reader
 import heredoc_write_hook
 import repo_root
+import shell_reader
 import subagent_staging_hook
 
 
 DECLARED_LIMITS = (
     "The harness measurement is historical: Claude Code 2.1.306 on 2026-10-23 supplied "
     "agent_id on Write, Edit and Bash calls, with the parent transcript_path and a "
-    "first-row user brief at <parent stem>/subagents/agent-<agent_id>.jsonl. "
-    "No live harness remeasurement is claimed by this implementation.",
+    "first-row user brief at <parent stem>/subagents/agent-<agent_id>.jsonl.",
+    "Live remeasurement on 2026-10-30, Claude Code 2.1.312, in a throwaway session with an "
+    "explicit --settings file registering this hook and a field-name probe: the same fields "
+    "and brief position held on Write, Edit and Bash, a write outside the staging folder "
+    "was refused and created no file through Write and through a literal redirection, a "
+    "write inside it and a null-device redirection were allowed, and a variable-built "
+    "target was refused. The Agent launch and the main session's write carried no agent_id, "
+    "and that write passed. A later harness version is not established by this measurement.",
+    "A first row that is not a user text brief reads as unreadable. A census on 2026-10-30 of "
+    "one machine's flat subagent transcripts found that shape rare and not absent; nested "
+    "transcripts sit below the path this reads, so they read as unreadable too.",
     "Codex subagents and Workflow subagents were not measured. A call without agent_id "
     "passes untouched; an unreadable brief follows the selective refusal policy.",
     "Programs that write files themselves, including scripts, cp and mv, are outside "
     "the command-text reading except for the heredoc reader's modeled Python writes.",
     "Literal brief and shell path recognition is a floor; computed or unrecognized "
-    "brief paths may evade the fence. Future transcript layouts follow the unreadable-brief policy.",
+    "brief paths may evade the fence. Future transcript layouts follow the unreadable-brief policy. "
+    "The bare scratch/sessions/ namespace and a template token (one carrying <, >, {, }, $, %, * "
+    "or ?) name no folder and bind nothing, so a brief naming only those is unfenced. A concrete "
+    "token binds even when it is only a mention and even when no such folder exists.",
     "Only Write, Edit, NotebookEdit and command_reader's modeled Bash tools are read. "
     "Other shells are outside the command-text reading. Unreadable payloads refuse only "
     "when raw text names agent_id and a scratch, output or temporary location; escaped "
     "or split raw triggers may evade that check, and failed stream reads warn.",
-    "Shell file-write recognition covers > and >> targets, tee arguments and the "
-    "heredoc reader's literal Python writes. Other redirection forms and runtime shell "
+    "Shell file-write recognition covers >, >>, &>, &>> and >& targets, tee arguments and "
+    "the heredoc reader's literal Python writes. A descriptor duplication and the null and "
+    "standard-stream devices are not file writes. Other redirection forms and runtime shell "
     "or program behavior remain outside that reading.",
     "No refusal tally is kept; a subagent that omits a refusal from its result leaves "
     "no cross-run trace.",
 )
 FILE_TOOLS = {'Write': 'file_path', 'Edit': 'file_path', 'NotebookEdit': 'notebook_path'}
+NULL_DEVICES = frozenset({'/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'})
+TEMPLATE_CHARACTERS = frozenset('<>{}$%*?')
+NAMESPACE_CHILD = re.compile(r'(?<![\w.-])scratch/sessions/[^/]', re.I)
 
 
 class UnreadableBrief(ValueError):
@@ -74,9 +92,21 @@ def _deny(reason: str) -> dict:
     }}
 
 
+def _named_folders(brief: str, cwd: str | None) -> list[Path]:
+    """Resolve the brief's staging folders; the bare namespace or a template names none."""
+    return subagent_staging_hook.resolve_staging(
+        [token for token in subagent_staging_hook.staging_tokens(brief)
+         if NAMESPACE_CHILD.search(token) and not TEMPLATE_CHARACTERS.intersection(token)], cwd)
+
+
+def _device(target: object) -> bool:
+    return target in NULL_DEVICES or (
+        sys.platform == 'win32' and isinstance(target, str) and target.lower() == 'nul')
+
+
 def _target(value: str, cwd: str | None) -> Path | None:
     try:
-        path = Path(value)
+        path = Path(shell_reader.candidate_paths(value)[-1])
         if not path.is_absolute():
             if not isinstance(cwd, str) or not Path(cwd).is_absolute():
                 return None
@@ -120,7 +150,8 @@ def handle(payload: dict) -> dict:
             return {}
         folder = Path(cwd) if isinstance(cwd, str) and Path(cwd).is_absolute() else None
         targets, unread = heredoc_write_hook.write_targets(command, folder, include_plain=True)
-        writes = [(target, str(base) if base is not None else None) for target, base in targets]
+        writes = [(target, str(base) if base is not None else None)
+                  for target, base in targets if not _device(target)]
         if not writes and not unread:
             return {}
     writes = [(target if isinstance(target, str) else None, base) for target, base in writes]
@@ -132,7 +163,7 @@ def handle(payload: dict) -> dict:
                      response['hookSpecificOutput'].get('permissionDecision') == 'deny'),
                     _unreadable(str(failure), None, cwd))
     try:
-        paths = subagent_staging_hook.staging_paths(brief, payload.get('cwd'))
+        paths = _named_folders(brief, payload.get('cwd'))
     except (OSError, ValueError, RuntimeError):
         responses = [_unreadable('brief staging folder cannot be resolved', target, base)
                      for target, base in writes]

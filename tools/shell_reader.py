@@ -26,8 +26,13 @@ MSYS_PATH = re.compile(r"\A/(?P<drive>[A-Za-z])/(?P<rest>.*)\Z", re.DOTALL)
 LITERAL_CD = re.compile(r"\Acd\s+(?P<target>\"[^\"]*\"|'[^']*'|[^\s;&|]+)\s*\Z")
 
 
-def shell_pieces(command: str) -> list[str]:
-    """Split commands at unquoted separators without expanding them."""
+def shell_pieces(command: str, *, keep_redirect_ampersand: bool = False) -> list[str]:
+    """Split commands at unquoted separators without expanding them.
+
+    A redirection's ampersand is never a separator. It is dropped by default; a
+    caller reading redirection targets keeps it, because `2>&1` names a descriptor
+    where `2>1` names a file.
+    """
     command = HEREDOC.sub(
         lambda match: match.group(0)[:match.start("body") - match.start()]
         + match.group(0)[match.end("body") - match.start():], command,
@@ -63,6 +68,8 @@ def shell_pieces(command: str) -> list[str]:
             while index < len(command) and command[index] not in "\r\n": index += 1
             continue
         if character == "&" and ((index > 0 and command[index - 1] == ">") or (index + 1 < len(command) and command[index + 1] == ">")):
+            if keep_redirect_ampersand:
+                current.append(character)
             index += 1; continue
         separator = "&&" if command.startswith("&&", index) else "||" if command.startswith("||", index) else character
         if separator in {"&&", "||"} or character in ";|&\n":
