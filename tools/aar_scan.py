@@ -222,6 +222,7 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
         "api-request": "Request bookkeeping: model parameters, cache control and digests (#2052).",
         "api-request-shape": "Request bookkeeping: the system prompt and tool definitions (#2052).",
         "api-request-blob": "The API-request copy of turns the review already reads (#2052).",
+        "tools-used": "Tool names used before a context summary; no turn text (#2072).",
         "bridge-session": "Session and harness state.",
         "atis-latch": "Session and harness state.",
         "mode": "Session and harness state.",
