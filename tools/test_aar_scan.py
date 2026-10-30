@@ -1936,14 +1936,12 @@ class SubmissionRecord(SyntheticSnapshotCase):
         self.assertFalse(aar_scan.baseline_path(self.run, self.submission).exists())
 
     def test_rebuilt_grade_prints_the_nonzero_remainder_once(self) -> None:
-        self.write_clean()
-        path = aar_scan.extract_path(self.run, self.submission)
-        path.write_text(
-            path.read_text(encoding="utf-8")
-            .replace("UNREAD-REMAINDER: 0", "UNREAD-REMAINDER: 2")
-            .replace("UNDECLARED-SYSTEM-SUBTYPES: 0", "UNDECLARED-SYSTEM-SUBTYPES: 2"),
-            encoding="utf-8",
+        planted = "".join(
+            json.dumps({"type": "system", "subtype": "planted-subtype", "uuid": f"s{number}"}) + "\n"
+            for number in (1, 2)
         )
+        self.transcript.write_text(planted + self.transcript.read_text(encoding="utf-8"), encoding="utf-8")
+        self.write_clean()
 
         status, stdout, stderr = invoke_main([
             str(self.run), "--submission", self.submission,
@@ -1956,6 +1954,30 @@ class SubmissionRecord(SyntheticSnapshotCase):
             ["unread remainder 2"],
         )
         self.assertIn("undeclared system subtypes 2", stdout)
+
+    def test_rebuild_recounts_a_since_named_row_type_over_the_rounds_own_rows(self) -> None:
+        # #2074: a round refused for a row type the extractor did not yet name drains on rebuild.
+        planted = json.dumps({"type": "planted-later-named", "uuid": "p1"}) + "\n"
+        self.transcript.write_text(planted + self.transcript.read_text(encoding="utf-8"), encoding="utf-8")
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        fields, _ = aar_scan._extract_metadata(path)
+        self.assertEqual((fields["UNDECLARED-ROW-TYPES"], fields["UNREAD-REMAINDER"]), ("1", "1"))
+        # A row appended after the round's watermark is outside the round and is never counted.
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": "planted-after-watermark", "uuid": "p2"}) + "\n")
+        named = {**aar_scan.NAMED_UNREAD_TYPES, "planted-later-named": "Named after the round (#2074 test)."}
+        argv = [str(self.run), "--submission", self.submission,
+                "--memory-index", str(self.memory), "--extract", "--rebuild-round", "1"]
+        with mock.patch.object(aar_scan, "NAMED_UNREAD_TYPES", named):
+            status, stdout, stderr = invoke_main(argv)
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        fields, _ = aar_scan._extract_metadata(path)
+        self.assertEqual(
+            (fields["UNDECLARED-ROW-TYPES"], fields["UNDECLARED-SYSTEM-SUBTYPES"], fields["UNREAD-REMAINDER"]),
+            ("0", "0", "0"),
+        )
+        self.assertTrue((self.run / "aar" / "refused" / path.name).is_file())
 
     def test_rebuilding_a_legacy_extract_reports_an_unmeasured_remainder(self) -> None:
         self.write_clean()
