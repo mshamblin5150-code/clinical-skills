@@ -1866,8 +1866,10 @@ def _rows_through_watermark(path: Path, watermark: str) -> list[dict[str, Any]] 
     """The transcript rows through the row that produced the round's watermark entry."""
     rows = read_transcript(path)
     for ordinal, row in enumerate(rows, 1):
-        uuid = _text(row.get("uuid")) or f"{path.stem}#row-{ordinal}"
-        if watermark == uuid or watermark.startswith(uuid + "#"):
+        identifier = _text(row.get("uuid")) or f"{path.stem}#row-{ordinal}"
+        if row.get("type") == "response_item":
+            identifier = _text(_codex_payload(row).get("id")) or identifier
+        if watermark == identifier or watermark.startswith(identifier + "#"):
             return rows[:ordinal]
     return None
 
