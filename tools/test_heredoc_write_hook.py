@@ -54,6 +54,10 @@ class HeredocWrites(unittest.TestCase):
                 self.assertEqual(response["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertEqual({}, self.response("cat <<'EOF' >&2\nfixture\nEOF"))
 
+    def test_a_target_the_two_shell_readers_split_differently_is_unread(self):
+        response = self.response("cat <<EOF > `mktemp | head -1`/scratch/n.md\nfixture\nEOF")
+        self.assertIn("unread", response["hookSpecificOutput"]["additionalContext"])
+
     def test_refuses_literal_python_file_writes(self):
         path = (self.checkout / "scratch/runs/x/note-1.md").as_posix()
         bodies = (f"open({path!r}, 'w').write('fixture')",

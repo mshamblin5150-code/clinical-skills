@@ -37,7 +37,12 @@ DECLARED_LIMITS = (
     "brief paths may evade the fence. Future transcript layouts follow the unreadable-brief policy. "
     "The bare scratch/sessions/ namespace and a template token (one carrying <, >, {, }, $, %, * "
     "or ?) name no folder and bind nothing, so a brief naming only those is unfenced. A concrete "
-    "token binds even when it is only a mention and even when no such folder exists.",
+    "token binds even when it is only a mention and even when no such folder exists, and every "
+    "concrete token widens the fence, including one the brief names as forbidden. A relative "
+    "token resolves against the cwd at each write, as ADR 0439 ruling 2 directs, so a subagent "
+    "that has moved its cwd is fenced to that token beneath the new cwd.",
+    "NotebookEdit and Monitor are fenced on the shape measured for Write, Edit and Bash; "
+    "neither tool's own payload was measured.",
     "Only Write, Edit, NotebookEdit and command_reader's modeled Bash tools are read. "
     "Other shells are outside the command-text reading. Unreadable payloads refuse only "
     "when raw text names agent_id and a scratch, output or temporary location; escaped "
@@ -122,6 +127,7 @@ def _unreadable(reason: str, target: str | None, cwd: str | None) -> dict:
         path = _target(target, cwd)
         checkout = repo_root.enclosing_checkout(path) if path is not None else None
         sensitive = subagent_staging_hook.names_temp(target) or (
+            path is not None and subagent_staging_hook.names_temp(str(path))) or (
             checkout is not None and any(path.is_relative_to(checkout / name)
                                          for name in ('scratch', 'output')))
     note = 'Subagent write guard: ' + reason + '; brief was not checked.'
@@ -129,6 +135,13 @@ def _unreadable(reason: str, target: str | None, cwd: str | None) -> dict:
     if sensitive:
         specific.update(_deny(reason)['hookSpecificOutput'])
     return {'hookSpecificOutput': specific, 'systemMessage': note}
+
+
+def _first_refusal(reason: str, writes: list, cwd: str | None) -> dict:
+    responses = [_unreadable(reason, target, base) for target, base in writes]
+    return next((response for response in responses if
+                 response['hookSpecificOutput'].get('permissionDecision') == 'deny'),
+                _unreadable(reason, None, cwd))
 
 
 def handle(payload: dict) -> dict:
@@ -158,25 +171,18 @@ def handle(payload: dict) -> dict:
     try:
         brief = _brief(payload)
     except UnreadableBrief as failure:
-        responses = [_unreadable(str(failure), target, base) for target, base in writes]
-        return next((response for response in responses if
-                     response['hookSpecificOutput'].get('permissionDecision') == 'deny'),
-                    _unreadable(str(failure), None, cwd))
+        return _first_refusal(str(failure), writes, cwd)
     try:
-        paths = _named_folders(brief, payload.get('cwd'))
+        paths = _named_folders(brief, cwd)
     except (OSError, ValueError, RuntimeError):
-        responses = [_unreadable('brief staging folder cannot be resolved', target, base)
-                     for target, base in writes]
-        return next((response for response in responses if
-                     response['hookSpecificOutput'].get('permissionDecision') == 'deny'),
-                    _unreadable('brief staging folder cannot be resolved', None, cwd))
+        return _first_refusal('brief staging folder cannot be resolved', writes, cwd)
     if not paths:
         return {}
     if unread:
         return _deny('shell write target cannot be resolved; spell the staging folder literally')
     for target, base in writes:
         if not target or (tool not in FILE_TOOLS and
-                          (target.startswith('~') or any(char in target for char in '$`*?'))):
+                          (target.startswith('~') or any(char in target for char in '$`*?[{'))):
             return _deny('write target cannot be resolved; spell the staging folder literally')
         path = _target(target, base)
         if path is None:

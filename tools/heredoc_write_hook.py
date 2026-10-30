@@ -115,7 +115,7 @@ def _write_tokens(source: str) -> list[_ShellToken]:
             word(index)
             start = None
             end = index + 1
-            while end < len(source) and source[end] in '<>|;&()':
+            while char not in '()' and end < len(source) and source[end] in '<>|;&':
                 end += 1
             if source[index:end] == '<<' and source[end:end + 1] == '-':
                 end += 1
@@ -302,14 +302,20 @@ def write_targets(command: str, cwd: Path | None, *, include_plain: bool = False
             targets = [following.value
                        for token, following in zip(fragment_tokens, fragment_tokens[1:])
                        if token.operator and token.value in OUTPUT_REDIRECTIONS
+                       and not following.operator
                        and not (token.value == '>&' and DESCRIPTOR_WORD.fullmatch(following.value))]
             if fragment_tokens and fragment_tokens[-1].operator and fragment_tokens[-1].value in OUTPUT_REDIRECTIONS:
                 unread = True
             for piece in shell_reader.shell_pieces(fragment):
-                arguments = _write_tokens(piece)
+                try:
+                    arguments = _write_tokens(piece)
+                except ValueError:
+                    unread = True
+                    continue
                 executable_index = next((index for index, token in enumerate(arguments)
                     if not token.operator and token.value == 'tee'
-                    and shell_reader.is_command_prefix([item.value for item in arguments[:index]])), None)
+                    and shell_reader.is_command_prefix([item.value for item in arguments[:index]
+                                                        if item.value not in {'(', '{'}])), None)
                 if executable_index is None:
                     continue
                 index = executable_index + 1

@@ -172,6 +172,27 @@ class SubagentWrites(unittest.TestCase):
         self.assertEqual({}, self.response('Bash', {'command': f"tee '{inside}' 2>'{errors}'"}))
         self.assert_denied(self.response('Bash', {'command': f"tee 2 >'{inside}'"}))
 
+    def test_grouped_commands_reach_their_redirection_and_tee_targets(self):
+        inside, outside = self.stage / 'inside.md', self.folder / 'outside.md'
+        for template in ("(echo x)>'{path}'", "(echo x) > '{path}'", "(tee '{path}')", "{{ tee '{path}'; }}"):
+            with self.subTest(template=template):
+                self.assertEqual({}, self.response('Bash', {'command': template.format(path=inside)}))
+                self.assert_denied(self.response('Bash', {'command': template.format(path=outside)}))
+        self.assertEqual({}, self.response('Bash', {'command': 'ls a > >(cat)'}))
+
+    def test_bracket_and_brace_expansions_are_unresolvable_targets(self):
+        for target in (f"'{self.stage}'/[ab].md", f"'{self.stage}'/{{../../x.md,y.md}}"):
+            with self.subTest(target=target):
+                response = self.response('Bash', {'command': f'tee {target}'})
+                self.assert_denied(response)
+                self.assertIn('literal', response['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_unreadable_brief_judges_the_resolved_target_not_its_spelling(self):
+        self.brief_path.unlink()
+        temporary = Path(tempfile.gettempdir())
+        self.assert_denied(self.response('Write', {'file_path': 'a.md'}, cwd=str(temporary)))
+        self.assert_denied(self.response('Bash', {'command': f"cd '{temporary}' && echo x > a.md"}))
+
     def test_descriptor_duplications_and_null_devices_are_not_file_writes(self):
         for command in ('ls a 2>&1', 'ls a 2>&1 | head -5', 'echo x >&2', 'echo x 1>&2',
                         'ls a 2>/dev/null', 'ls a >/dev/null 2>&1', 'ls a &>/dev/null',
