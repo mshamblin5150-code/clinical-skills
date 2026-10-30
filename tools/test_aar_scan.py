@@ -1956,6 +1956,25 @@ class SubmissionRecord(SyntheticSnapshotCase):
         self.assertIn("undeclared system subtypes 2", stdout)
 
     def test_rebuild_recounts_a_since_named_row_type_over_the_rounds_own_rows(self) -> None:
+        self.assert_rebuild_recounts_the_rounds_own_rows()
+
+    def test_rebuild_recounts_through_a_codex_payload_id_watermark(self) -> None:
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(codex_row({
+                "type": "message", "id": "codex-watermark", "role": "assistant",
+                "content": [{"type": "output_text", "text": "Synthetic final reply."}],
+            }, uuid="different-envelope-id")) + "\n")
+        self.assert_rebuild_recounts_the_rounds_own_rows()
+
+    def test_rebuild_recounts_through_a_generated_row_watermark(self) -> None:
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(codex_row({
+                "type": "message", "role": "assistant",
+                "content": [{"type": "output_text", "text": "Synthetic final reply."}],
+            })) + "\n")
+        self.assert_rebuild_recounts_the_rounds_own_rows()
+
+    def assert_rebuild_recounts_the_rounds_own_rows(self) -> None:
         # #2074: a round refused for a row type the extractor did not yet name drains on rebuild.
         planted = json.dumps({"type": "planted-later-named", "uuid": "p1"}) + "\n"
         self.transcript.write_text(planted + self.transcript.read_text(encoding="utf-8"), encoding="utf-8")
