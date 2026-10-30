@@ -88,6 +88,22 @@ def registered_roots() -> list[Path]:
             for row in result.stdout.split(b"\0") if row.startswith(b"worktree ")]
 
 
+def staging_paths(prompt: str, cwd: str | None) -> list[Path]:
+    """Resolve the brief's literal staging tokens, using the launch payload's cwd."""
+    paths = []
+    for match in TOKENS.finditer(normalized(prompt)):
+        token = next(group for group in match.groups() if group is not None).rstrip(".")
+        if not STAGING.search(token):
+            continue
+        path = Path(token)
+        if not path.is_absolute():
+            if not isinstance(cwd, str) or not Path(cwd).is_absolute():
+                raise ValueError("relative staging path requires absolute cwd")
+            path = Path(cwd) / path
+        paths.append(path.resolve())
+    return paths
+
+
 def handle(payload: dict) -> dict:
     if payload["tool_name"] not in {"Agent", "Task"}:
         return {}
@@ -98,25 +114,14 @@ def handle(payload: dict) -> dict:
         return {}
     try:
         roots = registered_roots()
-        paths = []
-        for match in TOKENS.finditer(normalized(prompt)):
-            token = next(group for group in match.groups() if group is not None).rstrip(".")
-            if not STAGING.search(token):
-                continue
-            path = Path(token)
-            if not path.is_absolute():
-                cwd = payload.get("cwd")
-                if not isinstance(cwd, str) or not Path(cwd).is_absolute():
-                    return refuse()
-                path = Path(cwd) / path
-            path = path.resolve()
+        paths = staging_paths(prompt, payload.get("cwd"))
+        for path in paths:
             if not path.is_dir() or not any(
                 path != (base := scratch_path(root / "scratch", "sessions").resolve())
                 and path.is_relative_to(base) and path.is_relative_to(root)
                 for root in roots
             ):
                 return refuse()
-            paths.append(path)
         return {} if paths else refuse()
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         return refuse()
