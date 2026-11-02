@@ -245,6 +245,19 @@ class PublicMechanics(unittest.TestCase):
                     _, report = self.command(Path(temp), grader, control)
                     self.assert_row(report, "uncertain-digit", 1)
 
+    def test_a_cited_group_authors_own_capitals_need_no_definition(self):
+        # APA 9.11 prints a group author's name as published; its capitals are not the writer's abbreviation.
+        reference = "UC Example Editorial Team. (2024, September 15). *Culture of safety*. Example Press."
+        body = "Safety improves when errors are sorted by behavior (UC Example Editorial Team, 2024)."
+        for grader in GRADERS:
+            with self.subTest(grader=grader), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, body, reference=reference)
+                self.assert_row(report, "undefined-abbreviation", 0)
+            # The same capitals outside the cited name are still the writer's undefined abbreviation.
+            with self.subTest(grader=grader, twin="outside the name"), tempfile.TemporaryDirectory() as temp:
+                _, report = self.command(Path(temp), grader, "UC teams sort errors by behavior.", reference=reference)
+                self.assert_row(report, "undefined-abbreviation", 1)
+
     def test_record_shape_and_surface_digest_fail_closed(self):
         import run_grader
         with tempfile.TemporaryDirectory() as temp:

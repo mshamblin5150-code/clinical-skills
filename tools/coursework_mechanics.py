@@ -237,9 +237,18 @@ def survey(markdown: str, artifact: str, language: str, handling: dict | None = 
                     seen_variants[index].add(form)
                     if required is not None and form != required:
                         add("spelling-variant", block.line)
+        # A cited group author's name is printed as published (APA 9.11); its
+        # capitals are part of the name, not an abbreviation the writer introduced.
+        group_spans = [
+            found.span()
+            for group in groups
+            for found in re.finditer(r"(?<!\w)" + re.escape(group) + r"(?!\w)", text, re.I)
+        ]
         for match in ABBREVIATION.finditer(text):
             token = match[0]
             if token in definitions:
+                continue
+            if any(start <= match.start() and match.end() <= end for start, end in group_spans):
                 continue
             prefix = text[:match.start()]
             # Full term followed by (ABC), or [ABC] inside a parenthesis.
