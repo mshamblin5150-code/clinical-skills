@@ -1,6 +1,7 @@
 name: CI serial envelope qualification
 
-# Private candidate only. Parent custody, not concurrency, supplies single-use
+# V3 preparation only; fresh r2 publication and activation are NOT approved.
+# Parent custody, not concurrency, supplies single-use
 # admission. No workflow_dispatch, pull_request, main push or measurement path.
 on: create
 
@@ -18,8 +19,8 @@ jobs:
       github.repository == 'mshamblin5150-code/clinical-skills' &&
       github.event_name == 'create' &&
       github.event.ref_type == 'branch' &&
-      github.event.ref == 'diagnostic/2013-envelope-qual-once-20261101' &&
-      github.ref == 'refs/heads/diagnostic/2013-envelope-qual-once-20261101' &&
+      github.event.ref == 'diagnostic/2013-envelope-qual-once-20261102-r2' &&
+      github.ref == 'refs/heads/diagnostic/2013-envelope-qual-once-20261102-r2' &&
       github.run_attempt == 1
     runs-on: windows-2025-vs2026
     timeout-minutes: 11
@@ -69,6 +70,7 @@ jobs:
           sparse-checkout: |
             diagnostics
             .github/workflows/ci-serial-envelope-qualification.yml
+            .gitattributes
           sparse-checkout-cone-mode: false
 
       - name: Provision exact disclosed interpreter
@@ -87,7 +89,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ([Environment]::TickCount64 - [long]$env:JOB_START_MS -ge 180000) { throw 'setup window exhausted; no controls' }
-          python -B diagnostics/test_windows_serial_envelope.py --job-start-ms $env:JOB_START_MS --module-sha c6dce5a1808ba258e3f672118a47b9e72854c245751b7e233edd64b3b56759c2 --fixture-sha fab5fdae338beb5eb30a02240d1d1c35b8172a380f1f112a3071a4320a023512 --tests-sha f996d3ee3b1ef9eef0dbedab12a4f33e6d8dd0e7177518881a6b020650d01535 --run-id $env:QUAL_RUN_ID --attempt $env:QUAL_ATTEMPT --commit $env:QUAL_COMMIT
+          python -B diagnostics/test_windows_serial_envelope.py --job-start-ms $env:JOB_START_MS --module-sha c6dce5a1808ba258e3f672118a47b9e72854c245751b7e233edd64b3b56759c2 --fixture-sha fab5fdae338beb5eb30a02240d1d1c35b8172a380f1f112a3071a4320a023512 --tests-sha ad37e74f515c1005b6c8e804a652cf582081a6c5ee9fbca55668c8ec5da4d766 --run-id $env:QUAL_RUN_ID --attempt $env:QUAL_ATTEMPT --commit $env:QUAL_COMMIT
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Retain bounded safe terminal summary

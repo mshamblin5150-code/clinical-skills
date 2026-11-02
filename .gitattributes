@@ -1,0 +1,4 @@
+/diagnostics/windows_serial_envelope.py -text
+/diagnostics/serial_envelope_fixture.py -text
+/diagnostics/test_windows_serial_envelope.py -text
+/.github/workflows/ci-serial-envelope-qualification.yml -text

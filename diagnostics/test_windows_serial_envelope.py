@@ -230,6 +230,19 @@ def main() -> int:
     for name, expected in sources.items():
         with Path(__file__).with_name(name).open("rb") as source:
             data = source.read(262_145)
+        crlf = data.count(b"\r\n")
+        admission = {
+            "source": name, "observed_bytes": len(data),
+            "raw_sha256": hashlib.sha256(data).hexdigest(),
+            "expected_sha256": expected if re.fullmatch(r"[0-9a-f]{64}", expected) else None,
+            "crlf_count": crlf, "lf_count": data.count(b"\n") - crlf,
+        }
+        # At most three ASCII rows, each at most 1024 bytes including newline.
+        # These describe the existing bounded read, never normalized bytes.
+        admission_line = json.dumps(admission, sort_keys=True, separators=(",", ":")) + "\n"
+        if len(admission_line.encode("utf-8")) > 1024:
+            raise SystemExit("source admission diagnostic bound refused")
+        print(admission_line, end="", flush=True)
         if len(data) > 262_144 or hashlib.sha256(data).hexdigest() != expected:
             raise SystemExit("reviewed qualification source identity refused")
         source_bytes += len(data)
@@ -240,6 +253,13 @@ def main() -> int:
         raise SystemExit("reviewed workflow size refused")
     workflow_sha = hashlib.sha256(workflow_bytes).hexdigest()
     source_bytes += len(workflow_bytes)
+    attributes = Path(__file__).parent.parent / ".gitattributes"
+    with attributes.open("rb") as source:
+        attributes_bytes = source.read(16_385)
+    if len(attributes_bytes) > 16_384:
+        raise SystemExit("attributes custody size refused")
+    attributes_sha = hashlib.sha256(attributes_bytes).hexdigest()
+    source_bytes += len(attributes_bytes)
     if source_bytes > 262_144:
         raise SystemExit("fixture and manifest source budget refused")
     class Configuration:
@@ -257,6 +277,7 @@ def main() -> int:
         "kind": "qualification_terminal", "commit": args.commit, "run_id": args.run_id,
         "attempt": 1, "sources": sources, "tests_run": result.testsRun,
         "workflow_sha256": workflow_sha,
+        "attributes_sha256": attributes_sha, "attributes_bytes": len(attributes_bytes),
         "provenance": {"observer_base": "064f5efc7e23bcb967b3f0681530c7b7f8d8477c",
                        "observer_blob": "076ab5032b18abe229c37b5e407f1077dcac4305",
                        "measurement_source_not_executed": "9e714a255c058fbb3b15f7eb5fd1de76b1ca02f2"},
