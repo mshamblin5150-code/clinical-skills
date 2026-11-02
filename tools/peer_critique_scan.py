@@ -801,7 +801,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         voice_read.draft_surface(
             ((source.path / "critique.md", source.critique),)
         ),
-        {submission or "critique": source.critique},
+        {submission or "critique.md": source.critique},
         voice_coverage_limb=VOICE_READ_UNVERIFIED,
         imagery_coverage_limb=UNREAD_REMAINDER,
     )

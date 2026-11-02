@@ -394,6 +394,26 @@ class CompletionGraderIntegration(unittest.TestCase):
                 discussion_reply_scan.main([str(fixture.run), "--submission", "response-maren.md,response-new.md"])
             self.assertEqual(expected, "has no recorded image answer" in output.getvalue(), output.getvalue())
 
+    def test_critique_pregrade_and_submission_grade_bind_one_artifact_key(self):
+        # The proposal names the terminal submission key; the unkeyed pre-grade
+        # that approval preparation runs must recognize that same key.
+        fixture = CompletionGate()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        image = "The care plan needs an orbit, not a straight line."
+        fixture.write(status="proposed-and-approved")
+        payload = json.loads((fixture.run / proposals.RECORD_NAME).read_text(encoding="utf-8"))
+        run = build_run(root=fixture.root / "keyed", extra="\n" + image)
+        payload["proposals"][0]["artifact"] = "critique.md"
+        (run / proposals.RECORD_NAME).write_text(json.dumps(payload), encoding="utf-8")
+        for arguments in ([str(run)], [str(run), "--submission", "critique.md"]):
+            with self.subTest(arguments=arguments[1:]):
+                output = io.StringIO()
+                with mock.patch.object(repo_root, "canonical_voice_model", return_value=fixture.resolved), mock.patch.object(approval_record, "_main_transcripts", return_value=([], True)), redirect_stdout(output), redirect_stderr(output):
+                    peer_critique_scan.main(arguments)
+                self.assertNotIn("not a known artifact", output.getvalue())
+                self.assertNotIn("not bound to the submission", output.getvalue())
+
     def test_public_pregrade_counts_an_unread_answer_once_and_keeps_finding_precedence(self):
         fixture = CompletionGate()
         fixture.setUp()
@@ -403,7 +423,7 @@ class CompletionGraderIntegration(unittest.TestCase):
         payload = json.loads((fixture.run / proposals.RECORD_NAME).read_text(encoding="utf-8"))
         for marked, expected in ((False, 2), (True, 1)):
             run = build_run(root=fixture.root / ("marked" if marked else "clean"), extra="\n" + ("[[PROPOSED IMAGE image-1]]\n" if marked else "") + image)
-            payload["proposals"][0]["artifact"] = "critique"
+            payload["proposals"][0]["artifact"] = "critique.md"
             second = dict(payload["proposals"][0], key="image-2")
             (run / proposals.RECORD_NAME).write_text(json.dumps({"proposals": [payload["proposals"][0], second]}), encoding="utf-8")
             output = io.StringIO()
