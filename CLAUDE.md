@@ -4,6 +4,41 @@ See [AGENTS.md](AGENTS.md) for the skill index and the standing rules that bind 
 
 Configuration for the maintainer's engineering skills. **None of this is required to use the clinical skills** — consumers read [AGENTS.md](AGENTS.md) and need nothing else, with no plugin to install.
 
+### Maintainer harness checkpoints
+
+Use the existing Matt Pocock implementation and review workflow, with relevant
+P-Stack verification principles. These checkpoints apply to repository maintenance,
+not to clinical-skill consumers, and add no tracker, approval stage, or Required command.
+
+**Before a slice**, put its originating request or issue, observable completion
+condition, smallest relevant verification, and exclusions in the existing ticket
+or work record. Read the current requirements and applicable repository rules;
+search for existing behavior before adding another implementation. Establish the
+relevant baseline when execution is authorized. Record a blocked observation as
+unverified, not as a passing check.
+
+**During the existing independent Spec and Standards reviews**, keep their findings
+separate and flag invented gates, unrelated cleanup, or expanded scope. A mandatory
+demand traces to the requirement, an applicable rule, or a demonstrated defect or
+risk; optional improvements stay optional. Follow the repository's existing
+review, tracker-sweep, and publication rules rather than adding another review stage.
+
+**At completion**, record the evidence for the actual result, remaining limits,
+and next slice or completed task. Distinguish implemented, verified, published,
+and merged. A failed product behavior and a failed observation tool are different
+findings: diagnose which occurred and retain the uncertainty. Repair a confirmed
+tool defect when authorized, or record the blocker; keep correct requirements intact.
+
+Expand the harness only for a demonstrated failure or recurring cost the existing
+workflow cannot adequately address. Reuse an existing check, navigation pointer,
+or tool first; choose the smallest improvement and evaluate it on representative
+work when authorized. Keep decision trails proportionate to the task.
+
+Existing clinical, product, security/data, publication, execution, and cleanup
+holds remain binding. These checkpoints neither authorize a held test or CI run
+nor weaken a consumer grader, PHI safeguard, or repository hook. Preserve the
+standing one-writer isolation and evidence rules.
+
 ### Subagents
 
 Fixture isolation code word: zovquemtirax
