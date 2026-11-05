@@ -61,12 +61,13 @@ class EveryDiscoveredTestIdReruns(unittest.TestCase):
                 and loaded[0]._testMethodName == test._testMethodName
             )
             with self.subTest(test_id=test_id):
+                message = None
                 if not same_test:
-                    self.assertTrue(
-                        same_test,
+                    message = (
                         f"{test_id} did not re-run from {denominator} discovered tests; "
-                        f"{_describe_test_bindings(test)}",
+                        f"{_describe_test_bindings(test)}"
                     )
+                self.assertTrue(same_test, message)
 
 
 class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
