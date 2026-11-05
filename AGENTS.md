@@ -2,6 +2,8 @@
 
 Agent-agnostic skills for a nurse practitioner student's written work — clinical documentation from ER-style shorthand, and graded coursework from faculty material and live course boards. Each skill is a folder under `skills/` holding a `SKILL.md` — plain Markdown with YAML frontmatter, readable by any agent.
 
+**Maintaining this repository:** apply the [maintainer harness checkpoints](CLAUDE.md#maintainer-harness-checkpoints) alongside the existing engineering workflow. Clinical-skill consumers gain no additional dependency.
+
 ## How to use a skill
 
 **Read the skill file before starting the task.** Do not work from the one-line summary below — it is an index, not the instructions.
