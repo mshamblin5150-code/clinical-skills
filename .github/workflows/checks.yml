@@ -43,8 +43,60 @@ permissions:
   pull-requests: read
 
 jobs:
+  metadata:
+    name: PR metadata and CI event scope
+    runs-on: windows-latest
+    outputs:
+      full_code: ${{ steps.scope.outputs.full_code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .github/maintainer-python-version
+      - name: Select code validation scope
+        id: scope
+        run: |
+          $fullCode = python tools/ci_event_scope.py --event-name $env:GITHUB_EVENT_NAME --github-event $env:GITHUB_EVENT_PATH
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "full_code=$fullCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      # #183 has three surfaces. The local hook sees commit messages, while a
+      # PR title/body is created later and the final merge message later still.
+      # A PR run grades its metadata and every commit message through GitHub's
+      # own JSON. Under ADR 0073's measured grammar its exit status is the step
+      # verdict; no later command consumes or replaces it.
+      - name: Closing keyword scan, pull request
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          gh pr view $env:PR_NUMBER --json title,body,commits |
+            Out-File -FilePath $pr -Encoding utf8
+          python tools/closing_keyword_scan.py --github-json $pr
+
+      - name: Premature close scan, pull request
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          python tools/tracker_merge_receipt.py --check-premature-close $pr
+
+      - name: Receipt plan scan, advisory
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
+          python tools/tracker_merge_receipt.py --check-plan $pr
+
   suite:
-    name: suite + PHI shape layer
+    needs: metadata
+    if: always() && !cancelled() && needs.metadata.outputs.full_code != 'false'
+    name: ${{ needs.metadata.outputs.full_code == 'false' && 'suite not requested (metadata edit)' || 'suite + PHI shape layer' }}
     runs-on: windows-latest
 
     steps:
@@ -63,22 +115,6 @@ jobs:
       - name: Interpreter
         run: python -VV
 
-      # #183 has three surfaces. The local hook sees commit messages, while a
-      # PR title/body is created later and the final merge message later still.
-      # A PR run grades its metadata and every commit message through GitHub's
-      # own JSON. Under ADR 0073's measured grammar its exit status is the step
-      # verdict; no later command consumes or replaces it.
-      - name: Closing keyword scan, pull request
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
-          gh pr view $env:PR_NUMBER --json title,body,commits |
-            Out-File -FilePath $pr -Encoding utf8
-          python tools/closing_keyword_scan.py --github-json $pr
-
       # A push to main is detection after GitHub may already have acted, so it
       # keeps the advisory posture. The scanner runs last and its exit status is
       # the verdict; no later command consumes or replaces it.
@@ -94,21 +130,6 @@ jobs:
           } else {
             git log -1 --format=%B | python tools/closing_keyword_scan.py -
           }
-
-      - name: Premature close scan, pull request
-        if: always() && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
-          python tools/tracker_merge_receipt.py --check-premature-close $pr
-
-      - name: Receipt plan scan, advisory
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        run: |
-          $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
-          python tools/tracker_merge_receipt.py --check-plan $pr
 
       # Before the suite, so it is on the page even when the suite dies. The
       # report is computed by the scanner from its own inputs rather than
@@ -199,7 +220,9 @@ jobs:
 
   # ADR 0431: early warning when a newer Python breaks code before an upgrade.
   canary:
-    name: newer Python 3.14 canary (may fail before the maintainer upgrades)
+    needs: metadata
+    if: always() && !cancelled() && needs.metadata.outputs.full_code != 'false'
+    name: ${{ needs.metadata.outputs.full_code == 'false' && 'canary not requested (metadata edit)' || 'newer Python 3.14 canary (may fail before the maintainer upgrades)' }}
     runs-on: windows-latest
 
     steps:
@@ -239,7 +262,9 @@ jobs:
   # This remains a separate advisory job so a future tooling-floor rise has to
   # split the measurement rather than silently raising a consumer install.
   floor:
-    name: complete suite at the consumer floor
+    needs: metadata
+    if: always() && !cancelled() && needs.metadata.outputs.full_code != 'false'
+    name: ${{ needs.metadata.outputs.full_code == 'false' && 'floor not requested (metadata edit)' || 'complete suite at the consumer floor' }}
     runs-on: windows-latest
 
     steps:

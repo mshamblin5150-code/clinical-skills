@@ -3513,6 +3513,17 @@ Covered by `tools/test_scratch_census.py` and the root-shape mutant guard in `to
 
 ### Continuous integration
 
+The `metadata` job keeps PR closing-keyword, premature-close and receipt-plan checks
+on every PR event. `tools/ci_event_scope.py` selects metadata-only routing only for
+an `edited` payload whose recognized changes are title/body text and whose head/base
+identities are readable. Base, head, unknown or malformed changes retain full code
+validation, as do opened/synchronize/reopened events, main pushes and manual runs.
+The three code jobs keep their existing check names when run. Metadata-only skips
+have distinct `not requested` names so they do not replace a real code-check result.
+Unreadable scope output selects full validation; explicit workflow cancellation is
+respected. No prior check is canceled or treated as passing by this classification.
+The separate trusted tracker workflow continues grading changed tracker records.
+
 `.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The pinned maintainer job runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`, and the floating Python `3.14` canary runs the same suite. No job installs dependencies. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
