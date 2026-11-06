@@ -86,8 +86,8 @@ def tracker_event_checks_step(text):
 class TheWorkflowExists(unittest.TestCase):
     def test_premature_close_is_an_independent_non_advisory_maintainer_step(self):
         text = workflow_text()
-        suite = job_text(text, "suite")
-        step = suite.partition("      - name: Premature close scan, pull request")[2].split("      - name:")[0]
+        metadata = job_text(text, "metadata")
+        step = metadata.partition("      - name: Premature close scan, pull request")[2].split("      - name:")[0]
         self.assertIn("if: always() && github.event_name == 'pull_request'", step)
         self.assertIn("GH_TOKEN: ${{ github.token }}", step)
         self.assertIn("'pull-request.json'", step)
@@ -105,6 +105,51 @@ class TheWorkflowExists(unittest.TestCase):
         text = workflow_text()
         offenders = [n for n, line in enumerate(text.splitlines(), 1) if "\t" in line]
         self.assertEqual(offenders, [], f"tab characters on lines {offenders}")
+
+
+class MetadataEventRouting(unittest.TestCase):
+    def test_metadata_job_keeps_all_pr_scans_without_running_the_suite(self):
+        metadata = job_text(workflow_text(), "metadata")
+        for command in (
+            "--json title,body,commits",
+            "closing_keyword_scan.py --github-json $pr",
+            "tracker_merge_receipt.py --check-premature-close $pr",
+            "tracker_merge_receipt.py --check-plan $pr",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(command, metadata)
+        self.assertNotIn(SUITE_COMMAND, metadata)
+        self.assertIn("ci_event_scope.py", metadata)
+        self.assertIn("$env:GITHUB_EVENT_PATH", metadata)
+        self.assertIn("$env:GITHUB_EVENT_NAME", metadata)
+        self.assertIn("if ($LASTEXITCODE -ne 0)", metadata)
+        self.assertIn("full_code: ${{ steps.scope.outputs.full_code }}", metadata)
+        self.assertIn("$env:GITHUB_OUTPUT", metadata)
+
+    def test_full_jobs_fail_safe_and_metadata_skips_have_distinct_names(self):
+        for job, actual_name in (
+            ("suite", "suite + PHI shape layer"),
+            ("canary", CANARY_NAME),
+            ("floor", "complete suite at the consumer floor"),
+        ):
+            with self.subTest(job=job):
+                code = job_text(workflow_text(), job)
+                self.assertIn("needs: metadata", code)
+                # spelling-scan: mentions 1
+                self.assertIn("if: always() && !cancelled() && needs.metadata.outputs.full_code != 'false'", code)
+                self.assertIn("needs.metadata.outputs.full_code == 'false'", code)
+                self.assertIn(f"|| '{actual_name}'", code)
+                self.assertIn(f"'{job} not requested (metadata edit)'", code)
+                self.assertIn(SUITE_COMMAND, code)
+
+    def test_no_cancellation_permissions_or_privileged_event_is_added(self):
+        text = workflow_text()
+        self.assertNotRegex(text, r"(?m)^\s*concurrency:")
+        self.assertNotIn("cancel-in-progress", text)
+        self.assertNotRegex(text, r"(?m)^\s*pull_request_target:")
+        permissions = text.partition("\npermissions:\n")[2].partition("\njobs:")[0]
+        self.assertEqual(permissions.strip().splitlines(),
+                         ["contents: read", "  pull-requests: read"])
 
 
 class TrackerBranchScopeCoversEveryPublicationEvent(unittest.TestCase):
@@ -184,7 +229,7 @@ class TheJobMatchesWhatIsWrittenDown(unittest.TestCase):
 
     def test_canary_floats_and_keeps_a_visible_suite_failure(self):
         text = job_text(workflow_text(), "canary")
-        self.assertIn(f"name: {CANARY_NAME}", text)
+        self.assertIn(f"|| '{CANARY_NAME}'", text)
         self.assertIn(f"runs-on: {RUNNER}", text)
         self.assertIn("python-version: '3.14'", text)
         self.assertIn(SUITE_COMMAND, text)
@@ -388,7 +433,9 @@ class ThePhiStepCannotReadAsCoverage(unittest.TestCase):
         first version matched ``name:.*shape layer`` anywhere, which the step
         name below satisfies on its own -- so deleting the job name left the
         test green on the one string the whole trap ruling rests on."""
-        self.assertRegex(workflow_text(), r"(?m)^\s*name:\s*suite \+ PHI shape layer\s*$")
+        name = next(line for line in job_text(workflow_text(), "suite").splitlines()
+                    if line.strip().startswith("name:"))
+        self.assertIn("|| 'suite + PHI shape layer'", name)
 
     def test_the_step_name_says_the_corpus_layer_could_not_run(self):
         """The step name is what sits beside the scan in the log, so it carries
@@ -502,6 +549,22 @@ class TheFileIsValidYaml(unittest.TestCase):
         self.assertEqual(versions, [FLOOR_VERSION])
         commands = " ".join(step.get("run", "") for step in job["steps"])
         self.assertIn(SUITE_COMMAND, commands)
+
+    def test_metadata_routing_survives_yaml_parsing(self):
+        jobs = self.load()["jobs"]
+        self.assertEqual(jobs["metadata"]["outputs"]["full_code"],
+                         "${{ steps.scope.outputs.full_code }}")
+        for job, name in (("suite", "suite + PHI shape layer"),
+                          ("canary", CANARY_NAME),
+                          ("floor", "complete suite at the consumer floor")):
+            with self.subTest(job=job):
+                self.assertEqual(jobs[job]["needs"], "metadata")
+                # spelling-scan: mentions 1
+                self.assertEqual(jobs[job]["if"],
+                                 "always() && !cancelled() && needs.metadata.outputs.full_code != 'false'")
+                self.assertEqual(jobs[job]["name"],
+                                 "${{ needs.metadata.outputs.full_code == 'false' && '"
+                                 + job + " not requested (metadata edit)' || '" + name + "' }}")
 
     def test_the_tracker_if_survives_with_all_five_events(self):
         try:
