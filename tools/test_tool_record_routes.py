@@ -14,6 +14,7 @@ import unittest
 EXCEPTIONS = {
     "adr_supersession_population.main": "maintainer classifications input",
     "browser_tab_hook._load_tool_schemas": "installed tool schemas, outside run directories",
+    "ci_event_scope.main": "external GitHub CI event payload, outside clinical run directories",
     "claude_output_access.main": "user settings",
     "guidelines_build._recs_coverage": "maintainer corpus inventory",
     "guidelines_build._read_catalog_unlocked": "maintainer corpus catalog",
