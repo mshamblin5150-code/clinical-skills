@@ -49,6 +49,11 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
+        "historical since age",
+        "An age N immediately preceded by since and horizontal spaces or tabs is excluded, case insensitively; articles, line breaks, other whitespace, at/from phrasing and historical year-old forms are not recognized as history.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "obesity code family",
         "At 30.0 or above any E66 code other than E66.3 satisfies the row, so the class-specific E66.81- choice stays a reader's.",
         run_grader.EvidenceDisposition.DECLARED_READING,
@@ -95,6 +100,7 @@ AGE = re.compile(
 SEX = re.compile(
     r"(?i)\b(male|female|man|woman|boy|girl|gentleman|lady|transgender|nonbinary)\b"
 )
+HISTORICAL_AGE_PREFIX = re.compile(r"(?i)\bsince[ \t]+\Z")
 _SEX_CODE = {
     "male": "male", "man": "male", "boy": "male", "gentleman": "male",
     "female": "female", "woman": "female", "girl": "female", "lady": "female",
@@ -176,10 +182,14 @@ def _most_stated(matches: list[re.Match[str]], key) -> re.Match[str] | None:
 def age_years(region: str) -> tuple[float, int | None] | None:
     """The most often stated age, in years, with completed months where stated in months.
 
-    The patient's age is the one a note repeats; a relative's age stated once
-    loses to it. A tie goes to the earliest mention.
+    Immediate since-age history is excluded before counting. Among the remaining
+    ages, a relative's age stated once loses to a repeated age; a tie goes to
+    the earliest mention.
     """
-    match = _most_stated(list(AGE.finditer(region)), _age_of)
+    matches = [match for match in AGE.finditer(region)
+               if match.group(5) is None
+               or not HISTORICAL_AGE_PREFIX.search(region[:match.start()])]
+    match = _most_stated(matches, _age_of)
     return None if match is None else _age_of(match)
 
 

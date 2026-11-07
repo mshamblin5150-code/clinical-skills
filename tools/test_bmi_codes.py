@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 import bmi_codes as b
+import filled_vitals_census
 from prose_bind import NAMING, bind
 
 
@@ -50,6 +51,17 @@ class AdultBands(unittest.TestCase):
 
 
 class WhatANoteOwes(unittest.TestCase):
+    def test_historical_starting_age_does_not_change_the_patients_bmi_codes(self):
+        control = note("Ht 70 in, Wt 185 lb", "E66.3; Z68.26", opener="42-year-old man")
+        history = control + "Smokes since age 12. Tobacco use since age 12. Smoking since age 12.\n"
+        with self.subTest(seam="selected age"):
+            self.assertEqual((42.0, None), b.age_years(b.body_region(history)))
+        with self.subTest(seam="note reader"):
+            self.assertEqual(b.read_note(control), b.read_note(history))
+        with self.subTest(seam="census caller"):
+            scan = filled_vitals_census.survey([history])
+            self.assertEqual((1, 1, 0), (scan.bmi_read, scan.bmi_graded, scan.bmi_missing))
+
     def test_an_overweight_adult_carrying_both_codes_owes_nothing(self):
         reading = b.read_note(note(
             "Ht 5'10\" (70 in), Wt 185 lb ∴ BMI 26.5",
@@ -115,6 +127,48 @@ class PediatricBands(unittest.TestCase):
 
 
 class TheAge(unittest.TestCase):
+    def test_since_age_history_is_removed_before_frequency_and_tie_selection(self):
+        for text in ("42 yo; smoked since age 12; smoked since age 12",
+                     "smoked since age 12; 42 yo",
+                     "42 yo; smoked SINCE\tage 12; smoked SINCE\tage 12"):
+            with self.subTest(text=text):
+                self.assertEqual((42.0, None), b.age_years(text))
+
+    def test_current_age_forms_are_not_history(self):
+        for text in ("Seen today at age 12.", "Since the last visit, age 12 years.",
+                     "Symptoms began today, seen at age 12.", "notsince age 12"):
+            with self.subTest(text=text):
+                self.assertEqual((12.0, None), b.age_years(text))
+        self.assertEqual((2.0, 24), b.age_years("Age + unit: 24 Months."))
+        self.assertEqual((2.0, 24), b.age_years("Age + unit: 24 Months; symptoms since age 1"))
+
+    def test_other_historical_forms_remain_outside_the_exclusion(self):
+        for phrase in ("since the age 12", "since\nage 12", "since\u00a0age 12",
+                       "since 12-year-old", "began at age 12", "started from age 12"):
+            with self.subTest(phrase=phrase):
+                self.assertEqual((12.0, None), b.age_years(f"42 yo; {phrase}; {phrase}"))
+
+    def test_surviving_ages_keep_the_existing_earliest_tie(self):
+        self.assertEqual((62.0, None), b.age_years("62-year-old mother; 36-year-old male; since age 12"))
+
+    def test_history_in_a_tier_is_still_outside_the_population(self):
+        region = b.body_region("42 yo\nFILLED: since age 12\n  since age 12\n")
+        self.assertEqual((42.0, None), b.age_years(region))
+
+    def test_history_alone_does_not_supply_a_current_age(self):
+        text = "Smokes since age 12.\nVS: Ht 70 in, Wt 185 lb.\n"
+        self.assertIsNone(b.age_years(text))
+        self.assertTrue(b.read_note(text).unread)
+        scan = filled_vitals_census.survey([text])
+        self.assertEqual((0, 0), (scan.bmi_read, scan.bmi_graded))
+        # Preserve the existing under-25/no-age path instead of widening scope.
+        low = "Smokes since age 12.\nVS: Ht 70 in, Wt 150 lb.\n"
+        self.assertTrue(b.read_note(low).read)
+        self.assertFalse(b.read_note(low).graded)
+
+    def test_the_narrow_history_rule_does_not_cross_a_line_break(self):
+        self.assertEqual((12.0, None), b.age_years("42 yo; since \nage 12; since \nage 12"))
+
     def test_the_most_stated_age_wins_over_a_relative_stated_once(self):
         region = "mother is a 62-year-old. A 36-year-old male. The 36-year-old reports"
         self.assertEqual((36.0, None), b.age_years(region))
