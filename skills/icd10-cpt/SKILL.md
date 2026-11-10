@@ -893,13 +893,18 @@ avoid duplicate counts within a category; apply the ECG rule below when a test
 is both ordered and independently interpreted.
 
 **The clinician's own ECG read.** Apply `definition-independent-interpretation`
-and `definition-data-analyzed`. Where the shorthand records his own ECG read,
-count the ECG as a test ordered and an independent interpretation, and bill
-neither 93000 nor 93010. In an office or clinic encounter add 93005 for the
-tracing unless the note says the tracing came from elsewhere. In an emergency
-department encounter bill no ECG code. Verify the selected procedure through
-the existing lookup and rendered-descriptor route; these rules do not supply
-a CPT descriptor.
+and `definition-data-analyzed`. In an office or clinic encounter where the
+shorthand records his own read of an ECG traced at that office, bill 93000 and
+count the ECG toward nothing in the data element (ADR 0443). The note carries
+his read as a written interpretation and report, not a bare "normal"; where the
+shorthand records only "normal" or no findings, put one question in the run's
+existing pre-approval questions asking for his findings, and until he answers
+bill 93005 and count the ECG as one test ordered. If the tracing came from
+elsewhere, bill no ECG code and count his read as a test ordered and an
+independent interpretation. In an emergency department encounter bill no ECG
+code, and count his read as a test ordered and an independent interpretation.
+Verify the selected procedure through the existing lookup and
+rendered-descriptor route; these rules do not supply a CPT descriptor.
 
 Remove the skill-proposed orders and re-derive the elements and supported level.
 If the level becomes lower, append this exact inline mark to the E/M line:
@@ -937,14 +942,17 @@ no risk while hypertension is left out.
 **Synthetic worked case — an office ECG.** A new office patient's chest pain
 is evaluated by the clinician as an undiagnosed new problem with uncertain
 prognosis. The shorthand records his own read of an ECG traced at that office;
-it records no treatment or disposition consistent with a threat to life. Apply
-`table-moderate`, `definition-independent-interpretation`,
-`definition-data-analyzed`, and `mdm-two-of-three`: count the ECG as a test
-ordered and as an independent interpretation. Moderate problems and moderate
-data support 99204 even with low risk. Add 93005 for the office tracing;
-bill neither 93000 nor 93010. If the tracing came from elsewhere, omit 93005;
-in an emergency department encounter, bill no ECG code and select from the
-ED E/M family. The pass's own proposed workup supplies no threat-to-life count.
+it records no treatment or disposition consistent with a threat to life, and
+his read names rate, rhythm, intervals and ST segments. Apply `table-low`,
+`table-moderate`, `definition-data-analyzed`, and `mdm-two-of-three`: bill
+93000, which reports his interpretation, so the ECG counts toward nothing in
+the data element (ADR 0443). Moderate problems, minimal data and low risk
+support 99203. Had the tracing come from elsewhere, he would bill no ECG code
+and his read would count as a test ordered and an independent interpretation,
+so moderate problems and moderate data would support 99204. In an emergency
+department encounter, bill no ECG code, count it the same way, and select
+from the ED E/M family. The pass's own proposed workup supplies no
+threat-to-life count.
 
 The first authenticated 2026 reader confirms the ebook identifier and edition
 against the procedure database's CPT `source` row before transcribing. The rendered
