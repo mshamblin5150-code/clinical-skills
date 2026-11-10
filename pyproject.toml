@@ -1,0 +1,22 @@
+# Development-only tools; clinical commands remain standard-library-only.
+[dependency-groups]
+dev = ["ruff>=0.14,<1", "mypy>=1.18,<2"]
+
+[tool.ruff]
+target-version = "py310"
+include = ["tools/*.py", "skills/**/*.py"]
+force-exclude = true
+extend-exclude = ["scratch", "output", "cases", "patients", "fixtures", "reference", ".claude", ".codex", ".venv"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["tools", "skills"]
+exclude = '(^|/)(scratch|output|cases|patients|fixtures|reference|\.claude|\.codex|\.venv)/'
+check_untyped_defs = true
+warn_unused_ignores = true
+show_error_codes = true
+follow_imports = "silent"
+cache_dir = "scratch/python-quality-cache/mypy"
