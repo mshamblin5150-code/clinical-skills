@@ -151,6 +151,19 @@ A 2023 payer intervention grid credits parenteral medication once, at Level 4
 (BCBS Texas CPCP003). An uncapped per-dose count of a service that is also
 billed separately has no counterpart in any tool read.
 
+**Payers now check facility levels by algorithm.** Two 2026 payer policies
+read for this sheet re-level discharged ED claims from the diagnoses and the
+services billed, not from the hospital's sheet: Kaiser Permanente Washington
+uses Optum's EDC Analyzer, which it says derives from a hospital product used
+by more than 1,500 hospitals, and Premera's program adjusts discharged 99284
+and 99285 claims by one or two levels. Both exclude admitted patients. A
+facility level that rests on items leaving no trace on the claim is the level
+such a program is most likely to lower. An ACEP 2023 facility-coding talk also
+notes that OPPS packages some services into the ED visit, such as the EKG
+technical component and many laceration repairs; counting a packaged service
+toward the level is not double payment. That point was not re-checked against
+the 2026 status indicators, whose file sits behind an AMA license click-through.
+
 **What this means for checking a facility sheet.** A facility level is
 correct when it matches the hospital's own written sheet, applied to what the
 nursing and ED record documents. It is not checked against the CPT MDM table,
@@ -190,6 +203,9 @@ American Medical Association; this sheet quotes none of that content.
 | CorroHealth, Emergency Department – Charge Process, December 2023 (private consultant) | https://apps.para-hcfs.com/pde/documents/Emergency%20Charge%20Process%20-June%202022%20Update%20edited.pdf | `237c689f0196b7a18c14c85085e7379c63ada98f9290293092098560ff0c996e` |
 | CorroHealth, Facility Fee E/M Coding and Billing, January 2025 (private consultant) | https://apps.para-hcfs.com/pde/documents/Facility%20EM%20Visit%20Coding%20and%20Billing%202023.pdf | `1e5fd2822ecab9dc6d28105275323345ca3d11484de2db6dca5a50c507a75804` |
 | BCBS Texas CPCP003, ED E/M Coding – Facility, effective 2023-10-25 (payer policy) | https://www.bcbstx.com/docs/provider/tx/standards/clinical-pay-coding/2023/cpcp003-ed-em-coding-facility-10252023.pdf | `47cbbab4060e02fded3ea26c17497ca15f90fc971d800264fd4e7d6f514a5e39` |
+| Kaiser Permanente Washington, ED Facility E/M Coding Policy, revised 2024-01-09 (payer policy) | https://wa-provider.kaiserpermanente.org/static/pdf/provider/billing-claims/emergency-department.pdf | `230ddfffeadd72fdae40a04449b5ed392ccd0c386999aa036d16858d11204a6c` |
+| Premera, ED Facility Coding Program provider guide, 2026-07-23 (payer guide) | https://www.premera.com/documents/071777.pdf | `5689dc41348baa4352de1b170202aa3f577c811f387d7c6311d11029687d344b` |
+| ACEP, Facility Reimbursement for ED Services: Key 2023 Updates (Granovsky; copy supplied by the clinician) | https://www.acep.org/siteassets/sites/rc/media/presentations/coding/lightningrounds2023facility_granovsky.pdf | `f086c39ef3737a0c160c8e094636ec82f9059a6e5ac5d4d352028de293969fac` |
 
 **What rests on secondary or unopened sources:** the Marshfield provenance and
 the Novitas "aids only" description; the existence and content of point
