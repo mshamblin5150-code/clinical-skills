@@ -859,13 +859,22 @@ apply `-25` from the passing sheet's `modifier-25` entry when the note supports
 it. Whether the E/M work is significant and separately identifiable remains
 a reading of the note; reporting the procedure alone does not settle that reading.
 
-**Directed agents.** Apply the risk entry `table-moderate` to a **Directed agent**
-as defined in [CONTEXT.md](../../CONTEXT.md). An over-the-counter agent the
-clinician directs in the Plan with a dose and directions is prescription drug
-management under [ADR 0292](../../docs/adr/0292-directed-otc-agents-are-drug-management-and-modifier-25-joins-the-committed-cpt-sheet.md).
+**Directed agents.** Grade a **Directed agent** as defined in
+[CONTEXT.md](../../CONTEXT.md) under
+[ADR 0442](../../docs/adr/0442-a-directed-over-the-counter-agent-is-graded-by-the-patient-s-documented-risk-and-a-prescription-written-for-it-does-not-raise-the-risk.md).
+An over-the-counter agent the clinician directs in the Plan with a dose and
+directions counts toward `table-moderate` as prescription drug management only
+where his shorthand or recorded answer states its patient-specific risk;
+otherwise it supports no more than low risk, and a prescription written for it
+does not change that. When that moderate reading would raise the level and no
+risk is stated, select the lower level and put one question in the run's
+existing pre-approval questions: whether the agent carried a patient-specific
+risk he weighed, naming both levels. Where pre-approval questions are
+delegated, the lower level stands; the pass never supplies the reason.
 General advice naming an option without a dose and directions counts toward
-nothing. A skill-proposed drug counts as prescription drug management where it
-treats a problem the clinician addressed. A proposed drug for a condition left
+nothing. A skill-proposed prescription drug counts as prescription drug
+management where it treats a problem the clinician addressed; a skill-proposed
+over-the-counter agent is graded as above. A proposed drug for a condition left
 out under *Problems addressed* counts for nothing.
 
 Re-derive two of three elements without the skill-proposed drugs. If the
