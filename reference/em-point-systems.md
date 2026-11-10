@@ -1,11 +1,14 @@
 # E/M point systems
 
-**This sheet never selects an E/M level.** `icd10-cpt` step 5 selects ED and
-office levels from the passing `reference/cpt-em-mdm-<edition>.md` sheet whose
+**This sheet never selects a professional E/M level.** `icd10-cpt` step 5
+selects the clinician's ED and office levels from the passing `reference/cpt-em-mdm-<edition>.md` sheet whose
 edition covers the service date, or from the rendered CPT book where step 5
-sends it. This sheet explains what an "E/M point system" or audit score sheet
-is, why it does not select those levels, and where habits learned from one
-miscount under the CPT table. It cites the CPT sheet's entries by name; where a
+sends it. "E/M point system" names two different things. One is the 1995/1997
+professional audit score sheet: this sheet explains why it does not select a
+professional level and where its habits miscount under the CPT table. The other
+is a hospital's ED facility-level sheet, which scores nursing and facility
+resources for the hospital's own claim; see *ED facility-level point sheets*
+below. It cites the CPT sheet's entries by name; where a
 summary below and an entry differ, the entry governs.
 
 ## What a point sheet is
@@ -97,10 +100,56 @@ Vendor articles found in search claim a 2026 revision of the MDM risk table and
 cite no AMA or CMS source. The committed sheet transcribes the 2026 book, so it
 describes the 2026 table.
 
+## ED facility-level point sheets
+
+A hospital reports its own ED visit level (99281–99285) on the facility claim,
+separately from the clinician's professional level. For that facility level,
+CMS has not adopted national guidelines. The CY 2008 OPPS final rule says
+hospitals report clinic and ED visits by their own internal guidelines
+(72 FR 66805–66807). These guidelines are typically a point sheet that scores
+nursing interventions, monitoring, procedures assisted, medications given and
+disposition, then maps the point total to a level band.
+
+The rule lists 11 principles those guidelines should meet (72 FR 66805). They
+include that the guidelines:
+
+- reasonably relate the intensity of hospital resources to the different
+  levels of effort the code represents;
+- are based on hospital facility resources, not physician resources;
+- are clear enough for accurate payment, compliance and audits;
+- require only documentation that is clinically necessary for patient care;
+- do not facilitate upcoding or gaming;
+- are written or recorded, and provide the basis for selecting a specific code;
+- are applied consistently across patients in the department;
+- produce coding decisions that other hospital staff and outside sources can
+  verify.
+
+The same rule says hospitals may decide whether separately payable services
+count as a proxy for hospital resource use (72 FR 66806). It says 99291 still
+requires 30 minutes or more of critical care, and that with less, the hospital
+reports the ED visit level its internal guidelines support (72 FR 66806–66807).
+No later OPPS rule was read for this sheet, so it does not establish that this
+position is unchanged in 2026.
+
+**What this means for checking a facility sheet.** A facility level is
+correct when it matches the hospital's own written sheet, applied to what the
+nursing and ED record documents. It is not checked against the CPT MDM table,
+and the professional level does not decide it. A human check re-tallies each
+documented item at the sheet's value, applies the sheet's count limits (for
+example, items marked "once"), and recomputes the total and band. It also
+confirms the sheet's exclusions and order requirements and routes critical care
+to its own rules.
+
+**A site's sheet is account-owned and is not tracked here.** Each hospital's
+items, point values and bands are its own. Like other practicum-site details,
+they belong in the account's private material, not in this public repository.
+The skills in this repository select the professional level only; none of them
+selects a facility level.
+
 ## Sources
 
-Read on 2026-11-10 from cms.gov. The 1995 and 1997 guidelines are federal
-works. MLN006764 is a CMS publication whose CPT content is copyrighted by the
+Read on 2026-11-10 from cms.gov, except the OPPS rule, read from govinfo.gov.
+The 1995 and 1997 guidelines and the OPPS rule are federal works. MLN006764 is a CMS publication whose CPT content is copyrighted by the
 American Medical Association; this sheet quotes none of that content.
 
 | Document | URL | SHA-256 of the file read |
@@ -108,6 +157,7 @@ American Medical Association; this sheet quotes none of that content.
 | 1997 Documentation Guidelines for E/M Services | https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnedwebguide/downloads/97docguidelines.pdf | `105e2b1e6e802a5020a4454ed5b9e4bfa356822bef0031682d72c7f1883d56ab` |
 | 1995 Documentation Guidelines for E/M Services | https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnedwebguide/downloads/95docguidelines.pdf | `186a217526c8b0fae16151ee69344c7073c80bdd78b612aa991a5911c604ff05` |
 | MLN006764, Evaluation and Management Services, May 2026 | https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnproducts/downloads/eval-mgmt-serv-guide-icn006764.pdf | `2b2f327d70a599cfedad8b30c7112e66073ca9c60b9a3823c4a4224392f45c82` |
+| CY 2008 OPPS final rule, 72 FR 66580 (Nov. 27, 2007), ED and clinic visit guidelines at 66805–66807 | https://www.govinfo.gov/content/pkg/FR-2007-11-27/html/07-5507.htm | `716a1483c3eb1090cf48ae4b689a0241426817714c64387077b9f122d265c468` |
 
 **What rests on secondary or unopened sources:** the Marshfield provenance and
 the Novitas "aids only" description; the existence and content of point
