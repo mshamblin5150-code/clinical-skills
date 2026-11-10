@@ -143,7 +143,7 @@ the Medicare level; the ED keeps five levels.
 
 **Separately payable services are where published practice divides.** CMS
 first objected that counting them "could result in the double counting of
-hospital resources" (72 FR 66802), then left the choice to hospitals as a
+hospital resources" (72 FR 66800), then left the choice to hospitals as a
 proxy for resource use not associated with those services (72 FR 66806).
 Two consultant guides read for this sheet say a separately billable service
 should not factor into the level (CorroHealth, December 2023 and January 2025).
