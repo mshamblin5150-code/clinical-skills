@@ -846,6 +846,11 @@ two-reader procedure. If that live reading cannot be completed, the E/M line
 stays pending. The database and this prose never
 substitute for the sheet or required rendered page.
 
+An E/M point system or audit score sheet built on the CMS 1995 or 1997
+documentation guidelines never selects a level either;
+[reference/em-point-systems.md](../../reference/em-point-systems.md) explains
+why and where its counting habits disagree with the CPT sheet.
+
 The freshness gate still requires a committed sheet covering the service date;
 a live reading cannot carry the 2026 sheet into a later edition.
 
