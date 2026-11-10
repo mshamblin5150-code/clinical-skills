@@ -158,11 +158,22 @@ uses Optum's EDC Analyzer, which it says derives from a hospital product used
 by more than 1,500 hospitals, and Premera's program adjusts discharged 99284
 and 99285 claims by one or two levels. Both exclude admitted patients. A
 facility level that rests on items leaving no trace on the claim is the level
-such a program is most likely to lower. An ACEP 2023 facility-coding talk also
-notes that OPPS packages some services into the ED visit, such as the EKG
-technical component and many laceration repairs; counting a packaged service
-toward the level is not double payment. That point was not re-checked against
-the 2026 status indicators, whose file sits behind an AMA license click-through.
+such a program is most likely to lower.
+
+**Which ED services Medicare pays separately decides whether a point is a
+proxy or a second payment.** In the October 2026 OPPS Addendum B, ED visits
+99281–99285 and critical care 99291 carry status indicator J2; IV push and
+infusion codes carry S; the IV start and pulse oximetry carry N (packaged);
+clinical laboratory tests carry Q4, conditionally packaged when billed with a
+J2 service; and the EKG tracing, nebulizer treatment, simple laceration repair
+and Foley placement carry Q1. Addendum D1 defines Q1 as packaged when billed
+with a status S, T or V service, so whether those Q1 services fold into an
+ED-only claim was not settled from the definitions alone. An ACEP 2023
+facility-coding talk describes ED visits as status V; the 2026 files show J2.
+When the ED visit is followed by 8 or more hours of observation, the claim is
+paid as one comprehensive payment (C-APC 8011) and the ED level does not change
+the Medicare payment. These files are licensed from the AMA for internal use;
+this sheet records status indicators only, no CPT descriptors.
 
 **What this means for checking a facility sheet.** A facility level is
 correct when it matches the hospital's own written sheet, applied to what the
@@ -206,6 +217,8 @@ American Medical Association; this sheet quotes none of that content.
 | Kaiser Permanente Washington, ED Facility E/M Coding Policy, revised 2024-01-09 (payer policy) | https://wa-provider.kaiserpermanente.org/static/pdf/provider/billing-claims/emergency-department.pdf | `230ddfffeadd72fdae40a04449b5ed392ccd0c386999aa036d16858d11204a6c` |
 | Premera, ED Facility Coding Program provider guide, 2026-07-23 (payer guide) | https://www.premera.com/documents/071777.pdf | `5689dc41348baa4352de1b170202aa3f577c811f387d7c6311d11029687d344b` |
 | ACEP, Facility Reimbursement for ED Services: Key 2023 Updates (Granovsky; copy supplied by the clinician) | https://www.acep.org/siteassets/sites/rc/media/presentations/coding/lightningrounds2023facility_granovsky.pdf | `f086c39ef3737a0c160c8e094636ec82f9059a6e5ac5d4d352028de293969fac` |
+| CMS OPPS Addendum B, October 2026 (license-gated; read under the AMA end-user agreement) | https://www.cms.gov/files/zip/October-2026-OPPS-Addendum-B.zip | `2fc507a1fa6715eb2c702049a18912a33017003606550f61345ae1b48b00bf5b` |
+| CMS CY 2026 OPPS final rule addenda, including D1 status indicator definitions (license-gated) | https://www.cms.gov/files/zip/2026-nfrm-opps-addenda.zip | `602a0d556468ce036f1d2f0bce8872ec8610c526504893ba0fa0fb414212cff0` |
 
 **What rests on secondary or unopened sources:** the Marshfield provenance and
 the Novitas "aids only" description; the existence and content of point
