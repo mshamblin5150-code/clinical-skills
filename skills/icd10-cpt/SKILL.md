@@ -781,6 +781,15 @@ never "not done": "no prescription drug management documented", rather than
 [ADR 0376](../../docs/adr/0376-a-filled-sig-fits-the-entered-diagnosis-and-the-e-m-reasoning-says-not-documented-rather-than-not-done.md)
 ruling 2 and leaves the level unchanged.
 
+**The office check sheet.** For an office or other outpatient E/M level
+(99202–99215), apply the house rules, counting notes and documentation checks in
+[office-mdm-check.md](../../reference/office-mdm-check.md) alongside the passing
+sheet. It never supports a level the CPT text does not, and its level-changing
+questions join the run's existing pre-approval questions. The
+[ED facility grid](../../reference/ed-facility-grid.md) sets the hospital's
+level and is never used for the clinician's. These rules follow
+[ADR 0444](../../docs/adr/0444-the-repository-carries-a-tested-ed-facility-grid-and-office-mdm-check-sheet.md).
+
 **Problems addressed.** Apply `definition-problem-addressed` from the passing
 sheet. Count a condition only where the clinician's shorthand or recorded answer
 shows he evaluated or treated it this visit. A skill-proposed Plan line for a

@@ -202,6 +202,38 @@ they belong in the account's private material, not in this public repository.
 The skills in this repository select the professional level only; none of them
 selects a facility level.
 
+## The tested sheets this repository carries
+
+[ADR 0444](../docs/adr/0444-the-repository-carries-a-tested-ed-facility-grid-and-office-mdm-check-sheet.md)
+adopted two sheets after testing them with independent coders on two synthetic
+65-case panels drawn to the national visit mix:
+
+- [ed-facility-grid.md](ed-facility-grid.md), a hospital facility-level grid
+  built on the BCBS Texas CPCP003 items (each departure marked). A grid sets
+  the level from the highest item documented, so it has no bands to tune; a
+  point sheet in this test scored lower agreement and was not adopted.
+- [office-mdm-check.md](office-mdm-check.md), the clinician's house rules and
+  counting notes for an office level, citing the committed CPT entries by id.
+  `icd10-cpt` step 5 applies it.
+
+**What the research found on the questions the grid had to decide**
+(each answer checked by a second reader, 2026-11-10):
+
+- **Imaging.** No source says whether staff "preparation" for imaging must be
+  charted separately. Payer algorithms (Kaiser Permanente Washington, Premera)
+  read the diagnostic lines billed, and a CorroHealth example sheet scores
+  "diagnostics ordered—imaging," so the grid takes an ordered-and-performed
+  study as the evidence. CMS permits the proxy (72 FR 66806).
+- **Moderate sedation.** The sedation codes 99151–99157 are packaged (status N)
+  in the October 2026 Addendum B; BCBS Texas lists procedural sedation at
+  Level 5 with no exclusion for a separately paid procedure.
+- **Serial cardiac studies and temperature instability.** BCBS Texas names
+  both at Level 5 and defines neither; no other source read does. The count
+  and the thresholds are the grid's stated choices.
+- **The office ECG.** CPT settles the global code (93000 counts nothing toward
+  data); a tracing-only claim's interpretation credit is unsettled, which is
+  [ADR 0443](../docs/adr/0443-an-office-ecg-the-clinician-reads-is-billed-with-its-interpretation-and-counts-nothing-toward-data.md).
+
 ## Sources
 
 Read on 2026-11-10. CMS documents came from cms.gov and the OPPS rules from
