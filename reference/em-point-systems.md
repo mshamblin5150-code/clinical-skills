@@ -128,8 +128,28 @@ The same rule says hospitals may decide whether separately payable services
 count as a proxy for hospital resource use (72 FR 66806). It says 99291 still
 requires 30 minutes or more of critical care, and that with less, the hospital
 reports the ED visit level its internal guidelines support (72 FR 66806–66807).
-No later OPPS rule was read for this sheet, so it does not establish that this
-position is unchanged in 2026.
+Later rules keep that position. The CY 2014 OPPS final rule collapsed
+hospital clinic visits into the single code G0463 but did not finalize
+discontinuing "five distinct visit levels for Type A ED visits"
+(78 FR 75042). The CY 2016 rule declined national guidelines as "disruptive
+and administratively burdensome" to hospitals with working internal guidelines
+(80 FR 70449). The CY 2023 rule repeats that one national set is unlikely to fit
+all ED visits (87 FR 71992). The CY 2026 and CY 2027 rules continue the current
+clinic and ED visit policies (90 FR 53770; 91 FR 70561). The Medicare Claims
+Processing Manual, chapter 4, section 160, tells hospitals to "continue to apply
+their current internal guidelines to the existing CPT codes." Because Medicare
+pays a hospital clinic visit as one code, a clinic point sheet does not change
+the Medicare level; the ED keeps five levels.
+
+**Separately payable services are where published practice divides.** CMS
+first objected that counting them "could result in the double counting of
+hospital resources" (72 FR 66802), then left the choice to hospitals as a
+proxy for resource use not associated with those services (72 FR 66806).
+Two consultant guides read for this sheet say a separately billable service
+should not factor into the level (CorroHealth, December 2023 and January 2025).
+A 2023 payer intervention grid credits parenteral medication once, at Level 4
+(BCBS Texas CPCP003). An uncapped per-dose count of a service that is also
+billed separately has no counterpart in any tool read.
 
 **What this means for checking a facility sheet.** A facility level is
 correct when it matches the hospital's own written sheet, applied to what the
@@ -148,8 +168,11 @@ selects a facility level.
 
 ## Sources
 
-Read on 2026-11-10 from cms.gov, except the OPPS rule, read from govinfo.gov.
-The 1995 and 1997 guidelines and the OPPS rule are federal works. MLN006764 is a CMS publication whose CPT content is copyrighted by the
+Read on 2026-11-10. CMS documents came from cms.gov and the OPPS rules from
+govinfo.gov; the consultant guides and the payer policy came from their
+publishers' sites. The 1995 and 1997 guidelines and the OPPS rules are federal
+works; the consultant guides and the payer policy are not and are summarized,
+not reproduced. MLN006764 is a CMS publication whose CPT content is copyrighted by the
 American Medical Association; this sheet quotes none of that content.
 
 | Document | URL | SHA-256 of the file read |
@@ -158,6 +181,15 @@ American Medical Association; this sheet quotes none of that content.
 | 1995 Documentation Guidelines for E/M Services | https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnedwebguide/downloads/95docguidelines.pdf | `186a217526c8b0fae16151ee69344c7073c80bdd78b612aa991a5911c604ff05` |
 | MLN006764, Evaluation and Management Services, May 2026 | https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnproducts/downloads/eval-mgmt-serv-guide-icn006764.pdf | `2b2f327d70a599cfedad8b30c7112e66073ca9c60b9a3823c4a4224392f45c82` |
 | CY 2008 OPPS final rule, 72 FR 66580 (Nov. 27, 2007), ED and clinic visit guidelines at 66805–66807 | https://www.govinfo.gov/content/pkg/FR-2007-11-27/html/07-5507.htm | `716a1483c3eb1090cf48ae4b689a0241426817714c64387077b9f122d265c468` |
+| CY 2014 OPPS final rule, FR Doc 2013-28737, 78 FR 75038–75042 | https://www.govinfo.gov/content/pkg/FR-2013-12-10/html/2013-28737.htm | `04886eab6bb98b18187ad6465c5835cc84b9730be8bfc426f0976fa1cfcd6125` |
+| CY 2016 OPPS final rule, FR Doc 2015-27943, 80 FR 70448–70449 | govinfo.gov, FR Doc 2015-27943 | `8d9e33a2420824c5b3c70b9c62d246fdec670f2fdf37fc124084a9f75b033939` |
+| CY 2023 OPPS final rule, FR Doc 2022-23918, 87 FR 71992 | govinfo.gov, FR Doc 2022-23918 | `59d837e6a363eede8e352e6e3b5bd90d3f703b8485509c4397cbc54d98c3c970` |
+| CY 2026 OPPS final rule, FR Doc 2025-20907, 90 FR 53770 | govinfo.gov, FR Doc 2025-20907 | `d4d123d1c099b7be2ad64833f2d40242b0208eedb1d308dc7ec1f32f864f0973` |
+| CY 2027 OPPS final rule, FR Doc 2026-22739, 91 FR 70561 | govinfo.gov, FR Doc 2026-22739 | `969f79354c72b08ea322bab3be911a5c7f6382460e861baa58da611dd5c4aeb0` |
+| Medicare Claims Processing Manual, chapter 4, section 160 | https://www.cms.gov/Regulations-and-Guidance/Guidance/Manuals/downloads/clm104c04.pdf | `579dcaf4e8fc851846556666a2c4c24f265ea634e924097bd9e60169f5802ba6` |
+| CorroHealth, Emergency Department – Charge Process, December 2023 (private consultant) | https://apps.para-hcfs.com/pde/documents/Emergency%20Charge%20Process%20-June%202022%20Update%20edited.pdf | `237c689f0196b7a18c14c85085e7379c63ada98f9290293092098560ff0c996e` |
+| CorroHealth, Facility Fee E/M Coding and Billing, January 2025 (private consultant) | https://apps.para-hcfs.com/pde/documents/Facility%20EM%20Visit%20Coding%20and%20Billing%202023.pdf | `1e5fd2822ecab9dc6d28105275323345ca3d11484de2db6dca5a50c507a75804` |
+| BCBS Texas CPCP003, ED E/M Coding – Facility, effective 2023-10-25 (payer policy) | https://www.bcbstx.com/docs/provider/tx/standards/clinical-pay-coding/2023/cpcp003-ed-em-coding-facility-10252023.pdf | `47cbbab4060e02fded3ea26c17497ca15f90fc971d800264fd4e7d6f514a5e39` |
 
 **What rests on secondary or unopened sources:** the Marshfield provenance and
 the Novitas "aids only" description; the existence and content of point
