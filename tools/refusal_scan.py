@@ -162,7 +162,7 @@ class Scan:
 
 def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
     """The refusal block's lines, to ``ANY_HEADING`` from the first heading, through the one reader."""
-    return step_four_block(lines, REFUSAL_HEADING, ANY_HEADING, em_section=False)
+    return step_four_block(lines, REFUSAL_HEADING, ANY_HEADING)
 
 
 def _entry_sets(lines: list[str]) -> tuple[set[str], set[str]]:

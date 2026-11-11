@@ -265,8 +265,8 @@ def selected_em_lines(lines: list[str], read: tuple[str, list[WorksheetEntry]] |
 class Anchored:
     """A worksheet's lines with its selected E/M lines numbered over them, built together.
 
-    ``anchored`` and ``resplit`` are the only constructors, so a quotation can never pair one
-    splitting's lines with another splitting's anchors.
+    ``anchored`` is its constructor, so ``worksheet_em_block`` can never be handed one splitting's
+    lines with another splitting's anchors.
     """
 
     lines: tuple[str, ...]
@@ -276,19 +276,6 @@ class Anchored:
 def anchored(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> Anchored:
     """``lines`` with ``selected_em_lines`` of them; ``read`` as ``selected_em_lines`` takes it."""
     return Anchored(tuple(lines), selected_em_lines(list(lines), read))
-
-
-def resplit(physical: Anchored) -> Anchored:
-    """The worksheet of ``physical`` (split on LF) split as ``str.splitlines`` splits it, anchors renumbered.
-
-    A line holding another ``str.splitlines`` separator splits there, so each anchor moves to where
-    its LF line starts among the new lines; a selected line opens at its LF line's start.
-    """
-    starts, position = [], 0
-    for line in physical.lines:
-        starts.append(position)
-        position += len((line + "\n").splitlines())
-    return Anchored(tuple("\n".join(physical.lines).splitlines()), frozenset(starts[index] for index in physical.selected))
 
 
 def physical_lines(text: str) -> list[str]:
@@ -337,70 +324,36 @@ def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> 
     return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
 
 
-def step_four_block(lines: list[str] | Anchored, heading: re.Pattern[str], end: re.Pattern[str], *,
-                    every: bool = False, em_section: bool = True) -> tuple[list[str], bool]:
-    """The lines under an icd10-cpt step 4 heading, and whether it was found: the one block reader.
+def step_four_lines(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False) -> tuple[list[int], bool]:
+    """The indexes of the lines under an icd10-cpt step 4 heading, and whether it was found.
 
-    The caller supplies the lines, split as it splits them, and its terminator: refusal_scan reads
-    to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING`` under ``every``
-    heading. The graders pass ``em_section=False`` and read every line, the E/M section included,
-    as block text, which grades nothing in either of them on the placement em-elements.md defines
-    (measured in test_em_audit). The check-off's quotation keeps ``em_section``: inside a block, a
-    selected E/M line that opens its element block is skipped with the EM- lines of its body, and
-    every other line of that body is kept as the grader reads it, so a worksheet without an element
-    block quotes exactly the grader's lines. ``lines`` is plain lines, whose anchors are computed
-    here when ``em_section`` needs them, or an ``Anchored`` value carrying them.
+    The one block reader. The caller supplies the lines, split as it splits them, and its
+    terminator: refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to
+    ``OTHER_HEADING`` under ``every`` heading. Every line is block text, the E/M section included;
+    on the placement em-elements.md defines that grades nothing in either grader (measured in
+    test_em_audit). The E/M audit check-off filters its own quotation from these indexes.
     """
-    collected: list[str] = []
+    collected: list[int] = []
     found = inside = False
-    if isinstance(lines, Anchored):
-        lines, selected = list(lines.lines), lines.selected
-    else:
-        selected = selected_em_lines(lines) if em_section else frozenset()
-    if not em_section:
-        selected = frozenset()
-    skipped: set[int] = set()
-    index = 0
-    while index < len(lines):
-        line = lines[index]
+    for index, line in enumerate(lines):
         if heading.match(line) and (every or not found):
             found = inside = True
-        elif inside and (body := element_body_end(lines, index, selected)) is not None:
-            skipped.update(follower for follower in range(index + 1, body) if EM_CANDIDATE.match(lines[follower]))
-        elif index in skipped:
-            pass
         elif inside and end.match(line):
             inside = False
             if not every:
                 break
         elif inside:
-            collected.append(line)
-        index += 1
+            collected.append(index)
     return collected, found
 
 
-# How the check-off quotes each block: with the terminator, iteration and line splitting of the
-# grader that grades it. The undocumented block has no grader and takes refusal_scan's rule.
-BLOCK_READERS = {
-    "filled": (OTHER_HEADING, True),
-    "refusal": (ANY_HEADING, False),
-    "undocumented": (ANY_HEADING, False),
-}
+def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False) -> tuple[list[str], bool]:
+    """``step_four_lines``'s lines themselves, as the graders read them."""
+    indexes, found = step_four_lines(lines, heading, end, every=every)
+    return [lines[index] for index in indexes], found
 
-
-def block_text(text: str, heading: re.Pattern[str], kind: str, lines: Anchored | None = None) -> str | None:
-    """One icd10-cpt step 4 block as ``step_four_block`` quotes it (``BLOCK_READERS``); None without its heading.
-
-    ``lines`` is ``text.splitlines()`` with its anchors, passed by a caller quoting several blocks
-    of one worksheet; lines of any other splitting or text are refused with ``ValueError``.
-    """
-    end, every = BLOCK_READERS[kind]
-    if lines is None:
-        lines = text.splitlines()
-    elif lines.lines != tuple(text.splitlines()):
-        raise ValueError("the anchored lines are not this text split as the graders split it")
-    collected, found = step_four_block(lines, heading, end, every=every)
-    return "\n".join(collected).strip("\n") if found else None
 
 # Every line that tries to be an element line: any upper-case EM- name, and the eight element
 # names in any case, after an optional bullet or bold. A near miss is a candidate the strict

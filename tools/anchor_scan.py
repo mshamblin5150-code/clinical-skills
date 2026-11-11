@@ -275,7 +275,7 @@ class Scan:
 
 def _block_lines(text: str) -> tuple[list[str], bool]:
     """The ``icd10-cpt`` step-4 block's lines under every heading, and whether one was found."""
-    return step_four_block(text.splitlines(), BLOCK_HEADING, OTHER_HEADING, every=True, em_section=False)
+    return step_four_block(text.splitlines(), BLOCK_HEADING, OTHER_HEADING, every=True)
 
 
 def read_worksheet(text: str) -> Worksheet:

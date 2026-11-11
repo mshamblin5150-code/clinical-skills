@@ -25,8 +25,10 @@ selects the lower one.
 
 One element block per note, in the em-elements.md line format, at
 `<run>/em-audit/rederivation/<note stem>.md`. The reader stages it; the orchestrator places it.
-The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0` and
-`damaged 0` among the re-derivations, and its `agree` and `differ` counts add up to the notes in the
-run: a re-derivation is placed for every note, with no re-derivation line unread. Other causes the
+The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0`,
+`damaged 0` and `findings 0` among the re-derivations, and its `agree` and `differ` counts add up to
+the notes in the run: a re-derivation is placed for every note, with no re-derivation line unread
+and no re-derivation finding. The re-derivation is held to the worksheet block's rules, so a
+`FINDING (re-derivation)` line is repaired in the record and the record placed again. Other causes the
 `unread remainder` counts, such as an unreadable answers record or a private worksheet
 fingerprint not yet recorded, go to their own repair in em-audit step 1 and do not hold this step.

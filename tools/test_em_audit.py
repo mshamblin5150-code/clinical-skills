@@ -425,7 +425,8 @@ class ReviewFindings(RunFixture):
                   if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
         self.assertNotIn("system_key", defined)
         self.assertNotIn("entry_is_for_entry", called)
-        self.assertTrue({"read_entries", "paired_entry"} <= called, called)
+        # Fifteenth review: ownership is entry_walk's, whose field rule is detail_belongs_to_entry's (test_h9).
+        self.assertTrue({"read_entries", "entry_walk"} <= called, called)
 
     def test_f10_the_terminal_grader_imports_the_gate_lazily_and_names_the_run_once(self):
         # Seventh review: the module-level import loaded the approval and manifest stack on every
@@ -906,7 +907,7 @@ class SixthReviewFindings(RunFixture):
                         (worksheet_grammar.REFUSAL_HEADING, "refusal", refusal_scan._block_lines(text.splitlines())[0]),
                         (worksheet_grammar.BLOCK_HEADING, "filled", anchor_scan._block_lines(text)[0])):
                     self.assertEqual("\n".join(line for line in lines if line not in section).strip("\n"),
-                                     worksheet_grammar.block_text(text, heading, kind))
+                                     em_audit.block_quote(em_audit.parse_private(text), heading, kind))
 
     def test_x3_a_refused_element_line_without_a_colon_is_left_out_of_the_comparison(self):
         self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
@@ -1298,7 +1299,7 @@ class TenthReviewFindings(RunFixture):
         self.assertNotIn("em_codes", inspect.signature(worksheet_grammar.worksheet_em_block).parameters)
         self.assertNotIn("em_codes", inspect.signature(worksheet_grammar.selected_em_lines).parameters)
         source = ast.unparse(next(node for node in ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8")).body
-                                  if isinstance(node, ast.FunctionDef) and node.name == "entry_details"))
+                                  if isinstance(node, ast.FunctionDef) and node.name == "entry_walk"))
         self.assertIn("indented_line", source)
         self.assertNotIn('" \\t"', source)
 
@@ -1449,7 +1450,8 @@ class EleventhReviewFindings(ProseBind, RunFixture):
                     text = body + extra
                     self.assertEqual(main_refusal_block_lines(text.splitlines()), refusal_scan._block_lines(text.splitlines()))
                     self.assertEqual(main_anchor_block_lines(text), anchor_scan._block_lines(text))
-                    self.assertNotIn("EM-", worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal"))
+                    self.assertNotIn("EM-", em_audit.block_quote(em_audit.parse_private(text),
+                                                                 worksheet_grammar.REFUSAL_HEADING, "refusal"))
                     reports = []
                     # The control keeps the E/M label line and drops only its element lines.
                     for content in (body + "\nE/M: 99283 low complexity\n", text):
@@ -1494,9 +1496,10 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         self.assertEqual(oldest, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(oldest)))
         # A fingerprint no version carries walks the whole history, the case a process per version made
         # long: HEAD's version, then one log and one batch (twelfth review: HEAD first).
-        with mock.patch.object(coding_freshness.subprocess, "run", wraps=subprocess.run) as run:
+        # Every process starts through Popen, subprocess.run's included.
+        with mock.patch.object(coding_freshness.subprocess, "Popen", wraps=subprocess.Popen) as popen:
             self.assertIsNone(coding_freshness.bound_sheet_version(path, "0" * 64))
-        self.assertLessEqual(run.call_count, 3)
+        self.assertLessEqual(popen.call_count, 3)
 
     def test_e10_the_re_derivation_done_condition_and_step_1_exit_2(self):
         rederivation = (SKILL.parent / "rederivation.md").read_text(encoding="utf-8")
@@ -1506,6 +1509,54 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         skill = SKILL.read_text(encoding="utf-8")
         step = skill.split("## 1.", 1)[1].split("## 2.", 1)[0]
         self.assertProseIn("unread remainder", step)
+
+
+class FakeBatch:
+    """A ``git cat-file --batch`` stand-in answering each request as it is written."""
+
+    def __init__(self, answers: dict[str, bytes], requests: list[str]) -> None:
+        self.answers, self.requests, self.buffer = answers, requests, b""
+        self.stdin, self.stdout = self, self
+
+    def write(self, data: bytes) -> None:
+        for request in data.decode("utf-8").splitlines():
+            self.requests.append(request)
+            self.buffer += self.answers[request.split(":", 1)[0]]
+
+    def flush(self) -> None:
+        pass
+
+    def readline(self) -> bytes:
+        line, _, self.buffer = self.buffer.partition(b"\n")
+        return line + b"\n"
+
+    def read(self, size: int) -> bytes:
+        data, self.buffer = self.buffer[:size], self.buffer[size:]
+        return data
+
+    def close(self) -> None:
+        pass
+
+    def wait(self) -> int:
+        return 0
+
+
+def fake_git(head: bytes, versions: list[tuple[str, bytes]]):
+    """``subprocess.run`` and ``subprocess.Popen`` stand-ins over ``versions``, and the batch requests made."""
+    commits = [f"{index:040x}" for index in range(1, len(versions) + 1)]
+    answers = {commit: (f"{commit} missing\n".encode() if kind == "missing"
+                        else f"{commit} {kind} {len(body)}\n".encode() + body + b"\n")
+               for commit, (kind, body) in zip(commits, versions)}
+    requests: list[str] = []
+
+    def run(command, **_):
+        if command[1] == "show":
+            return subprocess.CompletedProcess(command, 0, head, b"")
+        return subprocess.CompletedProcess(command, 0, "\0".join(commits).encode() + b"\0", b"")
+
+    def popen(command, **_):
+        return FakeBatch(answers, requests)
+    return run, popen, requests
 
 
 class TwelfthReviewFindings(ProseBind, RunFixture):
@@ -1573,7 +1624,8 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
         nested = PRIVATE.format(elements="  E/M: 99283 restated\n" + ELEMENTS)
         self.assertEqual(1, worksheet_grammar.worksheet_em_block(nested).blocks)
         refused = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n  E/M: 99283 restated\n" + ELEMENTS + "more\n"
-        self.assertEqual("refused\nmore", worksheet_grammar.block_text(refused, worksheet_grammar.REFUSAL_HEADING, "refusal"))
+        self.assertEqual("refused\nmore", em_audit.block_quote(em_audit.parse_private(refused),
+                                                                worksheet_grammar.REFUSAL_HEADING, "refusal"))
 
     def test_g2_a_check_off_reads_a_block_under_an_indented_label(self):
         self.write_private(PRIVATE.format(elements="").replace(
@@ -1593,22 +1645,8 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
         self.assertNotIn("private_worksheet_sha256", path.read_text(encoding="utf-8"))
 
     def fake_git(self, head: bytes, versions: list[tuple[str, bytes]]):
-        """A git stand-in: HEAD's bytes, then a log and a cat-file batch stream over ``versions``."""
-        commits = [f"{index:040x}" for index in range(1, len(versions) + 1)]
-
-        def run(command, **_):
-            if command[1] == "show":
-                return subprocess.CompletedProcess(command, 0, head, b"")
-            if command[1] == "log":
-                return subprocess.CompletedProcess(command, 0, "\0".join(commits).encode() + b"\0", b"")
-            stream = b""
-            for commit, (kind, body) in zip(commits, versions):
-                if kind == "missing":
-                    stream += f"{commit} missing\n".encode()
-                else:
-                    stream += f"{commit} {kind} {len(body)}\n".encode() + body + b"\n"
-            return subprocess.CompletedProcess(command, 0, stream, b"")
-        return run
+        """A git stand-in (run, Popen, requests): HEAD's bytes, a log, and a batch answering ``versions``."""
+        return fake_git(head, versions)
 
     def test_g4_and_g8_the_batch_reader_skips_every_object_by_its_size(self):
         import coding_freshness
@@ -1616,12 +1654,16 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
         wanted = b"the version the receipt bound\n"
         decoy = b"0" * 40 + b" blob 5\nlies!\n"  # a tree body that reads like a header
         stream = [("missing", b""), ("tree", decoy), ("blob", b"another version\n"), ("blob", wanted)]
-        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=self.fake_git(b"head\n", stream)) as run:
+        run, popen, _ = self.fake_git(b"head\n", stream)
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run) as runs, \
+                mock.patch.object(coding_freshness.subprocess, "Popen", side_effect=popen) as batches:
             self.assertEqual(wanted, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(wanted)))
-        self.assertEqual(3, run.call_count)
-        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=self.fake_git(wanted, stream)) as run:
+        self.assertEqual(3, runs.call_count + batches.call_count)
+        run, popen, _ = self.fake_git(wanted, stream)
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run) as runs, \
+                mock.patch.object(coding_freshness.subprocess, "Popen", side_effect=popen) as batches:
             self.assertEqual(wanted, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(wanted)))
-        self.assertEqual(1, run.call_count)  # HEAD matched: no history walk
+        self.assertEqual((1, 0), (runs.call_count, batches.call_count))  # HEAD matched: no history walk
 
     def test_g5_a_bound_sheet_version_that_does_not_parse_names_the_parse_failure(self):
         import coding_freshness
@@ -1643,8 +1685,8 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
                 calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)
                          and getattr(node.func, "id", "") == "step_four_block"]
                 self.assertEqual(1, len(calls))
-                self.assertIn(("em_section", False), [(keyword.arg, getattr(keyword.value, "value", None))
-                                                      for keyword in calls[0].keywords])
+                # Fifteenth review: step_four_block is the plain reader; nothing turns a skip off.
+                self.assertNotIn("em_section", [keyword.arg for keyword in calls[0].keywords])
 
     def test_g7_one_light_module_holds_the_row_the_run_records_and_the_not_graded_guards(self):
         import em_audit_scope
@@ -1798,18 +1840,17 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
         self.assertNotIn("entry_is_for_entry", imported)
 
     def test_h7_a_quotation_takes_its_lines_and_anchors_as_one_value(self):
+        # Fifteenth review: the quotation reads one PrivateWorksheet, which holds both splittings and
+        # the anchor positions together; worksheet_em_block still takes one Anchored value.
         import inspect
         import worksheet_grammar
-        for function in (worksheet_grammar.step_four_block, worksheet_grammar.block_text,
-                         worksheet_grammar.worksheet_em_block):
+        for function in (worksheet_grammar.step_four_block, worksheet_grammar.worksheet_em_block):
             self.assertNotIn("selected", inspect.signature(function).parameters, function.__name__)
+        self.assertEqual(["private", "heading", "kind"], list(inspect.signature(em_audit.block_quote).parameters))
         text = PRIVATE.format(elements=ELEMENTS)
-        other = worksheet_grammar.anchored((text + "\nextra line\n").splitlines())
+        other = worksheet_grammar.anchored((text + "\nextra line\n").split("\n"))
         with self.assertRaises(ValueError):
-            worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal", other)
-        own = worksheet_grammar.resplit(worksheet_grammar.anchored(worksheet_grammar.physical_lines(text)))
-        self.assertEqual(worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal"),
-                         worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal", own))
+            worksheet_grammar.worksheet_em_block(text, other)
 
     def test_h8_the_predates_branches_are_reached_from_the_command_and_never_inside_the_gate(self):
         import completion_checks
@@ -2002,6 +2043,86 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
         self.assertNotEqual(one, two)
         self.assertTrue(one.name.startswith("run-"), one)
         self.assertEqual(one, em_audit.word_folder(first, None))
+
+
+class FifteenthReviewFindings(ProseBind, RunFixture):
+    """The fifteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_k1_an_indented_line_after_a_blank_is_unread_never_dropped(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n",
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n\n  a line no entry owns, after a blank\n"))
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("1 detail line(s) could not be placed", self.sheet.read_text(encoding="utf-8"))
+
+    def test_k2_an_ecg_code_is_named_as_a_whole_token_and_not_as_not_billed(self):
+        import worksheet_grammar
+        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
+        cases = {"  EM-ECG: 930001 reading of the tracing\n": True,
+                 "  EM-ECG: 93000 not billed; 93005 pending\n": True,
+                 "  EM-ECG: 93000 read and reported here\n": False}
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), frozenset({"93000"}))
+                self.assertEqual(expected, bool(found), found)
+        found = em_audit.ecg_findings(worksheet_grammar.em_block(base + "  EM-ECG: 93000 not billed\n"),
+                                      frozenset({"93000"}))
+        self.assertEqual(["the worksheet bills 93000, but its EM-ECG line says 93000 is not billed"], found)
+
+    def test_k3_a_flawed_re_derivation_is_a_finding_even_when_it_agrees(self):
+        flawed = ELEMENTS.replace("risk low; mdm low", "risk low; mdm moderate")
+        self.write_private(PRIVATE.format(elements=flawed))
+        self.record(flawed)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 1; differ 0; damaged 0; absent 0; findings 1", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("- FINDING (re-derivation): the MDM line states moderate", text)
+        self.assertIn("the re-derivation agrees with the worksheet", text)
+        self.write_private(PRIVATE.format(elements=ELEMENTS))
+        self.assertEqual(1, self.invoke("--write").returncode)
+        finding, report, _ = self.gate()
+        self.assertTrue(finding, report)
+        self.assertIn("findings 1", report)
+        rederivation = (SKILL.parent / "rederivation.md").read_text(encoding="utf-8")
+        self.assertProseIn("no re-derivation finding", rederivation)
+
+    def test_k4_provenance_under_an_em_label_in_a_step_four_block_renders_once(self):
+        tail = "E/M: 99283 low complexity\n  NOTE: support restated once\n" + ELEMENTS
+        self.write_private(PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n", "") + tail)
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertEqual(1, text.count("support restated once"), text)
+        self.assertIn("  - Note: support restated once", text)
+
+    def test_k5_step_four_block_is_the_plain_reader(self):
+        import inspect
+        import worksheet_grammar
+        self.assertEqual(["lines", "heading", "end", "every"],
+                         list(inspect.signature(worksheet_grammar.step_four_block).parameters))
+        self.assertFalse(hasattr(worksheet_grammar, "resplit"))
+        self.assertFalse(hasattr(worksheet_grammar, "block_text"))
+        source = inspect.getsource(worksheet_grammar.step_four_lines)
+        for name in ("selected", "element_body_end", "Anchored", "EM_CANDIDATE"):
+            self.assertNotIn(name, source)
+
+    def test_k7_the_batch_stops_at_the_first_matching_version(self):
+        import coding_freshness
+        wanted = b"the version the receipt bound\n"
+        run, popen, requests = fake_git(b"head\n", [("blob", b"newer version\n"), ("blob", wanted),
+                                                    ("blob", b"older version, never read\n")])
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run) as runs, \
+                mock.patch.object(coding_freshness.subprocess, "Popen", side_effect=popen) as batches:
+            self.assertEqual(wanted, coding_freshness.bound_sheet_version(
+                ROOT / "reference" / "cpt-em-mdm-2026.md", coding_freshness.sheet_sha256(wanted)))
+        self.assertEqual(2, len(requests))
+        self.assertLessEqual(runs.call_count + batches.call_count, 3)
 
 
 if __name__ == "__main__":

@@ -50,10 +50,10 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
-                               REFUSAL_HEADING, UNDOCUMENTED_HEADING, Anchored, EmBlock, WorksheetEntry, anchored,
-                               block_text, element_body_end, em_block, entry_region, indented_line,
-                               indented_pieces, paired_entry, physical_lines, read_entries, resplit,
-                               selected_em_lines, worksheet_em_block)
+                               REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
+                               EmBlock, WorksheetEntry, anchored, element_body_end, em_block, entry_region,
+                               indented_line, indented_pieces, physical_lines, read_entries, selected_em_lines,
+                               step_four_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -96,21 +96,24 @@ DECLARED_LIMITS = (
     "candidate line is not a placed re-derivation; one whose candidates are all refused is unread.",
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
-    "lines dropped, not parsed, through worksheet_grammar.step_four_block with the terminator, "
+    "lines dropped, not parsed, through worksheet_grammar.step_four_lines with the terminator, "
     "iteration and line splitting of the grader that grades each block (BLOCK_READERS); the "
-    "undocumented block, which no grader reads, takes refusal_scan's. A selected E/M line whose "
-    "indented body holds an element line is skipped with the element lines of that body; its other "
-    "lines, and any other line, an E/M entry marked NOT FOR ENTRY included, stay the block's text "
-    "as the grader reads them. The graders read through the same reader with that skip off, so "
-    "they read the skipped lines as block text, which is measured to grade nothing on the "
-    "placement em-elements.md defines; another placement is not measured.",
+    "undocumented block, which no grader reads, takes refusal_scan's. Every line the E/M section "
+    "renders (a selected E/M line that opens its element block, its wrapped header, its fields and "
+    "its EM- lines) is shown there once and left out of the quotation; a line that section leaves "
+    "unplaced, and any other line, an E/M entry marked NOT FOR ENTRY included, stays the block's "
+    "text as the grader reads it. The graders read the same plain lines, the E/M section included, "
+    "which is measured to grade nothing on the placement em-elements.md defines; another placement "
+    "is not measured.",
     "Element candidates are any upper-case EM- name and the eight element names in any case and "
     "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
     "a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
-    "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
-    "and an indented line after an element block, are counted unread. A continuation that a "
+    "entry, the bound worksheet_grammar pairs a detail by; a field or indented line no entry or "
+    "E/M line owns, such as one after a blank line, and any line after an element block, are counted "
+    "unread. An element block's re-derivation is held to the worksheet block's rules, and each flaw "
+    "is a re-derivation finding. A continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
     "Every selected E/M line (an E/M: label, or a for-entry E/M-family CPT entry) of the for-entry "
     "region, and every later one that opens an element block, is rendered with its own provenance "
@@ -194,6 +197,7 @@ class Tally:
         self.marks = self.blocks_present = self.blocks_absent = self.block_findings = 0
         self.answers_shown = 0
         self.agree = self.differ = self.differences = self.damaged = self.absent = 0
+        self.rederivation_findings = 0
         self.unread = 0
         # A run approved before the em_audit start (completion-check-starts.tsv): a missing element
         # block or re-derivation is shown and counted here, never as a finding.
@@ -204,7 +208,13 @@ class Tally:
 
 
 def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], int, int]:
-    """The wrapped header tail, field values, unplaced line count and body end of the entry at ``index``.
+    """``entry_walk`` with the unplaced lines counted."""
+    tail, fields, unplaced, end = entry_walk(lines, index)
+    return tail, fields, len(unplaced), end
+
+
+def entry_walk(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], list[int], int]:
+    """The wrapped header tail, field values, unplaced line positions and body end of the entry at ``index``.
 
     A field line belongs to the entry exactly when ``worksheet_grammar.detail_belongs_to_entry``
     would say so, the rule ``paired_entry`` owns details by: every line between them is indented
@@ -216,7 +226,8 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
     """
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
-    unplaced, state, end = 0, "header", index + 1
+    unplaced: list[int] = []
+    state, end = "header", index + 1
     owned = True  # every line consumed so far is indented text, so a field line here is the entry's
     for position in range(index + 1, len(lines)):
         line = lines[position]
@@ -233,7 +244,7 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
         if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
         elif state == "element":
-            unplaced += 1  # after an element block nothing is provenance, a field line included
+            unplaced.append(position)  # after an element block nothing is provenance, a field line included
         elif field:
             state = field.group("field").upper()
             fields.setdefault(state, []).append(line[field.end():].strip())
@@ -247,16 +258,18 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
 class PrivateWorksheet(NamedTuple):
     """One private worksheet, parsed once for its check-off.
 
-    ``physical`` is the worksheet split on LF alone (``physical_lines``) and ``split`` as the
-    graders split it (``str.splitlines``), each an ``Anchored`` value carrying its own numbering of
-    the selected E/M lines. ``region`` is the for-entry region with its ``ENTRY`` matches and
-    ``read_entries``, and ``region_lines`` the number of physical lines inside it. The handwritten
-    reader turns every CR into LF, so the physical lines joined by LF are ``text``.
+    ``physical`` is the worksheet split on LF alone (``physical_lines``), an ``Anchored`` value
+    carrying the selected E/M lines; ``split`` is the worksheet as the graders split it
+    (``str.splitlines``), and ``split_starts`` where each physical line starts among those lines (a
+    line holding another separator splits there). ``region`` is the for-entry region with its
+    ``ENTRY`` matches and ``read_entries``, and ``region_lines`` the number of physical lines inside
+    it. The handwritten reader turns every CR into LF, so the physical lines joined by LF are ``text``.
     """
 
     text: str
     physical: Anchored
-    split: Anchored
+    split: tuple[str, ...]
+    split_starts: tuple[int, ...]
     region: str
     matches: list[re.Match[str]]
     entries: list[WorksheetEntry]
@@ -267,9 +280,73 @@ def parse_private(text: str) -> PrivateWorksheet:
     lines = physical_lines(text)
     region = entry_region(text)
     matches, entries = list(ENTRY.finditer(region)), read_entries(region)
-    physical = anchored(lines, (region, entries))
-    return PrivateWorksheet(text, physical, resplit(physical), region, matches, entries,
+    starts, position = [], 0
+    for line in lines:
+        starts.append(position)
+        position += len((line + "\n").splitlines())
+    starts.append(position)
+    return PrivateWorksheet(text, anchored(lines, (region, entries)), tuple(text.splitlines()), tuple(starts),
+                            region, matches, entries,
                             region.count("\n") if len(region) < len(text) else len(lines))
+
+
+class EmSection(NamedTuple):
+    """One E/M line the check-off's E/M section renders, from ``entry_walk``."""
+
+    index: int
+    tail: list[str]
+    fields: dict[str, list[str]]
+    unplaced: list[int]
+    end: int
+
+    def rendered(self) -> set[int]:
+        """The physical lines the E/M section shows: the line, its wrapped header, fields and EM- lines."""
+        return {self.index, *range(self.index + 1, self.end)} - set(self.unplaced)
+
+
+def em_sections(private: PrivateWorksheet) -> list[EmSection]:
+    """Every E/M line the check-off renders: one in the for-entry region, or one after it that opens
+    its element block; an entry written inside an icd10-cpt step 4 block with no block is that
+    block's text, never an E/M line. A selected line inside another one's body is part of it."""
+    lines, selected = list(private.physical.lines), private.physical.selected
+    sections: list[EmSection] = []
+    claimed: set[int] = set()
+    for index in sorted(selected):
+        if index in claimed:
+            continue
+        if index >= private.region_lines and element_body_end(lines, index, selected) is None:
+            continue
+        section = EmSection(index, *entry_walk(lines, index))
+        claimed.update(range(index + 1, section.end))
+        sections.append(section)
+    return sections
+
+
+# How the check-off quotes each block: with the terminator, iteration and line splitting of the
+# grader that grades it. The undocumented block has no grader and takes refusal_scan's rule.
+BLOCK_READERS = {
+    "filled": (OTHER_HEADING, True),
+    "refusal": (ANY_HEADING, False),
+    "undocumented": (ANY_HEADING, False),
+}
+
+
+def block_quote(private: PrivateWorksheet, heading: re.Pattern[str], kind: str) -> str | None:
+    """One icd10-cpt step 4 block as its grader reads it, less the lines the E/M section renders.
+
+    ``worksheet_grammar.step_four_lines`` reads the block with its grader's terminator and line
+    splitting (``BLOCK_READERS``); every line an ``em_sections`` E/M line renders (the line, its
+    wrapped header, its fields and its EM- lines) is shown there once and left out here. A line the
+    E/M section leaves unplaced stays quoted. None when the heading is absent.
+    """
+    end, every = BLOCK_READERS[kind]
+    indexes, found = step_four_lines(list(private.split), heading, end, every=every)
+    if not found:
+        return None
+    starts = private.split_starts
+    shown = {split for section in em_sections(private) for line in section.rendered()
+             for split in range(starts[line], starts[line + 1])}
+    return "\n".join(private.split[index] for index in indexes if index not in shown).strip("\n")
 
 
 def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str, str, dict[str, list[str]]]], int]:
@@ -277,20 +354,28 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
 
     A code is (key, system, code, descriptor, fields), each value joined across its wrapped lines.
     The region, the entries and the for-entry split are the readers ``review_manifest.selected_codes``
-    uses. A field line ``worksheet_grammar.paired_entry`` gives no entry or E/M label, or an indented
-    line no field owns, is counted unread rather than dropped; E/M lines are read by ``em_entry_lines``.
+    uses. A detail or indented line no entry or E/M line's body owns (``entry_walk``), or one a
+    body leaves unplaced, is counted unread rather than dropped; E/M lines are read by
+    ``em_entry_lines``.
     """
     region, matches = private.region, private.matches
-    owners = sorted(matches + list(EM_CODE_LABEL.finditer(region)), key=lambda match: match.start())
-    unread = sum(paired_entry(region, owners, field) is None for field in FIELD.finditer(region))
     lines = list(private.physical.lines[:private.region_lines])
+    # Every entry and E/M label line of the region owns the body entry_walk gives it; a detail or
+    # indented line no body owns, such as one after a blank line, is unread rather than dropped.
+    owners = sorted({region.count("\n", 0, match.start()) for match in matches}
+                    | {index for index, line in enumerate(lines) if EM_CODE_LABEL.match(line)})
+    walks = {index: entry_walk(lines, index) for index in owners}
+    owned = set(owners).union(*(range(index + 1, walk[3]) for index, walk in walks.items()))
+    unread = sum(1 for index, line in enumerate(lines)
+                 if index not in owned and (indented_line(line) or FIELD.match(line))
+                 and not EM_CANDIDATE.match(line))
     codes = []
     for match, entry in zip(matches, private.entries):
         key = review_manifest.code_key(entry.system, entry.code)
         if not entry.for_entry or key == "em":
             continue
-        tail, fields, unplaced, _ = entry_details(lines, region.count("\n", 0, match.start()))
-        unread += unplaced
+        tail, fields, unplaced, _ = walks[region.count("\n", 0, match.start())]
+        unread += len(unplaced)
         codes.append((key, entry.system.upper(), entry.code.upper(),
                       " ".join([entry.descriptor.strip(), *tail]), fields))
     return codes, unread
@@ -314,19 +399,11 @@ def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
     An E/M line is one in the for-entry region, or one after it that opens its element block; an
     entry written inside an icd10-cpt step 4 block is that block's text, never an E/M line.
     """
-    lines, selected = list(private.physical.lines), private.physical.selected
     out: list[str] = []
-    claimed: set[int] = set()
-    for index, line in enumerate(lines):
-        if index in claimed or index not in selected:
-            continue
-        if index >= private.region_lines and element_body_end(lines, index, selected) is None:
-            continue
-        tail, fields, unplaced, end = entry_details(lines, index)
-        claimed.update(range(index + 1, end))
-        tally.unread += unplaced
-        out.append("- E/M line: " + " ".join([line.strip(), *tail]))
-        out += field_lines(fields, defaults=False)
+    for section in em_sections(private):
+        tally.unread += len(section.unplaced)
+        out.append("- E/M line: " + " ".join([private.physical.lines[section.index].strip(), *section.tail]))
+        out += field_lines(section.fields, defaults=False)
     return out
 
 
@@ -422,15 +499,24 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
 
     em-elements.md: where the worksheet bills 93000 or 93005, the line names that code, so with
     both billed it names both. With no ECG code billed, the limb is free text and is not graded;
-    a block with no EM-ECG line is already incomplete.
+    a block with no EM-ECG line is already incomplete. A code is named as a whole token, and a
+    billed code the line says is not billed is a finding.
     """
     codes = sorted(billed & ECG_RULES.keys())
     if not codes or not block_.ecg:
         return []
     if all(line.strip().lower() == "not applicable" for line in block_.ecg):
         return [f"the worksheet bills {', '.join(codes)}, but its EM-ECG line says not applicable"]
-    unnamed = [code for code in codes if not any(code in line for line in block_.ecg)]
-    return [f"the worksheet bills {code}, but its EM-ECG line does not name it" for code in unnamed]
+    found = []
+    for code in codes:
+        token = re.compile(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])")
+        named = [line for line in block_.ecg if token.search(line)]
+        if any(re.search(rf"(?<![0-9A-Za-z]){code}[ \t,;:]*(?:is[ \t]+)?not[ \t]+billed", line, re.IGNORECASE)
+               for line in named):
+            found.append(f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed")
+        elif not named:
+            found.append(f"the worksheet bills {code}, but its EM-ECG line does not name it")
+    return found
 
 
 def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) -> list[str]:
@@ -497,7 +583,8 @@ def absent_rederivation(tally: Tally, line: str) -> list[str]:
     return [line]
 
 
-def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock | None, tally: Tally) -> list[str]:
+def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock | None, tally: Tally,
+                       context: Context, order: int, billed: frozenset[str]) -> list[str]:
     path = run / OUTPUT_DIRECTORY / REDERIVATION_DIRECTORY / (stem + ".md")
     if not path.exists():
         return absent_rederivation(tally, "No re-derivation record is placed for this note.")
@@ -517,6 +604,13 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
         tally.unread += rederived.unread
         return ["The re-derivation record is not a complete element block and was not compared."]
     lines = item_lines(rederived)
+    # The re-derivation is held to the same rules as the worksheet block, so an agreement between two
+    # flawed blocks cannot hide either flaw.
+    flaws = block_findings(rederived, selected, context.ids, note_answer_ids(context, order),
+                           answers_unread=context.unreadable, billed=billed)
+    if flaws:
+        tally.rederivation_findings += len(flaws)
+        lines += ["", *["- FINDING (re-derivation): " + flaw for flaw in flaws]]
     found = differences(worksheet, rederived, selected)
     if worksheet is None:
         scope = "level only, because the worksheet has no element block"
@@ -586,6 +680,13 @@ class Context:
                               else {entry["id"]: entry["verification"] for entry in self.answers["answers"]})
 
 
+def note_answer_ids(context: Context, order: int) -> set[str] | None:
+    """The pre-approval answer ids of one note, or None when the run has no readable answers record."""
+    if context.answers is None:
+        return None
+    return {entry["id"] for entry in preapproval_answers.entries_for(context.answers, order)}
+
+
 def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, receipt: dict, context: Context,
              tally: Tally, fingerprinted: bool) -> tuple[list[str], EmBlock | None]:
     # The manifest codes as approval reads them: stripped and upper-cased, so " 93005 " is 93005.
@@ -633,8 +734,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
         lines += ["", f"{block_.unread} element line(s) or required line(s) could not be read and are counted "
                   "in the unread remainder; the lines read follow."]
     lines += ["", "Element block from the private worksheet:", "", *item_lines(block_)]
-    note_answers = (None if context.answers is None
-                    else {entry["id"] for entry in preapproval_answers.entries_for(context.answers, item["order"])})
+    note_answers = note_answer_ids(context, item["order"])
     # Only an answer of this note is listed and counted below; another note's answer is a finding.
     unverified = [answer for answer in block_.answers
                   if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
@@ -676,15 +776,16 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     blocks = ((BLOCK_HEADING, "filled"), (REFUSAL_HEADING, "refusal"), (UNDOCUMENTED_HEADING, "undocumented"))
     for index, (heading, kind) in enumerate(blocks, start=2):
         # Each block is quoted with its grader's terminator and line splitting, less the E/M section.
-        text = block_text(private.text, heading, kind, private.split)
+        text = block_quote(private, heading, kind)
         attribute = kind + "_blocks"
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, tally), ""]
-    selected = review_manifest.clean_codes(item["codes"])["em"]
-    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, selected, worksheet_block, tally), ""]
+    codes = review_manifest.clean_codes(item["codes"])
+    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, codes["em"], worksheet_block, tally, context,
+                                                           order, frozenset(codes["cpt"])), ""]
     out += ["## " + SECTIONS[8], "", *ATTESTATION, ""]
     return "\n".join(out)
 
@@ -829,7 +930,8 @@ def report(tally: Tally, total: int, selected: int, written: str) -> str:
         f"element blocks: present {tally.blocks_present}, absent {tally.blocks_absent}; findings {tally.block_findings}",
         f"E/M filled marks {tally.marks}",
         f"pre-approval answers shown {tally.answers_shown}",
-        f"re-derivations: agree {tally.agree}; differ {tally.differ}; damaged {tally.damaged}; absent {tally.absent}",
+        f"re-derivations: agree {tally.agree}; differ {tally.differ}; damaged {tally.damaged}; absent {tally.absent}; "
+        f"findings {tally.rederivation_findings}",
         f"element differences {tally.differences}",
         *([f"not graded, approval predates the check: element blocks {tally.blocks_predating}, "
            f"re-derivations {tally.absent_predating}"] if tally.predates else []),
@@ -847,7 +949,8 @@ def has_finding(tally: Tally, *, differences: bool, stale: int) -> bool:
     approval. ``stale`` counts check-offs missing or unequal to a fresh render, which only the gate
     reads.
     """
-    return bool(tally.block_findings or tally.damaged or tally.blocks_absent or tally.absent or stale
+    return bool(tally.block_findings or tally.rederivation_findings or tally.damaged or tally.blocks_absent
+                or tally.absent or stale
                 or (differences and tally.differ))
 
 
@@ -925,7 +1028,8 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         stale += current is None or (compared and current != sheet_.text)
     unread = tally.unread + (0 if collecting_errors() else unreadable)
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
-              f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
+              f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, findings "
+              f"{tally.rederivation_findings}, "
               f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}"
               + ("" if compared else "; check-offs not compared, the fresh render left a record unread"))
     if has_finding(tally, differences=False, stale=stale):
