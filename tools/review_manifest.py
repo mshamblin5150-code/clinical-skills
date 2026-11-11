@@ -15,7 +15,6 @@ from pathlib import Path
 import re
 
 import coding_freshness
-from cpt_identity import EM_CODES  # the one E/M family constant
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import digest, private_target, read_openers
 from encounter_status import status_for
@@ -26,12 +25,15 @@ DECLARED_LIMITS = (
     "Normalization is UTF-8, LF, per-line trailing-whitespace removal and exactly one final newline; it does not reinterpret prose or collapse internal spaces. Review layout changes do not alter the manifest.",
     "Named Markdown or plain Medatrax, tier, schedule, summary and technical-receipt boundaries and fenced tier blocks are excluded. Unrecognized boundaries are retained rather than silently discarded; exactly one Medatrax field block is required. A visible worksheet embedded in a note must equal its separately selected worksheet.",
     "The caller supplies final code populations and visible worksheet paths. Shared worksheet entry parsing binds the selected identities in both the visible and canonical private worksheet; it does not compare MDM support prose, descriptors, anchors or other provenance. Those remain the clinical code graders' authority.",
-    "The whole private worksheet is fingerprinted apart from the receipt-bound content fingerprint, for the E/M audit check-off; validation does not compare it, so a provenance-only edit leaves the approval identity unchanged while em_audit refuses its check-off. A manifest written before that fingerprint existed records none.",
+    "The whole private worksheet is fingerprinted for the E/M audit check-off in a separate record beside the manifest, never in the approval-bound manifest: a provenance-only edit and rebuild leave the manifest byte-identical and update only that record, which em_audit compares. The manifest and that record are written one after the other, not as one transaction.",
     "A matching passing receipt establishes its recorded currency check, not perpetual publisher currency. Run coding_freshness visibly whenever the manifest changes.",
     "The locked manifest write is atomic, not a cross-file snapshot. Approval and rendering re-read current sources; a source changing after validation remains an ordinary concurrent-edit risk.",
 )
 
 MANIFEST = "batch-codes.json"
+# The private worksheet fingerprints the E/M audit check-off compares, beside the manifest and never
+# in it, so a provenance-only edit and rebuild leave the approved manifest byte-identical.
+PRIVATE_FINGERPRINTS = "em-audit/private-worksheets.json"
 RECEIPT = "batch-freshness.json"
 SHA = re.compile(r"[0-9a-f]{64}")
 NAMED = r"(?:Medatrax(?: entry)?(?: block| fields)?|Tier block|Coding worksheet|Technical receipts?|Freshness receipt|Schedule(?: table)?|Shift summary)"
@@ -113,16 +115,17 @@ def _codes_or_none(text: str, *, private: bool) -> dict | None:
         return None
 
 
-def _content(run: Path, item: dict) -> tuple[str, str, str, str, str]:
+def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[str, str, str, str, str]:
     """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints.
 
     For a recorded manifest item, a disagreement is ``StaleRecord`` when the record it reads changed
     after the manifest: the embedded worksheet copy, which ``build`` refuses to bind in
     disagreement and no fingerprint covers; the visible worksheet, when the note and worksheet no
     longer match ``normalized_sha256``; the private worksheet, when it no longer matches
-    ``private_worksheet_sha256``. A disagreement over unchanged records means the manifest never
-    matched them, and stays a plain ``ValueError``, as does a private worksheet disagreement under a
-    manifest that predates its fingerprint, where a change cannot be told from a manifest never valid.
+    ``private_sha256``, its recorded fingerprint (``PRIVATE_FINGERPRINTS``). A disagreement over
+    unchanged records means the manifest never matched them, and stays a plain ``ValueError``, as
+    does a private worksheet disagreement read without a recorded fingerprint, where a change cannot
+    be told from a manifest never valid.
     """
     recorded = "normalized_sha256" in item
     note, fields, embedded = note_parts(read_text(resolve(run, item["note_path"])))
@@ -136,7 +139,7 @@ def _content(run: Path, item: dict) -> tuple[str, str, str, str, str]:
         raise (StaleRecord if moved else ValueError)("visible worksheet selected codes disagree with manifest")
     private = read_text(resolve(run, item["private_worksheet_path"]))
     if _codes_or_none(private, private=True) != expected:
-        moved = item.get("private_worksheet_sha256") not in (None, private_worksheet_sha256(private))
+        moved = private_sha256 not in (None, private_worksheet_sha256(private))
         raise (StaleRecord if moved else ValueError)("private worksheet selected codes disagree with manifest")
     return note, worksheet, private, code_hash, digest(fields.encode("utf-8"))
 
@@ -150,11 +153,11 @@ def private_worksheet_sha256(private: str) -> str:
     """The fingerprint of the whole private worksheet, normalized as ``normalized`` normalizes.
 
     ``normalized_sha256`` binds the note and the visible worksheet, which the receipt carries;
-    this separate field records everything the E/M audit check-off renders from the private
-    worksheet (entries, anchors and provenance, the icd10-cpt step 4 blocks and the element block)
-    inside the approved manifest. Validation does not compare it: provenance-only edits keep the
+    this fingerprint covers everything the E/M audit check-off renders from the private worksheet
+    (entries, anchors and provenance, the icd10-cpt step 4 blocks and the element block). It lives
+    in ``PRIVATE_FINGERPRINTS`` beside the manifest, never in it: provenance-only edits keep the
     approval identity, as the selected-code projection rules. ``em_audit`` compares it and refuses
-    a check-off whose private worksheet changed after the manifest.
+    a check-off whose private worksheet changed after it was recorded.
     """
     return digest(normalized(private).encode("utf-8"))
 
@@ -170,10 +173,10 @@ def clean_codes(codes: dict) -> dict:
 
 def code_key(system: str, code: str) -> str:
     """The code population an entry selects into: icd10, em, cpt or hcpcs."""
-    system, code = system.upper(), code.upper()
-    if system.startswith("ICD"):
+    from worksheet_grammar import em_identity
+    if system.upper().startswith("ICD"):
         return "icd10"
-    return "em" if system == "CPT" and code in EM_CODES else system.lower()
+    return "em" if em_identity(system, code) else system.lower()
 
 
 def selected_codes(text: str, *, private: bool) -> dict:
@@ -181,20 +184,21 @@ def selected_codes(text: str, *, private: bool) -> dict:
 
     Visible colon labels are the SOAP/HP worksheet adapter. Private differential
     and reconciliation regions do not add final selections; E/M remains an
-    explicit code label or a shared-parsed CPT entry from the E/M families.
+    explicit code label or a shared-parsed CPT entry from the E/M families, as
+    ``worksheet_grammar.selected_em`` selects it: the one rule the E/M audit check-off anchors to.
     """
-    from worksheet_grammar import EM_CODE_LABEL, ENTRY_CANDIDATE, entry_region, read_entries
-    em = {match.group("code") for match in EM_CODE_LABEL.finditer(text)}
+    from worksheet_grammar import ENTRY_CANDIDATE, em_identity, entry_region, read_entries, selected_em
     if private:
         entry_text = entry_region(text)
     else:
         entry_text = re.sub(r"(?mi)^(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]*:[ \t]*", r"\1 ", text)
-    result = {"icd10": set(), "em": em, "cpt": set(), "hcpcs": set()}
     entries = read_entries(entry_text)
     if len(list(ENTRY_CANDIDATE.finditer(entry_text))) != len(entries):
         raise ValueError("worksheet has unread selected-code lines")
+    em = {code for _, code in selected_em(text, entry_text, entries)}
+    result = {"icd10": set(), "em": em, "cpt": set(), "hcpcs": set()}
     for entry in entries:
-        if not entry.for_entry:
+        if not entry.for_entry or em_identity(entry.system, entry.code):
             continue
         result[code_key(entry.system, entry.code)].add(entry.code.upper())
     if len(result["em"]) != 1:
@@ -223,8 +227,6 @@ def decode_manifest(text: str) -> dict:
                 raise ValueError("invalid artifact path")
         if not SHA.fullmatch(str(item.get("field_block_sha256", ""))):
             raise ValueError("invalid field fingerprint")
-        if "private_worksheet_sha256" in item and not SHA.fullmatch(str(item["private_worksheet_sha256"])):
-            raise ValueError("invalid private worksheet fingerprint")
         if not isinstance(item.get("opener"), dict) or set(item["opener"]) != {"name", "age", "sex"}:
             raise ValueError("invalid opener binding")
     if not value["batch"] and len(value["encounters"]) != 1:
@@ -268,6 +270,7 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
     value = dict(schema=1, producer="review_manifest", batch=batch,
                  review_constants=review_constants(constants, batch=batch) if batch else None,
                  service_date=openers["service_date"], receipt_path=str((receipt or run / RECEIPT).resolve()), encounters=[])
+    fingerprints = []
     for order, (row, opener) in enumerate(zip(rows, openers["encounters"]), 1):
         if not isinstance(row, dict) or set(row) != {"note", "worksheet", "setting", "codes"}:
             raise ValueError("inputs need note, worksheet, setting and codes only")
@@ -280,24 +283,55 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
                     opener={key: opener[key] for key in ("name", "age", "sex")},
                     patient_status=status_for(run, order) if row["setting"] == "office" else {"value": "not-applicable"})
         _, _, private, item["normalized_sha256"], item["field_block_sha256"] = _content(run, item)
-        item["private_worksheet_sha256"] = private_worksheet_sha256(private)
+        fingerprints.append({"private_worksheet_path": item["private_worksheet_path"],
+                             "private_worksheet_sha256": private_worksheet_sha256(private)})
         value["encounters"].append(item)
     payload = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     decode_manifest(payload.decode("utf-8"))
+    record = dict(schema=1, producer="review_manifest", worksheets=fingerprints)
+    record_payload = (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    decode_private_fingerprints(record_payload.decode("utf-8"))
+
     def change(previous):
-        # An unchanged rebuild leaves the approval identity and timestamp untouched, including a
-        # manifest written before private_worksheet_sha256: adding only that field would rewrite the
-        # manifest an approval binds.
-        if previous == value or previous == _without_private_fingerprint(value):
-            return RecordUpdate(None, previous)
-        return RecordUpdate(payload, value)
-    return update_tool_record(run / MANIFEST, decode_manifest, change)
+        # An unchanged rebuild leaves the approval identity and timestamp untouched.
+        return RecordUpdate(None if previous == value else payload, value)
+
+    def change_record(previous):
+        return RecordUpdate(None if previous == record else record_payload, record)
+
+    manifest = update_tool_record(run / MANIFEST, decode_manifest, change)
+    (run / PRIVATE_FINGERPRINTS).parent.mkdir(parents=True, exist_ok=True)
+    update_tool_record(run / PRIVATE_FINGERPRINTS, decode_private_fingerprints, change_record)
+    return manifest
 
 
-def _without_private_fingerprint(value: dict) -> dict:
-    """``value`` as a manifest written before ``private_worksheet_sha256`` would hold it."""
-    return {**value, "encounters": [{key: field for key, field in item.items() if key != "private_worksheet_sha256"}
-                                    for item in value["encounters"]]}
+def decode_private_fingerprints(text: str) -> dict:
+    """The private worksheet fingerprint record ``build`` writes beside the manifest."""
+    value = object_record(text)
+    if (value.get("producer") != "review_manifest" or type(value.get("schema")) is not int
+            or value["schema"] != 1 or not isinstance(value.get("worksheets"), list)):
+        raise ValueError("invalid private worksheet fingerprint record")
+    paths = []
+    for entry in value["worksheets"]:
+        if (not isinstance(entry, dict) or set(entry) != {"private_worksheet_path", "private_worksheet_sha256"}
+                or not isinstance(entry["private_worksheet_path"], str) or not entry["private_worksheet_path"]
+                or not SHA.fullmatch(str(entry["private_worksheet_sha256"]))):
+            raise ValueError("invalid private worksheet fingerprint entry")
+        paths.append(entry["private_worksheet_path"])
+    if len(set(paths)) != len(paths):
+        raise ValueError("duplicate private worksheet fingerprint")
+    return value
+
+
+def private_fingerprints(run: Path) -> dict[str, str] | None:
+    """Each recorded private worksheet path with its fingerprint; None when no record was written.
+
+    An unreadable record raises ``UnreadableRecord``, as every tool-written run record does.
+    """
+    value = read_tool_record(Path(run) / PRIVATE_FINGERPRINTS, decode_private_fingerprints)
+    if value is None:
+        return None
+    return {entry["private_worksheet_path"]: entry["private_worksheet_sha256"] for entry in value["worksheets"]}
 
 
 @dataclass(frozen=True)
@@ -338,8 +372,13 @@ class ValidatedRun:
     encounters: tuple[ValidatedEncounter, ...]
 
 
-def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]:
-    """Validate once; ``batch=None`` takes the mode the manifest records."""
+def _validated(run: Path, *, batch: bool | None,
+               fingerprints: dict[str, str] | None = None) -> tuple[Binding, ValidatedRun]:
+    """Validate once; ``batch=None`` takes the mode the manifest records.
+
+    ``fingerprints`` (``private_fingerprints``) only lets a private-worksheet code disagreement be
+    told stale from never valid; approval passes none and its rule is unchanged.
+    """
     run = run.resolve()
     manifest = manifest_for(run, batch=batch)
     openers = read_openers(run)
@@ -347,7 +386,8 @@ def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]
         raise StaleRecord("opener population or service date changed")
     notes, worksheets, encounters = [], [], []
     for item, opener in zip(manifest["encounters"], openers["encounters"]):
-        note, worksheet, private_text, code_hash, field_hash = _content(run, item)
+        note, worksheet, private_text, code_hash, field_hash = _content(
+            run, item, (fingerprints or {}).get(item["private_worksheet_path"]))
         encounters.append(ValidatedEncounter(item, note, worksheet, private_text))
         if code_hash != item["normalized_sha256"] or field_hash != item["field_block_sha256"]:
             raise StaleRecord("manifest is stale against current notes or worksheets")
@@ -382,13 +422,14 @@ def approval_binding(run: Path, *, batch: bool) -> Binding:
     return _validated_binding(run, batch=batch)[0]
 
 
-def validated_population(run: Path) -> ValidatedRun:
+def validated_population(run: Path, fingerprints: dict[str, str] | None = None) -> ValidatedRun:
     """The run as approval validates it, with every text the validation read.
 
     A reader that renders the coding decisions of a run uses this, so the text it renders is the
-    text that was validated and a stale manifest or receipt refuses.
+    text that was validated and a stale manifest or receipt refuses. ``fingerprints`` is
+    ``private_fingerprints``, read by the caller, as ``_validated`` takes it.
     """
-    return _validated(run, batch=None)[1]
+    return _validated(run, batch=None, fingerprints=fingerprints)[1]
 
 
 def render(run: Path, output: Path, *, force: bool = False) -> Path:

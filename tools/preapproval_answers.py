@@ -32,7 +32,8 @@ DECLARED_LIMITS = (
     "does not prove which question the message answered, or that the question text recorded is "
     "the one he was shown.",
     "An unreadable transcript records the entry as unreadable rather than refusing it, and every "
-    "reader of the record shows that state.",
+    "reader of the record shows that state. An opener source whose time cannot be read refuses "
+    "the entry instead, since that is not an unreadable transcript.",
     "Entries only accumulate, through one locked replacement of the JSON file. A correction is a "
     "later entry, and nothing reconciles two entries about one question. The one change in place "
     "upgrades an unreadable entry to verified when the same question and reply are recorded with a "
@@ -103,8 +104,14 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
         raise ValueError("note is outside the opener population")
     if not _text(question) or not _text(reply) or not all(CODE.fullmatch(code) for code in levels):
         raise ValueError("a question, a whole reply and five-digit levels are required")
+    # The reply must follow the opener source. Its time is read here, so verify_clinician_reply's
+    # "unreadable" can only mean an unreadable transcript: a missing source refuses instead.
+    try:
+        source_time = Path(openers["source"]).stat().st_mtime
+    except OSError as error:
+        raise ValueError("the opener source cannot be read") from error
     verification = approval_record.verify_clinician_reply(
-        run, reply, (Path(openers["source"]),), transcripts=transcripts)
+        run, reply, (Path(openers["source"]),), source_modified_at=source_time, transcripts=transcripts)
     if verification.state not in ("verified", "unreadable"):
         raise ValueError("no later whole clinician message matches the reply")
     state = "verified" if verification.state == "verified" else "unreadable"

@@ -48,10 +48,11 @@ from run_grader import format_unread_remainder
 from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, UnreadableRecord,
                                collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
                                read_tool_record, update_tool_record)
-from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
-                               UNDOCUMENTED_HEADING, EmBlock, WorksheetEntry, block_text, detail_belongs_to_entry,
-                               element_body_end, em_block, entry_region, indented_line, paired_entry,
-                               physical_lines, read_entries, selected_em_lines, worksheet_em_block)
+from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
+                               REFUSAL_HEADING, UNDOCUMENTED_HEADING, Anchored, EmBlock, WorksheetEntry, anchored,
+                               block_text, element_body_end, em_block, entry_region, indented_line,
+                               indented_pieces, paired_entry, physical_lines, read_entries, resplit,
+                               selected_em_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -109,11 +110,11 @@ DECLARED_LIMITS = (
     "region, and every later one that opens an element block, is rendered with its own provenance "
     "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY anchor no block "
     "and are counted unread as outside lines.",
-    "The private worksheet is bound to the approved records only through the manifest's whole-file "
-    "fingerprint, which the check-off compares and approval validation does not; a changed file "
-    "refuses the check-off. A manifest without it is counted unread on each check-off, or not "
-    "graded for a run whose approval predates the em_audit start; it has no repair, since a "
-    "rebuilt manifest is not the one an existing approval binds. At submission, a changed private "
+    "The private worksheet is bound only through its whole-file fingerprint, which "
+    "review_manifest.build records beside the manifest and never in it; the check-off compares it "
+    "and approval validation does not, and a changed file refuses the check-off. A run with no "
+    "recorded fingerprint is counted unread on each check-off, or not graded for a run whose "
+    "approval predates the em_audit start; building again records it. At submission, a changed private "
     "worksheet, a stale manifest or receipt, or a bound sheet version the parser refuses is a "
     "finding, and a missing or unreadable record is incomplete. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
@@ -136,7 +137,6 @@ OUTPUT_DIRECTORY = "em-audit"
 REDERIVATION_DIRECTORY = "rederivation"
 WORD_DIRECTORY = "em-audit"
 REPOSITORY = coding_freshness.ROOT  # the checkout whose reference/ holds the CPT MDM sheet
-FIRST_LINE = re.compile(r"[^\n]*")
 SECTIONS = (
     "Encounter",
     "Codes for entry",
@@ -149,7 +149,8 @@ SECTIONS = (
     "Clinician attestation",
 )
 FILLED_MARK = re.compile(r"\[SOURCE: filled - (?:data|risk): [^\]\n]+\]")
-EM_PARAGRAPH = re.compile(r"(?ms)^E/M:.*?(?=\n[ \t]*\n|\Z)")
+# The note's E/M paragraph, opened by the label the manifest reads (worksheet_grammar.EM_LABEL).
+EM_PARAGRAPH = re.compile(rf"(?msi){EM_LABEL}.*?(?=\n[ \t]*\n|\Z)")
 SHARED_RULES = (
     "reference/cpt-em-mdm-2026.md entries, by id, for the service-date edition",
     "ADR 0308: problems addressed, level-changing questions, proposed drugs, threat to life",
@@ -200,8 +201,9 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
     """The wrapped header tail, field values, unplaced line count and body end of the entry at ``index``.
 
     A field line belongs to the entry exactly when ``worksheet_grammar.detail_belongs_to_entry``
-    says so, the rule ``paired_entry`` owns details by: every line between them is indented text,
-    so a field may itself sit at the margin directly after that run. Otherwise the body is the
+    would say so, the rule ``paired_entry`` owns details by: every line between them is indented
+    text, so a field may itself sit at the margin directly after that run. That is decided from the
+    lines already consumed, each tested once by ``indented_pieces``. Otherwise the body is the
     contiguous indented lines below the entry; a nested entry line ends it. A line continues the
     field above it, or the header before the first field. Element lines and an indented E/M label
     belong to the element block, and an indented line after them is unplaced.
@@ -209,18 +211,18 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
     unplaced, state, end = 0, "header", index + 1
+    owned = True  # every line consumed so far is indented text, so a field line here is the entry's
     for position in range(index + 1, len(lines)):
         line = lines[position]
         field = FIELD.match(line)
         if not line.strip() or ENTRY.match(line):
             break
         if field:
-            span = "\n".join(lines[index:position + 1])
-            owner = FIRST_LINE.match(span)  # the entry or E/M label line the detail would belong to
-            if not detail_belongs_to_entry(span, owner, FIELD.match(span, len(span) - len(line))):
+            if not owned:
                 break
         elif not indented_line(line):
             break
+        owned = owned and indented_pieces(line)
         end += 1
         if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
@@ -239,37 +241,29 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
 class PrivateWorksheet(NamedTuple):
     """One private worksheet, parsed once for its check-off.
 
-    ``lines`` splits on LF alone (``physical_lines``) and ``split`` as the graders split
-    (``str.splitlines``); ``region`` is the for-entry region with its ``ENTRY`` matches and
-    ``read_entries``, and ``region_lines`` the number of ``lines`` inside it. ``anchors`` are the
-    selected E/M lines numbered over ``lines`` and ``quoted_anchors`` the same lines numbered over
-    ``split``. The handwritten reader turns every CR into LF, so ``lines`` joined by LF is ``text``.
+    ``physical`` is the worksheet split on LF alone (``physical_lines``) and ``split`` as the
+    graders split it (``str.splitlines``), each an ``Anchored`` value carrying its own numbering of
+    the selected E/M lines. ``region`` is the for-entry region with its ``ENTRY`` matches and
+    ``read_entries``, and ``region_lines`` the number of physical lines inside it. The handwritten
+    reader turns every CR into LF, so the physical lines joined by LF are ``text``.
     """
 
     text: str
-    lines: list[str]
-    split: list[str]
+    physical: Anchored
+    split: Anchored
     region: str
     matches: list[re.Match[str]]
     entries: list[WorksheetEntry]
     region_lines: int
-    anchors: frozenset[int]
-    quoted_anchors: frozenset[int]
 
 
 def parse_private(text: str) -> PrivateWorksheet:
     lines = physical_lines(text)
     region = entry_region(text)
     matches, entries = list(ENTRY.finditer(region)), read_entries(region)
-    anchors = selected_em_lines(lines, (region, matches, entries))
-    # Where each LF line starts among the splitlines lines: a line holding another separator splits there.
-    starts, position = [], 0
-    for line in lines:
-        starts.append(position)
-        position += len((line + "\n").splitlines())
-    return PrivateWorksheet(text, lines, text.splitlines(), region, matches, entries,
-                            region.count("\n") if len(region) < len(text) else len(lines),
-                            anchors, frozenset(starts[index] for index in anchors))
+    physical = anchored(lines, (region, entries))
+    return PrivateWorksheet(text, physical, resplit(physical), region, matches, entries,
+                            region.count("\n") if len(region) < len(text) else len(lines))
 
 
 def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str, str, dict[str, list[str]]]], int]:
@@ -283,7 +277,7 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     region, matches = private.region, private.matches
     owners = sorted(matches + list(EM_CODE_LABEL.finditer(region)), key=lambda match: match.start())
     unread = sum(paired_entry(region, owners, field) is None for field in FIELD.finditer(region))
-    lines = private.lines[:private.region_lines]
+    lines = list(private.physical.lines[:private.region_lines])
     codes = []
     for match, entry in zip(matches, private.entries):
         key = review_manifest.code_key(entry.system, entry.code)
@@ -314,7 +308,7 @@ def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
     An E/M line is one in the for-entry region, or one after it that opens its element block; an
     entry written inside an icd10-cpt step 4 block is that block's text, never an E/M line.
     """
-    lines, selected = private.lines, private.anchors
+    lines, selected = list(private.physical.lines), private.physical.selected
     out: list[str] = []
     claimed: set[int] = set()
     for index, line in enumerate(lines):
@@ -587,7 +581,7 @@ class Context:
 
 
 def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, receipt: dict, context: Context,
-             tally: Tally) -> tuple[list[str], EmBlock | None]:
+             tally: Tally, fingerprinted: bool) -> tuple[list[str], EmBlock | None]:
     # The manifest codes as approval reads them: stripped and upper-cased, so " 93005 " is 93005.
     codes = review_manifest.clean_codes(item["codes"])
     selected = codes["em"]
@@ -601,18 +595,17 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
              *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
-    if "private_worksheet_sha256" not in item:
+    if not fingerprinted:
         if tally.predates:
-            lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
-                         "not graded, because the run's approval predates the E/M audit check.")
+            lines.append("- Private worksheet: no fingerprint is recorded for it; not graded, because the "
+                         "run's approval predates the E/M audit check.")
         else:
-            # A rebuilt manifest would no longer be the one an existing approval binds, so the
-            # missing fingerprint is reported as unread coverage and never repaired by a rebuild.
             tally.unread += 1
-            lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
-                         "an edit after the manifest is not detected, so this note is counted in the unread "
-                         "remainder. An approval binding this manifest stays valid only while it is kept.")
-    elements = worksheet_em_block(private.text, private.anchors, private.lines)
+            lines.append("- Private worksheet: no fingerprint is recorded for it, so an edit is not "
+                         "detected and this note is counted in the unread remainder. Build the manifest "
+                         "again to record it; an unchanged manifest stays byte-identical, so its approval "
+                         "holds.")
+    elements = worksheet_em_block(private.text, private.physical)
     block_ = elements.block
     tally.unread += elements.outside
     if block_ is None:
@@ -657,7 +650,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
 
 
 def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, worksheet: str,
-          private_text: str, context: Context, tally: Tally) -> str:
+          private_text: str, context: Context, tally: Tally, fingerprinted: bool) -> str:
     private = parse_private(private_text)
     stem = Path(item["note_path"]).stem
     identifier, order, total = item["id"], item["order"], len(manifest["encounters"])
@@ -677,11 +670,11 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     blocks = ((BLOCK_HEADING, "filled"), (REFUSAL_HEADING, "refusal"), (UNDOCUMENTED_HEADING, "undocumented"))
     for index, (heading, kind) in enumerate(blocks, start=2):
         # Each block is quoted with its grader's terminator and line splitting, less the E/M section.
-        text = block_text(private.text, heading, kind, private.quoted_anchors, private.split)
+        text = block_text(private.text, heading, kind, private.split)
         attribute = kind + "_blocks"
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
-    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
+    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, item, tally), ""]
     selected = review_manifest.clean_codes(item["codes"])["em"]
@@ -697,7 +690,7 @@ class Sheet(NamedTuple):
 
 
 class PrivateWorksheetMoved(ValueError):
-    """A private worksheet differs from the fingerprint its manifest recorded."""
+    """A private worksheet differs from the fingerprint ``review_manifest.build`` recorded for it."""
 
 
 class UnknownNote(ValueError):
@@ -711,18 +704,22 @@ class WordTargetRefused(ValueError):
 def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     """Every selected check-off as a ``Sheet``, rendered from the validated read itself."""
     run = run.resolve()
-    validated = review_manifest.validated_population(run)
+    fingerprints = review_manifest.private_fingerprints(run) or {}
+    validated = review_manifest.validated_population(run, fingerprints)
     manifest, receipt = validated.manifest, validated.receipt
     orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
         raise UnknownNote("unknown note number")
     moved = [encounter.item["order"] for encounter in validated.encounters
-             if "private_worksheet_sha256" in encounter.item
-             and encounter.item["private_worksheet_sha256"] != review_manifest.private_worksheet_sha256(encounter.private)]
+             if encounter.item["private_worksheet_path"] in fingerprints
+             and fingerprints[encounter.item["private_worksheet_path"]]
+             != review_manifest.private_worksheet_sha256(encounter.private)]
     if moved:
-        raise PrivateWorksheetMoved(f"private worksheet of note {moved[0]} changed after the manifest")
+        raise PrivateWorksheetMoved(f"private worksheet of note {moved[0]} changed after its fingerprint")
     tally = Tally()
     import completion_checks
+    # Reached only on the command's --submission path: completion_gate returns its exemption for a
+    # pre-start run before it renders, so inside the gate predates is always False.
     tally.predates = not completion_checks.active("em_audit:" + EXPECTED_ROW)
     context = Context(run, receipt, tally)
     sheets = []
@@ -731,7 +728,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
         if notes and item["order"] not in notes:
             continue
         text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
-                     context, tally)
+                     context, tally, item["private_worksheet_path"] in fingerprints)
         sheets.append(Sheet(item["order"], Path(item["note_path"]).stem, text))
     return tally, len(orders), sheets
 
@@ -868,7 +865,7 @@ def selects_em_level(run: Path) -> bool:
 
 STALE_FINDINGS = {
     review_manifest.StaleRecord: "the manifest or its freshness receipt is stale against the run",
-    PrivateWorksheetMoved: "a private worksheet changed after the manifest recorded it",
+    PrivateWorksheetMoved: "a private worksheet changed after its fingerprint was recorded",
     SheetMoved: "the CPT MDM sheet version the receipt bound does not parse",
 }
 
@@ -960,8 +957,9 @@ def main(argv: list[str] | None = None) -> int:
         print("em-audit: refused - a --note number is not an encounter of this run")
         return 2
     except PrivateWorksheetMoved:
-        print("em-audit: refused - a private worksheet changed after the manifest recorded it; restore it, "
-              "or rebuild the manifest and take a fresh approval")
+        print("em-audit: refused - a private worksheet changed after its fingerprint was recorded; restore it, "
+              "or build the manifest again, which records the new fingerprint and leaves the approved manifest "
+              "unchanged when only provenance moved")
         return 2
     except SheetMoved:
         print("em-audit: refused - the committed CPT MDM sheet version the receipt fingerprinted does not "

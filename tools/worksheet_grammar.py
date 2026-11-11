@@ -194,7 +194,7 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     between = text[entry.end() : detail.start()]
     lines = between.splitlines()
     intervening = lines[1:] if lines else ()
-    return all(line.strip() and line[0] in " \t" for line in intervening)
+    return all(indented_line(line) for line in intervening)
 
 
 def paired_entry(
@@ -214,8 +214,10 @@ def paired_entry(
 EM_KINDS = ("PROBLEM", "DATA", "RISK", "RULE", "ANSWER", "ECG", "MDM", "LEVEL")
 ITEM_KINDS = ("PROBLEM", "DATA", "RISK")
 MDM_LEVELS = ("straightforward", "low", "moderate", "high")
-# The E/M code label, as review_manifest.selected_codes reads it when it selects the final code.
-EM_CODE_LABEL = re.compile(r"(?mi)^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:[ \t]*(?P<code>\d{5})\b")
+# The E/M label, indented or not and bold or not; EM_CODE_LABEL is the label followed by its code,
+# as selected_em reads it when it selects the final code.
+EM_LABEL = r"^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:"
+EM_CODE_LABEL = re.compile(rf"(?mi){EM_LABEL}[ \t]*(?P<code>\d{{5}})\b")
 
 
 def entry_region(text: str) -> str:
@@ -225,28 +227,68 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def selected_em_lines(lines: list[str], read: tuple[str, list[re.Match[str]], list[WorksheetEntry]] | None = None
-                      ) -> frozenset[int]:
-    """The indexes of the selected E/M lines, read in one pass over the worksheet.
+def em_identity(system: str, code: str) -> bool:
+    """Whether a code entry names an E/M identity: a ``CPT`` code of the office or ED E/M families."""
+    return system.upper() == "CPT" and code.upper() in EM_CODES
 
-    A selected E/M line is a line ``review_manifest.selected_codes`` selects the E/M code from,
-    by its rule: an ``EM_CODE_LABEL`` line, indented or not, anywhere in the worksheet, or a margin
-    E/M-family ``CPT`` entry of the for-entry region that ``read_entries`` marks for entry. An entry
-    marked ``NOT FOR ENTRY``, an indented entry and a ``CPT`` entry outside that region are never
-    the line an element block, a block skip or the check-off's E/M section is anchored to.
-    ``read`` is the ``entry_region`` of these lines joined by LF, with its ``ENTRY`` matches and
-    its ``read_entries``, passed by a caller that already parsed them.
+
+def selected_em(text: str, region: str, entries: list[WorksheetEntry]) -> tuple[tuple[int, str], ...]:
+    """Every selected E/M line of ``text`` with its code: the one rule that selects the E/M identity.
+
+    ``review_manifest.selected_codes`` takes the worksheet's E/M identity from these codes and the
+    E/M audit check-off anchors its element block to these lines. A selected line is an
+    ``EM_CODE_LABEL`` line anywhere in ``text``, or a for-entry ``em_identity`` entry of ``region``
+    (``text`` itself, or its for-entry region), indented or not. ``entries`` are ``read_entries``
+    of ``region``, whose lines are ``text``'s, so each line is numbered over ``text`` split on LF.
+    An entry marked ``NOT FOR ENTRY`` and an entry outside ``region`` are never selected.
     """
-    selected = {index for index, line in enumerate(lines) if EM_CODE_LABEL.match(line)}
+    found = {(text.count("\n", 0, match.start()), match.group("code")) for match in EM_CODE_LABEL.finditer(text)}
+    found |= {(region.count("\n", 0, entry.start), entry.code.upper()) for entry in entries
+              if entry.for_entry and em_identity(entry.system, entry.code)}
+    return tuple(sorted(found))
+
+
+def selected_em_lines(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> frozenset[int]:
+    """The indexes of ``selected_em``'s lines among ``lines``, the worksheet split on LF.
+
+    ``read`` is the ``entry_region`` of these lines joined by LF with its ``read_entries``, passed
+    by a caller that already parsed them.
+    """
+    text = "\n".join(lines)
     if read is None:
-        region = entry_region("\n".join(lines))
-        read = region, list(ENTRY.finditer(region)), read_entries(region)
-    region, matches, entries = read
-    for match, entry in zip(matches, entries):
-        if (entry.for_entry and entry.system.upper() == "CPT" and entry.code.upper() in EM_CODES
-                and match.group(0)[:1].strip()):
-            selected.add(region.count("\n", 0, match.start()))
-    return frozenset(selected)
+        region = entry_region(text)
+        read = region, read_entries(region)
+    return frozenset(index for index, _ in selected_em(text, *read))
+
+
+@dataclass(frozen=True)
+class Anchored:
+    """A worksheet's lines with its selected E/M lines numbered over them, built together.
+
+    ``anchored`` and ``resplit`` are the only constructors, so a quotation can never pair one
+    splitting's lines with another splitting's anchors.
+    """
+
+    lines: tuple[str, ...]
+    selected: frozenset[int]
+
+
+def anchored(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> Anchored:
+    """``lines`` with ``selected_em_lines`` of them; ``read`` as ``selected_em_lines`` takes it."""
+    return Anchored(tuple(lines), selected_em_lines(list(lines), read))
+
+
+def resplit(physical: Anchored) -> Anchored:
+    """The worksheet of ``physical`` (split on LF) split as ``str.splitlines`` splits it, anchors renumbered.
+
+    A line holding another ``str.splitlines`` separator splits there, so each anchor moves to where
+    its LF line starts among the new lines; a selected line opens at its LF line's start.
+    """
+    starts, position = [], 0
+    for line in physical.lines:
+        starts.append(position)
+        position += len((line + "\n").splitlines())
+    return Anchored(tuple("\n".join(physical.lines).splitlines()), frozenset(starts[index] for index in physical.selected))
 
 
 def physical_lines(text: str) -> list[str]:
@@ -265,6 +307,15 @@ OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 def indented_line(line: str) -> bool:
     """Whether ``line`` continues an indented body: it holds text and opens with a space or tab."""
     return bool(line.strip()) and line[0] in " \t"
+
+
+def indented_pieces(line: str) -> bool:
+    """Whether every line ``str.splitlines`` makes of this LF line, its ending included, is indented.
+
+    ``detail_belongs_to_entry`` requires exactly this of each line between an entry and its detail,
+    so a reader walking an entry's lines can own a field from the lines it already consumed.
+    """
+    return all(indented_line(piece) for piece in (line + "\n").splitlines())
 
 
 def indented_body_end(lines: list[str], index: int) -> int:
@@ -286,9 +337,8 @@ def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> 
     return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
 
 
-def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
-                    every: bool = False, selected: frozenset[int] | None = None,
-                    em_section: bool = True) -> tuple[list[str], bool]:
+def step_four_block(lines: list[str] | Anchored, heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False, em_section: bool = True) -> tuple[list[str], bool]:
     """The lines under an icd10-cpt step 4 heading, and whether it was found: the one block reader.
 
     The caller supplies the lines, split as it splits them, and its terminator: refusal_scan reads
@@ -298,15 +348,17 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
     (measured in test_em_audit). The check-off's quotation keeps ``em_section``: inside a block, a
     selected E/M line that opens its element block is skipped with the EM- lines of its body, and
     every other line of that body is kept as the grader reads it, so a worksheet without an element
-    block quotes exactly the grader's lines. ``selected`` is ``selected_em_lines`` of these lines,
-    computed here unless the caller already holds it.
+    block quotes exactly the grader's lines. ``lines`` is plain lines, whose anchors are computed
+    here when ``em_section`` needs them, or an ``Anchored`` value carrying them.
     """
     collected: list[str] = []
     found = inside = False
+    if isinstance(lines, Anchored):
+        lines, selected = list(lines.lines), lines.selected
+    else:
+        selected = selected_em_lines(lines) if em_section else frozenset()
     if not em_section:
         selected = frozenset()
-    elif selected is None:
-        selected = selected_em_lines(lines)
     skipped: set[int] = set()
     index = 0
     while index < len(lines):
@@ -336,16 +388,18 @@ BLOCK_READERS = {
 }
 
 
-def block_text(text: str, heading: re.Pattern[str], kind: str, selected: frozenset[int] | None = None,
-               lines: list[str] | None = None) -> str | None:
+def block_text(text: str, heading: re.Pattern[str], kind: str, lines: Anchored | None = None) -> str | None:
     """One icd10-cpt step 4 block as ``step_four_block`` quotes it (``BLOCK_READERS``); None without its heading.
 
-    ``lines`` is ``text.splitlines()`` and ``selected`` its ``selected_em_lines``, both passed by a
-    caller quoting several blocks of one worksheet.
+    ``lines`` is ``text.splitlines()`` with its anchors, passed by a caller quoting several blocks
+    of one worksheet; lines of any other splitting or text are refused with ``ValueError``.
     """
     end, every = BLOCK_READERS[kind]
-    lines = text.splitlines() if lines is None else lines
-    collected, found = step_four_block(lines, heading, end, every=every, selected=selected)
+    if lines is None:
+        lines = text.splitlines()
+    elif lines.lines != tuple(text.splitlines()):
+        raise ValueError("the anchored lines are not this text split as the graders split it")
+    collected, found = step_four_block(lines, heading, end, every=every)
     return "\n".join(collected).strip("\n") if found else None
 
 # Every line that tries to be an element line: any upper-case EM- name, and the eight element
@@ -471,8 +525,7 @@ class WorksheetElements:
     blocks: int
 
 
-def worksheet_em_block(text: str, selected: frozenset[int] | None = None,
-                       lines: list[str] | None = None) -> WorksheetElements:
+def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
     An E/M line is one of ``selected_em_lines``: an ``EM_CODE_LABEL`` line, or a margin for-entry
@@ -482,12 +535,16 @@ def worksheet_em_block(text: str, selected: frozenset[int] | None = None,
     second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and
     the caller reports the rest.
     EM- candidates under no anchor are ``outside``. A worksheet written before the block existed
-    reads ``(None, 0, 0)``. ``lines`` is ``physical_lines(text)`` and ``selected`` its
-    ``selected_em_lines``, each computed here unless the caller already holds it.
+    reads ``(None, 0, 0)``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
+    a caller that already holds them; lines that do not join back to ``text`` are refused with
+    ``ValueError``.
     """
-    lines = physical_lines(text) if lines is None else lines
+    if lines is None:
+        lines = anchored(physical_lines(text))
+    elif "\n".join(lines.lines) != text:
+        raise ValueError("the anchored lines are not this text split on LF")
+    lines, selected = list(lines.lines), lines.selected
     candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
-    selected = selected_em_lines(lines) if selected is None else selected
     groups: list[range] = []
     for index in sorted(selected):
         if groups and index in groups[-1]:

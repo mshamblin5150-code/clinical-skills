@@ -63,7 +63,6 @@ from worksheet_grammar import (
     ENTRY,
     ENTRY_CANDIDATE,
     NOT_FOR_ENTRY,
-    entry_is_for_entry,
     field_candidates,
     paired_entry,
     STEP_FOUR_START,

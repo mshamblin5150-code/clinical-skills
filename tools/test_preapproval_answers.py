@@ -53,6 +53,26 @@ class AnswersRecord(unittest.TestCase):
                           first["reply_matched_at"]))
         self.assertEqual([], record["answers"][1]["levels"])
 
+    def test_h2_a_missing_opener_source_refuses_and_writes_nothing(self):
+        # Thirteenth review: only an unreadable transcript may make an unreadable entry.
+        import encounter_openers
+        openers = encounter_openers.read_openers(self.run)
+        source = Path(openers["source"])
+        # The source is gone after the opener record was read: its time cannot be read, and that is
+        # not an unreadable transcript.
+        moved = dict(openers, source=str(source.with_name("moved-away.txt")))
+        with mock.patch.object(preapproval_answers, "read_openers", return_value=moved), \
+                self.assertRaises(ValueError):
+            preapproval_answers.record(self.run, 1, QUESTION, [], "Synthetic reply never sent.")
+        self.assertFalse(self.path.exists())
+        source.unlink()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = preapproval_answers.main([str(self.run), "--note", "1", "--question", QUESTION,
+                                               "--reply", "Synthetic reply never sent."])
+        self.assertEqual(2, status, output.getvalue())
+        self.assertFalse(self.path.exists())
+
     def test_an_unreadable_transcript_is_recorded_as_such(self):
         identifier, state = preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)
         self.assertEqual(("note-1.q1", "unreadable"), (identifier, state))

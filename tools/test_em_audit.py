@@ -696,15 +696,13 @@ class FourthReviewFindings(RunFixture):
         finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertEqual((True, 0), (finding, unread), report)  # eleventh review: a finding, not unread
 
-    def test_u5_a_manifest_without_the_element_fingerprint_is_unread(self):
-        path = self.run / review_manifest.MANIFEST
-        value = json.loads(path.read_text(encoding="utf-8"))
-        del value["encounters"][0]["private_worksheet_sha256"]
-        path.write_text(json.dumps(value), encoding="utf-8")
+    def test_u5_a_run_without_its_private_fingerprint_record_is_unread(self):
+        # Thirteenth review: the fingerprint lives beside the manifest, never in it.
+        (self.run / review_manifest.PRIVATE_FINGERPRINTS).unlink()
         result = self.invoke("--write")
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertIn("unread remainder 1", result.stdout)
-        self.assertIn("not bound to the manifest", self.sheet.read_text(encoding="utf-8"))
+        self.assertIn("no fingerprint is recorded", self.sheet.read_text(encoding="utf-8"))
 
     def test_u7_a_coded_run_without_a_manifest_is_incomplete_at_submission(self):
         (self.run / review_manifest.MANIFEST).unlink()
@@ -1169,7 +1167,8 @@ class EighthReviewFindings(ProseBind, RunFixture):
         import coding_freshness
         import cpt_identity
         import worksheet_grammar
-        self.assertIs(cpt_identity.EM_CODES, review_manifest.EM_CODES)
+        # Thirteenth review: review_manifest reads the E/M identity through worksheet_grammar.em_identity.
+        self.assertFalse(hasattr(review_manifest, "EM_CODES"))
         self.assertIs(cpt_identity.EM_CODES, worksheet_grammar.EM_CODES)
         self.assertEqual(cpt_identity.EM_CODES, coding_freshness.ED_EM | coding_freshness.OFFICE_EM)
         self.assertFalse(hasattr(worksheet_grammar, "em_family"))
@@ -1221,15 +1220,13 @@ class NinthReviewFindings(RunFixture):
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertIn("refused", result.stdout)
         manifest = json.loads((self.run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
-        self.assertIn("private_worksheet_sha256", manifest["encounters"][0])
+        self.assertNotIn("private_worksheet_sha256", manifest["encounters"][0])  # thirteenth review
         self.assertNotIn("element_block_sha256", manifest["encounters"][0])
+        self.assertIn(str(self.run / "worksheets/note-1.md"), review_manifest.private_fingerprints(self.run))
 
-    def test_n5_a_manifest_without_the_fingerprint_is_not_graded_before_the_check_started(self):
+    def test_n5_a_missing_fingerprint_is_not_graded_before_the_check_started(self):
         import completion_checks
-        path = self.run / review_manifest.MANIFEST
-        value = json.loads(path.read_text(encoding="utf-8"))
-        del value["encounters"][0]["private_worksheet_sha256"]
-        path.write_text(json.dumps(value), encoding="utf-8")
+        (self.run / review_manifest.PRIVATE_FINGERPRINTS).unlink()
         with mock.patch.object(completion_checks, "approval_moment", return_value=1_700_000_000.0):
             status, output = self.in_process("--submission", "shift-synthetic")
         self.assertEqual(0, status, output)
@@ -1383,18 +1380,23 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         self.assertIn("- ECG code: " + em_audit.ECG_RULES["93005"], sheets[0].text)
         self.assertIn("EM-ECG line says not applicable", sheets[0].text)
 
-    def test_e4_a_manifest_without_the_fingerprint_is_unread_and_never_sent_to_a_rebuild(self):
-        self.edit_json(review_manifest.MANIFEST, lambda value: value["encounters"][0].pop("private_worksheet_sha256"))
+    def test_e4_a_missing_fingerprint_is_unread_and_its_repair_keeps_the_approved_manifest(self):
+        # Thirteenth review: with the fingerprint beside the manifest, building again records it and
+        # leaves an unchanged manifest byte-identical, so the repair never orphans an approval.
+        manifest = self.run / review_manifest.MANIFEST
+        before = manifest.read_bytes()
+        (self.run / review_manifest.PRIVATE_FINGERPRINTS).unlink()
         result = self.invoke("--write")
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertIn("unread remainder 1", result.stdout)
         text = self.sheet.read_text(encoding="utf-8")
-        self.assertIn("not bound to the manifest", text)
-        for advice in (text, result.stdout):
-            self.assertNotIn("rebuild", advice.lower())
+        self.assertIn("Build the manifest again to record it", text)
         skill = SKILL.read_text(encoding="utf-8")
-        self.assertProseIn("predates the private worksheet fingerprint", skill)
-        self.assertProseIn("Keep the manifest as it stands", skill)
+        self.assertProseIn("no private worksheet fingerprint is recorded", skill)
+        self.assertProseIn("leaves an unchanged manifest byte-identical", skill)
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        self.assertEqual(before, manifest.read_bytes())
+        (self.run / review_manifest.PRIVATE_FINGERPRINTS).unlink()
         import completion_checks
         with mock.patch.object(completion_checks, "approval_moment", return_value=1_700_000_000.0):
             status, output = self.in_process("--submission", "shift-synthetic")
@@ -1539,7 +1541,7 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
                 path.write_text(original.replace(old, new, 1), encoding="utf-8")
                 try:
                     with self.assertRaises(review_manifest.StaleRecord):
-                        review_manifest.validated_population(self.run)
+                        review_manifest.validated_population(self.run, review_manifest.private_fingerprints(self.run))
                     finding, report, unread = self.gate()
                     self.assertEqual((True, 0), (finding, unread), report)
                 finally:
@@ -1588,19 +1590,14 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
         self.assertIn("element blocks: present 1, absent 0; findings 0", result.stdout)
         self.assertIn("- E/M line: E/M: 99283 low complexity", self.sheet.read_text(encoding="utf-8"))
 
-    def test_g3_an_unchanged_rebuild_of_an_old_manifest_writes_nothing(self):
+    def test_g3_an_unchanged_rebuild_writes_neither_record(self):
+        # Thirteenth review: the manifest never carries the private fingerprint, so no old format exists.
         path = self.run / review_manifest.MANIFEST
-        value = json.loads(path.read_text(encoding="utf-8"))
-        del value["encounters"][0]["private_worksheet_sha256"]
-        old = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-        path.write_bytes(old)
-        before = path.stat().st_mtime_ns
+        record = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        before = [(target.read_bytes(), target.stat().st_mtime_ns) for target in (path, record)]
         review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
-        self.assertEqual((old, before), (path.read_bytes(), path.stat().st_mtime_ns))
-        # A rebuild that changes anything else writes the current format, field included.
-        review_manifest.build(self.run, self.run / "inputs.json", batch=True,
-                              constants=dict(CONSTANTS, site="Another synthetic site"))
-        self.assertIn("private_worksheet_sha256", json.loads(path.read_text(encoding="utf-8"))["encounters"][0])
+        self.assertEqual(before, [(target.read_bytes(), target.stat().st_mtime_ns) for target in (path, record)])
+        self.assertNotIn("private_worksheet_sha256", path.read_text(encoding="utf-8"))
 
     def fake_git(self, head: bytes, versions: list[tuple[str, bytes]]):
         """A git stand-in: HEAD's bytes, then a log and a cat-file batch stream over ``versions``."""
@@ -1682,6 +1679,178 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
             self.assertProseIn("On exit 2", text)
             self.assertProseIn("unread", text)
             self.assertProseIn("tell the clinician", text)
+
+
+def entry_details_before_the_thirteenth_review(lines, index):
+    """em_audit.entry_details as it stood at 5b8ba90b, re-joining the body per field line."""
+    import worksheet_grammar as grammar
+    first_line = re.compile(r"[^\n]*")
+    tail, fields = [], {}
+    unplaced, state, end = 0, "header", index + 1
+    for position in range(index + 1, len(lines)):
+        line = lines[position]
+        field = grammar.FIELD.match(line)
+        if not line.strip() or grammar.ENTRY.match(line):
+            break
+        if field:
+            span = "\n".join(lines[index:position + 1])
+            owner = first_line.match(span)
+            if not grammar.detail_belongs_to_entry(span, owner, grammar.FIELD.match(span, len(span) - len(line))):
+                break
+        elif not grammar.indented_line(line):
+            break
+        end += 1
+        if grammar.EM_CANDIDATE.match(line) or grammar.EM_CODE_LABEL.match(line):
+            state = "element"
+        elif field:
+            state = field.group("field").upper()
+            fields.setdefault(state, []).append(line[field.end():].strip())
+        elif state == "header":
+            tail.append(line.strip())
+        elif state == "element":
+            unplaced += 1
+        else:
+            fields[state][-1] = (fields[state][-1] + " " + line.strip()).strip()
+    return tail, fields, unplaced, end
+
+
+class ThirteenthReviewFindings(ProseBind, RunFixture):
+    """The thirteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_h1_an_indented_for_entry_em_entry_is_selected_by_the_one_rule(self):
+        import worksheet_grammar
+        lines = ["ICD-10-CM R05.9 Cough", "", "  CPT 99283 Emergency visit", *ELEMENTS.splitlines()]
+        text = "\n".join(lines) + "\n"
+        self.assertEqual("99283", review_manifest.selected_codes(text, private=True)["em"])
+        self.assertIn(2, worksheet_grammar.selected_em_lines(lines))
+        self.assertEqual(1, worksheet_grammar.worksheet_em_block(text).blocks)
+        region = worksheet_grammar.entry_region(text)
+        self.assertEqual(((2, "99283"),), worksheet_grammar.selected_em(text, region,
+                                                                       worksheet_grammar.read_entries(region)))
+        # One rule: nothing outside worksheet_grammar's own rule reads the E/M code families.
+        # em_audit still reads an E/M label as a line of an element block's body, never to select one.
+        for module, forbidden in ((review_manifest, ("EM_CODES", "EM_CODE_LABEL")), (em_audit, ("EM_CODES",))):
+            tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+            names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+            names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+            names |= {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+            for name in forbidden:
+                self.assertNotIn(name, names, module.__name__)
+
+    def test_h3_a_provenance_edit_and_rebuild_keeps_the_approved_manifest_bytes(self):
+        manifest = self.run / review_manifest.MANIFEST
+        fingerprints = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        before, recorded = manifest.read_bytes(), fingerprints.read_bytes()
+        self.assertNotIn(b"private_worksheet_sha256", before)
+        binding = review_manifest.approval_binding(self.run, batch=True)
+        path = self.run / "worksheets/note-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "documents no further axis", "documents no further axis, restated"), encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refused", result.stdout)
+        self.assertEqual((True, 0), self.gate()[::2])
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        self.assertEqual(before, manifest.read_bytes())
+        self.assertNotEqual(recorded, fingerprints.read_bytes())
+        self.assertEqual(binding, review_manifest.approval_binding(self.run, batch=True))
+        self.assertEqual(0, self.invoke("--write").returncode)
+
+    def test_h3_a_missing_fingerprint_record_is_unread_and_a_rebuild_records_it(self):
+        manifest = self.run / review_manifest.MANIFEST
+        before = manifest.read_bytes()
+        (self.run / review_manifest.PRIVATE_FINGERPRINTS).unlink()
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        self.assertEqual(before, manifest.read_bytes())
+        self.assertEqual(0, self.invoke("--write").returncode)
+
+    def test_h4_the_history_walk_follows_every_branch(self):
+        import coding_freshness
+        commands = []
+
+        def run(command, **_):
+            commands.append(command)
+            if command[1] == "show":
+                return subprocess.CompletedProcess(command, 0, b"head\n", b"")
+            if command[1] == "log":
+                return subprocess.CompletedProcess(command, 0, b"", b"")
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run):
+            coding_freshness.bound_sheet_version(ROOT / "reference" / "cpt-em-mdm-2026.md", "0" * 64)
+        self.assertIn("--full-history", next(command for command in commands if command[1] == "log"))
+
+    def test_h5_the_note_paragraph_fallback_reads_the_label_as_the_manifest_does(self):
+        for label in ("E/M:", "  E/M:", "**E/M:**", "**E/M**:"):
+            with self.subTest(label=label):
+                self.assertIsNotNone(em_audit.EM_PARAGRAPH.search("Plan.\n\n" + label + " low complexity; 99283.\n"))
+        note = self.run / "note-1.md"
+        note.write_text(note.read_text(encoding="utf-8").replace("E/M: Low complexity", "**E/M:** Low complexity"),
+                        encoding="utf-8")
+        self.write_private(PRIVATE.format(elements=""))
+        passing_receipt(self.run)
+        name_the_committed_sheet(self.run)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("> **E/M:** Low complexity", self.sheet.read_text(encoding="utf-8"))
+
+    def test_h6_specificity_scan_imports_no_unused_reader(self):
+        import specificity_scan
+        tree = ast.parse(Path(specificity_scan.__file__).read_text(encoding="utf-8"))
+        imported = {alias.name for node in tree.body if isinstance(node, ast.ImportFrom) for alias in node.names}
+        self.assertNotIn("entry_is_for_entry", imported)
+
+    def test_h7_a_quotation_takes_its_lines_and_anchors_as_one_value(self):
+        import inspect
+        import worksheet_grammar
+        for function in (worksheet_grammar.step_four_block, worksheet_grammar.block_text,
+                         worksheet_grammar.worksheet_em_block):
+            self.assertNotIn("selected", inspect.signature(function).parameters, function.__name__)
+        text = PRIVATE.format(elements=ELEMENTS)
+        other = worksheet_grammar.anchored((text + "\nextra line\n").splitlines())
+        with self.assertRaises(ValueError):
+            worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal", other)
+        own = worksheet_grammar.resplit(worksheet_grammar.anchored(worksheet_grammar.physical_lines(text)))
+        self.assertEqual(worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal"),
+                         worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal", own))
+
+    def test_h8_the_predates_branches_are_reached_from_the_command_and_never_inside_the_gate(self):
+        import completion_checks
+        self.write_private(PRIVATE.format(elements=""))
+        with mock.patch.object(completion_checks, "approval_moment", return_value=1_700_000_000.0):
+            status, output = self.in_process("--submission", "shift-synthetic")
+            with mock.patch.object(em_audit, "render", side_effect=AssertionError("rendered")), \
+                    completion_checks.grading(self.run, "shift-synthetic"):
+                finding, report, _ = self.gate()
+        self.assertEqual(0, status, output)
+        self.assertIn("not graded, approval predates the check", output)
+        self.assertEqual(False, finding, report)
+        self.assertIn("approval predates the check", report)
+
+    def test_h9_entry_details_owns_a_field_from_the_lines_it_consumed(self):
+        import worksheet_grammar as grammar
+        texts = {str(path): path.read_text(encoding="utf-8") for path in sorted((ROOT / "fixtures").rglob("*.md"))}
+        texts["separator"] = ("CPT 99283 Emergency visit\n  wrapped" + chr(0x2028) + "\n  ANCHOR: \"x\"\n"
+                              "ICD-10-CM R05.9 Cough\n  more\nANCHOR: \"margin field\"\nSOURCE: second margin field\n")
+        compared = 0
+        for name, text in texts.items():
+            lines = grammar.physical_lines(text)
+            for index, line in enumerate(lines):
+                if grammar.ENTRY.match(line) or grammar.EM_CODE_LABEL.match(line):
+                    compared += 1
+                    self.assertEqual(entry_details_before_the_thirteenth_review(lines, index),
+                                     em_audit.entry_details(lines, index), f"{name}:{index}")
+        self.assertGreater(compared, 200)
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "entry_details")
+        source = ast.unparse(function)
+        self.assertNotIn("detail_belongs_to_entry(", source)
+        self.assertNotIn(".join(", source)
 
 
 if __name__ == "__main__":

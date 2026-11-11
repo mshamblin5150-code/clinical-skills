@@ -35,14 +35,14 @@ already approved run, add `--submission <key>`: a run approved before this check
 its missing element blocks and re-derivations as not graded.
 
 Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
-receipt is missing or stale, or a private worksheet changed after the manifest recorded it;
+receipt is missing or stale, or a private worksheet changed after its fingerprint was recorded;
 icd10-cpt rebuilds them, then repeat this step. A refusal naming the CPT MDM sheet version is a
 tool defect: report it to a maintainer and tell the clinician the check-offs cannot be rendered
 until it is fixed. Exit 2 with a nonzero `unread remainder` means an input could not be read:
-repair it as step 3 says, then repeat this step. A run approved before this check started can
-carry a manifest that predates the private worksheet fingerprint; give it `--submission`, which
-reports that run not graded. Keep the manifest as it stands: an approval binds the manifest it
-was given, and a rebuild would leave that approval binding a manifest the run no longer holds.
+repair it as step 3 says, then repeat this step. Where no private worksheet fingerprint is
+recorded, building the manifest again records it in its own file beside the manifest and leaves an
+unchanged manifest byte-identical, so the approval holds. A run approved before this check started
+gives `--submission`, which reports it not graded.
 
 ## 2. Re-derive every note
 

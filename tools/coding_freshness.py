@@ -83,7 +83,8 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
     when HEAD does not match is the path's history walked, newest first and stopping at the first
     match, each version hashed by ``sheet_sha256``, so a receipt keeps reading the sheet it bound
-    after later commits change it. The walk is two git processes: ``git log -z`` lists the commits,
+    after later commits change it; ``--full-history`` keeps a version committed on a side branch and
+    merged in. The walk is two git processes: ``git log -z`` lists the commits,
     and one ``git cat-file --batch`` returns every version, each object skipped by its declared
     size whatever its type. None when no version matches, the path is outside this checkout, or
     git cannot be run.
@@ -93,7 +94,8 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
         if head is not None and sheet_sha256(head) == digest:
             return head
         relative = path.relative_to(ROOT).as_posix()
-        log = subprocess.run(["git", "log", "-z", "--format=%H", "--", relative], cwd=ROOT, capture_output=True)
+        log = subprocess.run(["git", "log", "-z", "--full-history", "--format=%H", "--", relative],
+                             cwd=ROOT, capture_output=True)
         if log.returncode:
             return None
         commits = [commit.strip() for commit in log.stdout.decode("ascii", errors="replace").split("\0")

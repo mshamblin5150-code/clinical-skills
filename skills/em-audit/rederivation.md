@@ -28,5 +28,5 @@ One element block per note, in the em-elements.md line format, at
 The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0` and
 `damaged 0` among the re-derivations, and its `agree` and `differ` counts add up to the notes in the
 run: a re-derivation is placed for every note, with no re-derivation line unread. Other causes the
-`unread remainder` counts, such as an unreadable answers record or a manifest that predates the
-private worksheet fingerprint, go to their own repair in em-audit step 1 and do not hold this step.
+`unread remainder` counts, such as an unreadable answers record or a private worksheet
+fingerprint not yet recorded, go to their own repair in em-audit step 1 and do not hold this step.
