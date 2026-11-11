@@ -1,6 +1,6 @@
 """Render the coding decisions of a run as a human-readable E/M audit check-off.
 
-``python tools/em_audit.py RUN [--note N ...] [--write] [--docx [--output-dir DIR] [--force]]``
+``python tools/em_audit.py RUN [--note N ...] [--submission KEY] [--write] [--docx [--output-dir DIR] [--force]]``
 reads the validated coding manifest of the run, its passing freshness receipt, the private
 worksheet of each encounter with its E/M element block, the pre-approval answers record, and
 any re-derivation record under ``RUN/em-audit/rederivation/<note stem>.md``. ``--write`` writes
@@ -15,9 +15,11 @@ manifest or receipt that approval would refuse is refused here too. Output is co
 written check-offs carry patient information.
 
 Exit 0 when every selected note rendered with no finding; 1 for a finding: a note without an
-element block or a placed re-derivation (ADR 0445), an element block that contradicts itself or
-the selected code or the billed ECG code, an unknown CPT entry id, an answer id this note lacks, a
-re-derivation that differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
+element block or a placed re-derivation (ADR 0445) in a run approved on or after the E/M audit
+start in ``reference/completion-check-starts.tsv`` (``--submission`` reads the approval; without it
+the run is judged current), an element block that contradicts itself or the selected code or the
+billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
+differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
 note number is unknown, the CPT MDM sheet is not the one the receipt fingerprinted, a Word option
 was given without ``--docx``, a check-off or Word copy was refused (naming the note number that
 stopped it and the copies already written; a refused check-off leaves the Word copies unattempted),
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from contextlib import nullcontext
 from pathlib import Path
 import re
 from typing import NamedTuple
@@ -40,11 +43,12 @@ import review_manifest
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import atomic_write
 from run_grader import format_unread_remainder
-from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, damaged_record_result,
-                               fault_report, read_handwritten_record, read_tool_record)
+from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, collecting_errors,
+                               damaged_record_result, fault_report, read_handwritten_record, read_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
                                UNDOCUMENTED_HEADING, EmBlock, block_text, em_anchor, em_block, entry_region,
-                               paired_entry, read_entries, worksheet_em_block)
+                               opens_element_block, paired_entry, physical_lines, read_entries,
+                               worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -74,16 +78,22 @@ DECLARED_LIMITS = (
     "worksheet.",
     "A worksheet without an element block renders the visible worksheet and the E/M paragraph of "
     "the note verbatim, with the governing rules for the setting, and a re-derivation of it is "
-    "compared on the level alone.",
+    "compared on the level alone. A missing block or re-derivation is not graded only for a run "
+    "whose approval predates the em_audit start; the command reads that approval only through "
+    "--submission, and missing evidence grants no exemption. A re-derivation file with no readable "
+    "element line is not a placed re-derivation.",
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
-    "lines dropped, not parsed.",
+    "lines dropped, not parsed, through worksheet_grammar.step_four_block, the reader refusal_scan "
+    "and anchor_scan grade. A block ends at a heading-shaped line or at a margin E/M line whose "
+    "indented body holds an element line; a margin E/M line with no element line beneath it stays "
+    "the block's text.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
     "and an indented line after an element block, are counted unread. A continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
-    "Every E/M line of the private worksheet, under any anchor and wherever it sits, is rendered "
-    "with its own provenance fields in the E/M section.",
+    "Every E/M line of the for-entry region, and every later one that opens an element block, is "
+    "rendered with its own provenance fields in the E/M section.",
     "The element block is bound to the approved records only through the manifest element "
     "fingerprint; a manifest without it is counted unread on each check-off, and a run with no "
     "manifest whose worksheets carry an E/M line is incomplete at submission.",
@@ -150,15 +160,10 @@ class Tally:
         self.answers_shown = 0
         self.agree = self.differ = self.differences = self.damaged = self.absent = 0
         self.unread = 0
-
-
-def physical_lines(text: str) -> list[str]:
-    """The lines of ``text`` split on LF alone, the rule ``str.count("\\n")`` locates them by.
-
-    ``str.splitlines`` also splits on U+2028, U+2029 and U+0085, which the handwritten reader
-    lets through, so a line index counted by LF would drift against it.
-    """
-    return [line.removesuffix("\r") for line in text.split("\n")]
+        # A run approved before the em_audit start (completion-check-starts.tsv): a missing element
+        # block or re-derivation is shown and counted here, never as a finding.
+        self.predates = False
+        self.blocks_predating = self.absent_predating = 0
 
 
 def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], int, int]:
@@ -229,12 +234,20 @@ def field_lines(fields: dict[str, list[str]], *, defaults: bool) -> list[str]:
 
 
 def em_entry_lines(private: str, tally: Tally) -> list[str]:
-    """Every E/M line of the private worksheet with its wrapped header and provenance fields."""
+    """Every E/M line of the private worksheet with its wrapped header and provenance fields.
+
+    An E/M line is one in the for-entry region, or one after it that opens its element block; an
+    entry written inside an icd10-cpt step 4 block is that block's text, never an E/M line.
+    """
     lines = physical_lines(private)
+    region = entry_region(private)
+    region_lines = region.count("\n") if len(region) < len(private) else len(lines)
     out: list[str] = []
     claimed: set[int] = set()
     for index, line in enumerate(lines):
         if index in claimed or not em_anchor(line, review_manifest.EM_CODES):
+            continue
+        if index >= region_lines and not opens_element_block(lines, index):
             continue
         tail, fields, unplaced, end = entry_details(lines, index)
         claimed.update(range(index + 1, end))
@@ -404,11 +417,18 @@ def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict,
     return lines
 
 
+def absent_rederivation(tally: Tally, line: str) -> list[str]:
+    if tally.predates:
+        tally.absent_predating += 1
+        return [line + " Not graded: the run's approval predates the E/M audit check."]
+    tally.absent += 1
+    return [line]
+
+
 def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock | None, tally: Tally) -> list[str]:
     path = run / OUTPUT_DIRECTORY / REDERIVATION_DIRECTORY / (stem + ".md")
     if not path.exists():
-        tally.absent += 1
-        return ["No re-derivation record is placed for this note."]
+        return absent_rederivation(tally, "No re-derivation record is placed for this note.")
     try:
         text = read_handwritten_record(path, "text").require_text(force=True)
     except DamagedRecord:
@@ -418,7 +438,11 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
         tally.unread += 1
         return ["The re-derivation record could not be read."]
     rederived = em_block(text)
-    if rederived is None or rederived.unread:
+    if rederived is None or not (rederived.items or rederived.rules or rederived.answers or rederived.ecg
+                                 or rederived.mdm or rederived.level):
+        return absent_rederivation(tally, "The re-derivation record holds no readable element line, so no "
+                                          "re-derivation is placed for this note.")
+    if rederived.unread:
         tally.unread += rederived.unread if rederived else 1
         return ["The re-derivation record is not a complete element block and was not compared."]
     lines = item_lines(rederived)
@@ -478,7 +502,8 @@ class Context:
             self.answers = preapproval_answers.read(run)
         except UnreadableRecord:
             self.answers, self.unreadable = None, True
-            tally.unread += 1
+            if not collecting_errors():  # a capturing command counts the record once itself
+                tally.unread += 1
         self.answer_states = ({} if self.answers is None
                               else {entry["id"]: entry["verification"] for entry in self.answers["answers"]})
 
@@ -505,7 +530,10 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     block_ = elements.block
     tally.unread += elements.outside
     if block_ is None:
-        tally.blocks_absent += 1
+        if tally.predates:
+            tally.blocks_predating += 1
+        else:
+            tally.blocks_absent += 1
         paragraph = EM_PARAGRAPH.search(note)
         return lines + [
             "", "The private worksheet has no element block; the run states its support below.", "",
@@ -562,7 +590,8 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     blocks = ((BLOCK_HEADING, "filled_blocks"), (REFUSAL_HEADING, "refusal_blocks"),
               (UNDOCUMENTED_HEADING, "undocumented_blocks"))
     for index, (heading, attribute) in enumerate(blocks, start=2):
-        text = block_text(private, heading, review_manifest.EM_CODES)
+        # The filled-anchor block is read under every heading, as anchor_scan grades it.
+        text = block_text(private, heading, every=heading is BLOCK_HEADING)
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
@@ -597,6 +626,8 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     if any(number not in orders for number in notes):
         raise UnknownNote("unknown note number")
     tally = Tally()
+    import completion_checks
+    tally.predates = not completion_checks.active("em_audit:" + EXPECTED_ROW)
     context = Context(run, receipt, tally)
     sheets = []
     for encounter in validated.encounters:
@@ -680,6 +711,8 @@ def report(tally: Tally, total: int, selected: int, written: str) -> str:
         f"pre-approval answers shown {tally.answers_shown}",
         f"re-derivations: agree {tally.agree}; differ {tally.differ}; damaged {tally.damaged}; absent {tally.absent}",
         f"element differences {tally.differences}",
+        *([f"not graded, approval predates the check: element blocks {tally.blocks_predating}, "
+           f"re-derivations {tally.absent_predating}"] if tally.predates else []),
         written,
         format_unread_remainder(tally.unread),
     ))
@@ -746,7 +779,8 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     try:
         tally, total, sheets = render(run, [])
     except UnreadableRecord:
-        return False, f"{EXPECTED_ROW}: incomplete - a coding record is unreadable", 1
+        # A capturing command counts the record once itself; counting it here would count it twice.
+        return False, f"{EXPECTED_ROW}: incomplete - a coding record is unreadable", 0 if collecting_errors() else 1
     except DamagedRecord:
         return True, f"{EXPECTED_ROW}: finding - a coding record carries content damage", 0
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
@@ -759,7 +793,7 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
             unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
             continue
         stale += current != sheet_.text
-    unread = tally.unread + unreadable
+    unread = tally.unread + (0 if collecting_errors() else unreadable)
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
               f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
@@ -786,12 +820,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path,
                         help="Word destination under the main checkout output/ or outside every checkout")
     parser.add_argument("--force", action="store_true", help="replace a Word copy docx_write would refuse")
+    parser.add_argument("--submission", help="the run's submission key; a run approved before the E/M audit "
+                                             "check started is not graded on missing blocks or re-derivations")
     args = parser.parse_args(argv)
     if not args.docx and (args.force or args.output_dir is not None):
         parser.error("--force and --output-dir apply only to a Word copy; pass --docx with them")
     from docx_write import RefusedToOverwrite
+    import completion_checks
     try:
-        tally, total, sheets = render(args.run, args.note)
+        with (completion_checks.grading(args.run, args.submission) if args.submission else nullcontext()):
+            tally, total, sheets = render(args.run, args.note)
     except UnknownNote:
         print("em-audit: refused - a --note number is not an encounter of this run")
         return 2

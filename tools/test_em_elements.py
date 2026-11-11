@@ -110,7 +110,7 @@ class TheStrictReader(unittest.TestCase):
         for anchor in (EM_LINE, "CPT  99213  Office visit, established patient\n"):
             with self.subTest(anchor=anchor):
                 text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + anchor + BLOCK
-                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, EM_CODES))
+                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING))
 
     def test_u6_an_element_line_ending_in_not_for_entry_leaves_the_em_entry_for_entry(self):
         text = ("ICD-10  E11.9  Type 2 diabetes mellitus without complications\n"
@@ -122,12 +122,37 @@ class TheStrictReader(unittest.TestCase):
     def test_v5_only_an_unindented_em_line_ends_a_step_four_block(self):
         inside = "refused\n  E/M: 99214 would be supported if the history were documented\n  more"
         text = "---NOT CODED, NOTHING ESTABLISHED IT---\n" + inside + "\n"
-        self.assertEqual(inside, grammar.block_text(text, grammar.REFUSAL_HEADING, EM_CODES))
+        self.assertEqual(inside, grammar.block_text(text, grammar.REFUSAL_HEADING))
         indented_entry = "refused\n  CPT  99214  Office visit, established patient"
         self.assertEqual(indented_entry, grammar.block_text(
-            "---NOT CODED, NOTHING ESTABLISHED IT---\n" + indented_entry + "\n", grammar.REFUSAL_HEADING, EM_CODES))
+            "---NOT CODED, NOTHING ESTABLISHED IT---\n" + indented_entry + "\n", grammar.REFUSAL_HEADING))
         self.assertEqual("refused", grammar.block_text(
-            "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE, grammar.REFUSAL_HEADING, EM_CODES))
+            "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK, grammar.REFUSAL_HEADING))
+        # A margin E/M line or entry with no element block beneath it is the block's own text.
+        for margin in (EM_LINE, "CPT 99214 would be supported with documented time\n"):
+            with self.subTest(margin=margin):
+                text = "---UNDOCUMENTED, WOULD SUPPORT A MORE SPECIFIC CODE---\n" + margin + "history in part\n"
+                self.assertEqual(margin + "history in part",
+                                 grammar.block_text(text, grammar.UNDOCUMENTED_HEADING))
+
+    def test_x2_a_unicode_line_separator_inside_note_text_stays_on_its_element_line(self):
+        moved = BLOCK.replace('"Diabetes stable"', '"Diabetes' + chr(0x2028) + 'stable"')
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(EM_LINE + moved, EM_CODES))
+        self.assertEqual((1, 0, 0), (blocks, outside, block.unread))
+        changed = moved.replace(chr(0x2028) + "stable", chr(0x2028) + "steady")
+        self.assertNotEqual(review_manifest.element_block_sha256(EM_LINE + moved),
+                            review_manifest.element_block_sha256(EM_LINE + changed))
+        self.assertIs(grammar.physical_lines, __import__("em_audit").physical_lines)
+
+    def test_x3_a_refused_element_line_without_a_colon_keeps_its_element_and_entry_id(self):
+        line = '  EM-PROBLEM definition-stable-chronic | not counted | "History" | history only\n'
+        self.assertEqual((("PROBLEM", "definition-stable-chronic"),), grammar.em_block(BLOCK + line).unread_items)
+
+    def test_x4_one_refused_required_line_counts_once(self):
+        for old, new in (("| counted |", "| maybe |"), ("EM-LEVEL: 99213", "EM-LEVEL: not a code"),
+                         ("EM-ANSWER: none", "EM-ANSWER: the second question")):
+            with self.subTest(old=old):
+                self.assertEqual(1, grammar.em_block(BLOCK.replace(old, new, 1)).unread)
 
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"

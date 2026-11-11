@@ -909,6 +909,7 @@ def _grade(
     if em_unread:
         scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
         coverage_failed = True
+        diagnostics.append(f"unread E/M audit check-off members {em_unread} ({em_audit.EXPECTED_ROW})")
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,

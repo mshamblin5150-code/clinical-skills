@@ -2820,7 +2820,7 @@ object without copying its rows.
 
 ### E/M audit check-off
 
-`python tools/em_audit.py <run> [--note N ...] [--write] [--docx]` renders the check-off for
+`python tools/em_audit.py <run> [--note N ...] [--submission KEY] [--write] [--docx]` renders the check-off for
 `em-audit`. It reads the manifest through `review_manifest.validated_population`, the validation
 approval uses, so a stale manifest or receipt refuses rather than rendering a packet that disagrees
 with the records. Codes for entry come from the private worksheet through `worksheet_grammar`; its

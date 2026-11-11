@@ -37,7 +37,6 @@ STEP_FOUR_START = _heading(
 )
 _BLOCKS = (DIFFERENTIAL_HEADING, UNDOCUMENTED_HEADING, BLOCK_HEADING, REFUSAL_HEADING)
 _HEADING_SHAPE = re.compile(r"^[ \t]*(?:(?:#{1,6}[ \t]+)?---[^\r\n]+---|#{1,6}[ \t]+[^\r\n]+)[ \t]*$")
-ANY_HEADING = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
 _STEP_FOUR_WORD = re.compile(
     r"DIFFERENTIAL|NOT[ \t]+FOR[ \t]+ENTRY|NOT[ \t]+CODED|"
     r"ANCHOR[ \t]+WAS[ \t]+FILLED|UNDOCUMENTED",
@@ -216,8 +215,6 @@ ITEM_KINDS = ("PROBLEM", "DATA", "RISK")
 MDM_LEVELS = ("straightforward", "low", "moderate", "high")
 # The E/M code label, as review_manifest.selected_codes reads it when it selects the final code.
 EM_CODE_LABEL = re.compile(r"(?mi)^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:[ \t]*(?P<code>\d{5})\b")
-# Every heading line the icd10-cpt step 4 phrases are read from, including the unspaced ``---PHRASE---`` form.
-HEADING_LINE = re.compile("(?m)" + _HEADING_SHAPE.pattern)
 
 
 def entry_region(text: str) -> str:
@@ -234,26 +231,65 @@ def em_anchor(line: str, em_codes: frozenset[str]) -> bool:
         entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
 
 
-_LINE = re.compile(r"(?m)^.*$")
+def physical_lines(text: str) -> list[str]:
+    """The lines of ``text`` split on LF alone, each without a trailing CR.
 
-
-def block_text(text: str, heading: re.Pattern[str], em_codes: frozenset[str] = frozenset()) -> str | None:
-    """The text under one block heading, to the next heading or unindented E/M line; None when absent.
-
-    An E/M line written after the icd10-cpt step 4 blocks, at the margin with its element block
-    indented beneath it, is not part of the last block; an indented E/M line inside a block is
-    the block's own text. An E/M-family ``CPT`` entry ends a block only when ``em_codes`` names it.
+    ``str.splitlines`` also splits on U+2028, U+2029 and U+0085, which the handwritten reader lets
+    through, so a line counted by LF would drift against it and an element line would break apart.
     """
-    match = heading.search(text)
-    if match is None:
-        return None
-    end = len(text)
-    for line in _LINE.finditer(text, match.end() + 1):
-        row = line.group(0)
-        if HEADING_LINE.fullmatch(row) or (row[:1] not in (" ", "\t") and em_anchor(row, em_codes)):
-            end = line.start()
-            break
-    return text[match.end():end].strip("\n")
+    return [line.removesuffix("\r") for line in text.split("\n")]
+
+
+# A line that ends an icd10-cpt step 4 block for every reader of one: any heading-shaped line.
+# It is the wider of the two rules refusal_scan and anchor_scan held before they shared it.
+BLOCK_END = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+
+
+def opens_element_block(lines: list[str], index: int) -> bool:
+    """Whether the margin line at ``index`` is an E/M line whose indented body holds an EM- line.
+
+    em-elements.md places the element block indented directly under an E/M line, so an entry
+    written inside an icd10-cpt step 4 block, with no element line beneath it, never qualifies.
+    """
+    line = lines[index]
+    entry = ENTRY.match(line)
+    if not line[:1].strip() or not (EM_CODE_LABEL.match(line) or (entry and entry.group("system").upper() == "CPT")):
+        return False
+    for follower in lines[index + 1:]:
+        if not follower.strip() or follower[0] not in " \t":
+            return False
+        if EM_CANDIDATE.match(follower):
+            return True
+    return False
+
+
+def step_four_block(lines: list[str], heading: re.Pattern[str], *, every: bool = False) -> tuple[list[str], bool]:
+    """The lines under an icd10-cpt step 4 heading, and whether the heading was found.
+
+    The block ends at a ``BLOCK_END`` line or at an E/M line that opens its element block. Only
+    the first heading is read unless ``every``, which collects under each occurrence.
+    refusal_scan, anchor_scan and em_audit all read their blocks here.
+    """
+    collected: list[str] = []
+    found = inside = False
+    for index, line in enumerate(lines):
+        if heading.match(line) and (every or not found):
+            found = inside = True
+            continue
+        if inside:
+            if BLOCK_END.match(line) or opens_element_block(lines, index):
+                inside = False
+                if not every:
+                    break
+                continue
+            collected.append(line)
+    return collected, found
+
+
+def block_text(text: str, heading: re.Pattern[str], *, every: bool = False) -> str | None:
+    """The text of one icd10-cpt step 4 block as ``step_four_block`` reads it; None when the heading is absent."""
+    collected, found = step_four_block(physical_lines(text), heading, every=every)
+    return "\n".join(collected).strip("\n") if found else None
 
 EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
 EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
@@ -266,7 +302,8 @@ _EM_MDM = re.compile(
     r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
 )
 # A refused element line still names its element and, in its first field, usually its entry id.
-_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[^:]*:(?P<entry>[^|]*)")
+_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[ \t*]*:?(?P<entry>[^|]*)")
+_EM_KIND = re.compile(r"EM-(?P<kind>[A-Z]+)\b")
 _EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
 _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
@@ -311,7 +348,7 @@ def em_block(text: str) -> EmBlock | None:
     PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
     ``unread_items``, so a comparison can leave its counterpart out.
     """
-    lines = [line for line in text.splitlines() if EM_CANDIDATE.match(line)]
+    lines = [line for line in physical_lines(text) if EM_CANDIDATE.match(line)]
     if not lines:
         return None
     items: list[EmItem] = []
@@ -320,6 +357,7 @@ def em_block(text: str) -> EmBlock | None:
     levels: list[str] = []
     unread = 0
     unread_items: list[tuple[str, str | None]] = []
+    refused: set[str] = set()
     for line in lines:
         loose = _EM_LOOSE_ITEM.search(line)
         match = _EM_LINE.match(line)
@@ -338,11 +376,17 @@ def em_block(text: str) -> EmBlock | None:
             free[kind].append(value)
         else:
             unread += 1
+            named = _EM_KIND.search(line)
+            refused.add(named.group("kind") if named else "")
             if loose is not None:
                 entry = loose.group("entry").strip(" \t*")
                 unread_items.append((loose.group("kind"), entry if _EM_ENTRY.fullmatch(entry) else None))
-    complete = ({item.kind for item in items} >= set(ITEM_KINDS) and len(mdms) == 1 and len(levels) == 1
-                and bool(free["ANSWER"]) and bool(free["ECG"]))
+    # A required line that is present but refused is already counted once; only an absent one adds.
+    present = {item.kind for item in items} | {kind for kind, values in free.items() if values} | refused
+    present |= {"MDM"} if mdms else set()
+    present |= {"LEVEL"} if levels else set()
+    complete = (present >= {*ITEM_KINDS, "ANSWER", "ECG", "MDM", "LEVEL"}
+                and len(mdms) <= 1 and len(levels) <= 1)
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), tuple(free["ECG"]),
                    mdms[0] if len(mdms) == 1 else None, levels[0] if len(levels) == 1 else None,
                    unread + (0 if complete else 1), tuple(unread_items))
@@ -366,7 +410,7 @@ def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements
     returned and the caller reports the rest. EM- candidates under no anchor are ``outside``. A
     worksheet written before the block existed reads ``(None, 0, 0)``.
     """
-    lines = text.splitlines()
+    lines = physical_lines(text)
     candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
     claimed: set[int] = set()
     groups: list[list[int]] = []

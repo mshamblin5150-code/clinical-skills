@@ -54,8 +54,11 @@ E/M: 99213 Office or other outpatient visit, established patient, low MDM
   EM-LEVEL: 99213
 ```
 
-A worksheet written before the block existed stays valid; its check-off shows the visible
-worksheet and the E/M paragraph of the note instead.
+A worksheet without the block still renders: its check-off shows the visible worksheet and the
+E/M paragraph of the note instead. It is valid only for a run approved before the `em_audit` start
+in `reference/completion-check-starts.tsv`; there a missing block, or a missing re-derivation, is
+shown and not graded. For a run approved on or after that start, a missing block is a finding.
+`tools/em_audit.py` reads the approval through `--submission`; without it, a run is judged current.
 
 ## The pre-approval answers record
 

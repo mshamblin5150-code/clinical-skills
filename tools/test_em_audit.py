@@ -853,5 +853,115 @@ class FifthReviewFindings(RunFixture):
         self.assertEqual([], [node for node in ast.walk(function) if isinstance(node, ast.Pass)])
 
 
+
+class SixthReviewFindings(RunFixture):
+    """The sixth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    UNDOCUMENTED = ("## Undocumented, would support a more specific code\n\n"
+                    "CPT 99284 would be supported with documented time\n"
+                    "History documented only in part.\n\n")
+
+    def section(self, text: str, title: str) -> str:
+        return text.split("## " + title, 1)[1].split("\n## ", 1)[0]
+
+    def test_x1_an_entry_inside_a_step_four_block_never_ends_its_quotation(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "## Coded, anchor was filled", self.UNDOCUMENTED + "## Coded, anchor was filled"))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        text = self.sheet.read_text(encoding="utf-8")
+        documentation = self.section(text, "Documentation that would support a more specific code")
+        self.assertIn("> CPT 99284 would be supported with documented time", documentation)
+        self.assertIn("> History documented only in part.", documentation)
+        self.assertNotIn("E/M line: CPT 99284", self.section(text, "E/M level, element by element"))
+
+    def test_x1_an_em_line_after_the_blocks_still_ends_the_last_one(self):
+        # The manifest selects an E/M identity after the icd10-cpt step 4 blocks only from an E/M: label line.
+        for tail in ("\nE/M: 99283 low complexity\n" + ELEMENTS,
+                     "\nE/M: 99283 low complexity\n  NOTE: support restated\n" + ELEMENTS):
+            with self.subTest(tail=tail.splitlines()[2]):
+                self.write_private(PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n", "") + tail)
+                self.assertEqual(0, self.invoke("--write").returncode)
+                refused = self.section(self.sheet.read_text(encoding="utf-8"),
+                                       "Codes refused, with what would establish them")
+                self.assertIn("NOT CODED: J18.9", refused)
+                self.assertNotIn("EM-", refused)
+                self.assertNotIn("99283", refused)
+
+    def test_x1_the_graders_and_the_check_off_read_the_same_block_lines(self):
+        import anchor_scan
+        import refusal_scan
+        import worksheet_grammar
+        text = PRIVATE.format(elements=ELEMENTS) + "\nE/M: 99283 low complexity\n" + ELEMENTS
+        lines = text.splitlines()
+        self.assertEqual(refusal_scan._block_lines(lines)[0],
+                         worksheet_grammar.step_four_block(lines, worksheet_grammar.REFUSAL_HEADING)[0])
+        self.assertEqual(anchor_scan._block_lines(text)[0],
+                         worksheet_grammar.step_four_block(lines, worksheet_grammar.BLOCK_HEADING, every=True)[0])
+
+    def test_x3_a_refused_element_line_without_a_colon_is_left_out_of_the_comparison(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
+            "EM-PROBLEM: definition-stable-chronic", "EM-PROBLEM definition-stable-chronic")))
+        self.record(ELEMENTS)
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 1; differ 0", result.stdout)
+        self.assertIn("unread remainder 1", result.stdout)
+
+    def at_approval(self, moment: float, *args):
+        import completion_checks
+        with mock.patch.object(completion_checks, "approval_moment", return_value=moment):
+            return self.in_process(*args)
+
+    def test_x5_a_missing_block_is_a_finding_only_after_the_check_started(self):
+        self.write_private(PRIVATE.format(elements=""))
+        before, after = 1_700_000_000.0, 4_102_444_800.0
+        status, output = self.at_approval(before, "--submission", "shift-synthetic")
+        self.assertEqual(0, status, output)
+        self.assertIn("not graded, approval predates the check: element blocks 1, re-derivations 0", output)
+        status, output = self.at_approval(after, "--submission", "shift-synthetic")
+        self.assertEqual(1, status, output)
+        self.assertIn("element blocks: present 0, absent 1", output)
+        status, output = self.in_process()
+        self.assertEqual(1, status, output)
+        import completion_checks
+        for moment, expected in ((before, (False, "not graded")), (after, (True, "finding"))):
+            with mock.patch.object(completion_checks, "approval_moment", return_value=moment), \
+                    completion_checks.grading(self.run, "shift-synthetic"):
+                finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+            self.assertEqual(expected[0], finding, report)
+            self.assertIn(expected[1], report)
+
+    def test_x6_a_re_derivation_with_no_readable_element_line_is_absent(self):
+        for text in ("Prose only, no element line.\n", "  EM-OPINION: an unrecognized line\n"):
+            with self.subTest(text=text):
+                self.record(text)
+                result = self.invoke("--write")
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertIn("absent 1", result.stdout)
+        self.record(ELEMENTS.replace("  EM-LEVEL: 99283\n", "  EM-LEVEL: not a code\n"))
+        result = self.invoke()
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 0", result.stdout)
+
+    def specificity(self):
+        return subprocess.run([sys.executable, str(Path(__file__).with_name("specificity_scan.py")), str(self.run),
+                               "--submission", "shift-synthetic"],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    def test_x7_the_check_off_unread_share_is_labeled_and_counted_once(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS + "  EM-OPINION: an unrecognized line\n"))
+        self.assertEqual(2, self.invoke("--write").returncode)
+        result = self.specificity()
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("unread E/M audit check-off members 1 (the E/M audit check-offs)", result.stdout + result.stderr)
+        self.write_private(PRIVATE.format(elements=ELEMENTS))
+        self.assertEqual(0, self.invoke("--write").returncode)
+        self.sheet.write_bytes(b"\xff not utf-8")
+        result = self.specificity()
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("unread tool-written records 1", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

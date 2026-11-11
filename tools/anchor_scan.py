@@ -84,7 +84,7 @@ from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
     BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
     REFUSAL_HEADING, STEP_FOUR_START, detail_belongs_to_entry, entry_is_for_entry,
-    heading_counts, paired_entry,
+    heading_counts, paired_entry, step_four_block,
 )
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -274,22 +274,11 @@ class Scan:
 
 
 def _block_lines(text: str) -> tuple[list[str], bool]:
-    """The ``icd10-cpt`` step-4 block's lines, and whether its heading was found."""
-    lines = text.splitlines()
-    collected: list[str] = []
-    found = False
-    inside = False
-    for line in lines:
-        if BLOCK_HEADING.match(line):
-            found = True
-            inside = True
-            continue
-        if inside:
-            if OTHER_HEADING.match(line):
-                inside = False
-                continue
-            collected.append(line)
-    return collected, found
+    """The ``icd10-cpt`` step-4 block's lines under every heading, and whether one was found.
+
+    The shared icd10-cpt step 4 reader em_audit's check-off quotes from, so both read the same lines.
+    """
+    return step_four_block(text.splitlines(), BLOCK_HEADING, every=True)
 
 
 def read_worksheet(text: str) -> Worksheet:

@@ -123,8 +123,8 @@ def element_block_sha256(private: str) -> str:
     this separate field binds the element block, so an element line edited after the manifest
     refuses validation without changing the receipt's fingerprint.
     """
-    from worksheet_grammar import EM_CANDIDATE
-    lines = [line.rstrip() for line in private.splitlines() if EM_CANDIDATE.match(line)]
+    from worksheet_grammar import EM_CANDIDATE, physical_lines
+    lines = [line.rstrip() for line in physical_lines(private) if EM_CANDIDATE.match(line)]
     return digest("\n".join(lines).encode("utf-8"))
 
 

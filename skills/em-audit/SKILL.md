@@ -30,7 +30,9 @@ and the pre-approval answers record it reads are defined in
 ## 1. Confirm the coding records
 
 Run `python tools/em_audit.py <run>` on the coding run named in
-[Clinical status, manifest, and Review sheet](../_shared/reference/clinical-manifest.md).
+[Clinical status, manifest, and Review sheet](../_shared/reference/clinical-manifest.md). For an
+already approved run, add `--submission <key>`: a run approved before this check started reports
+its missing element blocks and re-derivations as not graded.
 
 Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
 receipt is missing or stale, an element line changed after the manifest, or the CPT MDM sheet is not
