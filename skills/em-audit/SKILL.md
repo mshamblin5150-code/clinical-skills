@@ -75,8 +75,8 @@ notes it names:
 python tools/em_audit.py <run> --docx --note <order>
 ```
 
-The Word copies go to the main checkout's `output/em-audit/<run name>/` through the shared
-renderer, which refuses to replace a copy edited by hand until `--force`, and they carry every
+The Word copies go to the main checkout's `output/em-audit/<run name>-<path fingerprint>/`, one
+folder per run even where two runs share a name, through the shared renderer, which refuses to replace a copy edited by hand until `--force`, and they carry every
 asterisk and backtick of the copied record text as written. `--force` and `--output-dir` are
 refused without `--docx`. A refused copy names its note number and how many copies were already
 written.

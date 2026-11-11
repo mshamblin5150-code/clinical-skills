@@ -90,7 +90,6 @@ class RunFixture(unittest.TestCase):
         name_the_committed_sheet(self.run)
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
             preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)
-        em_audit.reset_sheet_cache()
         self.sheet = self.run / em_audit.OUTPUT_DIRECTORY / "note-1.md"
         self.rederivation = self.run / em_audit.OUTPUT_DIRECTORY / em_audit.REDERIVATION_DIRECTORY / "note-1.md"
         self.record(ELEMENTS)
@@ -140,7 +139,7 @@ class CheckOffCommand(RunFixture):
             self.assertNotIn(private, result.stdout)
         self.assertFalse(self.sheet.exists())
         self.assertEqual([], list(self.root.rglob("*.docx")))
-        self.assertFalse((repo_root.output_root() / em_audit.WORD_DIRECTORY / self.run.name).exists())
+        self.assertFalse(em_audit.word_folder(self.run, None).exists())
 
     def test_written_check_off_renders_every_recorded_decision_in_template_order(self):
         result = self.invoke("--write")
@@ -677,11 +676,9 @@ class FourthReviewFindings(RunFixture):
         status, output = self.in_process("--write")
         self.assertEqual(0, status, output)
         self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
-        em_audit.reset_sheet_cache()
         with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", wraps=cpt_mdm_sheet.read_entries) as parser:
             self.in_process()
         self.assertEqual(1, parser.call_count)
-        em_audit.reset_sheet_cache()
         with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", side_effect=ValueError("no entries")):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
@@ -811,12 +808,10 @@ class FifthReviewFindings(RunFixture):
         self.assertEqual(0, status, output)
         self.assertGreater(rule.call_count, 0)
         self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
-        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "sheet_sha256", return_value="0" * 64):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
         self.assertIn("unread remainder 1", output)
-        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
@@ -1281,7 +1276,6 @@ class TenthReviewFindings(RunFixture):
         import coding_freshness
         import worksheet_grammar
         name_the_committed_sheet(self.run)
-        em_audit.reset_sheet_cache()
         with mock.patch.object(worksheet_grammar, "selected_em_lines", wraps=worksheet_grammar.selected_em_lines) as inner, \
                 mock.patch.object(em_audit, "selected_em_lines", wraps=em_audit.selected_em_lines) as outer, \
                 mock.patch.object(coding_freshness, "bound_sheet_version",
@@ -1289,7 +1283,7 @@ class TenthReviewFindings(RunFixture):
             em_audit.render(self.run, [])
             em_audit.render(self.run, [])
         self.assertLessEqual(inner.call_count + outer.call_count, 4)
-        self.assertEqual(1, sheet.call_count)
+        self.assertEqual(2, sheet.call_count)  # fourteenth review: once per render, no process cache
 
     def test_q6_one_body_rule_and_no_em_codes_parameter(self):
         import inspect
@@ -1348,7 +1342,6 @@ class EleventhReviewFindings(ProseBind, RunFixture):
 
     def test_e1_a_sheet_version_the_parser_refuses_is_a_finding(self):
         import coding_freshness
-        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             finding, report, unread = self.gate()
         self.assertEqual((True, 0), (finding, unread), report)
@@ -1632,7 +1625,6 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
 
     def test_g5_a_bound_sheet_version_that_does_not_parse_names_the_parse_failure(self):
         import coding_freshness
-        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
@@ -1851,6 +1843,165 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
         source = ast.unparse(function)
         self.assertNotIn("detail_belongs_to_entry(", source)
         self.assertNotIn(".join(", source)
+
+
+# Markers salted into every source field that could carry patient identity (ADR 0445 ruling 4).
+SALT = {
+    "opener name": "Zorblat Quenmar",
+    "status pointer": "chart-row-zq55501",
+    "status reply": "status-reply-zq55502",
+    "status evidence file": "evidence-zq55503",
+    "note header": "header-zq55504",
+    "opener source line": "source-zq55505",
+}
+
+
+class FourteenthReviewFindings(ProseBind, RunFixture):
+    """The fourteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def office_run(self) -> Path:
+        """A synthetic office run whose identity fields all carry a SALT marker."""
+        import encounter_openers
+        import encounter_status
+        root = self.root / "salted"
+        root.mkdir()
+        run = root / "run"
+        source = root / "source.txt"
+        source.write_text(f"Note 1 {SALT['opener name']}\n40 female {SALT['opener source line']}\n", encoding="utf-8")
+        readings = root / "readings.json"
+        readings.write_text(json.dumps([dict(note=1, name=SALT["opener name"], age="40", sex="female")]),
+                            encoding="utf-8")
+        encounter_openers.create(run, source, readings, "2026-10-01", "split", None)
+        (run / "note-1.md").write_text(
+            f"# Encounter {SALT['note header']}\n\n## Subjective\nCough.\n\n## Objective\nAlert.\n\n"
+            "## Assessment\nCough.\n\n## Plan\nEducation: Rest.\n\n"
+            "E/M: Low complexity, synthetic support; 99213, office service.\n\n"
+            "## Medatrax entry fields\n| Field | Value |\n| --- | --- |\n| Gender | Female |\n\n"
+            "## Tier block\nPrivate working text.\n", encoding="utf-8")
+        (run / "visible-worksheet-1.md").write_text(VISIBLE.replace("99283", "99213").replace(
+            "CPT 99213 Emergency visit", "CPT 99213 Office visit"), encoding="utf-8")
+        (run / "worksheets").mkdir()
+        (run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace("99283", "99213")).replace(
+            "CPT 99283 Emergency visit", "CPT 99213 Office visit"), encoding="utf-8")
+        evidence = root / (SALT["status evidence file"] + ".txt")
+        evidence.write_text(f"Was this patient seen before? {SALT['status reply']}\n", encoding="utf-8")
+        encounter_status.record_status(run, 1, "established", "clinician-answer", evidence,
+                                       SALT["status pointer"], SALT["status reply"])
+        codes = dict(icd10=["R05.9"], em="99213", cpt=[], hcpcs=[])
+        (run / "inputs.json").write_text(json.dumps([dict(note="note-1.md", worksheet="visible-worksheet-1.md",
+                                                          setting="office", codes=codes)]), encoding="utf-8")
+        review_manifest.build(run, run / "inputs.json", batch=True, constants=CONSTANTS)
+        passing_receipt(run)
+        name_the_committed_sheet(run)
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            preapproval_answers.record(run, 1, QUESTION, [], REPLY)
+        return run
+
+    def test_i1_no_identity_field_reaches_the_check_off_or_its_word_copy(self):
+        run = self.office_run()
+        manifest = json.loads((run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
+        status = manifest["encounters"][0]["patient_status"]
+        self.assertEqual((SALT["status pointer"], SALT["status reply"]), (status["pointer"], status["clinician_reply"]))
+        command = [sys.executable, str(Path(__file__).with_name("em_audit.py")), str(run), "--write", "--docx",
+                   "--output-dir", str(self.root / "export")]
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertIn("check-offs written 1", result.stdout, result.stdout + result.stderr)
+        import docx_read
+        markdown = (run / em_audit.OUTPUT_DIRECTORY / "note-1.md").read_text(encoding="utf-8")
+        word = "\n".join(docx_read.read_docx(self.root / "export" / "note-1.docx"))
+        for field, marker in SALT.items():
+            for name, text in (("Markdown", markdown), ("Word", word), ("stdout", result.stdout)):
+                self.assertNotIn(marker.casefold(), text.casefold(), f"{field} reached the {name} copy")
+        # The status is shown by value, evidence kind and fingerprint; the answers record keeps its replies.
+        self.assertIn(f"- Patient status: established; evidence: clinician answer; fingerprint {status['evidence_sha256']}",
+                      markdown)
+        self.assertIn("> " + REPLY, markdown)
+
+    def test_i2_a_freshness_run_on_another_day_leaves_the_check_off_current(self):
+        self.assertEqual(0, self.invoke("--write").returncode)
+        path = self.run / review_manifest.RECEIPT
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["checked_as_of"] = "2026-11-02"
+        path.write_text(json.dumps(value), encoding="utf-8")
+        finding, report, unread = self.gate()
+        self.assertEqual((False, 0), (finding, unread), report)
+        self.assertIn("check-offs missing or stale 0", report)
+        self.assertNotIn("2026-10-21", self.sheet.read_text(encoding="utf-8"))
+
+    def block(self, lines: str):
+        import worksheet_grammar
+        return worksheet_grammar.em_block(lines)
+
+    def test_i3_a_billed_ecg_code_must_be_named_by_the_ecg_line(self):
+        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
+        cases = {
+            ("93005",): {"  EM-ECG: the ADR 0443 limb for a pending reading\n": True,
+                         "  EM-ECG: not applicable\n": True, "  EM-ECG: 93005 counts one test ordered\n": False},
+            ("93000", "93005"): {"  EM-ECG: 93005 counts one test ordered\n": True,
+                                 "  EM-ECG: 93000 read here; 93005 pending, one test ordered\n": False},
+        }
+        for billed, lines in cases.items():
+            for line, expected in lines.items():
+                with self.subTest(billed=billed, line=line):
+                    found = em_audit.ecg_findings(self.block(base + line), frozenset(billed))
+                    self.assertEqual(expected, bool(found), found)
+
+    def test_i4_a_counted_item_needs_an_entry_id_and_note_text(self):
+        all_none = ("  EM-PROBLEM: none | counted | none | high problems\n"
+                    "  EM-DATA: none | counted | none | extensive data\n"
+                    "  EM-RISK: none | counted | none | high risk\n"
+                    "  EM-ANSWER: none\n  EM-ECG: not applicable\n"
+                    "  EM-MDM: problems high; data high; risk high; mdm high\n  EM-LEVEL: 99215\n")
+        found = em_audit.block_findings(self.block(all_none), "99215", None, None)
+        self.assertEqual(3, sum("none | not counted | none" in finding for finding in found), found)
+        quoteless = ELEMENTS.replace('counted | "Cough." |', 'counted | none |')
+        found = em_audit.block_findings(self.block(quoteless), "99283", None, None)
+        self.assertTrue(any("quotes no note text" in finding for finding in found), found)
+        self.assertEqual([], em_audit.block_findings(self.block(ELEMENTS), "99283", None, {"note-1.q1"}))
+
+    def test_i5_a_field_after_an_element_block_is_unread_not_provenance(self):
+        late = '  ANCHOR: "Late field after the block."\n'
+        self.write_private(PRIVATE.format(elements=ELEMENTS + late))
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertNotIn("Late field after the block", self.sheet.read_text(encoding="utf-8"))
+        # The same holds under a code entry carrying stray element lines.
+        import worksheet_grammar
+        lines = worksheet_grammar.physical_lines('ICD-10-CM R05.9 Cough\n  EM-LEVEL: 99283\n' + late)
+        tail, fields, unplaced, _ = em_audit.entry_details(lines, 0)
+        self.assertEqual(({}, 1), (fields, unplaced))
+
+    def test_i6_no_process_lifetime_cache_of_the_sheet(self):
+        import coding_freshness
+        self.assertFalse(hasattr(em_audit, "_SHEET_IDS"))
+        self.assertFalse(hasattr(em_audit, "reset_sheet_cache"))
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        self.assertEqual([], [ast.unparse(node) for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign))
+                              and isinstance(getattr(node, "value", None), ast.Dict) and not node.value.keys])
+        with mock.patch.object(coding_freshness, "bound_sheet_version",
+                               wraps=coding_freshness.bound_sheet_version) as sheet:
+            em_audit.render(self.run, [])
+            em_audit.render(self.run, [])
+        self.assertEqual(2, sheet.call_count)  # once per render, never remembered across calls
+
+    def test_i7_the_docs_follow_the_one_selection_rule(self):
+        import worksheet_grammar
+        elements = (ROOT / "skills" / "_shared" / "reference" / "em-elements.md").read_text(encoding="utf-8")
+        self.assertProseNotIn("for entry at the margin", elements)
+        self.assertProseNotIn("margin for-entry", worksheet_grammar.worksheet_em_block.__doc__)
+
+    def test_i8_two_runs_with_one_name_get_their_own_word_folders(self):
+        first, second = self.root / "a" / "run", self.root / "b" / "run"
+        for run in (first, second):
+            run.mkdir(parents=True)
+        one, two = em_audit.word_folder(first, None), em_audit.word_folder(second, None)
+        self.assertNotEqual(one, two)
+        self.assertTrue(one.name.startswith("run-"), one)
+        self.assertEqual(one, em_audit.word_folder(first, None))
 
 
 if __name__ == "__main__":

@@ -9,8 +9,8 @@ the [em-audit](../../em-audit/SKILL.md) re-derivation writes an element block of
 ## The element block
 
 In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces directly
-under either E/M line the code reader accepts (an `E/M:` label line, at the margin or indented,
-or an E/M-family `CPT` entry for entry at the margin), one element per physical line, with no blank
+under either E/M line the code reader accepts (an `E/M:` label line or an E/M-family `CPT`
+entry for entry, each at the margin or indented), one element per physical line, with no blank
 line inside the block. A label written inside that entry's own indented lines belongs to the same
 block. EM- lines under an
 E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
@@ -43,6 +43,8 @@ E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
 - The manifest build records a fingerprint of the whole private worksheet in its own file beside
   the manifest; after editing the worksheet, build again, or the E/M audit check-off refuses. An
   edit that changes no selected code leaves the manifest byte-identical.
+- A counted line names a real entry id and quotes note text. A field line written after the
+  block under the same E/M line is unread, never that line's provenance.
 
 Synthetic example, an established office patient:
 

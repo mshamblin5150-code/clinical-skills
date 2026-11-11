@@ -528,8 +528,9 @@ class WorksheetElements:
 def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
-    An E/M line is one of ``selected_em_lines``: an ``EM_CODE_LABEL`` line, or a margin for-entry
-    E/M-family ``ENTRY``; EM- lines under a ``NOT FOR ENTRY`` E/M entry are outside. A block is
+    An E/M line is one of ``selected_em_lines``, by ``selected_em``'s rule: an ``EM_CODE_LABEL``
+    line or a for-entry ``em_identity`` entry, indented or not; EM- lines under a ``NOT FOR ENTRY``
+    E/M entry are outside. A block is
     ``element_body_end``'s body under such a line; a selected line inside another one's body, such
     as an indented label under the selected entry, belongs to that block rather than opening a
     second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and

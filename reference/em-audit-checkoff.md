@@ -11,8 +11,8 @@ procedure and [em-elements.md](../skills/_shared/reference/em-elements.md) the r
 - Note file: <note filename>
 - Service date: <service date>
 - Setting: <office | emergency department>
-- Patient status: <new | established>; evidence: <identity-map | medatrax | clinician-answer>; pointer: <pointer>
-- Coding freshness: PASS, checked <date>
+- Patient status: <new | established>; evidence: <identity map | Medatrax | clinician answer>; fingerprint <evidence SHA-256>
+- Coding freshness: PASS
 - Rendered from batch-codes.json, worksheets/<note stem>.md and <visible worksheet>
 - Coding content fingerprint: <normalized SHA-256>
 

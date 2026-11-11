@@ -7,7 +7,7 @@ any re-derivation record under ``RUN/em-audit/rederivation/<note stem>.md``. ``-
 one Markdown check-off per selected note to ``RUN/em-audit/<note stem>.md``. ``--docx`` renders
 the same text to Word through ``docx_write.write_docx`` with ``literal=True``, so copied note
 text, reasons, questions and replies keep their asterisks and backticks, by default under the
-owning checkout ``output/em-audit/<run name>/``; nothing writes a Word copy unless asked, and
+owning checkout ``output/em-audit/<run name>-<path fingerprint>/``; nothing writes a Word copy unless asked, and
 ``--output-dir`` or ``--force`` without ``--docx`` is refused.
 
 The check-off is derived from the records the coding run wrote, so the two cannot disagree: a
@@ -20,7 +20,7 @@ start in ``reference/completion-check-starts.tsv`` (``--submission`` reads the a
 the run is judged current), an element block that contradicts itself or the selected code or the
 billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
 differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
-note number is unknown, a private worksheet changed after the manifest recorded it, the CPT MDM
+note number is unknown, a private worksheet changed after its fingerprint was recorded, the CPT MDM
 sheet version the receipt bound does not parse, a Word option was given without ``--docx``, a
 check-off or Word copy was refused (naming the note number that stopped it and the copies already
 written; a refused check-off leaves the Word copies unattempted), or a candidate went unread
@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import hashlib
 from contextlib import nullcontext
 from pathlib import Path
 import re
@@ -56,6 +57,11 @@ from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LA
 
 
 DECLARED_LIMITS = (
+    "A check-off names its note by encounter number, service date and note filename (ADR 0445 "
+    "ruling 4), and the patient status by value, evidence kind and evidence fingerprint; it never "
+    "renders the opener record, identity rows, the status pointer, evidence path or status reply, "
+    "or note headers. Worksheet, note E/M paragraph, re-derivation and answers text is quoted as "
+    "recorded, so a name written into that text is not removed.",
     "The check-off restates what the run recorded. It establishes neither that a code is correct "
     "nor that the documentation supports the level; those remain readings for the clinician and "
     "the coding graders.",
@@ -206,7 +212,7 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
     lines already consumed, each tested once by ``indented_pieces``. Otherwise the body is the
     contiguous indented lines below the entry; a nested entry line ends it. A line continues the
     field above it, or the header before the first field. Element lines and an indented E/M label
-    belong to the element block, and an indented line after them is unplaced.
+    belong to the element block, and any line after them, a field line included, is unplaced.
     """
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
@@ -226,13 +232,13 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
         end += 1
         if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
+        elif state == "element":
+            unplaced += 1  # after an element block nothing is provenance, a field line included
         elif field:
             state = field.group("field").upper()
             fields.setdefault(state, []).append(line[field.end():].strip())
         elif state == "header":
             tail.append(line.strip())
-        elif state == "element":
-            unplaced += 1
         else:
             fields[state][-1] = (fields[state][-1] + " " + line.strip()).strip()
     return tail, fields, unplaced, end
@@ -350,26 +356,16 @@ def sheet_ids(receipt: dict) -> set[str] | None:
     rule that wrote the receipt's ``mdm_sheet_sha256``, so a later commit to the sheet does not
     block an older run. None when no version matches or git cannot be run, which the caller counts
     as unread. A matching version the sheet parser refuses refuses the check-off.
-    The version is resolved once per process for each sheet path and receipt fingerprint.
+    ``Context`` calls it once per render or gate call and holds the result for that call only;
+    nothing is remembered across calls.
     """
     cpt = receipt["sources"]["cpt"]
     path = REPOSITORY / "reference" / Path(cpt["mdm_sheet_filename"]).name
-    key = (str(path), cpt["mdm_sheet_sha256"])
-    if key not in _SHEET_IDS:
-        content = coding_freshness.bound_sheet_version(path, cpt["mdm_sheet_sha256"])
-        try:
-            _SHEET_IDS[key] = None if content is None else frozenset(cpt_mdm_sheet.read_entries(content.decode("utf-8")))
-        except (UnicodeError, ValueError) as error:
-            raise SheetMoved("the CPT MDM sheet version the receipt bound does not parse") from error
-    return None if _SHEET_IDS[key] is None else set(_SHEET_IDS[key])
-
-
-_SHEET_IDS: dict[tuple[str, str], frozenset[str] | None] = {}
-
-
-def reset_sheet_cache() -> None:
-    """Forget the sheet versions resolved in this process."""
-    _SHEET_IDS.clear()
+    content = coding_freshness.bound_sheet_version(path, cpt["mdm_sheet_sha256"])
+    try:
+        return None if content is None else set(cpt_mdm_sheet.read_entries(content.decode("utf-8")))
+    except (UnicodeError, ValueError) as error:
+        raise SheetMoved("the CPT MDM sheet version the receipt bound does not parse") from error
 
 
 def item_lines(block_: EmBlock) -> list[str]:
@@ -401,6 +397,12 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
     if block_.level is not None and block_.level != selected:
         found.append(f"the block level {block_.level} differs from the selected code {selected}")
+    for item in block_.items:
+        # em-elements.md: none is written only as none | not counted | none.
+        if item.entry == "none" and (item.counted or item.text != "none"):
+            found.append(f"a {item.kind.title()} line with no entry id reads other than none | not counted | none")
+        elif item.counted and item.text == "none":
+            found.append(f"counted {item.kind.title()} {item.entry} quotes no note text")
     if ids is not None:
         found += [f"entry id {item.entry} is not in the CPT MDM sheet"
                   for item in block_.items if item.entry != "none" and item.entry not in ids]
@@ -416,22 +418,19 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
 
 
 def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
-    """Where the EM-ECG limb contradicts the ADR 0443 ECG code the worksheet bills.
+    """Where the EM-ECG limb does not name each ADR 0443 ECG code the worksheet bills.
 
-    A billed 93000 or 93005 needs an EM-ECG line other than ``not applicable``, and a single
-    billed code needs its limb to name it rather than only the other code. With no ECG code
-    billed, the limb is free text and is not graded.
+    em-elements.md: where the worksheet bills 93000 or 93005, the line names that code, so with
+    both billed it names both. With no ECG code billed, the limb is free text and is not graded;
+    a block with no EM-ECG line is already incomplete.
     """
     codes = sorted(billed & ECG_RULES.keys())
     if not codes or not block_.ecg:
         return []
     if all(line.strip().lower() == "not applicable" for line in block_.ecg):
         return [f"the worksheet bills {', '.join(codes)}, but its EM-ECG line says not applicable"]
-    if len(codes) == 1:
-        (code,), (other,) = codes, ECG_RULES.keys() - set(codes)
-        if not any(code in line for line in block_.ecg) and any(other in line for line in block_.ecg):
-            return [f"the worksheet bills {code}, but its EM-ECG line names the {other} limb"]
-    return []
+    unnamed = [code for code in codes if not any(code in line for line in block_.ecg)]
+    return [f"the worksheet bills {code}, but its EM-ECG line does not name it" for code in unnamed]
 
 
 def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) -> list[str]:
@@ -460,12 +459,13 @@ def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) ->
     return found
 
 
-def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict, tally: Tally) -> list[str]:
-    """Every recorded question and reply of the note, verbatim; each unverified one is unread coverage."""
-    lines = []
-    status = item["patient_status"]
-    if item["setting"] == "office" and status.get("evidence") == "clinician-answer" and status.get("clinician_reply"):
-        lines += ["Patient status question. Reply:", "", *quoted(status["clinician_reply"], paragraphs=True), ""]
+def answer_lines(answers: dict | None, unreadable: bool, order: int, tally: Tally) -> list[str]:
+    """Every recorded question and reply of the note, verbatim, from the answers record alone.
+
+    Each unverified one is unread coverage. The patient-status reply is never shown: it answers who
+    the patient is, and the status line names its evidence by kind and fingerprint instead.
+    """
+    lines: list[str] = []
     if unreadable:
         return lines + ["The pre-approval answers record could not be read; its entries are not shown."]
     if answers is None:
@@ -537,12 +537,18 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     return lines
 
 
+# The status evidence kinds, named for the auditor. The pointer and the status reply can carry a
+# patient name or chart line (ADR 0445 ruling 4), so neither is ever rendered.
+EVIDENCE_KINDS = {"identity-map": "identity map", "medatrax": "Medatrax", "clinician-answer": "clinician answer"}
+
+
 def status_text(item: dict) -> str:
+    """The patient status by value, evidence kind and evidence fingerprint, all from the manifest."""
     if item["setting"] != "office":
         return "not applicable; emergency department levels have no new or established axis"
     status = item["patient_status"]
-    value, evidence, pointer = status["value"], status["evidence"], status.get("pointer", "")
-    return f"{value}; evidence: {evidence}" + (f"; pointer: {pointer}" if pointer else "")
+    kind = EVIDENCE_KINDS.get(status["evidence"], "unrecognized")
+    return f"{status['value']}; evidence: {kind}; fingerprint {status['evidence_sha256']}"
 
 
 def code_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
@@ -663,7 +669,7 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
             "- Service date: " + manifest["service_date"],
             "- Setting: " + setting,
             "- Patient status: " + status_text(item),
-            "- Coding freshness: PASS, checked " + receipt["checked_as_of"],
+            "- Coding freshness: PASS",
             f"- Rendered from {review_manifest.MANIFEST}, worksheets/{stem}.md and {visible_name}",
             "- Coding content fingerprint: " + item["normalized_sha256"], ""]
     out += ["## " + SECTIONS[1], "", *code_lines(private, tally), ""]
@@ -676,7 +682,7 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted)
     out += ["## " + SECTIONS[5], "", *lines, ""]
-    out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, item, tally), ""]
+    out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, tally), ""]
     selected = review_manifest.clean_codes(item["codes"])["em"]
     out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, selected, worksheet_block, tally), ""]
     out += ["## " + SECTIONS[8], "", *ATTESTATION, ""]
@@ -774,11 +780,15 @@ class WordExportStopped(WritesStopped):
 def word_folder(run: Path, output_dir: Path | None) -> Path:
     """The Word destination: under the main checkout output/ tree, or outside every checkout.
 
-    A destination that cannot be resolved is refused as one that is not permitted.
+    The default folder is the run's name and a short fingerprint of its resolved path, so two runs
+    sharing a name never share a folder. A destination that cannot be resolved is refused as one
+    that is not permitted.
     """
     try:
         output = repo_root.output_root().resolve()
-        folder = (output / WORD_DIRECTORY / run.resolve().name if output_dir is None
+        resolved = run.resolve()
+        tag = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:10]
+        folder = (output / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
                   else output_dir.expanduser().resolve())
         inside = repo_root.enclosing_checkout(folder) is not None
     except (OSError, ValueError, RuntimeError) as error:
