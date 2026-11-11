@@ -90,6 +90,7 @@ class RunFixture(unittest.TestCase):
         name_the_committed_sheet(self.run)
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
             preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)
+        em_audit.reset_sheet_cache()
         self.sheet = self.run / em_audit.OUTPUT_DIRECTORY / "note-1.md"
         self.rederivation = self.run / em_audit.OUTPUT_DIRECTORY / em_audit.REDERIVATION_DIRECTORY / "note-1.md"
         self.record(ELEMENTS)
@@ -384,7 +385,9 @@ class ReviewFindings(RunFixture):
                       self.sheet.read_text(encoding="utf-8"))
 
     def test_f5_a_partly_unread_block_is_still_compared_element_by_element(self):
-        self.private(PRIVATE.format(elements=ELEMENTS + "  EM-OPINION: an unrecognized line\n"))
+        # Tenth review: an unmappable refused line now withholds the item comparison, so this uses a
+        # refused line that maps to an element (an empty EM-RULE value).
+        self.private(PRIVATE.format(elements=ELEMENTS + "  EM-RULE:\n"))
         self.record(ELEMENTS.replace("| not counted | \"Hypertension.\"", "| counted | \"Hypertension.\""))
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
@@ -672,9 +675,11 @@ class FourthReviewFindings(RunFixture):
         status, output = self.in_process("--write")
         self.assertEqual(0, status, output)
         self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+        em_audit.reset_sheet_cache()
         with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", wraps=cpt_mdm_sheet.read_entries) as parser:
             self.in_process()
         self.assertEqual(1, parser.call_count)
+        em_audit.reset_sheet_cache()
         with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", side_effect=ValueError("no entries")):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
@@ -806,10 +811,12 @@ class FifthReviewFindings(RunFixture):
         self.assertEqual(0, status, output)
         self.assertGreater(rule.call_count, 0)
         self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "sheet_sha256", return_value="0" * 64):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
         self.assertIn("unread remainder 1", output)
+        em_audit.reset_sheet_cache()
         with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
@@ -1021,7 +1028,7 @@ class SeventhReviewFindings(RunFixture):
         texts["synthetic"] = self.SYNTHETIC
         compared = 0
         for name, text in texts.items():
-            if worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES).blocks:
+            if worksheet_grammar.worksheet_em_block(text).blocks:
                 continue
             with self.subTest(worksheet=str(name)):
                 compared += 1
@@ -1050,7 +1057,7 @@ class SeventhReviewFindings(RunFixture):
         self.assertEqual((lines[1:], True), worksheet_grammar.step_four_block(
             lines, worksheet_grammar.REFUSAL_HEADING, worksheet_grammar.ANY_HEADING))
         text = PRIVATE.format(elements=ELEMENTS) + "\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n" + ELEMENTS
-        elements = worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES)
+        elements = worksheet_grammar.worksheet_em_block(text)
         self.assertEqual((1, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
 
     def test_y2_em_lines_under_a_not_for_entry_em_line_are_unread(self):
@@ -1229,7 +1236,7 @@ class NinthReviewFindings(RunFixture):
         import worksheet_grammar
         text = (PRIVATE.format(elements=ELEMENTS) + "\nSupport restated:\n  E/M: 99283 restated\n"
                 + "".join("    " + line.strip() + "\n" for line in ELEMENTS.splitlines()))
-        elements = worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES)
+        elements = worksheet_grammar.worksheet_em_block(text)
         self.assertEqual((1, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
 
     def test_n8_a_word_destination_that_cannot_be_resolved_is_a_word_refusal(self):
@@ -1238,6 +1245,64 @@ class NinthReviewFindings(RunFixture):
         self.assertEqual(2, status, output)
         self.assertIn("check-offs written 1", output)
         self.assertIn("Word copy refused", output)
+
+
+
+class TenthReviewFindings(RunFixture):
+    """The tenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_q2_a_suffixed_element_name_keeps_its_entry_out_of_the_comparison(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
+            "EM-PROBLEM: definition-stable-chronic", "EM-PROBLEMS: definition-stable-chronic")))
+        self.record(ELEMENTS)
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 1; differ 0", result.stdout)
+        self.assertIn("unread remainder 1", result.stdout)
+
+    def test_q2_an_unmappable_refused_line_leaves_the_counted_elements_uncompared(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS + "  EM-OPINION: an unrecognized line\n"))
+        self.record(ELEMENTS.replace('| not counted | "Hypertension."', '| counted | "Hypertension."'))
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 1; differ 0", result.stdout)
+
+    def test_q3_a_check_off_never_written_is_missing_even_when_the_render_is_partial(self):
+        (self.run / preapproval_answers.RECORD).write_text("not json", encoding="utf-8")
+        finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertTrue(finding, report)
+        self.assertIn("check-offs missing or stale 1", report)
+
+    def test_q5_one_selected_line_read_per_splitting_rule_and_one_sheet_resolution_per_process(self):
+        import coding_freshness
+        import worksheet_grammar
+        name_the_committed_sheet(self.run)
+        em_audit.reset_sheet_cache()
+        with mock.patch.object(worksheet_grammar, "selected_em_lines", wraps=worksheet_grammar.selected_em_lines) as inner, \
+                mock.patch.object(em_audit, "selected_em_lines", wraps=em_audit.selected_em_lines) as outer, \
+                mock.patch.object(coding_freshness, "bound_sheet_version",
+                                  wraps=coding_freshness.bound_sheet_version) as sheet:
+            em_audit.render(self.run, [])
+            em_audit.render(self.run, [])
+        self.assertLessEqual(inner.call_count + outer.call_count, 4)
+        self.assertEqual(1, sheet.call_count)
+
+    def test_q6_one_body_rule_and_no_em_codes_parameter(self):
+        import inspect
+        import worksheet_grammar
+        tree = ast.parse(Path(worksheet_grammar.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "worksheet_em_block")
+        calls = {node.func.id for node in ast.walk(function) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertIn("element_body_end", calls)
+        self.assertEqual([], [node for node in ast.walk(function) if isinstance(node, (ast.For, ast.While))
+                              and any(isinstance(inner, ast.Compare) and "lines" in ast.unparse(inner)
+                                      and '" \\t"' in ast.unparse(inner) for inner in ast.walk(node))])
+        self.assertNotIn("em_codes", inspect.signature(worksheet_grammar.worksheet_em_block).parameters)
+        self.assertNotIn("em_codes", inspect.signature(worksheet_grammar.selected_em_lines).parameters)
+        source = ast.unparse(next(node for node in ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8")).body
+                                  if isinstance(node, ast.FunctionDef) and node.name == "entry_details"))
+        self.assertIn("indented_line", source)
+        self.assertNotIn('" \\t"', source)
 
 
 if __name__ == "__main__":

@@ -26,7 +26,6 @@ BLOCK = """  EM-PROBLEM: definition-stable-chronic | counted | "Diabetes stable"
   EM-LEVEL: 99213
 """
 EM_LINE = "E/M: 99213 Office or other outpatient visit, established patient, low MDM\n"
-EM_CODES = review_manifest.EM_CODES
 
 
 def astuple_of(elements):
@@ -37,7 +36,7 @@ class TheStrictReader(unittest.TestCase):
     def test_the_reference_example_is_a_complete_block(self):
         text = REFERENCE.read_text(encoding="utf-8")
         example = text.split("Synthetic example", 1)[1].split("```text", 1)[1].split("```", 1)[0]
-        block, outside, _ = astuple_of(grammar.worksheet_em_block(example, EM_CODES))
+        block, outside, _ = astuple_of(grammar.worksheet_em_block(example))
         self.assertEqual(0, outside)
         self.assertEqual(0, block.unread)
         self.assertEqual(("low", "low"), (block.mdm["mdm"], block.two_of_three()))
@@ -63,12 +62,12 @@ class TheStrictReader(unittest.TestCase):
 
     def test_a_worksheet_without_the_block_stays_valid(self):
         preserved = PRESERVED.read_text(encoding="utf-8")
-        self.assertEqual(grammar.WorksheetElements(None, 0, 0), grammar.worksheet_em_block(preserved, EM_CODES))
+        self.assertEqual(grammar.WorksheetElements(None, 0, 0), grammar.worksheet_em_block(preserved))
         self.assertIsNone(grammar.em_block("E/M: 99213 low MDM\nNo element lines here.\n"))
 
     def test_element_lines_away_from_the_em_line_are_counted_outside(self):
         text = "ICD-10  E11.9  Type 2 diabetes mellitus without complications\n" + BLOCK + "\n" + EM_LINE
-        block, outside, _ = astuple_of(grammar.worksheet_em_block(text, EM_CODES))
+        block, outside, _ = astuple_of(grammar.worksheet_em_block(text))
         self.assertIsNone(block)
         self.assertEqual(len(BLOCK.splitlines()), outside)
 
@@ -76,7 +75,7 @@ class TheStrictReader(unittest.TestCase):
         for anchor in ("CPT  99213  Office visit, established patient", "cpt 99213 Office",
                        "**E/M**: 99213 low MDM", "e/m: 99213 low MDM", EM_LINE.strip()):
             with self.subTest(anchor=anchor):
-                block, outside, blocks = astuple_of(grammar.worksheet_em_block(anchor + "\n" + BLOCK, EM_CODES))
+                block, outside, blocks = astuple_of(grammar.worksheet_em_block(anchor + "\n" + BLOCK))
                 self.assertEqual((0, 0, "99213", 1), (outside, block.unread, block.level, blocks))
                 self.assertEqual("99213", review_manifest.selected_codes(
                     "ICD-10  E11.9  Type 2 diabetes mellitus without complications\n" + anchor + "\n" + BLOCK,
@@ -84,14 +83,14 @@ class TheStrictReader(unittest.TestCase):
 
     def test_the_block_under_the_second_anchor_is_read_and_two_blocks_are_counted(self):
         entry = "CPT  99213  Office visit, established patient\n"
-        block, outside, blocks = astuple_of(grammar.worksheet_em_block(entry + "\n" + EM_LINE + BLOCK, EM_CODES))
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(entry + "\n" + EM_LINE + BLOCK))
         self.assertEqual((0, 1, "99213"), (outside, blocks, block.level))
-        _, _, blocks = astuple_of(grammar.worksheet_em_block(entry + BLOCK + "\n" + EM_LINE + BLOCK, EM_CODES))
+        _, _, blocks = astuple_of(grammar.worksheet_em_block(entry + BLOCK + "\n" + EM_LINE + BLOCK))
         self.assertEqual(2, blocks)
 
     def test_r6_a_nested_em_line_inside_a_cpt_entry_counts_each_element_line_once(self):
         text = "CPT  99213  Office visit, established patient\n  E/M: 99213 low MDM\n" + BLOCK
-        block, outside, blocks = astuple_of(grammar.worksheet_em_block(text, EM_CODES))
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(text))
         self.assertEqual((0, 1, 0), (outside, blocks, block.unread))
 
     def test_t6_a_block_without_an_answer_or_an_ecg_line_is_incomplete(self):
@@ -141,7 +140,7 @@ class TheStrictReader(unittest.TestCase):
 
     def test_x2_a_unicode_line_separator_inside_note_text_stays_on_its_element_line(self):
         moved = BLOCK.replace('"Diabetes stable"', '"Diabetes' + chr(0x2028) + 'stable"')
-        block, outside, blocks = astuple_of(grammar.worksheet_em_block(EM_LINE + moved, EM_CODES))
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(EM_LINE + moved))
         self.assertEqual((1, 0, 0), (blocks, outside, block.unread))
         changed = moved.replace(chr(0x2028) + "stable", chr(0x2028) + "steady")
         self.assertNotEqual(review_manifest.private_worksheet_sha256(EM_LINE + moved),
@@ -162,7 +161,7 @@ class TheStrictReader(unittest.TestCase):
         for spelling in ("EM-Problem", "em-problem", "- em-data"):
             with self.subTest(spelling=spelling):
                 near = "  " + spelling + ': definition-acute-uncomplicated | counted | "Cough" | evaluated\n'
-                block, outside, _ = astuple_of(grammar.worksheet_em_block(EM_LINE + BLOCK + near, EM_CODES))
+                block, outside, _ = astuple_of(grammar.worksheet_em_block(EM_LINE + BLOCK + near))
                 self.assertEqual((0, 1), (outside, block.unread))
                 self.assertNotEqual(review_manifest.private_worksheet_sha256(EM_LINE + BLOCK + near),
                                     review_manifest.private_worksheet_sha256(EM_LINE + BLOCK + near.replace("Cough", "Fever")))
@@ -172,8 +171,8 @@ class TheStrictReader(unittest.TestCase):
         text = "CPT 99284 Emergency visit\n\n  reasoning only, NOT FOR ENTRY\n"
         lines = text.splitlines()
         self.assertFalse(grammar.read_entries(text)[0].for_entry)
-        self.assertNotIn(0, grammar.selected_em_lines(lines, EM_CODES))
-        self.assertIn(0, grammar.selected_em_lines(["CPT 99284 Emergency visit", "", "  reasoning"], EM_CODES))
+        self.assertNotIn(0, grammar.selected_em_lines(lines))
+        self.assertIn(0, grammar.selected_em_lines(["CPT 99284 Emergency visit", "", "  reasoning"]))
 
     def test_z4_an_element_block_inside_a_step_four_block_is_skipped_not_an_end(self):
         import anchor_scan
@@ -188,7 +187,24 @@ class TheStrictReader(unittest.TestCase):
         text = "CPT  99213  Office visit, established patient\n\n## DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY\n"
         self.assertEqual("99213", review_manifest.selected_codes("ICD-10  E11.9  Type 2 diabetes\n" + text,
                                                                   private=True)["em"])
-        self.assertIn(0, grammar.selected_em_lines(text.splitlines(), EM_CODES))
+        self.assertIn(0, grammar.selected_em_lines(text.splitlines()))
+
+    def test_q1_a_lower_case_or_suffixed_element_line_counts_once_and_maps_to_its_element(self):
+        self.assertEqual(1, grammar.em_block(BLOCK.replace("  EM-DATA:", "  em-data:")).unread)
+        moved = grammar.em_block(BLOCK.replace("  EM-PROBLEM: definition-stable-chronic",
+                                               "  EM-PROBLEMS: definition-stable-chronic"))
+        self.assertEqual((1, (("PROBLEM", "definition-stable-chronic"),)), (moved.unread, moved.unread_items))
+        opinion = grammar.em_block(BLOCK + "  EM-OPINION: something\n")
+        self.assertEqual({("PROBLEM", None), ("DATA", None), ("RISK", None)}, set(opinion.unread_items))
+
+    def test_q4_only_the_anchor_and_its_element_lines_are_skipped_in_a_step_four_block(self):
+        import refusal_scan
+        text = ("---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + "  a note the grader reads\n"
+                + BLOCK + "more\n")
+        self.assertEqual((["refused", "  a note the grader reads", "more"], True),
+                         refusal_scan._block_lines(text.splitlines()))
+        self.assertEqual("refused\n  a note the grader reads\nmore",
+                         grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
 
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"

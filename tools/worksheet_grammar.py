@@ -225,7 +225,7 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def selected_em_lines(lines: list[str], em_codes: frozenset[str] = EM_CODES) -> frozenset[int]:
+def selected_em_lines(lines: list[str]) -> frozenset[int]:
     """The indexes of the selected E/M lines, read in one pass over the worksheet.
 
     A selected E/M line sits at the margin, the placement em-elements.md defines, and is the
@@ -237,7 +237,7 @@ def selected_em_lines(lines: list[str], em_codes: frozenset[str] = EM_CODES) -> 
     selected = {index for index, line in enumerate(lines) if line[:1].strip() and EM_CODE_LABEL.match(line)}
     region = entry_region("\n".join(lines))
     for match, entry in zip(ENTRY.finditer(region), read_entries(region)):
-        if (entry.for_entry and entry.system.upper() == "CPT" and entry.code.upper() in em_codes
+        if (entry.for_entry and entry.system.upper() == "CPT" and entry.code.upper() in EM_CODES
                 and match.group(0)[:1].strip()):
             selected.add(region.count("\n", 0, match.start()))
     return frozenset(selected)
@@ -266,41 +266,55 @@ def opens_element_block(lines: list[str], index: int, selected: frozenset[int]) 
     return element_body_end(lines, index, selected) is not None
 
 
+def indented_line(line: str) -> bool:
+    """Whether ``line`` continues an indented body: it holds text and opens with a space or tab."""
+    return bool(line.strip()) and line[0] in " \t"
+
+
+def indented_body_end(lines: list[str], index: int) -> int:
+    """The index after the contiguous ``indented_line`` run below the line at ``index``."""
+    follower = index + 1
+    while follower < len(lines) and indented_line(lines[follower]):
+        follower += 1
+    return follower
+
+
 def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> int | None:
     """The index after the indented body of a selected E/M line (``selected_em_lines``) holding an EM- line.
 
-    None when the line is not such an anchor. The body is the contiguous indented lines below it.
+    None when the line is not such an anchor. The body is ``indented_body_end``'s run below it.
     """
     if index not in selected:
         return None
-    follower, holds_element = index + 1, False
-    while follower < len(lines) and lines[follower].strip() and lines[follower][0] in " \t":
-        holds_element = holds_element or bool(EM_CANDIDATE.match(lines[follower]))
-        follower += 1
-    return follower if holds_element else None
+    end = indented_body_end(lines, index)
+    return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
 
 
 def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
-                    every: bool = False) -> tuple[list[str], bool]:
+                    every: bool = False, selected: frozenset[int] | None = None) -> tuple[list[str], bool]:
     """The lines under an icd10-cpt step 4 heading, and whether the heading was found.
 
     The caller supplies the lines, split as it splits them, and the terminator it grades by:
     refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING``
-    under ``every`` heading. The one shared addition is the E/M section: a selected E/M line that
-    opens its element block is skipped with its indented body and the block reads on, so nothing
-    after it is dropped. A worksheet without an element block never has one.
+    under ``every`` heading. The one shared addition is the E/M section: inside a block, a selected
+    E/M line that opens its element block is skipped with the EM- lines of its body, and every
+    other line of that body is read as the grader reads it, so nothing else is dropped. A worksheet
+    without an element block never has one. ``selected`` is ``selected_em_lines`` of these lines,
+    computed here unless the caller already holds it.
     """
     collected: list[str] = []
     found = inside = False
-    selected = selected_em_lines(lines)
+    selected = selected_em_lines(lines) if selected is None else selected
+    skipped: set[int] = set()
     index = 0
     while index < len(lines):
         line = lines[index]
         if heading.match(line) and (every or not found):
             found = inside = True
-        elif inside and (skip := element_body_end(lines, index, selected)) is not None:
-            index = skip
-            continue
+        elif inside and (body := element_body_end(lines, index, selected)) is not None:
+            skipped.update(follower for follower in range(index + 1, body) if EM_CANDIDATE.match(lines[follower]))
+        elif index in skipped:
+            pass
         elif inside and end.match(line):
             inside = False
             if not every:
@@ -320,17 +334,20 @@ BLOCK_READERS = {
 }
 
 
-def block_text(text: str, heading: re.Pattern[str], kind: str) -> str | None:
-    """One icd10-cpt step 4 block as its grader reads it (``BLOCK_READERS``); None when the heading is absent."""
+def block_text(text: str, heading: re.Pattern[str], kind: str, selected: frozenset[int] | None = None) -> str | None:
+    """One icd10-cpt step 4 block as its grader reads it (``BLOCK_READERS``); None when the heading is absent.
+
+    ``selected`` is ``selected_em_lines(text.splitlines())``, passed by a caller quoting several blocks.
+    """
     end, every = BLOCK_READERS[kind]
-    collected, found = step_four_block(text.splitlines(), heading, end, every=every)
+    collected, found = step_four_block(text.splitlines(), heading, end, every=every, selected=selected)
     return "\n".join(collected).strip("\n") if found else None
 
 # Every line that tries to be an element line: any upper-case EM- name, and the eight element
 # names in any case, after an optional bullet or bold. A near miss is a candidate the strict
 # reader refuses, so it is counted unread and fingerprinted, never silently skipped.
 ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
-EM_CANDIDATE = re.compile(rf"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})))\b")
+EM_CANDIDATE = re.compile(rf"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")
 EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
 _EM_ITEM = re.compile(
@@ -341,8 +358,8 @@ _EM_MDM = re.compile(
     r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
 )
 # A refused element line still names its element and, in its first field, usually its entry id.
-_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[ \t*]*:?(?P<entry>[^|]*)", re.IGNORECASE)
-_EM_KIND = re.compile(r"EM-(?P<kind>[A-Za-z]+)\b")
+# A refused candidate's name and first field, read in any case so it can be mapped to its element.
+_EM_LOOSE = re.compile(r"EM-(?P<kind>[A-Z]+)\b[ \t*]*:?(?P<entry>[^|]*)", re.IGNORECASE)
 _EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
 _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
@@ -379,6 +396,12 @@ class EmBlock:
         return MDM_LEVELS[ranks[1]]
 
 
+def element_of(name: str) -> str | None:
+    """The element a candidate's name stands for, in any case and with a suffix such as a plural."""
+    upper = name.upper()
+    return next((element for element in EM_KINDS if upper.startswith(element)), None)
+
+
 def em_block(text: str) -> EmBlock | None:
     """Read every EM- line in ``text``; None when the text holds no EM- candidate.
 
@@ -398,7 +421,7 @@ def em_block(text: str) -> EmBlock | None:
     unread_items: list[tuple[str, str | None]] = []
     refused: set[str] = set()
     for line in lines:
-        loose = _EM_LOOSE_ITEM.search(line)
+        loose = _EM_LOOSE.search(line)
         match = _EM_LINE.match(line)
         kind = match.group("kind") if match else ""
         value = match.group("value") if match else ""
@@ -415,11 +438,14 @@ def em_block(text: str) -> EmBlock | None:
             free[kind].append(value)
         else:
             unread += 1
-            named = _EM_KIND.search(line)
-            refused.add(named.group("kind").upper() if named else "")
-            if loose is not None:
+            element = element_of(loose.group("kind")) if loose else None
+            refused.add(element or "")
+            if element in ITEM_KINDS:
                 entry = loose.group("entry").strip(" \t*")
-                unread_items.append((loose.group("kind").upper(), entry if _EM_ENTRY.fullmatch(entry) else None))
+                unread_items.append((element, entry if _EM_ENTRY.fullmatch(entry) else None))
+            elif element is None:
+                # A refused line no element can be named for may be any counted element.
+                unread_items.extend((kind, None) for kind in ITEM_KINDS)
     # A required line that is present but refused is already counted once; only an absent one adds.
     present = {item.kind for item in items} | {kind for kind, values in free.items() if values} | refused
     present |= {"MDM"} if mdms else set()
@@ -440,32 +466,25 @@ class WorksheetElements:
     blocks: int
 
 
-def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements:
+def worksheet_em_block(text: str, selected: frozenset[int] | None = None) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
     An E/M line is one of ``selected_em_lines``: a margin ``EM_CODE_LABEL`` line, or a margin
-    for-entry ``ENTRY`` whose CPT code is in ``em_codes``; EM- lines under an indented anchor or a
-    ``NOT FOR ENTRY`` E/M entry are outside. An anchor nested in another anchor body adds no
-    block of its own. ``blocks`` counts the distinct blocks; when it exceeds one the first is
-    returned and the caller reports the rest. EM- candidates under no anchor are ``outside``. A
-    worksheet written before the block existed reads ``(None, 0, 0)``.
+    for-entry E/M-family ``ENTRY``; EM- lines under an indented anchor or a ``NOT FOR ENTRY`` E/M
+    entry are outside. A block is ``element_body_end``'s body under such a line. ``blocks`` counts
+    the distinct blocks; when it exceeds one the first is returned and the caller reports the rest.
+    EM- candidates under no anchor are ``outside``. A worksheet written before the block existed
+    reads ``(None, 0, 0)``. ``selected`` is ``selected_em_lines`` of the physical lines, computed
+    here unless the caller already holds it.
     """
     lines = physical_lines(text)
     candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
-    selected = selected_em_lines(lines, em_codes)
-    claimed: set[int] = set()
-    groups: list[list[int]] = []
-    for index, line in enumerate(lines):
-        if index in claimed or index not in selected:
-            continue
-        body = []
-        for follower in range(index + 1, len(lines)):
-            if not lines[follower].strip() or lines[follower][0] not in " \t":
-                break
-            body.append(follower)
-        claimed.update(body)
-        if candidates.intersection(body):
-            groups.append(body)
-    within = candidates & claimed
+    selected = selected_em_lines(lines) if selected is None else selected
+    groups: list[range] = []
+    for index in sorted(selected):
+        end = element_body_end(lines, index, selected)
+        if end is not None:
+            groups.append(range(index + 1, end))
+    within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(lines[index] for index in groups[0])) if groups else None
     return WorksheetElements(block, len(candidates - within), len(groups))

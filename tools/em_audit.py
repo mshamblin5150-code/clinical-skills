@@ -49,8 +49,8 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
                                UNDOCUMENTED_HEADING, EmBlock, block_text, detail_belongs_to_entry, em_block,
-                               entry_region, opens_element_block, paired_entry, physical_lines, read_entries,
-                               selected_em_lines, worksheet_em_block)
+                               entry_region, indented_line, opens_element_block, paired_entry, physical_lines,
+                               read_entries, selected_em_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -74,7 +74,9 @@ DECLARED_LIMITS = (
     "counted and not-counted (element, entry id) population, each MDM element and the level; an "
     "unread worksheet line is counted in the unread remainder and stays outside the comparison, "
     "with every re-derivation line of its element and entry id, or of its whole element where its "
-    "entry id is unreadable. A required line that is missing rather than refused excludes nothing. "
+    "entry id is unreadable. A refused line is mapped to its element by name in any case and with "
+    "a suffix; one no element can be named for withholds the PROBLEM, DATA and RISK comparison. A "
+    "required line that is missing rather than refused excludes nothing. "
     "Note text, reasons, rules, answers and ECG lines are rendered side by side but not compared, "
     "and nothing establishes that the re-derivation was written before its author read the "
     "worksheet.",
@@ -89,11 +91,13 @@ DECLARED_LIMITS = (
     "lines dropped, not parsed, through worksheet_grammar.step_four_block with the terminator, "
     "iteration and line splitting of the grader that grades each block (BLOCK_READERS); the "
     "undocumented block, which no grader reads, takes refusal_scan's. A selected E/M line whose "
-    "indented body holds an element line is skipped with that body and the block reads on; any "
-    "other line, an E/M entry marked NOT FOR ENTRY included, stays the block's text.",
-    "Element candidates are any upper-case EM- name and the eight element names in any case, after "
-    "an optional bullet or bold; a candidate the strict reader refuses is unread and fingerprinted. "
-    "A misspelled element name in another case is not a candidate.",
+    "indented body holds an element line is skipped with the element lines of that body; its other "
+    "lines, and any other line, an E/M entry marked NOT FOR ENTRY included, stay the block's text "
+    "as the grader reads them.",
+    "Element candidates are any upper-case EM- name and the eight element names in any case and "
+    "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
+    "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
+    "a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
     "and an indented line after an element block, are counted unread. A continuation that a "
@@ -209,7 +213,7 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
             owner = FIRST_LINE.match(span)  # the entry or E/M label line the detail would belong to
             if not detail_belongs_to_entry(span, owner, FIELD.match(span, len(span) - len(line))):
                 break
-        elif line[0] not in " \t":
+        elif not indented_line(line):
             break
         end += 1
         if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
@@ -263,7 +267,7 @@ def field_lines(fields: dict[str, list[str]], *, defaults: bool) -> list[str]:
     return out
 
 
-def em_entry_lines(private: str, tally: Tally) -> list[str]:
+def em_entry_lines(private: str, tally: Tally, selected: frozenset[int]) -> list[str]:
     """Every E/M line of the private worksheet with its wrapped header and provenance fields.
 
     An E/M line is one in the for-entry region, or one after it that opens its element block; an
@@ -274,7 +278,6 @@ def em_entry_lines(private: str, tally: Tally) -> list[str]:
     region_lines = region.count("\n") if len(region) < len(private) else len(lines)
     out: list[str] = []
     claimed: set[int] = set()
-    selected = selected_em_lines(lines, review_manifest.EM_CODES)
     for index, line in enumerate(lines):
         if index in claimed or index not in selected:
             continue
@@ -314,16 +317,26 @@ def sheet_ids(receipt: dict) -> set[str] | None:
     rule that wrote the receipt's ``mdm_sheet_sha256``, so a later commit to the sheet does not
     block an older run. None when no version matches or git cannot be run, which the caller counts
     as unread. A matching version the sheet parser refuses refuses the check-off.
+    The version is resolved once per process for each sheet path and receipt fingerprint.
     """
     cpt = receipt["sources"]["cpt"]
     path = REPOSITORY / "reference" / Path(cpt["mdm_sheet_filename"]).name
-    content = coding_freshness.bound_sheet_version(path, cpt["mdm_sheet_sha256"])
-    if content is None:
-        return None
-    try:
-        return set(cpt_mdm_sheet.read_entries(content.decode("utf-8")))
-    except (UnicodeError, ValueError) as error:
-        raise SheetMoved("the CPT MDM sheet version the receipt bound does not parse") from error
+    key = (str(path), cpt["mdm_sheet_sha256"])
+    if key not in _SHEET_IDS:
+        content = coding_freshness.bound_sheet_version(path, cpt["mdm_sheet_sha256"])
+        try:
+            _SHEET_IDS[key] = None if content is None else frozenset(cpt_mdm_sheet.read_entries(content.decode("utf-8")))
+        except (UnicodeError, ValueError) as error:
+            raise SheetMoved("the CPT MDM sheet version the receipt bound does not parse") from error
+    return None if _SHEET_IDS[key] is None else set(_SHEET_IDS[key])
+
+
+_SHEET_IDS: dict[tuple[str, str], frozenset[str] | None] = {}
+
+
+def reset_sheet_cache() -> None:
+    """Forget the sheet versions resolved in this process."""
+    _SHEET_IDS.clear()
 
 
 def item_lines(block_: EmBlock) -> list[str]:
@@ -535,7 +548,7 @@ class Context:
 
 
 def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict, context: Context,
-             tally: Tally) -> tuple[list[str], EmBlock | None]:
+             tally: Tally, anchors: frozenset[int]) -> tuple[list[str], EmBlock | None]:
     selected = item["codes"]["em"].strip().upper()
     cpt_source = receipt["sources"]["cpt"]
     mdm_name, mdm_digest = cpt_source["mdm_sheet_filename"], cpt_source["mdm_sheet_sha256"]
@@ -546,7 +559,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
-             *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
+             *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally, anchors)]
     if "private_worksheet_sha256" not in item:
         if tally.predates:
             lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
@@ -556,7 +569,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
             lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
                          "an edit after the manifest is not detected. Rebuild the manifest. Counted in the "
                          "unread remainder.")
-    elements = worksheet_em_block(private, review_manifest.EM_CODES)
+    elements = worksheet_em_block(private, anchors)
     block_ = elements.block
     tally.unread += elements.outside
     if block_ is None:
@@ -617,14 +630,18 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
             f"- Rendered from {review_manifest.MANIFEST}, worksheets/{stem}.md and {visible_name}",
             "- Coding content fingerprint: " + item["normalized_sha256"], ""]
     out += ["## " + SECTIONS[1], "", *code_lines(private, tally), ""]
+    # The selected E/M lines, read once for each line-splitting rule: the graders' for the quoted
+    # blocks, and LF-only for the element block and the E/M section.
+    quoted_anchors = selected_em_lines(private.splitlines())
+    anchors = selected_em_lines(physical_lines(private))
     blocks = ((BLOCK_HEADING, "filled"), (REFUSAL_HEADING, "refusal"), (UNDOCUMENTED_HEADING, "undocumented"))
     for index, (heading, kind) in enumerate(blocks, start=2):
         # Each block is quoted with its grader's terminator and line splitting, so it is the text graded.
-        text = block_text(private, heading, kind)
+        text = block_text(private, heading, kind, quoted_anchors)
         attribute = kind + "_blocks"
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
-    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
+    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, anchors)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, item, tally), ""]
     selected = item["codes"]["em"].strip().upper()
@@ -809,7 +826,7 @@ def selects_em_level(run: Path) -> bool:
             lines = physical_lines(review_manifest.read_text(path))
         except (DamagedRecord, UnreadableRecord, OSError, UnicodeError):
             return True
-        if selected_em_lines(lines, review_manifest.EM_CODES):
+        if selected_em_lines(lines):
             return True
     return False
 
@@ -855,7 +872,7 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         except UnreadableRecord:
             unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
             continue
-        stale += compared and current != sheet_.text
+        stale += current is None or (compared and current != sheet_.text)
     unread = tally.unread + (0 if collecting_errors() else unreadable)
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
