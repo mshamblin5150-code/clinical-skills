@@ -187,15 +187,13 @@ def selected_codes(text: str, *, private: bool) -> dict:
     explicit code label or a shared-parsed CPT entry from the E/M families, as
     ``worksheet_grammar.selected_em`` selects it: the one rule the E/M audit check-off anchors to.
     """
-    from worksheet_grammar import ENTRY_CANDIDATE, em_identity, entry_region, read_entries, selected_em
-    if private:
-        entry_text = entry_region(text)
-    else:
-        entry_text = re.sub(r"(?mi)^(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]*:[ \t]*", r"\1 ", text)
+    from worksheet_grammar import (ENTRY_CANDIDATE, em_identity, entry_reading, entry_region, read_entries,
+                                   selected_em)
+    entry_text = entry_region(text) if private else entry_reading(text, private=False)
     entries = read_entries(entry_text)
     if len(list(ENTRY_CANDIDATE.finditer(entry_text))) != len(entries):
         raise ValueError("worksheet has unread selected-code lines")
-    em = {code for _, code in selected_em(text, entry_text, entries)}
+    em = {code for _, code in selected_em(text, entry_text, entries, private=private)}
     result = {"icd10": set(), "em": em, "cpt": set(), "hcpcs": set()}
     for entry in entries:
         if not entry.for_entry or em_identity(entry.system, entry.code):

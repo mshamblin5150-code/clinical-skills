@@ -929,7 +929,7 @@ def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, st
     if skipped is not None:
         return False, skipped, 0
     import em_audit
-    return em_audit.completion_gate(run_directory, submission)
+    return em_audit.scoped_gate(run_directory, submission)  # the scope check already ran above
 
 
 GRADER = run_grader.Grader(

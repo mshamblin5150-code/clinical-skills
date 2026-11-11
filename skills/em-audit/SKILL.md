@@ -58,6 +58,10 @@ Done when every note in the run has a placed re-derivation record.
 python tools/em_audit.py <run> --write
 ```
 
+Render them after the last pre-approval answer is recorded and before approval: the answers
+section reads that record, so a check-off written before an answer is stale, and the terminal grade
+reports it `missing or stale` until it is rendered again.
+
 Done when the report shows `absent 0` for both element blocks and re-derivations, `findings 0`,
 and it exits 0, or exits 1 only for `DIFFERS` lines the clinician has seen with their note numbers
 before approval. Each difference is his to rule on through icd10-cpt, and the check-off keeps it as

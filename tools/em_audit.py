@@ -19,9 +19,11 @@ element block or a placed re-derivation (ADR 0445) in a run approved on or after
 start in ``reference/completion-check-starts.tsv`` (``--submission`` reads the approval; without it
 the run is judged current), an element block that contradicts itself or the selected code or the
 billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
-differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
-note number is unknown, a private worksheet changed after its fingerprint was recorded, the CPT MDM
-sheet version the receipt bound does not parse, a Word option was given without ``--docx``, a
+contradicts itself or differs element by element, a record that changed after the manifest (a
+note, worksheet, opener, patient status or receipt, or a private worksheet against its recorded
+fingerprint), or a damaged handwritten record; 2 when the run could not be read, a note number is
+unknown, the CPT MDM sheet version the receipt bound does not parse (a tool defect), a Word option
+was given without ``--docx``, a
 check-off or Word copy was refused (naming the note number that stopped it and the copies already
 written; a refused check-off leaves the Word copies unattempted), or a candidate went unread
 (``unread remainder``), such as no committed sheet version matching the receipt. A finding
@@ -123,7 +125,8 @@ DECLARED_LIMITS = (
     "a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field or indented line no entry or "
-    "E/M line owns, such as one after a blank line, and any line after an element block, are counted "
+    "E/M line owns, such as one after a blank line, an E/M label no rule selects with every line "
+    "under it, and any line after an element block, are counted "
     "unread. A code marked NOT FOR ENTRY in the region is rendered, marked, with its fields. A "
     "continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
@@ -137,8 +140,10 @@ DECLARED_LIMITS = (
     "and approval validation does not, and a changed file refuses the check-off. A run with no "
     "recorded fingerprint is counted unread on each check-off, or not graded for a run whose "
     "approval predates the em_audit start; building again records it. At submission, a changed private "
-    "worksheet, a stale manifest or receipt, or a bound sheet version the parser refuses is a "
-    "finding, and a missing or unreadable record is incomplete. At submission, a run "
+    "worksheet or a stale manifest or receipt is a finding of the run; a bound sheet version the "
+    "current reader refuses is a tool defect, incomplete like a missing or unreadable record. A "
+    "check-off written before the last pre-approval answer was recorded is stale until rendered "
+    "again. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
     "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
     "record is not graded, so a note-path run whose opener record is lost reads the same way.",
@@ -220,14 +225,16 @@ class Tally:
         self.blocks_predating = self.absent_predating = 0
 
 
-def entry_walk(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], list[int], int]:
+def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = None
+               ) -> tuple[list[str], dict[str, list[str]], list[int], int]:
     """The wrapped header tail, field values, unplaced line positions and body end of the entry at ``index``.
 
     The body is ``worksheet_grammar.body_end``'s, the one body rule the element block's extent is
     read by too: indented lines, and a field line while every body line before it is indented text,
     as ``detail_belongs_to_entry`` pairs a detail. A line continues the field above it, or the
     header before the first field. Element lines and an indented E/M label belong to the element
-    block, and any line after them, a field line included, is unplaced.
+    block, and any line after them, a field line included, is unplaced. With ``selected`` given, an
+    E/M label that is not a selected E/M line is unplaced itself, since nothing renders it.
     """
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
@@ -236,7 +243,10 @@ def entry_walk(lines: list[str], index: int) -> tuple[list[str], dict[str, list[
     for position in range(index + 1, end):
         line = lines[position]
         field = FIELD.match(line)
-        if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
+        if EM_CODE_LABEL.match(line) and selected is not None and position not in selected:
+            unplaced.append(position)
+            state = "element"
+        elif EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
         elif state == "element":
             unplaced.append(position)  # after an element block nothing is provenance, a field line included
@@ -293,7 +303,7 @@ class PrivateWorksheet(NamedTuple):
 def parse_private(text: str) -> PrivateWorksheet:
     """The worksheet parsed once for its check-off: lines, region, every body walk and the E/M lines.
 
-    Each entry and E/M label line of the region is walked once over the region's lines, and each
+    Each entry and selected E/M line of the region is walked once over the region's lines, and each
     E/M line the check-off renders after the region once over all of them; ``walks`` holds them
     by line, and ``sections`` the E/M lines the E/M section renders, in order. An E/M line after
     the region renders only when it opens its element block (an entry written inside an icd10-cpt
@@ -310,9 +320,10 @@ def parse_private(text: str) -> PrivateWorksheet:
     starts.append(position)
     region_lines = region.count("\n") if len(region) < len(text) else len(lines)
     physical = anchored(lines, (region, entries))
+    # Each entry and each selected E/M line of the region owns a body; an unselected label owns none.
     owners = sorted({region.count("\n", 0, match.start()) for match in matches}
-                    | {index for index in range(region_lines) if EM_CODE_LABEL.match(lines[index])})
-    walks = {index: entry_walk(lines[:region_lines], index) for index in owners}
+                    | {index for index in physical.selected if index < region_lines})
+    walks = {index: entry_walk(lines[:region_lines], index, physical.selected) for index in owners}
     sections: list[EmSection] = []
     claimed: set[int] = set()
     for index in sorted(physical.selected):
@@ -321,7 +332,7 @@ def parse_private(text: str) -> PrivateWorksheet:
         if index >= region_lines:
             if element_body_end(lines, index, physical.selected) is None:
                 continue
-            walks[index] = entry_walk(lines, index)
+            walks[index] = entry_walk(lines, index, physical.selected)
         section = EmSection(index, *walks[index])
         claimed.update(range(index + 1, section.end))
         sections.append(section)
@@ -378,12 +389,15 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     """
     region, matches = private.region, private.matches
     lines = list(private.physical.lines[:private.region_lines])
-    # Every entry and E/M label line of the region owns the body entry_walk gave it; a detail or
-    # indented line no body owns, such as one after a blank line, is unread rather than dropped.
+    # Every entry and selected E/M line of the region owns the body entry_walk gave it; a detail or
+    # indented line no body owns, such as one after a blank line, and an E/M label no rule selects
+    # are unread rather than dropped.
     owned = set(private.owners).union(*(range(index + 1, private.walks[index][3]) for index in private.owners))
+    selected = private.physical.selected
     unread = sum(1 for index, line in enumerate(lines)
-                 if index not in owned and (indented_line(line) or FIELD.match(line))
-                 and not EM_CANDIDATE.match(line))
+                 if index not in owned and not EM_CANDIDATE.match(line)
+                 and (indented_line(line) or FIELD.match(line) or EM_CODE_LABEL.match(line))
+                 and index not in selected)
     # A line of an E/M section's body is that section's alone, rendered or counted unplaced there,
     # even inside another entry's body.
     sectioned = set().union(*(range(section.index, section.end) for section in private.sections))
@@ -1095,7 +1109,6 @@ def selects_em_level(run: Path) -> bool:
 STALE_FINDINGS = {
     review_manifest.StaleRecord: "the manifest or its freshness receipt is stale against the run",
     PrivateWorksheetMoved: "a private worksheet changed after its fingerprint was recorded",
-    SheetMoved: "the CPT MDM sheet version the receipt bound does not parse",
 }
 
 
@@ -1104,11 +1117,17 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
 
     A note needs its element block, a placed re-derivation record and a written check-off equal
     to a fresh render. Differences from the re-derivation are counted, not failed: icd10-cpt
-    shows each one to the clinician before approval.
+    shows each one to the clinician before approval. ``em_audit_scope.not_graded`` decides first
+    which runs are graded; ``scoped_gate`` grades a run past it.
     """
     skipped = em_audit_scope.not_graded(run, submission)
     if skipped is not None:
         return False, skipped, 0
+    return scoped_gate(run, submission)
+
+
+def scoped_gate(run: Path, submission: str) -> tuple[bool, str, int]:
+    """``completion_gate`` for a run ``em_audit_scope.not_graded`` has already said it grades."""
     run = run.resolve()
     import completion_checks
     frozen = completion_checks.exemption(run, submission, "em_audit", EXPECTED_ROW)
@@ -1133,7 +1152,12 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         return False, f"{EXPECTED_ROW}: incomplete - a coding record is unreadable", 0 if collecting_errors() else 1
     except DamagedRecord:
         return True, f"{EXPECTED_ROW}: finding - a coding record carries content damage", 0
-    except (review_manifest.StaleRecord, PrivateWorksheetMoved, SheetMoved) as error:
+    except SheetMoved:
+        # A committed sheet version the current reader refuses is a defect of the tool, not of the run.
+        return False, (f"{EXPECTED_ROW}: incomplete - the committed CPT MDM sheet version the receipt "
+                       "fingerprinted does not parse with the current sheet reader, a tool defect for a "
+                       "maintainer"), 1
+    except (review_manifest.StaleRecord, PrivateWorksheetMoved) as error:
         # A record that read but no longer matches the run is a defect of the run, not unread coverage.
         return True, f"{EXPECTED_ROW}: finding - {STALE_FINDINGS[type(error)]}", 0
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
@@ -1155,6 +1179,11 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
               f"{tally.rederivation_findings}, "
               f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}"
               + ("" if compared else "; check-offs not compared, the fresh render left a record unread"))
+    if stale:
+        # The answers section reads the pre-approval answers record, so an answer recorded after the
+        # render stales every check-off of its note until it is rendered again.
+        counts += ("; render the check-offs again with --write after the last pre-approval answer is "
+                   "recorded, before approval")
     if has_finding(tally, differences=False, stale=stale):
         return True, f"{EXPECTED_ROW}: finding - {counts}", unread
     # A capturing command counts a fault itself, so unread can be zero while the render was partial.

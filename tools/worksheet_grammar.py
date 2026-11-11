@@ -237,8 +237,19 @@ def em_identity(system: str, code: str) -> bool:
     return system.upper() == "CPT" and code.upper() in EM_CODES
 
 
+# The visible worksheet's colon labels (``CPT: 99213``), read as entries in the visible mode.
+VISIBLE_CODE_LABEL = re.compile(r"(?mi)^(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]*:[ \t]*")
+
+
+def entry_reading(text: str, *, private: bool) -> str:
+    """The text a worksheet's entries are read in, by mode: the private worksheet as written, the
+    visible worksheet with its colon labels read as entries. No line break moves, so every line
+    keeps its number."""
+    return text if private else VISIBLE_CODE_LABEL.sub(r"\1 ", text)
+
+
 def selected_em(text: str, region: str, entries: list[WorksheetEntry],
-                lines: list[str] | None = None) -> tuple[tuple[int, str], ...]:
+                lines: list[str] | None = None, *, private: bool = True) -> tuple[tuple[int, str], ...]:
     """Every selected E/M line of ``text`` with its code: the one rule that selects the E/M identity.
 
     ``review_manifest.selected_codes`` takes the worksheet's E/M identity from these codes and the
@@ -248,15 +259,18 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
     ``entries`` are ``read_entries`` of ``region``, whose lines are ``text``'s, so each line is
     numbered over ``text`` split on LF. An entry marked ``NOT FOR ENTRY``, an entry outside
     ``region``, and a label inside the body (``body_end``) of an entry marked ``NOT FOR ENTRY`` are
-    never selected: a rejected level is never the final one. ``lines`` is ``physical_lines(text)``,
-    passed by a caller that already split it.
+    never selected: a rejected level is never the final one. Rejected entries are found in
+    ``entry_reading`` of the worksheet's mode, so a visible ``CPT: 99285 ... NOT FOR ENTRY`` rejects
+    a label beneath it as its private copy does. ``lines`` is ``physical_lines(text)`` for the
+    private mode, passed by a caller that already split it.
     """
-    lines = physical_lines(text) if lines is None else lines
-    every = list(ENTRY.finditer(text))
+    reading = entry_reading(text, private=private)
+    lines = physical_lines(reading) if lines is None or not private else lines
+    every = list(ENTRY.finditer(reading))
     rejected: set[int] = set()
     for index, match in enumerate(every):
-        if not entry_is_for_entry(text, every, index):
-            start = text.count("\n", 0, match.start())
+        if not entry_is_for_entry(reading, every, index):
+            start = reading.count("\n", 0, match.start())
             rejected.update(range(start + 1, body_end(lines, start)))
     found = {(line, match.group("code")) for match in EM_CODE_LABEL.finditer(text)
              if em_identity("CPT", match.group("code"))

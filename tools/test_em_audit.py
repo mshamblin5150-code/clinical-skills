@@ -724,7 +724,7 @@ class FourthReviewFindings(RunFixture):
     def test_u8_the_command_and_the_gate_share_one_finding_predicate(self):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
-        for name in ("status_of", "completion_gate"):
+        for name in ("status_of", "scoped_gate"):  # nineteenth review: completion_gate scopes, then delegates
             calls = {node.func.id for node in ast.walk(functions[name])
                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
             self.assertIn("has_finding", calls, name)
@@ -1350,11 +1350,12 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         self.assertEqual((False, 1), (finding, unread), report)
         self.assertIn("incomplete", report)
 
-    def test_e1_a_sheet_version_the_parser_refuses_is_a_finding(self):
+    def test_e1_a_sheet_version_the_parser_refuses_is_a_tool_defect(self):
+        # Nineteenth review: a committed sheet the current reader refuses is incomplete, not a finding.
         import coding_freshness
         with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             finding, report, unread = self.gate()
-        self.assertEqual((True, 0), (finding, unread), report)
+        self.assertEqual((False, 1), (finding, unread), report)
 
     def test_e2_a_fault_a_capturing_command_counts_never_reads_clean(self):
         from run_record_reader import capture_errors
@@ -2454,6 +2455,69 @@ class EighteenthReviewFindings(ProseBind, RunFixture):
             self.assertEqual((checkout / "output" / "audit").resolve(),
                              repo_root.ensure_main_checkout(checkout / "output" / "audit", under_output=True))
             self.assertEqual((checkout / "reference").resolve(), repo_root.ensure_main_checkout(checkout / "reference"))
+
+
+class NineteenthReviewFindings(ProseBind, RunFixture):
+    """The nineteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_o1_an_unselected_label_and_its_lines_are_counted_unread(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "CPT 99283 Emergency visit\n",
+            "E/M: 99241 office consultation, not an E/M identity\n  NOTE: support under the unselected label\n"
+            "CPT 99283 Emergency visit\n"))
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 2", result.stdout)
+        self.assertNotIn("support under the unselected label", self.sheet.read_text(encoding="utf-8"))
+
+    def test_o2_a_label_under_a_rejected_visible_entry_follows_the_private_rule(self):
+        visible = ("ICD-10-CM: R05.9 Cough\nCPT: 99285 Emergency visit, high MDM NOT FOR ENTRY\n"
+                   "  E/M: 99285 rejected level\nCPT: 99283 Emergency visit\n")
+        private = ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n'
+                   "  E/M: 99285 rejected level\nCPT 99283 Emergency visit\n")
+        self.assertEqual("99283", review_manifest.selected_codes(private, private=True)["em"])
+        self.assertEqual("99283", review_manifest.selected_codes(visible, private=False)["em"])
+
+    def test_o3_an_answer_recorded_after_the_render_stales_the_check_off_until_rendered_again(self):
+        self.assertEqual(0, self.invoke("--write").returncode)
+        self.assertEqual((False, 0), self.gate()[::2])
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            preapproval_answers.record(self.run, 1, "A synthetic second question before approval?", [],
+                                       "Synthetic second reply.")
+        finding, report, _ = self.gate()
+        self.assertTrue(finding, report)
+        self.assertIn("check-offs missing or stale 1", report)
+        self.assertIn("render the check-offs again with --write", report)
+        self.assertEqual(0, self.invoke("--write").returncode)
+        self.assertEqual((False, 0), self.gate()[::2])
+        for path in (SKILL, ROOT / "skills" / "icd10-cpt" / "SKILL.md"):
+            self.assertProseIn("after the last pre-approval answer is recorded", path.read_text(encoding="utf-8"))
+
+    def test_o4_the_module_exit_contract_matches_the_command(self):
+        doc = em_audit.__doc__
+        exit_two = doc.split("; 2 when", 1)[1]
+        self.assertNotIn("private worksheet changed", exit_two)
+        self.assertIn("a record that changed after the manifest", doc.split("; 2 when", 1)[0])
+
+    def test_o5_a_sheet_version_the_reader_refuses_is_an_incomplete_tool_defect(self):
+        import coding_freshness
+        with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
+            finding, report, unread = self.gate()
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("tool defect", report)
+
+    def test_o6_the_scope_check_runs_once_on_the_terminal_path(self):
+        import em_audit_scope
+        import specificity_scan
+        with mock.patch.object(em_audit_scope, "not_graded", wraps=em_audit_scope.not_graded) as scope:
+            specificity_scan.em_audit_gate(self.run, "shift-synthetic")
+        self.assertEqual(1, scope.call_count)
+        with mock.patch.object(em_audit_scope, "not_graded", wraps=em_audit_scope.not_graded) as scope:
+            em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual(1, scope.call_count)
 
 
 if __name__ == "__main__":
