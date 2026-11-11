@@ -93,23 +93,52 @@ def resolve(run: Path, value: str) -> Path:
     return path.resolve() if path.is_absolute() else (run / path).resolve()
 
 
+class StaleRecord(ValueError):
+    """The manifest or its freshness receipt no longer matches the run it was built from.
+
+    A reader can tell a stale record, which is a defect of the run, from one that is missing or
+    cannot be read, which leaves coverage incomplete; every other caller reads a ``ValueError``.
+    """
+
+
 def read_text(path: Path) -> str:
     return read_handwritten_record(path, "text").require_text(force=True)
 
 
+def _codes_or_none(text: str, *, private: bool) -> dict | None:
+    """``selected_codes``, or None where it refuses the worksheet (an unread line, not one E/M identity)."""
+    try:
+        return selected_codes(text, private=private)
+    except ValueError:
+        return None
+
+
 def _content(run: Path, item: dict) -> tuple[str, str, str, str, str]:
-    """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints."""
+    """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints.
+
+    For a recorded manifest item, a disagreement is ``StaleRecord`` when the record it reads changed
+    after the manifest: the embedded worksheet copy, which ``build`` refuses to bind in
+    disagreement and no fingerprint covers; the visible worksheet, when the note and worksheet no
+    longer match ``normalized_sha256``; the private worksheet, when it no longer matches
+    ``private_worksheet_sha256``. A disagreement over unchanged records means the manifest never
+    matched them, and stays a plain ``ValueError``, as does a private worksheet disagreement under a
+    manifest that predates its fingerprint, where a change cannot be told from a manifest never valid.
+    """
+    recorded = "normalized_sha256" in item
     note, fields, embedded = note_parts(read_text(resolve(run, item["note_path"])))
     worksheet = visible_worksheet(read_text(resolve(run, item["worksheet_path"])))
+    code_hash = digest((note + worksheet).encode("utf-8"))
     if any(visible_worksheet(value).strip() != worksheet.strip() for value in embedded):
-        raise ValueError("embedded and selected visible worksheets disagree")
+        raise (StaleRecord if recorded else ValueError)("embedded and selected visible worksheets disagree")
     expected = clean_codes(item["codes"])
-    if selected_codes(worksheet, private=False) != expected:
-        raise ValueError("visible worksheet selected codes disagree with manifest")
+    if _codes_or_none(worksheet, private=False) != expected:
+        moved = recorded and code_hash != item["normalized_sha256"]
+        raise (StaleRecord if moved else ValueError)("visible worksheet selected codes disagree with manifest")
     private = read_text(resolve(run, item["private_worksheet_path"]))
-    if selected_codes(private, private=True) != expected:
-        raise ValueError("private worksheet selected codes disagree with manifest")
-    return note, worksheet, private, digest((note + worksheet).encode("utf-8")), digest(fields.encode("utf-8"))
+    if _codes_or_none(private, private=True) != expected:
+        moved = item.get("private_worksheet_sha256") not in (None, private_worksheet_sha256(private))
+        raise (StaleRecord if moved else ValueError)("private worksheet selected codes disagree with manifest")
+    return note, worksheet, private, code_hash, digest(fields.encode("utf-8"))
 
 
 def content(run: Path, item: dict) -> tuple[str, str, str, str]:
@@ -256,9 +285,19 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
     payload = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     decode_manifest(payload.decode("utf-8"))
     def change(previous):
-        # An unchanged rebuild leaves the approval identity and timestamp untouched.
-        return RecordUpdate(None if previous == value else payload, value)
+        # An unchanged rebuild leaves the approval identity and timestamp untouched, including a
+        # manifest written before private_worksheet_sha256: adding only that field would rewrite the
+        # manifest an approval binds.
+        if previous == value or previous == _without_private_fingerprint(value):
+            return RecordUpdate(None, previous)
+        return RecordUpdate(payload, value)
     return update_tool_record(run / MANIFEST, decode_manifest, change)
+
+
+def _without_private_fingerprint(value: dict) -> dict:
+    """``value`` as a manifest written before ``private_worksheet_sha256`` would hold it."""
+    return {**value, "encounters": [{key: field for key, field in item.items() if key != "private_worksheet_sha256"}
+                                    for item in value["encounters"]]}
 
 
 @dataclass(frozen=True)
@@ -280,14 +319,6 @@ def worksheet_paths(run: Path, *, batch: bool) -> tuple[Path, ...]:
 
 def decode_receipt(text: str) -> dict:
     return coding_freshness.receipt_record(text)
-
-
-class StaleRecord(ValueError):
-    """The manifest or its freshness receipt no longer matches the run it was built from.
-
-    A reader can tell a stale record, which is a defect of the run, from one that is missing or
-    cannot be read, which leaves coverage incomplete; every other caller reads a ``ValueError``.
-    """
 
 
 @dataclass(frozen=True)

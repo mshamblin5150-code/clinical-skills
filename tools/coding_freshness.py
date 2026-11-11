@@ -70,23 +70,37 @@ def sheet_sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def committed_sheet(path: Path) -> bytes | None:
+    """The bytes of the sheet at ``path`` as committed at HEAD; None when git cannot read it there."""
+    relative = path.relative_to(ROOT).as_posix()
+    committed = subprocess.run(["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True)
+    return None if committed.returncode else committed.stdout
+
+
 def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     """The committed version of the sheet at ``path`` whose fingerprint is ``digest``.
 
-    The path's history is walked newest first, each version hashed by ``sheet_sha256``, so a
-    receipt keeps reading the sheet it bound after later commits change it. Two git processes
-    read it: ``git log -z`` lists the commits, and one ``git cat-file --batch`` returns every
-    version. None when no version matches, the path is outside this checkout, or git cannot be run.
+    HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
+    when HEAD does not match is the path's history walked, newest first and stopping at the first
+    match, each version hashed by ``sheet_sha256``, so a receipt keeps reading the sheet it bound
+    after later commits change it. The walk is two git processes: ``git log -z`` lists the commits,
+    and one ``git cat-file --batch`` returns every version, each object skipped by its declared
+    size whatever its type. None when no version matches, the path is outside this checkout, or
+    git cannot be run.
     """
     try:
+        head = committed_sheet(path)
+        if head is not None and sheet_sha256(head) == digest:
+            return head
         relative = path.relative_to(ROOT).as_posix()
         log = subprocess.run(["git", "log", "-z", "--format=%H", "--", relative], cwd=ROOT, capture_output=True)
         if log.returncode:
             return None
-        commits = [commit for commit in log.stdout.decode("ascii", errors="replace").split("\0") if commit.strip()]
+        commits = [commit.strip() for commit in log.stdout.decode("ascii", errors="replace").split("\0")
+                   if commit.strip()]
         if not commits:
             return None
-        request = "".join(f"{commit.strip()}:{relative}\n" for commit in commits).encode("utf-8")
+        request = "".join(f"{commit}:{relative}\n" for commit in commits).encode("utf-8")
         batch = subprocess.run(["git", "cat-file", "--batch"], cwd=ROOT, input=request, capture_output=True)
     except (OSError, ValueError):
         return None
@@ -99,26 +113,23 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
             return None
         header = output[position:end].split()
         position = end + 1
-        if len(header) != 3 or header[1] != b"blob" or not header[2].isdigit():
-            continue  # "<object> missing", or not a file at that commit
+        if len(header) != 3 or not header[2].isdigit():
+            continue  # "<object> missing" or "ambiguous": a header with no body
         size = int(header[2])
         version = output[position:position + size]
-        position += size + 1
-        if sheet_sha256(version) == digest:
+        position += size + 1  # every object type carries its body and a trailing LF
+        if header[1] == b"blob" and sheet_sha256(version) == digest:
             return version
     return None
 
 
 def committed_sheet_sha256(path: Path) -> str:
-    relative = path.relative_to(ROOT).as_posix()
-    committed = subprocess.run(
-        ["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True,
-    )
-    if committed.returncode:
+    committed = committed_sheet(path)
+    if committed is None:
         raise ValueError("MDM sheet is not committed at HEAD")
-    if committed.stdout.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
+    if committed.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
         raise ValueError("MDM sheet differs from its committed version")
-    return sheet_sha256(committed.stdout)
+    return sheet_sha256(committed)
 
 
 def read_url(url: str) -> str:

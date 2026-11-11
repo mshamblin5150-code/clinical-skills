@@ -9,8 +9,10 @@ the [em-audit](../../em-audit/SKILL.md) re-derivation writes an element block of
 ## The element block
 
 In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces directly
-under either E/M line the code reader accepts (an `E/M:` label line or an E/M-family `CPT` entry
-for entry), one element per physical line, with no blank line inside the block. EM- lines under an
+under either E/M line the code reader accepts (an `E/M:` label line, at the margin or indented,
+or an E/M-family `CPT` entry for entry at the margin), one element per physical line, with no blank
+line inside the block. A label written inside that entry's own indented lines belongs to the same
+block. EM- lines under an
 E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
 
 ```text

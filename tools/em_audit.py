@@ -38,6 +38,7 @@ from typing import NamedTuple
 
 import coding_freshness
 import cpt_mdm_sheet
+import em_audit_scope
 import preapproval_answers
 import repo_root
 import review_manifest
@@ -93,9 +94,9 @@ DECLARED_LIMITS = (
     "undocumented block, which no grader reads, takes refusal_scan's. A selected E/M line whose "
     "indented body holds an element line is skipped with the element lines of that body; its other "
     "lines, and any other line, an E/M entry marked NOT FOR ENTRY included, stay the block's text "
-    "as the grader reads them. The graders keep their own readers and read the skipped lines as "
-    "block text too, which is measured to grade nothing on the placement em-elements.md defines; "
-    "another placement is not measured.",
+    "as the grader reads them. The graders read through the same reader with that skip off, so "
+    "they read the skipped lines as block text, which is measured to grade nothing on the "
+    "placement em-elements.md defines; another placement is not measured.",
     "Element candidates are any upper-case EM- name and the eight element names in any case and "
     "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
@@ -345,7 +346,7 @@ def quoted(text: str | None, empty: str = "", *, paragraphs: bool = False) -> li
 
 
 class SheetMoved(ValueError):
-    """The CPT MDM sheet the receipt names is not the sheet it fingerprinted, or does not parse."""
+    """The committed CPT MDM sheet version the receipt fingerprinted does not parse."""
 
 
 def sheet_ids(receipt: dict) -> set[str] | None:
@@ -850,12 +851,7 @@ def status_of(tally: Tally) -> int:
     return 2 if tally.unread else 0
 
 
-EXPECTED_ROW = "the E/M audit check-offs"
-
-
-# The encounter opener record review_manifest.build reads first: a run carrying it is on the
-# clinical-note or batch-shift path, where ADR 0445 ruling 6 requires the manifest and check-offs.
-NOTE_PATH_MARKER = "openers.json"
+EXPECTED_ROW = em_audit_scope.ROW
 
 
 def selects_em_level(run: Path) -> bool:
@@ -870,9 +866,6 @@ def selects_em_level(run: Path) -> bool:
     return False
 
 
-# The records whose absence marks a direct consultation: specificity_scan reads the same names
-# before importing this module, and test_em_audit binds the two.
-RUN_RECORDS = (review_manifest.MANIFEST, NOTE_PATH_MARKER)
 STALE_FINDINGS = {
     review_manifest.StaleRecord: "the manifest or its freshness receipt is stale against the run",
     PrivateWorksheetMoved: "a private worksheet changed after the manifest recorded it",
@@ -887,12 +880,10 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     to a fresh render. Differences from the re-derivation are counted, not failed: icd10-cpt
     shows each one to the clinician before approval.
     """
-    if submission is None:
-        return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied", 0
+    skipped = em_audit_scope.not_graded(run, submission)
+    if skipped is not None:
+        return False, skipped, 0
     run = run.resolve()
-    if not any((run / name).exists() for name in RUN_RECORDS):
-        return False, (f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no encounter "
-                       "opener record, so it is a direct consultation rather than the note path"), 0
     import completion_checks
     frozen = completion_checks.exemption(run, submission, "em_audit", EXPECTED_ROW)
     if frozen is not None:
@@ -973,8 +964,9 @@ def main(argv: list[str] | None = None) -> int:
               "or rebuild the manifest and take a fresh approval")
         return 2
     except SheetMoved:
-        print("em-audit: refused - the CPT MDM sheet under reference/ is not the one the receipt fingerprinted, "
-              "or it does not parse; run coding_freshness again")
+        print("em-audit: refused - the committed CPT MDM sheet version the receipt fingerprinted does not "
+              "parse with the current sheet reader; report it to a maintainer as a tool defect, since the "
+              "receipt still binds that version")
         return 2
     except UnreadableRecord as error:
         print(fault_report(error, check="em-audit"))

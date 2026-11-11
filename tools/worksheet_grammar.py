@@ -229,15 +229,15 @@ def selected_em_lines(lines: list[str], read: tuple[str, list[re.Match[str]], li
                       ) -> frozenset[int]:
     """The indexes of the selected E/M lines, read in one pass over the worksheet.
 
-    A selected E/M line sits at the margin, the placement em-elements.md defines, and is the
-    line ``review_manifest.selected_codes`` selects the E/M code from: an ``E/M:`` label line, or
-    an E/M-family ``CPT`` entry of the for-entry region that ``read_entries`` marks for entry. An
-    indented anchor, an entry marked ``NOT FOR ENTRY`` and a ``CPT`` entry outside that region are
-    never the line an element block, a block skip or the check-off's E/M section is anchored to.
+    A selected E/M line is a line ``review_manifest.selected_codes`` selects the E/M code from,
+    by its rule: an ``EM_CODE_LABEL`` line, indented or not, anywhere in the worksheet, or a margin
+    E/M-family ``CPT`` entry of the for-entry region that ``read_entries`` marks for entry. An entry
+    marked ``NOT FOR ENTRY``, an indented entry and a ``CPT`` entry outside that region are never
+    the line an element block, a block skip or the check-off's E/M section is anchored to.
     ``read`` is the ``entry_region`` of these lines joined by LF, with its ``ENTRY`` matches and
     its ``read_entries``, passed by a caller that already parsed them.
     """
-    selected = {index for index, line in enumerate(lines) if line[:1].strip() and EM_CODE_LABEL.match(line)}
+    selected = {index for index, line in enumerate(lines) if EM_CODE_LABEL.match(line)}
     if read is None:
         region = entry_region("\n".join(lines))
         read = region, list(ENTRY.finditer(region)), read_entries(region)
@@ -287,22 +287,26 @@ def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> 
 
 
 def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
-                    every: bool = False, selected: frozenset[int] | None = None) -> tuple[list[str], bool]:
-    """The lines the check-off quotes under an icd10-cpt step 4 heading, and whether it was found.
+                    every: bool = False, selected: frozenset[int] | None = None,
+                    em_section: bool = True) -> tuple[list[str], bool]:
+    """The lines under an icd10-cpt step 4 heading, and whether it was found: the one block reader.
 
-    The caller supplies the lines, split as the grader splits them, and the grader's terminator:
-    refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING``
-    under ``every`` heading. The one difference from the grader is the E/M section: inside a
-    block, a selected E/M line that opens its element block is skipped with the EM- lines of its
-    body, and every other line of that body is kept as the grader reads it. The graders keep their
-    own readers and read the E/M section as block text, which grades nothing in either of them on
-    the placement em-elements.md defines (measured in test_em_audit). A worksheet without an
-    element block quotes exactly the grader's lines. ``selected`` is ``selected_em_lines`` of
-    these lines, computed here unless the caller already holds it.
+    The caller supplies the lines, split as it splits them, and its terminator: refusal_scan reads
+    to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING`` under ``every``
+    heading. The graders pass ``em_section=False`` and read every line, the E/M section included,
+    as block text, which grades nothing in either of them on the placement em-elements.md defines
+    (measured in test_em_audit). The check-off's quotation keeps ``em_section``: inside a block, a
+    selected E/M line that opens its element block is skipped with the EM- lines of its body, and
+    every other line of that body is kept as the grader reads it, so a worksheet without an element
+    block quotes exactly the grader's lines. ``selected`` is ``selected_em_lines`` of these lines,
+    computed here unless the caller already holds it.
     """
     collected: list[str] = []
     found = inside = False
-    selected = selected_em_lines(lines) if selected is None else selected
+    if not em_section:
+        selected = frozenset()
+    elif selected is None:
+        selected = selected_em_lines(lines)
     skipped: set[int] = set()
     index = 0
     while index < len(lines):
@@ -471,10 +475,12 @@ def worksheet_em_block(text: str, selected: frozenset[int] | None = None,
                        lines: list[str] | None = None) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
-    An E/M line is one of ``selected_em_lines``: a margin ``EM_CODE_LABEL`` line, or a margin
-    for-entry E/M-family ``ENTRY``; EM- lines under an indented anchor or a ``NOT FOR ENTRY`` E/M
-    entry are outside. A block is ``element_body_end``'s body under such a line. ``blocks`` counts
-    the distinct blocks; when it exceeds one the first is returned and the caller reports the rest.
+    An E/M line is one of ``selected_em_lines``: an ``EM_CODE_LABEL`` line, or a margin for-entry
+    E/M-family ``ENTRY``; EM- lines under a ``NOT FOR ENTRY`` E/M entry are outside. A block is
+    ``element_body_end``'s body under such a line; a selected line inside another one's body, such
+    as an indented label under the selected entry, belongs to that block rather than opening a
+    second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and
+    the caller reports the rest.
     EM- candidates under no anchor are ``outside``. A worksheet written before the block existed
     reads ``(None, 0, 0)``. ``lines`` is ``physical_lines(text)`` and ``selected`` its
     ``selected_em_lines``, each computed here unless the caller already holds it.
@@ -484,6 +490,8 @@ def worksheet_em_block(text: str, selected: frozenset[int] | None = None,
     selected = selected_em_lines(lines) if selected is None else selected
     groups: list[range] = []
     for index in sorted(selected):
+        if groups and index in groups[-1]:
+            continue
         end = element_body_end(lines, index, selected)
         if end is not None:
             groups.append(range(index + 1, end))

@@ -1237,12 +1237,14 @@ class NinthReviewFindings(RunFixture):
         status, output = self.in_process()
         self.assertEqual(2, status, output)
 
-    def test_n6_an_indented_em_anchor_carries_no_block(self):
+    def test_n6_an_indented_em_label_anchors_a_block_as_the_manifest_reader_selects_it(self):
+        # Twelfth review: the anchor rule is review_manifest.selected_codes's, which reads an indented
+        # E/M: label, so a restated block under one is a second block rather than outside lines.
         import worksheet_grammar
         text = (PRIVATE.format(elements=ELEMENTS) + "\nSupport restated:\n  E/M: 99283 restated\n"
                 + "".join("    " + line.strip() + "\n" for line in ELEMENTS.splitlines()))
         elements = worksheet_grammar.worksheet_em_block(text)
-        self.assertEqual((1, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
+        self.assertEqual((2, 0), (elements.blocks, elements.outside))
 
     def test_n8_a_word_destination_that_cannot_be_resolved_is_a_word_refusal(self):
         with mock.patch.object(repo_root, "output_root", side_effect=ValueError("no owning checkout")):
@@ -1415,8 +1417,9 @@ class EleventhReviewFindings(ProseBind, RunFixture):
             with self.subTest(submission=submission):
                 self.assertEqual(em_audit.completion_gate(run, submission),
                                  specificity_scan.em_audit_gate(run, submission))
-        self.assertEqual(em_audit.EXPECTED_ROW, specificity_scan.EM_AUDIT_ROW)
-        self.assertEqual(em_audit.RUN_RECORDS, specificity_scan.EM_AUDIT_RUN_RECORDS)
+        import em_audit_scope
+        self.assertIs(em_audit_scope.ROW, em_audit.EXPECTED_ROW)
+        self.assertEqual(review_manifest.MANIFEST, em_audit_scope.MANIFEST)
         probe = ("import sys, specificity_scan\n"
                  f"specificity_scan.em_audit_gate(__import__('pathlib').Path({str(bare)!r}), 'c')\n"
                  f"specificity_scan.em_audit_gate(__import__('pathlib').Path({str(self.run)!r}), None)\n"
@@ -1494,10 +1497,11 @@ class EleventhReviewFindings(ProseBind, RunFixture):
                                  capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
         oldest = subprocess.run(["git", "show", f"{history[-1]}:{relative}"], cwd=ROOT, capture_output=True).stdout
         self.assertEqual(oldest, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(oldest)))
-        # A fingerprint no version carries walks the whole history, the case a process per version made long.
+        # A fingerprint no version carries walks the whole history, the case a process per version made
+        # long: HEAD's version, then one log and one batch (twelfth review: HEAD first).
         with mock.patch.object(coding_freshness.subprocess, "run", wraps=subprocess.run) as run:
             self.assertIsNone(coding_freshness.bound_sheet_version(path, "0" * 64))
-        self.assertLessEqual(run.call_count, 2)
+        self.assertLessEqual(run.call_count, 3)
 
     def test_e10_the_re_derivation_done_condition_and_step_1_exit_2(self):
         rederivation = (SKILL.parent / "rederivation.md").read_text(encoding="utf-8")
@@ -1507,6 +1511,177 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         skill = SKILL.read_text(encoding="utf-8")
         step = skill.split("## 1.", 1)[1].split("## 2.", 1)[0]
         self.assertProseIn("unread remainder", step)
+
+
+class TwelfthReviewFindings(ProseBind, RunFixture):
+    """The twelfth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def edit_json(self, name: str, change) -> None:
+        path = self.run / name
+        value = json.loads(path.read_text(encoding="utf-8"))
+        change(value)
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    def test_g1_a_selected_code_edit_after_the_manifest_is_stale_and_a_finding(self):
+        private = self.run / "worksheets/note-1.md"
+        cases = {
+            "visible": (self.run / "visible-worksheet-1.md", "ICD-10-CM R05.9 Cough", "ICD-10-CM R05.1 Acute cough"),
+            "private": (private, "ICD-10-CM R05.9 Cough", "ICD-10-CM R05.9 Cough\nICD-10-CM J18.9 Pneumonia"),
+            "second E/M identity": (private, "CPT 99283 Emergency visit", "CPT 99283 Emergency visit\nE/M: 99284 high"),
+        }
+        for name, (path, old, new) in cases.items():
+            with self.subTest(case=name):
+                original = path.read_text(encoding="utf-8")
+                self.assertIn(old, original)
+                path.write_text(original.replace(old, new, 1), encoding="utf-8")
+                try:
+                    with self.assertRaises(review_manifest.StaleRecord):
+                        review_manifest.validated_population(self.run)
+                    finding, report, unread = self.gate()
+                    self.assertEqual((True, 0), (finding, unread), report)
+                finally:
+                    path.write_text(original, encoding="utf-8")
+
+    def test_g1_an_embedded_worksheet_edited_after_the_manifest_is_stale(self):
+        note = self.run / "note-1.md"
+        note.write_text(note.read_text(encoding="utf-8").replace(
+            "## Medatrax entry fields", "## Coding worksheet\n" + VISIBLE + "\n## Medatrax entry fields"), encoding="utf-8")
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        passing_receipt(self.run)
+        name_the_committed_sheet(self.run)
+        review_manifest.validated_population(self.run)
+        note.write_text(note.read_text(encoding="utf-8").replace("CPT 99283 Emergency visit\nE/M",
+                                                                 "CPT 99284 Emergency visit\nE/M"), encoding="utf-8")
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run)
+
+    def test_g1_a_manifest_that_never_matched_its_worksheets_stays_incomplete(self):
+        self.edit_json(review_manifest.MANIFEST, lambda value: value["encounters"][0]["codes"]["icd10"].append("J18.9"))
+        with self.assertRaises(ValueError) as raised:
+            review_manifest.validated_population(self.run)
+        self.assertNotIsInstance(raised.exception, review_manifest.StaleRecord)
+        finding, report, unread = self.gate()
+        self.assertEqual((False, 1), (finding, unread), report)
+
+    def test_g2_an_indented_em_label_is_selected_as_the_manifest_reader_selects_it(self):
+        import worksheet_grammar
+        lines = ["ICD-10-CM R05.9 Cough", "", "  E/M: 99283 low complexity", *ELEMENTS.splitlines()]
+        text = "\n".join(lines) + "\n"
+        self.assertEqual("99283", review_manifest.selected_codes(text, private=True)["em"])
+        self.assertIn(2, worksheet_grammar.selected_em_lines(lines))
+        elements = worksheet_grammar.worksheet_em_block(text)
+        self.assertEqual((1, 0, 0), (elements.blocks, elements.outside, elements.block.unread))
+        # An indented label inside the selected entry's own body is the same block, not a second one.
+        nested = PRIVATE.format(elements="  E/M: 99283 restated\n" + ELEMENTS)
+        self.assertEqual(1, worksheet_grammar.worksheet_em_block(nested).blocks)
+        refused = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n  E/M: 99283 restated\n" + ELEMENTS + "more\n"
+        self.assertEqual("refused\nmore", worksheet_grammar.block_text(refused, worksheet_grammar.REFUSAL_HEADING, "refusal"))
+
+    def test_g2_a_check_off_reads_a_block_under_an_indented_label(self):
+        self.write_private(PRIVATE.format(elements="").replace(
+            "CPT 99283 Emergency visit\n", "\n  E/M: 99283 low complexity\n" + ELEMENTS))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("element blocks: present 1, absent 0; findings 0", result.stdout)
+        self.assertIn("- E/M line: E/M: 99283 low complexity", self.sheet.read_text(encoding="utf-8"))
+
+    def test_g3_an_unchanged_rebuild_of_an_old_manifest_writes_nothing(self):
+        path = self.run / review_manifest.MANIFEST
+        value = json.loads(path.read_text(encoding="utf-8"))
+        del value["encounters"][0]["private_worksheet_sha256"]
+        old = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        path.write_bytes(old)
+        before = path.stat().st_mtime_ns
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        self.assertEqual((old, before), (path.read_bytes(), path.stat().st_mtime_ns))
+        # A rebuild that changes anything else writes the current format, field included.
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True,
+                              constants=dict(CONSTANTS, site="Another synthetic site"))
+        self.assertIn("private_worksheet_sha256", json.loads(path.read_text(encoding="utf-8"))["encounters"][0])
+
+    def fake_git(self, head: bytes, versions: list[tuple[str, bytes]]):
+        """A git stand-in: HEAD's bytes, then a log and a cat-file batch stream over ``versions``."""
+        commits = [f"{index:040x}" for index in range(1, len(versions) + 1)]
+
+        def run(command, **_):
+            if command[1] == "show":
+                return subprocess.CompletedProcess(command, 0, head, b"")
+            if command[1] == "log":
+                return subprocess.CompletedProcess(command, 0, "\0".join(commits).encode() + b"\0", b"")
+            stream = b""
+            for commit, (kind, body) in zip(commits, versions):
+                if kind == "missing":
+                    stream += f"{commit} missing\n".encode()
+                else:
+                    stream += f"{commit} {kind} {len(body)}\n".encode() + body + b"\n"
+            return subprocess.CompletedProcess(command, 0, stream, b"")
+        return run
+
+    def test_g4_and_g8_the_batch_reader_skips_every_object_by_its_size(self):
+        import coding_freshness
+        path = ROOT / "reference" / "cpt-em-mdm-2026.md"
+        wanted = b"the version the receipt bound\n"
+        decoy = b"0" * 40 + b" blob 5\nlies!\n"  # a tree body that reads like a header
+        stream = [("missing", b""), ("tree", decoy), ("blob", b"another version\n"), ("blob", wanted)]
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=self.fake_git(b"head\n", stream)) as run:
+            self.assertEqual(wanted, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(wanted)))
+        self.assertEqual(3, run.call_count)
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=self.fake_git(wanted, stream)) as run:
+            self.assertEqual(wanted, coding_freshness.bound_sheet_version(path, coding_freshness.sheet_sha256(wanted)))
+        self.assertEqual(1, run.call_count)  # HEAD matched: no history walk
+
+    def test_g5_a_bound_sheet_version_that_does_not_parse_names_the_parse_failure(self):
+        import coding_freshness
+        em_audit.reset_sheet_cache()
+        with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
+            status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("does not parse", output)
+        self.assertNotIn("coding_freshness again", output)
+        self.assertNotIn("is not the one the receipt fingerprinted", output)
+
+    def test_g6_both_graders_read_through_the_one_block_reader_with_the_skip_off(self):
+        import anchor_scan
+        import refusal_scan
+        for module in (anchor_scan, refusal_scan):
+            with self.subTest(module=module.__name__):
+                tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+                function = next(node for node in tree.body
+                                if isinstance(node, ast.FunctionDef) and node.name == "_block_lines")
+                calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)
+                         and getattr(node.func, "id", "") == "step_four_block"]
+                self.assertEqual(1, len(calls))
+                self.assertIn(("em_section", False), [(keyword.arg, getattr(keyword.value, "value", None))
+                                                      for keyword in calls[0].keywords])
+
+    def test_g7_one_light_module_holds_the_row_the_run_records_and_the_not_graded_guards(self):
+        import em_audit_scope
+        import specificity_scan
+        for name in ("EM_AUDIT_ROW", "EM_AUDIT_RUN_RECORDS"):
+            self.assertFalse(hasattr(specificity_scan, name), name)
+        self.assertIs(em_audit_scope.ROW, em_audit.EXPECTED_ROW)
+        for module in (specificity_scan, em_audit):
+            source = Path(module.__file__).read_text(encoding="utf-8")
+            for duplicate in ('"openers.json"', '"batch-codes.json"', "--submission was not supplied",
+                              "so it is a direct consultation"):
+                self.assertNotIn(duplicate, source, module.__name__)
+        probe = "import sys, em_audit_scope\nprint(sorted({'review_manifest', 'approval_record', 'em_audit'} & set(sys.modules)))\n"
+        result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, encoding="utf-8",
+                                errors="replace", cwd=str(Path(__file__).parent))
+        self.assertEqual("[]", result.stdout.strip(), result.stderr)
+
+    def test_g9_both_skills_route_an_unread_exit_2(self):
+        coding = (ROOT / "skills" / "icd10-cpt" / "SKILL.md").read_text(encoding="utf-8")
+        paragraph = coding.split("every coded note also needs its E/M audit check-off", 1)[1].split("\n\n", 1)[0]
+        skill = SKILL.read_text(encoding="utf-8")
+        step_three = skill.split("## 3.", 1)[1].split("## 4.", 1)[0]
+        for text in (paragraph, step_three):
+            self.assertProseIn("On exit 2", text)
+            self.assertProseIn("unread", text)
+            self.assertProseIn("tell the clinician", text)
 
 
 if __name__ == "__main__":

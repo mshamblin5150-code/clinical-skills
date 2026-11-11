@@ -28,7 +28,7 @@ import run_grader
 import icd10_lookup
 from run_grader import EvidenceDisposition
 from worksheet_grammar import (
-    ANY_HEADING, CODE, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts,
+    ANY_HEADING, CODE, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts, step_four_block,
 )
 
 
@@ -161,16 +161,8 @@ class Scan:
 
 
 def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
-    start = next((i for i, line in enumerate(lines) if REFUSAL_HEADING.search(line)), None)
-    if start is None:
-        return [], False
-
-    block: list[str] = []
-    for line in lines[start + 1 :]:
-        if ANY_HEADING.match(line):
-            break
-        block.append(line)
-    return block, True
+    """The refusal block's lines, to ``ANY_HEADING`` from the first heading, through the one reader."""
+    return step_four_block(lines, REFUSAL_HEADING, ANY_HEADING, em_section=False)
 
 
 def _entry_sets(lines: list[str]) -> tuple[set[str], set[str]]:

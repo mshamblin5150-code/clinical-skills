@@ -2837,7 +2837,9 @@ counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, a
 run, a refused Word copy, a Word option without `--docx` or an unread candidate.
 `em_audit.completion_gate` is the `the E/M audit check-offs` row that `specificity_scan.py` grades
 at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`; there a
-stale or changed record is a finding and a missing or unreadable one is incomplete. The
+stale or changed record is a finding and a missing or unreadable one is incomplete. `em_audit_scope`
+holds that row's name and its two not-graded answers, so `specificity_scan` gives them without
+loading `em_audit`. The
 complete boundary belongs to `em_audit.DECLARED_LIMITS`. Covered by `tools/test_em_audit.py`, and
 the element grammar and its worksheet-reader tolerance by `tools/test_em_elements.py`.
 
