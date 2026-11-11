@@ -36,6 +36,7 @@ one element per physical line, with no blank line inside the block:
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
   relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed. Exactly one `EM-MDM`
   and one `EM-LEVEL`. A block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
+- The coding manifest fingerprints these lines; after editing one, build the manifest again.
 
 Synthetic example, an established office patient:
 

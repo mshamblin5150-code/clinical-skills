@@ -93,6 +93,11 @@ class RunFixture(unittest.TestCase):
         self.rederivation = self.run / em_audit.OUTPUT_DIRECTORY / em_audit.REDERIVATION_DIRECTORY / "note-1.md"
         self.record(ELEMENTS)
 
+    def write_private(self, text: str, encoding: str = "utf-8") -> None:
+        """Write the private worksheet and rebuild the manifest, which binds its element lines."""
+        (self.run / "worksheets/note-1.md").write_text(text, encoding=encoding)
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+
     def invoke(self, *args):
         command = [sys.executable, str(Path(__file__).with_name("em_audit.py")), str(self.run), *map(str, args)]
         return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -188,7 +193,7 @@ class CheckOffCommand(RunFixture):
         self.assertIn("agree 0; differ 0", result.stdout)
 
     def test_a_block_that_contradicts_itself_is_a_finding(self):
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace(
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
             "risk low; mdm low", "risk low; mdm moderate")), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
@@ -216,7 +221,7 @@ class CheckOffCommand(RunFixture):
         self.assertIn("could not be read", self.sheet.read_text(encoding="utf-8"))
 
     def test_an_answer_id_the_record_lacks_is_a_finding(self):
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace(
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
             "note-1.q1", "note-1.q2")), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
@@ -328,7 +333,7 @@ class ReviewFindings(RunFixture):
     """The code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def private(self, text: str) -> None:
-        (self.run / "worksheets/note-1.md").write_text(text, encoding="utf-8")
+        self.write_private(text, encoding="utf-8")
 
     def test_f1_every_em_spelling_the_code_reader_accepts_anchors_the_block(self):
         for spelling in ("cpt 99283 Emergency visit", "**E/M**: 99283 Emergency visit", "e/m: 99283 Emergency visit"):
@@ -449,7 +454,7 @@ class SecondReviewFindings(RunFixture):
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("absent 1", result.stdout)
         self.record(ELEMENTS)
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=""), encoding="utf-8")
+        self.write_private(PRIVATE.format(elements=""), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("element blocks: present 0, absent 1", result.stdout)
@@ -459,7 +464,7 @@ class SecondReviewFindings(RunFixture):
                                   "clinician_reply": REPLY, "verification": "verified",
                                   "reply_matched_at": 4102444800.0, "recorded_at": 4102444800.0})
         moved = ELEMENTS.replace("note-1.q1", "note-2.q1")
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=moved), encoding="utf-8")
+        self.write_private(PRIVATE.format(elements=moved), encoding="utf-8")
         self.record(moved)
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
@@ -521,7 +526,7 @@ class ThirdReviewFindings(RunFixture):
     """The third code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def private(self, elements: str, tail: str = "") -> None:
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=elements) + tail, encoding="utf-8")
+        self.write_private(PRIVATE.format(elements=elements) + tail, encoding="utf-8")
 
     def test_t1_the_counterpart_of_an_unread_worksheet_line_is_not_a_difference(self):
         self.private(ELEMENTS.replace("history only, no evaluation documented",
@@ -550,7 +555,7 @@ class ThirdReviewFindings(RunFixture):
         self.assertNotIn("E/M: 99283", refused)
 
     def test_t3_every_recorded_anchor_is_rendered(self):
-        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS).replace(
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
             '  ANCHOR: "Cough."\n', '  ANCHOR: "Cough."\n  ANCHOR: "Coughing for two days."\n'), encoding="utf-8")
         self.assertEqual(0, self.invoke("--write").returncode)
         text = self.sheet.read_text(encoding="utf-8")
@@ -605,6 +610,154 @@ class ThirdReviewFindings(RunFixture):
     def test_t10_the_tally_carries_no_dead_counters(self):
         tally = em_audit.Tally()
         self.assertFalse(hasattr(tally, "written") or hasattr(tally, "word"))
+
+
+
+class FourthReviewFindings(RunFixture):
+    """The fourth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def rebuilt(self, text: str) -> None:
+        self.write_private(text)
+
+    def section(self, text: str, title: str) -> str:
+        return text.split("## " + title, 1)[1].split("\n## ", 1)[0]
+
+    def test_u1_wrapped_field_values_are_read_whole(self):
+        self.rebuilt(PRIVATE.format(elements=ELEMENTS)
+                     .replace('  ANCHOR: "Cough."', '  ANCHOR: "Cough\n           for two days."')
+                     .replace("  SPECIFICITY: complete - the synthetic encounter documents no further axis",
+                              "  SPECIFICITY: complete - the synthetic encounter documents\n"
+                              "               no further axis"))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn('  - Anchor: "Cough for two days."', text)
+        self.assertIn("  - Specificity: complete - the synthetic encounter documents no further axis", text)
+
+    def test_u1_a_detail_line_the_reader_cannot_place_is_unread(self):
+        for stray in ("  EM-LEVEL: 99283\n  stray prose after the element block\n",
+                      "  EM-LEVEL: 99283\n\n  NOTE: an orphaned detail line\n"):
+            with self.subTest(stray=stray):
+                self.rebuilt(PRIVATE.format(elements=ELEMENTS.replace("  EM-LEVEL: 99283\n", stray)))
+                result = self.invoke()
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn("unread remainder 1", result.stdout)
+
+    def test_u2_an_unreadable_answers_record_is_incomplete_not_a_finding(self):
+        (self.run / preapproval_answers.RECORD).write_text("not json", encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("findings 0", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertNotIn("FINDING", text)
+        self.assertIn("- Answer ids: not checked; the pre-approval answers record could not be read", text)
+
+    def test_u3_the_em_entry_fields_reach_the_em_section(self):
+        self.rebuilt(PRIVATE.format(elements='  ANCHOR: "Low complexity, synthetic support"\n'
+                                    "  CONFIDENCE: verified against the synthetic sheet\n" + ELEMENTS))
+        self.assertEqual(0, self.invoke("--write").returncode)
+        em = self.section(self.sheet.read_text(encoding="utf-8"), "E/M level, element by element")
+        for expected in ("- E/M line: CPT 99283 Emergency visit", '  - Anchor: "Low complexity, synthetic support"',
+                         "  - Confidence: verified against the synthetic sheet"):
+            self.assertIn(expected, em)
+
+    def receipt_names(self, sheet: bytes) -> Path:
+        import hashlib
+        folder = self.root / "repository"
+        (folder / "reference").mkdir(parents=True, exist_ok=True)
+        (folder / "reference" / "synthetic-mdm.md").write_bytes(sheet)
+        receipt = self.run / review_manifest.RECEIPT
+        value = json.loads(receipt.read_text(encoding="utf-8"))
+        value["sources"]["cpt"]["mdm_sheet_sha256"] = hashlib.sha256(sheet.replace(b"\r\n", b"\n")).hexdigest()
+        receipt.write_text(json.dumps(value), encoding="utf-8")
+        return folder
+
+    def test_u4_the_named_sheet_is_read_by_its_parser_and_bound_to_the_receipt_digest(self):
+        real = (ROOT / "reference" / "cpt-em-mdm-2026.md").read_bytes()
+        folder = self.receipt_names(real)
+        with mock.patch.object(em_audit, "REPOSITORY", folder):
+            status, output = self.in_process("--write")
+            self.assertEqual(0, status, output)
+            self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+            (folder / "reference" / "synthetic-mdm.md").write_bytes(real + b"\nEdited after the receipt.\n")
+            status, output = self.in_process()
+            self.assertEqual(2, status, output)
+            self.assertIn("CPT MDM sheet", output)
+        folder = self.receipt_names(b"## Entry: table-low\n## Entry: definition-stable-chronic\n")
+        with mock.patch.object(em_audit, "REPOSITORY", folder):
+            status, output = self.in_process()
+        self.assertEqual(2, status, output)
+
+    def test_u5_an_element_line_edited_after_the_manifest_refuses_the_check_off(self):
+        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace(
+            "rest and education", "rest and education, edited after the manifest")), encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refused", result.stdout)
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+
+    def test_u5_a_manifest_without_the_element_fingerprint_is_unread(self):
+        path = self.run / review_manifest.MANIFEST
+        value = json.loads(path.read_text(encoding="utf-8"))
+        del value["encounters"][0]["element_block_sha256"]
+        path.write_text(json.dumps(value), encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("not bound to the manifest", self.sheet.read_text(encoding="utf-8"))
+
+    def test_u7_a_coded_run_without_a_manifest_is_incomplete_at_submission(self):
+        (self.run / review_manifest.MANIFEST).unlink()
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("incomplete", report)
+        self.assertIn("not graded", em_audit.completion_gate(self.run, None)[1])
+        (self.run / "worksheets/note-1.md").write_text("ICD-10-CM R05.9 Cough\n  ANCHOR: \"Cough.\"\n",
+                                                       encoding="utf-8")
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 0), (finding, unread), report)
+        self.assertIn("not graded", report)
+
+    def test_u8_the_command_and_the_gate_share_one_finding_predicate(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        for name in ("status_of", "completion_gate"):
+            calls = {node.func.id for node in ast.walk(functions[name])
+                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+            self.assertIn("has_finding", calls, name)
+        cases = {"block_findings": 1, "differ": 1, "damaged": 1, "blocks_absent": 1, "absent": 1, "unread": 0}
+        for attribute in cases:
+            with self.subTest(attribute=attribute):
+                tally = em_audit.Tally()
+                setattr(tally, attribute, 1)
+                command = em_audit.status_of(tally) == 1
+                gate = em_audit.has_finding(tally, differences=False, stale=0)
+                self.assertEqual(attribute not in ("unread", "differ"), gate)
+                self.assertEqual(attribute != "unread", command)
+        self.assertTrue(em_audit.has_finding(em_audit.Tally(), differences=False, stale=1))
+        self.rederivation.unlink()
+        status, _ = self.in_process()
+        finding, _, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((1, True), (status, finding))
+
+    def test_u9_a_word_refusal_names_the_note_and_counts_the_copies_already_written(self):
+        folder = self.root / "export"
+        sheets = [em_audit.Sheet(1, "note-1", "# One\n"), em_audit.Sheet(2, "note-2", "# Two\n")]
+        folder.mkdir()
+        (folder / "note-2.docx").write_bytes(b"not a document this renderer wrote")
+        with self.assertRaises(em_audit.WordExportStopped) as stopped:
+            em_audit.export_word(self.run, sheets, folder, False)
+        self.assertEqual((1, 2), (stopped.exception.written, stopped.exception.order))
+        self.assertTrue((folder / "note-1.docx").is_file())
+        tally = em_audit.Tally()
+        with mock.patch.object(em_audit, "render", return_value=(tally, 2, sheets)):
+            (folder / "note-1.docx").unlink()
+            status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(2, status, output)
+        self.assertIn("Word copies written 1", output)
+        self.assertIn("Word copy refused at note 2", output)
 
 
 if __name__ == "__main__":

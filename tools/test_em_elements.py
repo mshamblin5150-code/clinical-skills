@@ -112,6 +112,13 @@ class TheStrictReader(unittest.TestCase):
                 text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + anchor + BLOCK
                 self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, EM_CODES))
 
+    def test_u6_an_element_line_ending_in_not_for_entry_leaves_the_em_entry_for_entry(self):
+        text = ("ICD-10  E11.9  Type 2 diabetes mellitus without complications\n"
+                "CPT  99213  Office visit, established patient\n"
+                + BLOCK.replace("EM-RULE: ADR 0308 ruling 1", "EM-RULE: the refused code is not for entry"))
+        self.assertEqual([True, True], [entry.for_entry for entry in grammar.read_entries(text)])
+        self.assertEqual("99213", review_manifest.selected_codes(text, private=True)["em"])
+
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
         self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))

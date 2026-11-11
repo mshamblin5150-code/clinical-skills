@@ -33,7 +33,8 @@ Run `python tools/em_audit.py <run>` on the coding run named in
 [Clinical status, manifest, and Review sheet](../_shared/reference/clinical-manifest.md).
 
 Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
-receipt is missing or stale; icd10-cpt rebuilds them, then repeat this step.
+receipt is missing or stale, an element line changed after the manifest, or the CPT MDM sheet is not
+the one the receipt fingerprinted; icd10-cpt rebuilds them, then repeat this step.
 
 ## 2. Re-derive every note
 
@@ -64,7 +65,8 @@ python tools/em_audit.py <run> --docx --note <order>
 The Word copies go to the main checkout's `output/em-audit/<run name>/` through the shared
 renderer, which refuses to replace a copy edited by hand until `--force`, and they carry every
 asterisk and backtick of the copied record text as written. `--force` and `--output-dir` are
-refused without `--docx`.
+refused without `--docx`. A refused copy names its note number and how many copies were already
+written.
 
 Done when the clinician has the paths and every Word copy he asked for.
 

@@ -18,17 +18,22 @@ Exit 0 when every selected note rendered with no finding; 1 for a finding: a not
 element block or a placed re-derivation (ADR 0445), an element block that contradicts itself or
 the selected code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
 differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
-note number is unknown, a Word option was given without ``--docx``, a check-off or Word copy was
-refused, or a candidate went unread (``unread remainder``). A finding outranks an unread remainder.
+note number is unknown, the CPT MDM sheet is not the one the receipt fingerprinted, a Word option
+was given without ``--docx``, a check-off or Word copy was refused (naming the note number that
+stopped it and the copies already written), or a candidate went unread (``unread remainder``). A
+finding outranks an unread remainder.
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter
+import hashlib
 from pathlib import Path
 import re
+from typing import NamedTuple
 
 import coding_freshness
+import cpt_mdm_sheet
 import preapproval_answers
 import repo_root
 import review_manifest
@@ -37,9 +42,9 @@ from encounter_openers import atomic_write
 from run_grader import format_unread_remainder
 from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, damaged_record_result,
                                fault_report, read_handwritten_record, read_tool_record)
-from worksheet_grammar import (BLOCK_HEADING, ENTRY, FIELD, REFUSAL_HEADING, UNDOCUMENTED_HEADING, EmBlock,
-                               block_text, em_block, entry_region, paired_entry, read_entries,
-                               worksheet_em_block)
+from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
+                               UNDOCUMENTED_HEADING, EmBlock, block_text, em_anchor, em_block, entry_region,
+                               paired_entry, read_entries, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -51,9 +56,13 @@ DECLARED_LIMITS = (
     "the selected code, answer ids present in the pre-approval answers record, and one block per "
     "worksheet. It is not checked that the code follows from the MDM level, setting and status, "
     "that a quotation is faithful to the note, or that every element weighed was written down.",
-    "Entry ids are checked only when the sheet the receipt names exists under reference/.",
+    "Entry ids are checked only when the sheet the receipt names exists under reference/, read by "
+    "cpt_mdm_sheet.read_entries; a present sheet whose line-ending-normalized bytes differ from the "
+    "receipt fingerprint, or that the parser refuses, refuses the check-off.",
     "An answer recorded as unreadable is shown and counted as incomplete coverage; the record "
-    "itself does not establish which question a reply answered.",
+    "itself does not establish which question a reply answered. An answers record that exists but "
+    "cannot be read leaves the block's answer ids unchecked and counts once as unread; an absent "
+    "record is a finding for a block that names an answer.",
     "A re-derivation is compared with the lines of the worksheet block that were read, on the "
     "counted and not-counted (element, entry id) population, each MDM element and the level; an "
     "unread worksheet line is counted in the unread remainder and stays outside the comparison, "
@@ -68,6 +77,15 @@ DECLARED_LIMITS = (
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
     "lines dropped, not parsed.",
+    "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
+    "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
+    "and an indented line after an element block, are counted unread. A continuation that a "
+    "reader would place under a different field than its author meant cannot be told apart.",
+    "Every E/M line of the private worksheet, under any anchor and wherever it sits, is rendered "
+    "with its own provenance fields in the E/M section.",
+    "The element block is bound to the approved records only through the manifest element "
+    "fingerprint; a manifest without it is counted unread on each check-off, and a run with no "
+    "manifest whose worksheets carry an E/M line is incomplete at submission.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet.",
     "Validation re-reads the opener source, notes, worksheets, status evidence and receipt; a "
     "moved or edited source refuses the check-off even long after the shift.",
@@ -91,7 +109,6 @@ SECTIONS = (
 )
 FILLED_MARK = re.compile(r"\[SOURCE: filled - (?:data|risk): [^\]\n]+\]")
 EM_PARAGRAPH = re.compile(r"(?ms)^E/M:.*?(?=\n[ \t]*\n|\Z)")
-SHEET_ENTRY = re.compile(r"(?m)^## Entry: (\S+)[ \t]*$")
 SHARED_RULES = (
     "reference/cpt-em-mdm-2026.md entries, by id, for the service-date edition",
     "ADR 0308: problems addressed, level-changing questions, proposed drugs, threat to life",
@@ -132,24 +149,87 @@ class Tally:
         self.unread = 0
 
 
-def for_entry_codes(private: str) -> list[tuple[str, str, str, str, dict[str, list[str]]]]:
-    """Each for-entry code as the manifest validation reads it: (key, system, code, descriptor, fields).
+def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], int, int]:
+    """The wrapped header tail, field values, unplaced line count and body end of the entry at ``index``.
 
+    The body is the contiguous indented lines below the entry, the bound
+    ``worksheet_grammar.detail_belongs_to_entry`` pairs a detail by; a nested entry line ends it.
+    A line continues the field above it, or the header before the first field. Element lines and
+    an indented E/M label belong to the element block, and an indented line after them is unplaced.
+    """
+    tail: list[str] = []
+    fields: dict[str, list[str]] = {}
+    unplaced, state, end = 0, "header", index + 1
+    for line in lines[index + 1:]:
+        if not line.strip() or line[0] not in " \t" or ENTRY.match(line):
+            break
+        end += 1
+        field = FIELD.match(line)
+        if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
+            state = "element"
+        elif field:
+            state = field.group("field").upper()
+            fields.setdefault(state, []).append(line[field.end():].strip())
+        elif state == "header":
+            tail.append(line.strip())
+        elif state == "element":
+            unplaced += 1
+        else:
+            fields[state][-1] = (fields[state][-1] + " " + line.strip()).strip()
+    return tail, fields, unplaced, end
+
+
+def for_entry_codes(private: str) -> tuple[list[tuple[str, str, str, str, dict[str, list[str]]]], int]:
+    """Each non-E/M for-entry code as the manifest validation reads it, and the detail lines left unread.
+
+    A code is (key, system, code, descriptor, fields), each value joined across its wrapped lines.
     The region, the entries and the for-entry split are the readers ``review_manifest.selected_codes``
-    uses; each field line is paired to its entry by ``worksheet_grammar.paired_entry``.
+    uses. A field line ``worksheet_grammar.paired_entry`` gives no entry or E/M label, or an indented
+    line no field owns, is counted unread rather than dropped; E/M lines are read by ``em_entry_lines``.
     """
     region = entry_region(private)
     matches = list(ENTRY.finditer(region))
-    fields: dict[int, dict[str, list[str]]] = {}
-    for field in FIELD.finditer(region):
-        owner = paired_entry(region, matches, field)
-        if owner is not None:
-            end = region.find("\n", field.end())
-            value = region[field.end():end if end != -1 else len(region)].strip()
-            fields.setdefault(owner.start(), {}).setdefault(field.group("field").upper(), []).append(value)
-    return [(review_manifest.code_key(entry.system, entry.code), entry.system.upper(), entry.code.upper(),
-             entry.descriptor.strip(), fields.get(entry.start, {}))
-            for entry in read_entries(region) if entry.for_entry]
+    owners = sorted(matches + list(EM_CODE_LABEL.finditer(region)), key=lambda match: match.start())
+    unread = sum(paired_entry(region, owners, field) is None for field in FIELD.finditer(region))
+    lines = region.splitlines()
+    codes = []
+    for match, entry in zip(matches, read_entries(region)):
+        key = review_manifest.code_key(entry.system, entry.code)
+        if not entry.for_entry or key == "em":
+            continue
+        tail, fields, unplaced, _ = entry_details(lines, region.count("\n", 0, match.start()))
+        unread += unplaced
+        codes.append((key, entry.system.upper(), entry.code.upper(),
+                      " ".join([entry.descriptor.strip(), *tail]), fields))
+    return codes, unread
+
+
+def field_lines(fields: dict[str, list[str]], *, defaults: bool) -> list[str]:
+    """The provenance lines of one entry; ``defaults`` names an absent anchor and source."""
+    out = []
+    anchors = fields.get("ANCHOR") or (["not recorded"] if defaults else [])
+    out += ["  - Anchor: " + anchor for anchor in anchors]
+    if "SOURCE" in fields or defaults:
+        out.append("  - Source: " + ("; ".join(fields["SOURCE"]) if "SOURCE" in fields else "recorded (no SOURCE line)"))
+    for label in ("SPECIFICITY", "CONFIDENCE", "NOTE"):
+        out += ["  - " + label.title() + ": " + value for value in fields.get(label, ())]
+    return out
+
+
+def em_entry_lines(private: str, tally: Tally) -> list[str]:
+    """Every E/M line of the private worksheet with its wrapped header and provenance fields."""
+    lines = private.splitlines()
+    out: list[str] = []
+    claimed: set[int] = set()
+    for index, line in enumerate(lines):
+        if index in claimed or not em_anchor(line, review_manifest.EM_CODES):
+            continue
+        tail, fields, unplaced, end = entry_details(lines, index)
+        claimed.update(range(index + 1, end))
+        tally.unread += unplaced
+        out.append("- E/M line: " + " ".join([line.strip(), *tail]))
+        out += field_lines(fields, defaults=False)
+    return out
 
 
 def quoted(text: str | None, empty: str = "", *, paragraphs: bool = False) -> list[str]:
@@ -167,12 +247,32 @@ def quoted(text: str | None, empty: str = "", *, paragraphs: bool = False) -> li
     return ["> " + line.rstrip() for line in lines if line.strip()]
 
 
+class SheetMoved(ValueError):
+    """The CPT MDM sheet the receipt names is not the sheet it fingerprinted, or does not parse."""
+
+
 def sheet_ids(receipt: dict) -> set[str] | None:
-    path = REPOSITORY / "reference" / Path(receipt["sources"]["cpt"]["mdm_sheet_filename"]).name
-    try:
-        return set(SHEET_ENTRY.findall(path.read_text(encoding="utf-8")))
-    except (OSError, UnicodeError):
+    """The entry ids of the sheet the receipt names, through ``cpt_mdm_sheet.read_entries``.
+
+    None when that sheet is not under reference/. A sheet whose line-ending-normalized bytes
+    differ from the receipt's ``mdm_sheet_sha256``, or that the sheet parser refuses, refuses the
+    check-off, as validation refuses any other source the receipt binds.
+    """
+    cpt = receipt["sources"]["cpt"]
+    path = REPOSITORY / "reference" / Path(cpt["mdm_sheet_filename"]).name
+    if not path.is_file():
         return None
+    try:
+        data = path.read_bytes().replace(b"\r\n", b"\n")
+        if hashlib.sha256(data).hexdigest() != cpt["mdm_sheet_sha256"]:
+            raise SheetMoved("the CPT MDM sheet differs from the receipt fingerprint")
+        return set(cpt_mdm_sheet.read_entries(data.decode("utf-8")))
+    except (OSError, UnicodeError) as error:
+        raise SheetMoved("the CPT MDM sheet could not be read") from error
+    except SheetMoved:
+        raise
+    except ValueError as error:
+        raise SheetMoved("the CPT MDM sheet does not parse") from error
 
 
 def item_lines(block_: EmBlock) -> list[str]:
@@ -191,8 +291,13 @@ def item_lines(block_: EmBlock) -> list[str]:
     return lines
 
 
-def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None) -> list[str]:
-    """What an element block states against itself, the selected code and its records."""
+def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
+                   *, answers_unread: bool = False) -> list[str]:
+    """What an element block states against itself, the selected code and its records.
+
+    ``answers_unread`` leaves the answer ids ungraded: an unreadable answers record is incomplete
+    coverage, not a record shown to lack them.
+    """
     found = []
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
@@ -203,7 +308,9 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
         found += [f"entry id {item.entry} is not in the CPT MDM sheet"
                   for item in block_.items if item.entry != "none" and item.entry not in ids]
     named = [answer for answer in block_.answers if answer != "none"]
-    if named and note_answers is None:
+    if answers_unread:
+        pass
+    elif named and note_answers is None:
         found.append("the block names a pre-approval answer, but the run has no readable answers record")
     elif named:
         found += [f"answer {answer} is not a pre-approval answer of this note"
@@ -314,19 +421,17 @@ def status_text(item: dict) -> str:
 
 def code_lines(private: str, tally: Tally) -> list[str]:
     out: list[str] = []
-    for key, system, code, descriptor, fields in for_entry_codes(private):
-        if key == "em":
-            continue
+    codes, unread = for_entry_codes(private)
+    tally.unread += unread
+    if unread:
+        out.append(f"{unread} detail line(s) could not be placed under an entry and are counted in the "
+                   "unread remainder.")
+    for key, system, code, descriptor, fields in codes:
         tally.systems[key] += 1
-        anchors = fields.get("ANCHOR") or []
-        if not anchors:
+        if not fields.get("ANCHOR"):
             tally.unanchored += 1
         out.append(f"- [ ] {system} {code} {descriptor}")
-        out += ["  - Anchor: " + anchor for anchor in anchors or ["not recorded"]]
-        source = "; ".join(fields["SOURCE"]) if "SOURCE" in fields else "recorded (no SOURCE line)"
-        out.append("  - Source: " + source)
-        for label in ("SPECIFICITY", "CONFIDENCE", "NOTE"):
-            out += ["  - " + label.title() + ": " + value for value in fields.get(label, ())]
+        out += field_lines(fields, defaults=True)
     return out or ["None recorded in the worksheet."]
 
 
@@ -357,7 +462,12 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
-             *["- ECG code: " + line for line in ecg]]
+             *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
+    if "element_block_sha256" not in item:
+        tally.unread += 1
+        lines.append("- Element block: not bound to the manifest, which predates the element fingerprint; "
+                     "an edit after the manifest is not detected. Rebuild the manifest. Counted in the "
+                     "unread remainder.")
     elements = worksheet_em_block(private, review_manifest.EM_CODES)
     block_ = elements.block
     tally.unread += elements.outside
@@ -384,7 +494,9 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
                   if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
-    found = block_findings(block_, selected, context.ids, note_answers)
+    found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable)
+    if context.unreadable:
+        lines.append("- Answer ids: not checked; the pre-approval answers record could not be read")
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
     if context.ids is None:
@@ -427,6 +539,12 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     return "\n".join(out)
 
 
+class Sheet(NamedTuple):
+    order: int
+    stem: str
+    text: str
+
+
 class UnknownNote(ValueError):
     """A --note number names no encounter of the run."""
 
@@ -435,8 +553,8 @@ class WordTargetRefused(ValueError):
     """A Word copy aimed inside a checkout but outside its output/ tree."""
 
 
-def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[tuple[str, str]]]:
-    """Every selected check-off as (note stem, Markdown text), rendered from the validated read itself."""
+def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
+    """Every selected check-off as a ``Sheet``, rendered from the validated read itself."""
     run = run.resolve()
     validated = review_manifest.validated_population(run)
     manifest, receipt = validated.manifest, validated.receipt
@@ -452,14 +570,22 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[tuple[str, str
             continue
         text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
                      context, tally)
-        sheets.append((Path(item["note_path"]).stem, text))
+        sheets.append(Sheet(item["order"], Path(item["note_path"]).stem, text))
     return tally, len(orders), sheets
 
 
-def write_markdown(run: Path, sheets: list[tuple[str, str]]) -> int:
-    for stem, text in sheets:
-        atomic_write(run.resolve() / OUTPUT_DIRECTORY / (stem + ".md"), text.encode("utf-8"))
+def write_markdown(run: Path, sheets: list[Sheet]) -> int:
+    for sheet_ in sheets:
+        atomic_write(run.resolve() / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), sheet_.text.encode("utf-8"))
     return len(sheets)
+
+
+class WordExportStopped(Exception):
+    """A Word copy failed part way: how many were written, and the note number that stopped it."""
+
+    def __init__(self, written: int, order: int, cause: BaseException) -> None:
+        super().__init__(f"stopped at note {order} after {written} written")
+        self.written, self.order, self.cause = written, order, cause
 
 
 def word_folder(run: Path, output_dir: Path | None) -> Path:
@@ -472,14 +598,24 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
     return folder
 
 
-def export_word(run: Path, sheets: list[tuple[str, str]], output_dir: Path | None, force: bool) -> int:
-    """Render the same check-off text to Word through the one shared renderer, only when asked."""
-    from docx_write import write_docx
+def export_word(run: Path, sheets: list[Sheet], output_dir: Path | None, force: bool) -> int:
+    """Render the same check-off text to Word through the one shared renderer, only when asked.
+
+    A copy that fails stops the export with ``WordExportStopped``, naming its note number and how
+    many copies were already written; copies written earlier stay where they are.
+    """
+    from docx_write import RefusedToOverwrite, write_docx
     folder = word_folder(run, output_dir)
-    for stem, text in sheets:
-        # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
-        write_docx(text, folder / (stem + ".docx"), force=force, bold_headings=True, layout="plain", literal=True)
-    return len(sheets)
+    written = 0
+    for sheet_ in sheets:
+        try:
+            # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
+            write_docx(sheet_.text, folder / (sheet_.stem + ".docx"), force=force, bold_headings=True,
+                       layout="plain", literal=True)
+        except (RefusedToOverwrite, repo_root.ForeignCheckout, OutboundTextError, OSError) as error:
+            raise WordExportStopped(written, sheet_.order, error) from error
+        written += 1
+    return written
 
 
 def report(tally: Tally, total: int, selected: int, written: str) -> str:
@@ -500,14 +636,43 @@ def report(tally: Tally, total: int, selected: int, written: str) -> str:
     ))
 
 
+def has_finding(tally: Tally, *, differences: bool, stale: int) -> bool:
+    """The one finding predicate of the command and the completion gate.
+
+    A note missing its block or re-derivation, a block finding and a damaged record are findings
+    for both (ADR 0445). ``differences`` makes a re-derivation difference one: the command exits
+    1 so the clinician sees it, while the gate counts it, since icd10-cpt shows it before
+    approval. ``stale`` counts check-offs missing or unequal to a fresh render, which only the gate
+    reads.
+    """
+    return bool(tally.block_findings or tally.damaged or tally.blocks_absent or tally.absent or stale
+                or (differences and tally.differ))
+
+
 def status_of(tally: Tally) -> int:
-    """The completion gate classes: a note missing its block or re-derivation is a finding (ADR 0445)."""
-    if tally.block_findings or tally.differ or tally.damaged or tally.blocks_absent or tally.absent:
+    """The command's exit status: 1 for a finding, 2 for an unread remainder, else 0."""
+    if has_finding(tally, differences=True, stale=0):
         return 1
     return 2 if tally.unread else 0
 
 
 EXPECTED_ROW = "the E/M audit check-offs"
+
+
+def selects_em_level(run: Path) -> bool:
+    """Whether a private worksheet of the run carries an E/M line; an unreadable one counts.
+
+    icd10-cpt selects an E/M level only on the note path, where ADR 0445 ruling 6 requires the
+    manifest and its check-offs, so such a run without a manifest is incomplete coverage.
+    """
+    for path in sorted((run / "worksheets").glob("*.md")):
+        try:
+            text = review_manifest.read_text(path)
+        except (DamagedRecord, UnreadableRecord, OSError, UnicodeError):
+            return True
+        if any(em_anchor(line, review_manifest.EM_CODES) for line in text.splitlines()):
+            return True
+    return False
 
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
@@ -525,7 +690,10 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied", 0
     run = run.resolve()
     if not (run / review_manifest.MANIFEST).exists():
-        return False, f"{EXPECTED_ROW}: not graded - the run has no coding manifest", 0
+        if selects_em_level(run):
+            return False, (f"{EXPECTED_ROW}: incomplete - a worksheet selects an E/M level, but the run has "
+                           "no coding manifest to render its check-offs from"), 1
+        return False, f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no E/M worksheet", 0
     try:
         tally, total, sheets = render(run, [])
     except UnreadableRecord:
@@ -535,20 +703,28 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or stale", 1
     stale = unreadable = 0
-    for stem, text in sheets:
+    for sheet_ in sheets:
         try:
-            current = read_tool_record(run / OUTPUT_DIRECTORY / (stem + ".md"), str)
+            current = read_tool_record(run / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), str)
         except UnreadableRecord:
             unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
             continue
-        stale += current != text
+        stale += current != sheet_.text
     unread = tally.unread + unreadable
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
               f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
-    if tally.blocks_absent or tally.block_findings or tally.absent or tally.damaged or stale:
+    if has_finding(tally, differences=False, stale=stale):
         return True, f"{EXPECTED_ROW}: finding - {counts}", unread
     return False, f"{EXPECTED_ROW}: " + ("incomplete - " if unread else "clean - ") + counts, unread
+
+
+WORD_REFUSALS = {
+    "overwrite": "a Word copy is there that this renderer did not write; recover any edit, then pass --force",
+    "target": "a Word copy goes under the output folder of the main checkout or outside every checkout",
+    "character": "the Word renderer refuses a character in the check-off text",
+    "write": "the file could not be written",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -570,6 +746,10 @@ def main(argv: list[str] | None = None) -> int:
     except UnknownNote:
         print("em-audit: refused - a --note number is not an encounter of this run")
         return 2
+    except SheetMoved:
+        print("em-audit: refused - the CPT MDM sheet under reference/ is not the one the receipt fingerprinted, "
+              "or it does not parse; run coding_freshness again")
+        return 2
     except UnreadableRecord as error:
         print(fault_report(error, check="em-audit"))
         return 2
@@ -588,15 +768,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.docx and refusal is None:
         try:
             written.append(f"Word copies written {export_word(args.run, sheets, args.output_dir, args.force)}")
-        except RefusedToOverwrite as error:
-            refusal = f"Word copy refused - {error}"
-        except (WordTargetRefused, repo_root.ForeignCheckout):
-            refusal = ("Word copy refused - a Word copy goes under the output folder of the main checkout "
-                       "or outside every checkout")
-        except OutboundTextError:
-            refusal = "Word copy refused - the Word renderer refuses a character in the check-off text"
-        except OSError:
-            refusal = "Word copy refused - the file could not be written"
+        except WordTargetRefused:
+            refusal = "Word copy refused - " + WORD_REFUSALS["target"]
+        except WordExportStopped as stopped:
+            written.append(f"Word copies written {stopped.written}")
+            reason = next(text for kind, text in ((RefusedToOverwrite, WORD_REFUSALS["overwrite"]),
+                                                  (repo_root.ForeignCheckout, WORD_REFUSALS["target"]),
+                                                  (OutboundTextError, WORD_REFUSALS["character"]),
+                                                  (OSError, WORD_REFUSALS["write"]))
+                          if isinstance(stopped.cause, kind))
+            refusal = f"Word copy refused at note {stopped.order} - {reason}"
     selected = len(set(args.note)) if args.note else total
     print(report(tally, total, selected, "; ".join(written) or "nothing written (pass --write or --docx)"))
     status = status_of(tally)

@@ -117,14 +117,15 @@ def entry_is_for_entry(
 ) -> bool:
     """Whether one entry header lacks a line ending in ``NOT FOR ENTRY``.
 
-    A field or the next entry closes the header. This retains readable historical
-    worksheets whose official descriptor wrapped before the line-scoped marker.
+    A field, an E/M element line or the next entry closes the header. This retains
+    readable historical worksheets whose official descriptor wrapped before the
+    line-scoped marker; an element line's free text is never read as the marker.
     """
 
     start = entries[index].start()
     end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
-    field = FIELD.search(text, start, end)
-    header = text[start : field.start() if field else end]
+    closers = [match.start() for pattern in (FIELD, EM_LINE_START) if (match := pattern.search(text, start, end))]
+    header = text[start : min(closers) if closers else end]
     return NOT_FOR_ENTRY.search(header) is None
 
 
@@ -253,6 +254,7 @@ def block_text(text: str, heading: re.Pattern[str], em_codes: frozenset[str] = f
     return text[match.end():end].strip("\n")
 
 EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
+EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
 _EM_ITEM = re.compile(
     r"^(?P<entry>[a-z0-9][a-z0-9-]*|none)[ \t]*\|[ \t]*(?P<counted>counted|not counted)[ \t]*\|"
