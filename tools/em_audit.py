@@ -452,7 +452,12 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     # no body owns, such as one after a blank line, and an E/M label no rule selects are unread
     # rather than dropped. Only detail-shaped lines are candidates: an orphaned field's wrapped
     # value is the field's own, and indented prose is not a detail line.
-    owned = set(private.owners).union(*(range(index + 1, private.walks[index][3]) for index in private.owners))
+    # A label a section claims never renders its own body, so its walk owns nothing past the
+    # claiming section's end: a field there is the claimer's to place or counted unread.
+    reach = {index: min([private.walks[index][3]]
+                        + [section.end for section in private.sections if section.line < index < section.end])
+             for index in private.owners}
+    owned = set(private.owners).union(*(range(index + 1, reach[index]) for index in private.owners))
     selected = private.physical.selected
     unread = sum(1 for index, line in enumerate(lines)
                  if index not in owned and not EM_CANDIDATE.match(line)
@@ -646,7 +651,7 @@ def level_code_findings(block_: EmBlock, levels: MdmLevels | None) -> list[str]:
 def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None) -> list[str]:
     """What an element block states against itself: the only checks a blind re-derivation takes.
 
-    Counted items name an entry id and quote note text, ``none`` reads only ``none | not counted |
+    Counted items name an entry id and quote note text (an empty quotation quotes none), ``none`` reads only ``none | not counted |
     none``, entry ids are in the bound CPT MDM sheet, the MDM line is the middle of its three
     elements, and the level is the one that MDM level selects: the level its verified CPT 2026
     descriptor names in the committed procedure-code database (``levels``), unless an EM-RULE line
@@ -665,7 +670,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
         # em-elements.md: none is written only as none | not counted | none.
         if item.entry == "none" and (item.counted or item.text != "none"):
             found.append(f"a {item.kind.title()} line with no entry id reads other than none | not counted | none")
-        elif item.counted and item.text == "none":
+        elif item.counted and (item.text == "none" or not item.text.strip('"').strip()):
             found.append(f"counted {item.kind.title()} {item.entry} quotes no note text")
     if ids is not None:
         found += [f"entry id {item.entry} is not in the CPT MDM sheet"

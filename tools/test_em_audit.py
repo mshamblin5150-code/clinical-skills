@@ -3733,5 +3733,46 @@ class TwentyNinthReviewFindings(ProseBind, RunFixture):
         self.assertProseIn("`EM-ECG: not applicable`", step)
 
 
+class FleetRoundOneFindings(RunFixture):
+    """Round 1 of the adversarial fleet review: three reproduced defects, each driven red first."""
+
+    def test_fa1_a_field_past_the_claiming_section_is_counted_unread(self):
+        # A margin ANCHOR ends the CPT entry's body before the indented SPECIFICITY line, while the
+        # nested E/M label's own walk runs past it. The claimed label's body never renders, so its
+        # longer extent may not vouch for the line: it is shown or counted, never dropped.
+        text = PRIVATE.replace("CPT 99283 Emergency visit\n{elements}",
+                               'CPT 99283 Emergency visit\nANCHOR: "Cough."\n  E/M: 99283\n{elements}'
+                               "  SPECIFICITY: MARKERVALUE\n").format(elements=ELEMENTS)
+        self.write_private(text)
+        status, output = self.in_process("--write")
+        shown = self.sheet.is_file() and "MARKERVALUE" in self.sheet.read_text(encoding="utf-8")
+        self.assertTrue(shown or "unread remainder 0" not in output, output)
+        self.assertTrue(shown or status == 2, output)
+
+    def test_fa2_trailing_unicode_whitespace_that_moves_the_reading_moves_the_fingerprint(self):
+        private = PRIVATE.format(elements=ELEMENTS).replace(
+            "## Coded, anchor", 'CPT 12001 Simple repair NOT FOR ENTRY\n  ANCHOR: "x"\n\n## Coded, anchor')
+        self.write_private(private)
+        self.assertEqual(0, self.in_process("--write")[0])
+        edited = private.replace("NOT FOR ENTRY\n", "NOT FOR ENTRY\u00a0\n")
+        self.assertNotEqual(review_manifest.private_worksheet_sha256(private),
+                            review_manifest.private_worksheet_sha256(edited))
+        (self.run_dir / "worksheets/note-1.md").write_text(edited, encoding="utf-8")
+        status, output = self.in_process()
+        self.assertEqual(1, status, output)
+        self.assertTrue(em_audit_gate(self.run_dir, "k")[0])
+        # What the grammar ignores still leaves the fingerprint alone.
+        self.assertEqual(review_manifest.private_worksheet_sha256(private),
+                         review_manifest.private_worksheet_sha256(private.replace("\n", " \t\r\n")))
+
+    def test_fa3_a_counted_item_with_an_empty_quotation_quotes_no_note_text(self):
+        levels = em_audit.mdm_levels("2026-10-01")
+        for empty in ('""', '" "'):
+            with self.subTest(quotation=empty):
+                block = strict_block(ELEMENTS.replace('"Cough."', empty))
+                self.assertIn("counted Problem definition-acute-uncomplicated quotes no note text",
+                              em_audit.rederivation_findings(block, None, levels))
+
+
 if __name__ == "__main__":
     unittest.main()

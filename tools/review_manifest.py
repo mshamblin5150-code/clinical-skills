@@ -185,7 +185,7 @@ def content(run: Path, item: dict) -> tuple[str, str, str, str]:
 
 
 def private_worksheet_sha256(private: str) -> str:
-    """The fingerprint of the whole private worksheet, normalized as ``normalized`` normalizes.
+    """The fingerprint of the whole private worksheet, less only what its grammar ignores.
 
     ``normalized_sha256`` binds the note and the visible worksheet, which the receipt carries;
     this fingerprint covers everything the E/M audit check-off renders from the private worksheet
@@ -193,8 +193,14 @@ def private_worksheet_sha256(private: str) -> str:
     in ``PRIVATE_FINGERPRINTS`` beside the manifest, never in it: provenance-only edits keep the
     approval identity, as the selected-code projection rules. ``em_audit`` compares it and refuses
     a check-off whose private worksheet changed after it was recorded.
+
+    Line endings and trailing spaces and tabs are dropped, and nothing else: the grammar reads a
+    marker followed by other trailing whitespace (``NOT FOR ENTRY`` and a no-break space) as
+    another line, so ``normalized``'s ``str.rstrip`` would let such an edit keep the fingerprint.
     """
-    return digest(normalized(private).encode("utf-8"))
+    lines = private.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    text = "\n".join(line.rstrip(" \t") for line in lines).rstrip("\n") + "\n"
+    return digest(text.encode("utf-8"))
 
 
 def clean_codes(codes: dict) -> dict:
