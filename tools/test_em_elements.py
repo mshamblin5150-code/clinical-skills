@@ -119,6 +119,16 @@ class TheStrictReader(unittest.TestCase):
         self.assertEqual([True, True], [entry.for_entry for entry in grammar.read_entries(text)])
         self.assertEqual("99213", review_manifest.selected_codes(text, private=True)["em"])
 
+    def test_v5_only_an_unindented_em_line_ends_a_step_four_block(self):
+        inside = "refused\n  E/M: 99214 would be supported if the history were documented\n  more"
+        text = "---NOT CODED, NOTHING ESTABLISHED IT---\n" + inside + "\n"
+        self.assertEqual(inside, grammar.block_text(text, grammar.REFUSAL_HEADING, EM_CODES))
+        indented_entry = "refused\n  CPT  99214  Office visit, established patient"
+        self.assertEqual(indented_entry, grammar.block_text(
+            "---NOT CODED, NOTHING ESTABLISHED IT---\n" + indented_entry + "\n", grammar.REFUSAL_HEADING, EM_CODES))
+        self.assertEqual("refused", grammar.block_text(
+            "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE, grammar.REFUSAL_HEADING, EM_CODES))
+
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
         self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))

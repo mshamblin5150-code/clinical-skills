@@ -87,6 +87,7 @@ class RunFixture(unittest.TestCase):
             "## Medatrax entry fields", NOTE_EM + "## Medatrax entry fields"), encoding="utf-8")
         review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
         passing_receipt(self.run)
+        name_the_committed_sheet(self.run)
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
             preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)
         self.sheet = self.run / em_audit.OUTPUT_DIRECTORY / "note-1.md"
@@ -158,9 +159,10 @@ class CheckOffCommand(RunFixture):
                          "- Question note-1.q1; levels named: none named; reply check: verified as a whole clinician message",
                          "> " + QUESTION, "> " + REPLY,
                          "- Setting: emergency department", "the re-derivation agrees with the worksheet.",
-                         "Clinician signature:", "- Entry ids: not checked"):
+                         "Clinician signature:"):
             self.assertIn(expected, text)
         self.assertNotIn("The visible Coding worksheet", text)
+        self.assertNotIn("Entry ids: not checked", text)
 
     def test_template_carries_the_renderer_sections(self):
         self.assertEqual(list(em_audit.SECTIONS), headings(TEMPLATE.read_text(encoding="utf-8")))
@@ -662,32 +664,18 @@ class FourthReviewFindings(RunFixture):
                          "  - Confidence: verified against the synthetic sheet"):
             self.assertIn(expected, em)
 
-    def receipt_names(self, sheet: bytes) -> Path:
-        import hashlib
-        folder = self.root / "repository"
-        (folder / "reference").mkdir(parents=True, exist_ok=True)
-        (folder / "reference" / "synthetic-mdm.md").write_bytes(sheet)
-        receipt = self.run / review_manifest.RECEIPT
-        value = json.loads(receipt.read_text(encoding="utf-8"))
-        value["sources"]["cpt"]["mdm_sheet_sha256"] = hashlib.sha256(sheet.replace(b"\r\n", b"\n")).hexdigest()
-        receipt.write_text(json.dumps(value), encoding="utf-8")
-        return folder
-
     def test_u4_the_named_sheet_is_read_by_its_parser_and_bound_to_the_receipt_digest(self):
-        real = (ROOT / "reference" / "cpt-em-mdm-2026.md").read_bytes()
-        folder = self.receipt_names(real)
-        with mock.patch.object(em_audit, "REPOSITORY", folder):
-            status, output = self.in_process("--write")
-            self.assertEqual(0, status, output)
-            self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
-            (folder / "reference" / "synthetic-mdm.md").write_bytes(real + b"\nEdited after the receipt.\n")
-            status, output = self.in_process()
-            self.assertEqual(2, status, output)
-            self.assertIn("CPT MDM sheet", output)
-        folder = self.receipt_names(b"## Entry: table-low\n## Entry: definition-stable-chronic\n")
-        with mock.patch.object(em_audit, "REPOSITORY", folder):
+        import cpt_mdm_sheet
+        status, output = self.in_process("--write")
+        self.assertEqual(0, status, output)
+        self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+        with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", wraps=cpt_mdm_sheet.read_entries) as parser:
+            self.in_process()
+        self.assertEqual(1, parser.call_count)
+        with mock.patch.object(em_audit.cpt_mdm_sheet, "read_entries", side_effect=ValueError("no entries")):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
+        self.assertIn("CPT MDM sheet", output)
 
     def test_u5_an_element_line_edited_after_the_manifest_refuses_the_check_off(self):
         (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace(
@@ -758,6 +746,111 @@ class FourthReviewFindings(RunFixture):
         self.assertEqual(2, status, output)
         self.assertIn("Word copies written 1", output)
         self.assertIn("Word copy refused at note 2", output)
+
+
+
+def name_the_committed_sheet(run: Path, filename: str = "cpt-em-mdm-2026.md") -> None:
+    """Point the synthetic receipt at a sheet under reference/, with the receipt's own fingerprint rule."""
+    import coding_freshness
+    path = ROOT / "reference" / filename
+    receipt = run / review_manifest.RECEIPT
+    value = json.loads(receipt.read_text(encoding="utf-8"))
+    value["sources"]["cpt"]["mdm_sheet_filename"] = filename
+    if path.is_file():
+        value["sources"]["cpt"]["mdm_sheet_sha256"] = coding_freshness.committed_sheet_sha256(path)
+    receipt.write_text(json.dumps(value), encoding="utf-8")
+
+
+class FifthReviewFindings(RunFixture):
+    """The fifth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_v1_a_unicode_line_separator_above_an_entry_keeps_its_fields(self):
+        self.write_private("Synthetic preface" + chr(0x2028) + "continued\n" + PRIVATE.format(elements=ELEMENTS))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 0", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn('  - Anchor: "Cough."', text)
+        self.assertIn("  - Specificity: complete - the synthetic encounter documents no further axis", text)
+
+    def test_v2_a_missing_sheet_the_receipt_names_is_incomplete_coverage(self):
+        name_the_committed_sheet(self.run, "absent-mdm-sheet.md")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("- Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+
+    def two_sheets(self):
+        return [em_audit.Sheet(1, "note-1", "# One\n"), em_audit.Sheet(2, "note-2", "# Two\n")]
+
+    def test_v3_a_refused_check_off_names_the_note_and_counts_those_written(self):
+        (self.run / em_audit.OUTPUT_DIRECTORY / "note-2.md").mkdir(parents=True)
+        with mock.patch.object(em_audit, "render", return_value=(em_audit.Tally(), 2, self.two_sheets())):
+            status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertIn("check-offs written 1", output)
+        self.assertIn("check-offs refused at note 2", output)
+        self.assertTrue(self.sheet.is_file())
+
+    def test_v4_the_sheet_fingerprint_is_the_receipts_own_rule(self):
+        import coding_freshness
+        name_the_committed_sheet(self.run)
+        with mock.patch.object(coding_freshness, "committed_sheet_sha256",
+                               wraps=coding_freshness.committed_sheet_sha256) as rule:
+            status, output = self.in_process("--write")
+        self.assertEqual(0, status, output)
+        self.assertGreater(rule.call_count, 0)
+        self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+        with mock.patch.object(coding_freshness, "committed_sheet_sha256", return_value="0" * 64):
+            status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("CPT MDM sheet", output)
+        with mock.patch.object(coding_freshness, "committed_sheet_sha256",
+                               side_effect=ValueError("MDM sheet differs from its committed version")):
+            status, output = self.in_process()
+        self.assertEqual(2, status, output)
+
+    def test_v6_a_refused_check_off_says_the_word_copies_were_not_attempted(self):
+        (self.run / em_audit.OUTPUT_DIRECTORY / "note-2.md").mkdir(parents=True)
+        with mock.patch.object(em_audit, "render", return_value=(em_audit.Tally(), 2, self.two_sheets())):
+            status, output = self.in_process("--write", "--docx", "--output-dir", self.root / "export")
+        self.assertEqual(2, status, output)
+        self.assertIn("Word copies not attempted", output)
+        self.assertFalse((self.root / "export").exists())
+
+    def bill_ecg(self, code: str, ecg: str) -> None:
+        inputs = self.run / "inputs.json"
+        rows = json.loads(inputs.read_text(encoding="utf-8"))
+        rows[0]["codes"]["cpt"] = [code]
+        inputs.write_text(json.dumps(rows), encoding="utf-8")
+        entry = f"CPT {code} Electrocardiogram\n"
+        (self.run / "visible-worksheet-1.md").write_text(VISIBLE.replace("CPT 99283", entry + "CPT 99283"),
+                                                          encoding="utf-8")
+        elements = ELEMENTS.replace("EM-ECG: not applicable", "EM-ECG: " + ecg)
+        self.write_private(PRIVATE.format(elements=elements).replace("CPT 99283", entry + "CPT 99283"))
+        self.record(elements)
+        passing_receipt(self.run)
+        name_the_committed_sheet(self.run)
+
+    def test_v7_an_ecg_limb_contradicting_the_billed_code_is_a_finding(self):
+        for code, ecg, finding in (
+                ("93005", "ADR 0443: 93005 billed while the findings are pending; one test ordered", False),
+                ("93000", "ADR 0443: 93000, his own read; counts nothing toward data", False),
+                ("93005", "not applicable", True),
+                ("93005", "ADR 0443: 93000, his own read; counts nothing toward data", True),
+                ("93000", "ADR 0443: 93005 billed while the findings are pending; one test ordered", True)):
+            with self.subTest(code=code, ecg=ecg):
+                self.bill_ecg(code, ecg)
+                result = self.invoke("--write")
+                self.assertEqual(1 if finding else 0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(finding, "- FINDING: the worksheet bills" in self.sheet.read_text(encoding="utf-8"))
+
+    def test_v8_the_answer_guard_has_no_empty_branch(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "block_findings")
+        self.assertEqual([], [node for node in ast.walk(function) if isinstance(node, ast.Pass)])
 
 
 if __name__ == "__main__":

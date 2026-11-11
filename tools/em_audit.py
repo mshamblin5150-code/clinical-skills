@@ -16,18 +16,18 @@ written check-offs carry patient information.
 
 Exit 0 when every selected note rendered with no finding; 1 for a finding: a note without an
 element block or a placed re-derivation (ADR 0445), an element block that contradicts itself or
-the selected code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
-differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
+the selected code or the billed ECG code, an unknown CPT entry id, an answer id this note lacks, a
+re-derivation that differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
 note number is unknown, the CPT MDM sheet is not the one the receipt fingerprinted, a Word option
 was given without ``--docx``, a check-off or Word copy was refused (naming the note number that
-stopped it and the copies already written), or a candidate went unread (``unread remainder``). A
-finding outranks an unread remainder.
+stopped it and the copies already written; a refused check-off leaves the Word copies unattempted),
+or a candidate went unread (``unread remainder``), such as an absent CPT MDM sheet. A finding
+outranks an unread remainder.
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter
-import hashlib
 from pathlib import Path
 import re
 from typing import NamedTuple
@@ -57,8 +57,9 @@ DECLARED_LIMITS = (
     "worksheet. It is not checked that the code follows from the MDM level, setting and status, "
     "that a quotation is faithful to the note, or that every element weighed was written down.",
     "Entry ids are checked only when the sheet the receipt names exists under reference/, read by "
-    "cpt_mdm_sheet.read_entries; a present sheet whose line-ending-normalized bytes differ from the "
-    "receipt fingerprint, or that the parser refuses, refuses the check-off.",
+    "cpt_mdm_sheet.read_entries; an absent sheet leaves them unchecked and counts once as unread. "
+    "A present sheet that coding_freshness.committed_sheet_sha256 refuses or fingerprints otherwise "
+    "than the receipt, or that the parser refuses, refuses the check-off.",
     "An answer recorded as unreadable is shown and counted as incomplete coverage; the record "
     "itself does not establish which question a reply answered. An answers record that exists but "
     "cannot be read leaves the block's answer ids unchecked and counts once as unread; an absent "
@@ -86,7 +87,9 @@ DECLARED_LIMITS = (
     "The element block is bound to the approved records only through the manifest element "
     "fingerprint; a manifest without it is counted unread on each check-off, and a run with no "
     "manifest whose worksheets carry an E/M line is incomplete at submission.",
-    "The ECG line is mechanical only for 93000 and 93005 on the worksheet.",
+    "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
+    "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
+    "only the other code; with no ECG code billed, the limb's text is not graded.",
     "Validation re-reads the opener source, notes, worksheets, status evidence and receipt; a "
     "moved or edited source refuses the check-off even long after the shift.",
 )
@@ -149,6 +152,15 @@ class Tally:
         self.unread = 0
 
 
+def physical_lines(text: str) -> list[str]:
+    """The lines of ``text`` split on LF alone, the rule ``str.count("\\n")`` locates them by.
+
+    ``str.splitlines`` also splits on U+2028, U+2029 and U+0085, which the handwritten reader
+    lets through, so a line index counted by LF would drift against it.
+    """
+    return [line.removesuffix("\r") for line in text.split("\n")]
+
+
 def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], int, int]:
     """The wrapped header tail, field values, unplaced line count and body end of the entry at ``index``.
 
@@ -191,7 +203,7 @@ def for_entry_codes(private: str) -> tuple[list[tuple[str, str, str, str, dict[s
     matches = list(ENTRY.finditer(region))
     owners = sorted(matches + list(EM_CODE_LABEL.finditer(region)), key=lambda match: match.start())
     unread = sum(paired_entry(region, owners, field) is None for field in FIELD.finditer(region))
-    lines = region.splitlines()
+    lines = physical_lines(region)
     codes = []
     for match, entry in zip(matches, read_entries(region)):
         key = review_manifest.code_key(entry.system, entry.code)
@@ -218,7 +230,7 @@ def field_lines(fields: dict[str, list[str]], *, defaults: bool) -> list[str]:
 
 def em_entry_lines(private: str, tally: Tally) -> list[str]:
     """Every E/M line of the private worksheet with its wrapped header and provenance fields."""
-    lines = private.splitlines()
+    lines = physical_lines(private)
     out: list[str] = []
     claimed: set[int] = set()
     for index, line in enumerate(lines):
@@ -254,25 +266,25 @@ class SheetMoved(ValueError):
 def sheet_ids(receipt: dict) -> set[str] | None:
     """The entry ids of the sheet the receipt names, through ``cpt_mdm_sheet.read_entries``.
 
-    None when that sheet is not under reference/. A sheet whose line-ending-normalized bytes
-    differ from the receipt's ``mdm_sheet_sha256``, or that the sheet parser refuses, refuses the
-    check-off, as validation refuses any other source the receipt binds.
+    None when no file of that name is under reference/, which the caller counts as unread. The
+    fingerprint is ``coding_freshness.committed_sheet_sha256``, the rule that wrote the receipt's
+    ``mdm_sheet_sha256``; a sheet it refuses or whose fingerprint differs, or that the sheet parser
+    refuses, refuses the check-off, as validation refuses any other source the receipt binds.
     """
     cpt = receipt["sources"]["cpt"]
     path = REPOSITORY / "reference" / Path(cpt["mdm_sheet_filename"]).name
     if not path.is_file():
         return None
     try:
-        data = path.read_bytes().replace(b"\r\n", b"\n")
-        if hashlib.sha256(data).hexdigest() != cpt["mdm_sheet_sha256"]:
+        if coding_freshness.committed_sheet_sha256(path) != cpt["mdm_sheet_sha256"]:
             raise SheetMoved("the CPT MDM sheet differs from the receipt fingerprint")
-        return set(cpt_mdm_sheet.read_entries(data.decode("utf-8")))
-    except (OSError, UnicodeError) as error:
-        raise SheetMoved("the CPT MDM sheet could not be read") from error
+        return set(cpt_mdm_sheet.read_entries(path.read_text(encoding="utf-8")))
     except SheetMoved:
         raise
+    except (OSError, UnicodeError) as error:
+        raise SheetMoved("the CPT MDM sheet could not be read") from error
     except ValueError as error:
-        raise SheetMoved("the CPT MDM sheet does not parse") from error
+        raise SheetMoved("the CPT MDM sheet is not the committed sheet, or does not parse") from error
 
 
 def item_lines(block_: EmBlock) -> list[str]:
@@ -292,7 +304,7 @@ def item_lines(block_: EmBlock) -> list[str]:
 
 
 def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
-                   *, answers_unread: bool = False) -> list[str]:
+                   *, answers_unread: bool = False, billed: frozenset[str] = frozenset()) -> list[str]:
     """What an element block states against itself, the selected code and its records.
 
     ``answers_unread`` leaves the answer ids ungraded: an unreadable answers record is incomplete
@@ -308,14 +320,33 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
         found += [f"entry id {item.entry} is not in the CPT MDM sheet"
                   for item in block_.items if item.entry != "none" and item.entry not in ids]
     named = [answer for answer in block_.answers if answer != "none"]
-    if answers_unread:
-        pass
-    elif named and note_answers is None:
-        found.append("the block names a pre-approval answer, but the run has no readable answers record")
-    elif named:
-        found += [f"answer {answer} is not a pre-approval answer of this note"
-                  for answer in named if answer not in note_answers]
+    if named and not answers_unread:
+        if note_answers is None:
+            found.append("the block names a pre-approval answer, but the run has no readable answers record")
+        else:
+            found += [f"answer {answer} is not a pre-approval answer of this note"
+                      for answer in named if answer not in note_answers]
+    found += ecg_findings(block_, billed)
     return found
+
+
+def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
+    """Where the EM-ECG limb contradicts the ADR 0443 ECG code the worksheet bills.
+
+    A billed 93000 or 93005 needs an EM-ECG line other than ``not applicable``, and a single
+    billed code needs its limb to name it rather than only the other code. With no ECG code
+    billed, the limb is free text and is not graded.
+    """
+    codes = sorted(billed & ECG_RULES.keys())
+    if not codes or not block_.ecg:
+        return []
+    if all(line.strip().lower() == "not applicable" for line in block_.ecg):
+        return [f"the worksheet bills {', '.join(codes)}, but its EM-ECG line says not applicable"]
+    if len(codes) == 1:
+        (code,), (other,) = codes, ECG_RULES.keys() - set(codes)
+        if not any(code in line for line in block_.ecg) and any(other in line for line in block_.ecg):
+            return [f"the worksheet bills {code}, but its EM-ECG line names the {other} limb"]
+    return []
 
 
 def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) -> list[str]:
@@ -440,6 +471,8 @@ class Context:
 
     def __init__(self, run: Path, receipt: dict, tally: Tally) -> None:
         self.ids = sheet_ids(receipt)
+        if self.ids is None:
+            tally.unread += 1  # the sheet the receipt names is absent: entry ids are not graded
         self.unreadable = False
         try:
             self.answers = preapproval_answers.read(run)
@@ -494,13 +527,15 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
                   if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
-    found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable)
+    found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
+                           billed=frozenset(cpt))
     if context.unreadable:
         lines.append("- Answer ids: not checked; the pre-approval answers record could not be read")
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
     if context.ids is None:
-        lines.append("- Entry ids: not checked; the CPT MDM sheet the receipt names is not under reference/")
+        lines.append("- Entry ids: not checked; the CPT MDM sheet the receipt names is not under reference/, "
+                     "counted once in the unread remainder")
     if found:
         tally.block_findings += len(found)
         lines += ["", *["- FINDING: " + finding for finding in found]]
@@ -575,9 +610,23 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
 
 
 def write_markdown(run: Path, sheets: list[Sheet]) -> int:
+    """Write each check-off into the private run; a failed write stops with ``CheckOffsStopped``."""
+    written = 0
     for sheet_ in sheets:
-        atomic_write(run.resolve() / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), sheet_.text.encode("utf-8"))
-    return len(sheets)
+        try:
+            atomic_write(run.resolve() / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), sheet_.text.encode("utf-8"))
+        except (OSError, ValueError) as error:
+            raise CheckOffsStopped(written, sheet_.order, error) from error
+        written += 1
+    return written
+
+
+class CheckOffsStopped(Exception):
+    """A check-off write failed part way: how many were written, and the note number that stopped it."""
+
+    def __init__(self, written: int, order: int, cause: BaseException) -> None:
+        super().__init__(f"stopped at note {order} after {written} written")
+        self.written, self.order, self.cause = written, order, cause
 
 
 class WordExportStopped(Exception):
@@ -763,8 +812,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.write:
         try:
             written.append(f"check-offs written {write_markdown(args.run, sheets)}")
-        except (OSError, ValueError):
-            refusal = "check-offs refused - they could not be written into the private run"
+        except CheckOffsStopped as stopped:
+            written.append(f"check-offs written {stopped.written}")
+            refusal = f"check-offs refused at note {stopped.order} - it could not be written into the private run"
+            if args.docx:
+                written.append("Word copies not attempted, because a check-off was refused")
     if args.docx and refusal is None:
         try:
             written.append(f"Word copies written {export_word(args.run, sheets, args.output_dir, args.force)}")

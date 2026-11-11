@@ -34,8 +34,9 @@ one element per physical line, with no blank line inside the block:
 - **Level** in the MDM line is the column each element meets: `straightforward`, `low`,
   `moderate` or `high`. `mdm` is the level two of the three elements meet, the middle of the three.
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
-  relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed. Exactly one `EM-MDM`
-  and one `EM-LEVEL`. A block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
+  relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed; where the worksheet
+  bills 93000 or 93005, the line names that code. Exactly one `EM-MDM` and one `EM-LEVEL`. A
+  block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
 - The coding manifest fingerprints these lines; after editing one, build the manifest again.
 
 Synthetic example, an established office patient:

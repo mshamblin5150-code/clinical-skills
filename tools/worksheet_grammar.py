@@ -238,17 +238,19 @@ _LINE = re.compile(r"(?m)^.*$")
 
 
 def block_text(text: str, heading: re.Pattern[str], em_codes: frozenset[str] = frozenset()) -> str | None:
-    """The text under one block heading, to the next heading or E/M line; None when it is absent.
+    """The text under one block heading, to the next heading or unindented E/M line; None when absent.
 
-    An E/M line written after the icd10-cpt step 4 blocks, with its element block, is not part
-    of the last block. An E/M-family ``CPT`` entry ends a block only when ``em_codes`` names it.
+    An E/M line written after the icd10-cpt step 4 blocks, at the margin with its element block
+    indented beneath it, is not part of the last block; an indented E/M line inside a block is
+    the block's own text. An E/M-family ``CPT`` entry ends a block only when ``em_codes`` names it.
     """
     match = heading.search(text)
     if match is None:
         return None
     end = len(text)
     for line in _LINE.finditer(text, match.end() + 1):
-        if HEADING_LINE.fullmatch(line.group(0)) or em_anchor(line.group(0), em_codes):
+        row = line.group(0)
+        if HEADING_LINE.fullmatch(row) or (row[:1] not in (" ", "\t") and em_anchor(row, em_codes)):
             end = line.start()
             break
     return text[match.end():end].strip("\n")
