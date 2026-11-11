@@ -166,7 +166,7 @@ proxy or a second payment.** In the October 2026 OPPS Addendum B, ED visits
 infusion codes carry S; the IV start and pulse oximetry carry N (packaged);
 clinical laboratory tests carry Q4, conditionally packaged when billed with a
 J2 service; and the EKG tracing, nebulizer treatment, simple laceration repair
-and Foley placement carry Q1. Addendum D1 defines Q1 as packaged when billed with a status S, T or V
+and Foley placement carry Q1. The CMS status-indicator definitions addendum defines Q1 as packaged when billed with a status S, T or V
 service. The public I/OCE specification v17.1 (the 2016 release that
 introduced J2) settles how an ED visit counts: when a claim does not qualify
 for comprehensive observation, "the visit code(s) is/are assigned their
@@ -262,7 +262,7 @@ American Medical Association; this sheet quotes none of that content.
 | Premera, ED Facility Coding Program provider guide, 2026-07-23 (payer guide) | https://www.premera.com/documents/071777.pdf | `5689dc41348baa4352de1b170202aa3f577c811f387d7c6311d11029687d344b` |
 | ACEP, Facility Reimbursement for ED Services: Key 2023 Updates (Granovsky; copy supplied by the clinician) | https://www.acep.org/siteassets/sites/rc/media/presentations/coding/lightningrounds2023facility_granovsky.pdf | `f086c39ef3737a0c160c8e094636ec82f9059a6e5ac5d4d352028de293969fac` |
 | CMS OPPS Addendum B, October 2026 (license-gated; read under the AMA end-user agreement) | https://www.cms.gov/files/zip/October-2026-OPPS-Addendum-B.zip | `2fc507a1fa6715eb2c702049a18912a33017003606550f61345ae1b48b00bf5b` |
-| CMS CY 2026 OPPS final rule addenda, including D1 status indicator definitions (license-gated) | https://www.cms.gov/files/zip/2026-nfrm-opps-addenda.zip | `602a0d556468ce036f1d2f0bce8872ec8610c526504893ba0fa0fb414212cff0` |
+| CMS CY 2026 OPPS final rule addenda, including the status-indicator definitions addendum (license-gated) | https://www.cms.gov/files/zip/2026-nfrm-opps-addenda.zip | `602a0d556468ce036f1d2f0bce8872ec8610c526504893ba0fa0fb414212cff0` |
 | CMS Integrated OCE Specifications v17.1 (public) | https://www.cms.gov/files/document/integocespecsv171508-v2pdf | `bc6e1e50058b24981a36aab1c85c56bf188f491250bb81f9f5813d4d4fb1a10f` |
 | Medicare Claims Processing Manual, chapter 4, section 10.4 (same file as above) | https://www.cms.gov/Regulations-and-Guidance/Guidance/Manuals/downloads/clm104c04.pdf | `579dcaf4e8fc851846556666a2c4c24f265ea634e924097bd9e60169f5802ba6` |
 
