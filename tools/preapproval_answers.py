@@ -116,6 +116,11 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
         raise ValueError("no later whole clinician message matches the reply")
     state = "verified" if verification.state == "verified" else "unreadable"
 
+    def payload(value: dict) -> bytes:
+        text = json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+        decode(text)
+        return text.encode("utf-8")
+
     def change(previous: dict | None) -> RecordUpdate:
         value = previous or {"schema": 1, "producer": PRODUCER, "answers": []}
         for index, entry in enumerate(value["answers"]):
@@ -127,18 +132,13 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
             # A transcript readable now upgrades the same answer in place; nothing downgrades it.
             upgraded = dict(entry, verification="verified", reply_matched_at=verification.matched_at)
             answers = [*value["answers"][:index], upgraded, *value["answers"][index + 1:]]
-            payload = (json.dumps(dict(value, answers=answers), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-            decode(payload.decode("utf-8"))
-            return RecordUpdate(payload, (entry["id"], "verified"))
+            return RecordUpdate(payload(dict(value, answers=answers)), (entry["id"], "verified"))
         number = 1 + len(entries_for(value, note))
         entry = {"id": f"note-{note}.q{number}", "note": note, "question": question, "levels": levels,
                  "clinician_reply": reply, "verification": state,
                  "reply_matched_at": verification.matched_at if state == "verified" else None,
                  "recorded_at": time.time()}
-        updated = dict(value, answers=[*value["answers"], entry])
-        payload = (json.dumps(updated, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-        decode(payload.decode("utf-8"))
-        return RecordUpdate(payload, (entry["id"], state))
+        return RecordUpdate(payload(dict(value, answers=[*value["answers"], entry])), (entry["id"], state))
 
     return update_tool_record(run / RECORD, decode, change)
 

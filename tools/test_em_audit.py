@@ -24,8 +24,15 @@ import repo_root
 import review_manifest
 from prose_bind import bind, NAMING, ProseBind
 from test_review_manifest import passing_receipt, synthetic_run
+from code_set_database_test_support import PROCEDURE_CODES_DATABASE_SHA256, assert_code_set_database_digest
 
 ROOT = Path(__file__).resolve().parent.parent
+# The check-off reads each E/M level's MDM level from the committed CPT 2026 descriptors.
+assert_code_set_database_digest(
+    ROOT / "reference" / "procedure-codes-2026.sqlite",
+    PROCEDURE_CODES_DATABASE_SHA256,
+    "procedure-code Code-set database",
+)
 TEMPLATE = ROOT / "reference" / "em-audit-checkoff.md"
 SKILL = ROOT / "skills" / "em-audit" / "SKILL.md"
 CONSTANTS = dict(course="Synthetic course", preceptor="Synthetic preceptor", site="Synthetic site")
@@ -2164,7 +2171,7 @@ class SixteenthReviewFindings(ProseBind, RunFixture):
         self.assertEqual(3, len(found), found)  # level vs selected, answer id and ECG; the block is consistent
         inconsistent = worksheet_grammar.em_block(ELEMENTS.replace("EM-LEVEL: 99283", "EM-LEVEL: 99285"))
         self.assertEqual(["the level 99285 is high MDM, but the block's elements meet low"],
-                         em_audit.rederivation_findings(inconsistent, None))
+                         em_audit.rederivation_findings(inconsistent, None, em_audit.mdm_levels("2026-10-01")))
 
     def test_l2_one_body_rule_for_an_em_line_with_a_margin_field(self):
         import worksheet_grammar
@@ -2213,6 +2220,129 @@ class SixteenthReviewFindings(ProseBind, RunFixture):
         self.assertEqual(2, status, output)
         self.assertIn("Word copies written 0", output)
         self.assertNotIn("nothing written", output)
+
+
+class SeventeenthReviewFindings(ProseBind, RunFixture):
+    """The seventeenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_m_a_the_mdm_levels_come_from_the_verified_cpt_2026_descriptors(self):
+        import cpt_identity
+        self.assertFalse(hasattr(cpt_identity, "MDM_LEVEL_OF"))
+        levels = em_audit.mdm_levels("2026-10-01")
+        self.assertTrue(levels.readable)
+        expected = {"99202": "straightforward", "99212": "straightforward", "99282": "straightforward",
+                    "99203": "low", "99213": "low", "99283": "low",
+                    "99204": "moderate", "99214": "moderate", "99284": "moderate",
+                    "99205": "high", "99215": "high", "99285": "high"}
+        self.assertEqual(expected, {code: levels.levels[code] for code in expected})
+        self.assertLessEqual({"99211", "99281"}, set(levels.unleveled))
+
+    def test_m_a_an_unverified_descriptor_set_leaves_the_level_check_unread(self):
+        import procedure_codes_lookup
+        with mock.patch.object(procedure_codes_lookup, "cpt_descriptors_verified", return_value=False):
+            self.assertFalse(em_audit.mdm_levels("2026-10-01").readable)
+            result_status, output = self.in_process()
+        self.assertEqual(2, result_status, output)
+        self.assertIn("unread remainder 1", output)
+
+    def test_m_a_a_missing_descriptor_is_unread_never_guessed(self):
+        import procedure_codes_lookup
+        real = procedure_codes_lookup.find
+
+        def find(connection, phrase, system):
+            return [entry for entry in real(connection, phrase, system) if entry.code != "99283"]
+        with mock.patch.object(procedure_codes_lookup, "find", side_effect=find):
+            status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertIn("unread remainder 2", output)  # the worksheet block and the re-derivation
+        self.assertIn("MDM level of 99283 not checked", self.sheet.read_text(encoding="utf-8"))
+
+    def test_m_b1_a_declared_time_basis_lifts_the_level_against_mdm_check(self):
+        import worksheet_grammar
+        timed = ELEMENTS.replace("EM-RULE: ADR 0308 ruling 1", "EM-RULE: " + em_audit.TIME_BASIS).replace(
+            "EM-LEVEL: 99283", "EM-LEVEL: 99214")
+        levels = em_audit.mdm_levels("2026-10-01")
+        block = worksheet_grammar.em_block(timed)
+        self.assertEqual([], em_audit.rederivation_findings(block, None, levels))
+        self.assertEqual(["the block level 99214 differs from the selected code 99213"],
+                         em_audit.block_findings(block, "99213", None, {"note-1.q1"}, levels=levels))
+        undeclared = worksheet_grammar.em_block(timed.replace(em_audit.TIME_BASIS, "ADR 0308 ruling 1"))
+        self.assertEqual(["the level 99214 is moderate MDM, but the block's elements meet low"],
+                         em_audit.rederivation_findings(undeclared, None, levels))
+        elements = (ROOT / "skills" / "_shared" / "reference" / "em-elements.md").read_text(encoding="utf-8")
+        self.assertProseIn(em_audit.TIME_BASIS, elements)
+
+    def test_m_b2_every_refusal_block_is_quoted(self):
+        second = ("\n## Not coded, nothing established it\n\nA second refusal record\n"
+                  "  NOT CODED: J20.9  Acute bronchitis, unspecified\n  needs: a documented course\n"
+                  "  proposed instead: R05.9  Cough\n")
+        self.write_private(PRIVATE.format(elements=ELEMENTS) + second)
+        self.assertEqual(0, self.invoke("--write").returncode)
+        refused = self.sheet.read_text(encoding="utf-8").split("## Codes refused", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("J18.9", refused)
+        self.assertIn("J20.9", refused)
+
+    def test_m_b3_an_em_label_inside_a_code_entry_has_one_owner(self):
+        self.write_private(PRIVATE.format(elements="").replace(
+            "CPT 99283 Emergency visit\n", "").replace(
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n",
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n  E/M: 99283 low complexity\n"
+            "  NOTE: support written under the label\n" + ELEMENTS))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 0", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertEqual(1, text.count("support written under the label"), text)
+
+    def test_m_b4_a_selected_note_is_not_refused_for_another_notes_worksheet(self):
+        validated = review_manifest.validated_population(self.run)
+        fingerprints = review_manifest.private_fingerprints(self.run)
+        first = validated.encounters[0]
+        other_path = str(self.run / "worksheets" / "note-2.md")
+        other = review_manifest.ValidatedEncounter(dict(first.item, order=2, id="note-2",
+                                                        private_worksheet_path=other_path),
+                                                   first.note, first.worksheet, first.private)
+        wider = review_manifest.ValidatedRun(validated.manifest, validated.receipt, (first, other))
+        moved = dict(fingerprints, **{other_path: "0" * 64})
+        with mock.patch.object(review_manifest, "validated_population", return_value=wider), \
+                mock.patch.object(review_manifest, "private_fingerprints", return_value=moved):
+            em_audit.render(self.run, [1])
+            with self.assertRaises(em_audit.PrivateWorksheetMoved):
+                em_audit.render(self.run, [])
+
+    def test_m_b5_a_damaged_worksheet_without_a_manifest_is_a_content_damage_finding(self):
+        (self.run / review_manifest.MANIFEST).unlink()
+        (self.run / "worksheets/note-1.md").write_text("ICD-10-CM R05.9 Cough" + chr(1) + "\n", encoding="utf-8")
+        finding, report, unread = self.gate()
+        self.assertEqual((True, 0), (finding, unread), report)
+        self.assertIn("content damage", report)
+
+    def test_m_b6_the_header_rule_is_said_where_it_lives_and_no_fixture_moves(self):
+        import worksheet_grammar
+        self.assertIn("EM- lines exist only in", worksheet_grammar.entry_is_for_entry.__doc__)
+        moved = []
+        for path in sorted((ROOT / "fixtures").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            entries = list(worksheet_grammar.ENTRY.finditer(text))
+            for index in range(len(entries)):
+                start = entries[index].start()
+                end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
+                field = worksheet_grammar.FIELD.search(text, start, end)
+                header = text[start:field.start() if field else end]
+                if (worksheet_grammar.NOT_FOR_ENTRY.search(header) is None) != worksheet_grammar.entry_is_for_entry(
+                        text, entries, index):
+                    moved.append(f"{path}:{index}")
+        self.assertEqual([], moved)
+
+    def test_m_b7_one_payload_helper_in_the_answers_record(self):
+        tree = ast.parse(Path(preapproval_answers.__file__).read_text(encoding="utf-8"))
+        record = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "record")
+        dumps = [node for node in ast.walk(record) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Attribute) and node.func.attr == "dumps"]
+        self.assertEqual(1, len(dumps), [ast.unparse(node) for node in dumps])
 
 
 if __name__ == "__main__":

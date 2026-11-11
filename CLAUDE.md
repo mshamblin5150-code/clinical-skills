@@ -2827,7 +2827,8 @@ with the records. Codes for entry come from the private worksheet through `works
 icd10-cpt step 4 blocks are quoted. The E/M section renders the element block that
 `worksheet_grammar.worksheet_em_block` reads and checks it against the selected code, the CPT MDM
 sheet ids, read by `cpt_mdm_sheet.read_entries` from the committed sheet version the receipt
-fingerprints, and the pre-approval answers record; a worksheet without a block shows its visible
+fingerprints, the pre-approval answers record, and the MDM level each code's verified CPT 2026
+descriptor names in `reference/procedure-codes-2026.sqlite`; a worksheet without a block shows its visible
 worksheet instead. The manifest build records a fingerprint of the whole private worksheet in its own
 record beside the manifest, so approval never binds it, and the check-off refuses on a change. A re-derivation record is compared element by element. `--write` writes each
 check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`

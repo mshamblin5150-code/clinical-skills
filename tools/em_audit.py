@@ -35,11 +35,12 @@ import hashlib
 from contextlib import nullcontext
 from pathlib import Path
 import re
+import sqlite3
 from typing import NamedTuple
 
 import coding_freshness
 import cpt_mdm_sheet
-from cpt_identity import MDM_LEVEL_OF
+import procedure_codes_lookup
 import em_audit_scope
 import preapproval_answers
 import repo_root
@@ -52,7 +53,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
-                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block,
+                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
                                entry_region, indented_line, physical_lines, read_entries, selected_em_lines,
                                step_four_lines, worksheet_em_block)
 
@@ -68,7 +69,12 @@ DECLARED_LIMITS = (
     "the coding graders.",
     "An element block is checked for its line shape, counted items with an entry id and quoted "
     "note text, entry ids known to the CPT MDM sheet the receipt names, an MDM line whose level is "
-    "the middle of its three elements, and a LEVEL its MDM selects; the worksheet block is also "
+    "the middle of its three elements, and a LEVEL whose CPT 2026 descriptor names that MDM level, "
+    "read through procedure_codes_lookup from the verified descriptors in "
+    "reference/procedure-codes-2026.sqlite for the service date (an unverified database or a code "
+    "with no descriptor on that date leaves it unread; a code whose descriptor names no MDM level, "
+    "or a block whose EM-RULE declares the level selected by total time, is not held to it); the "
+    "worksheet block is also "
     "checked for a LEVEL equal to the selected code, answer ids present in the pre-approval answers "
     "record, the billed ECG codes, and one block per worksheet. A re-derivation takes only the "
     "first set: its level or elements against the worksheet show as differences, never findings. "
@@ -100,8 +106,9 @@ DECLARED_LIMITS = (
     "candidate line is not a placed re-derivation; one whose candidates are all refused is unread.",
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
-    "lines dropped, not parsed, through worksheet_grammar.step_four_lines with the terminator, "
-    "iteration and line splitting of the grader that grades each block (BLOCK_READERS); the "
+    "lines dropped, not parsed, through worksheet_grammar.step_four_lines with the terminator and "
+    "line splitting of the grader that grades each block, under every heading of its kind "
+    "(BLOCK_READERS), so a second refusal block is quoted though refusal_scan grades the first; the "
     "undocumented block, which no grader reads, takes refusal_scan's. Every line the E/M section "
     "renders (a selected E/M line that opens its element block, its wrapped header, its fields and "
     "its EM- lines) is shown there once and left out of the quotation; a line that section leaves "
@@ -320,12 +327,14 @@ def parse_private(text: str) -> PrivateWorksheet:
                             region_lines, tuple(owners), walks, tuple(sections))
 
 
-# How the check-off quotes each block: with the terminator, iteration and line splitting of the
-# grader that grades it. The undocumented block has no grader and takes refusal_scan's rule.
+# How the check-off quotes each block: with the terminator and line splitting of the grader that
+# grades it, under every heading of the block's kind. refusal_scan grades its first refusal block and
+# counts a later heading unread; the auditor still sees every block. The undocumented block has no
+# grader and takes refusal_scan's terminator.
 BLOCK_READERS = {
     "filled": (OTHER_HEADING, True),
-    "refusal": (ANY_HEADING, False),
-    "undocumented": (ANY_HEADING, False),
+    "refusal": (ANY_HEADING, True),
+    "undocumented": (ANY_HEADING, True),
 }
 
 
@@ -373,13 +382,16 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     unread = sum(1 for index, line in enumerate(lines)
                  if index not in owned and (indented_line(line) or FIELD.match(line))
                  and not EM_CANDIDATE.match(line))
+    # A line of an E/M section's body is that section's alone, rendered or counted unplaced there,
+    # even inside another entry's body.
+    sectioned = set().union(*(range(section.index, section.end) for section in private.sections))
     codes = []
     for match, entry in zip(matches, private.entries):
         key = review_manifest.code_key(entry.system, entry.code)
         if entry.for_entry and key == "em":
             continue  # a selected E/M line, read by em_entry_lines
         tail, fields, unplaced, _ = private.walks[region.count("\n", 0, match.start())]
-        unread += len(unplaced)
+        unread += len(set(unplaced) - sectioned)
         codes.append((key, entry.system.upper(), entry.code.upper(),
                       " ".join([entry.descriptor.strip(), *tail]), fields, entry.for_entry))
     return codes, unread
@@ -465,20 +477,84 @@ def item_lines(block_: EmBlock) -> list[str]:
     return lines
 
 
-def rederivation_findings(block_: EmBlock, ids: set[str] | None) -> list[str]:
+# em-elements.md: an EM-RULE line carrying this phrase declares the level selected by total time,
+# so the level is not held to its own MDM line.
+TIME_BASIS = "level selected by total time on the date of the encounter"
+MDM_PHRASE = re.compile(r"\b(straightforward|low|moderate|high)[ \t]+(?:level[ \t]+of[ \t]+)?medical decision making",
+                        re.IGNORECASE)
+
+
+class MdmLevels(NamedTuple):
+    """Each E/M code's MDM level, read from its verified CPT 2026 descriptor for the service date.
+
+    ``readable`` is False when the committed procedure-code database cannot be opened or its CPT
+    descriptors are not ``verified``. ``levels`` holds each code whose descriptor names one level,
+    ``unleveled`` each code whose descriptor names none (99211, 99281). Any other E/M code had no
+    readable descriptor on the service date, and its level is unread, never guessed.
+    """
+
+    readable: bool
+    levels: dict[str, str]
+    unleveled: frozenset[str]
+
+
+def mdm_levels(service_date: str) -> MdmLevels:
+    """``MdmLevels`` from ``reference/procedure-codes-2026.sqlite`` through ``procedure_codes_lookup``."""
+    unreadable = MdmLevels(False, {}, frozenset())
+    try:
+        connection = procedure_codes_lookup.open_database()
+    except (OSError, sqlite3.Error):
+        return unreadable
+    try:
+        if not procedure_codes_lookup.cpt_descriptors_verified(connection):
+            return unreadable
+        levels: dict[str, str] = {}
+        unleveled: set[str] = set()
+        # Every CPT code worksheet_grammar.em_identity reads as an E/M identity, valid on the date.
+        for entry in procedure_codes_lookup.find(connection, "", "CPT"):
+            if not em_identity(entry.system, entry.code) or not procedure_codes_lookup.valid_on(entry, service_date):
+                continue  # not an E/M identity, or no descriptor on the service date: unread if used
+            code = entry.code
+            named = {match.group(1).lower() for match in MDM_PHRASE.finditer(entry.description)}
+            if len(named) == 1:
+                levels[code] = named.pop()
+            elif not named:
+                unleveled.add(code)
+        return MdmLevels(True, levels, frozenset(unleveled))
+    except sqlite3.Error:
+        return unreadable
+    finally:
+        connection.close()
+
+
+def time_based(block_: EmBlock) -> bool:
+    """Whether the block declares its level selected by total time (``TIME_BASIS`` in an EM-RULE line)."""
+    return any(TIME_BASIS in rule.lower() for rule in block_.rules)
+
+
+def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
+    """Whether the block's level against its MDM went unchecked for want of a readable descriptor."""
+    if levels is None or not levels.readable or block_.level is None or time_based(block_):
+        return False
+    return block_.level not in levels.levels and block_.level not in levels.unleveled
+
+
+def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None) -> list[str]:
     """What an element block states against itself: the only checks a blind re-derivation takes.
 
     Counted items name an entry id and quote note text, ``none`` reads only ``none | not counted |
     none``, entry ids are in the bound CPT MDM sheet, the MDM line is the middle of its three
-    elements, and the level is the one that MDM level selects (``cpt_identity.MDM_LEVEL_OF``).
-    Nothing here compares the block with the worksheet's decisions, so a blind reader who reaches
-    another level shows only as a difference.
+    elements, and the level is the one that MDM level selects: the level its verified CPT 2026
+    descriptor names in the committed procedure-code database (``levels``), unless an EM-RULE line
+    declares the level selected by total time (``TIME_BASIS``). Nothing here compares the block
+    with the worksheet's decisions, so a blind reader who reaches another level shows only as a
+    difference.
     """
     found = []
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
-    required = MDM_LEVEL_OF.get(block_.level or "")
+    required = None if levels is None or time_based(block_) else levels.levels.get(block_.level or "")
     if required is not None and computed is not None and required != computed:
         found.append(f"the level {block_.level} is {required} MDM, but the block's elements meet {computed}")
     for item in block_.items:
@@ -494,7 +570,8 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None) -> list[str]:
 
 
 def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
-                   *, answers_unread: bool = False, billed: frozenset[str] = frozenset()) -> list[str]:
+                   *, answers_unread: bool = False, billed: frozenset[str] = frozenset(),
+                   levels: MdmLevels | None = None) -> list[str]:
     """What the worksheet's element block states against itself and against the worksheet's decisions.
 
     ``rederivation_findings``, then the level against the selected code, the answer ids against the
@@ -502,7 +579,7 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
     leaves the answer ids ungraded: an unreadable answers record is incomplete coverage, not a
     record shown to lack them.
     """
-    found = rederivation_findings(block_, ids)
+    found = rederivation_findings(block_, ids, levels)
     if block_.level is not None and block_.level != selected:
         found.append(f"the block level {block_.level} differs from the selected code {selected}")
     named = [answer for answer in block_.answers if answer != "none"]
@@ -628,7 +705,11 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     lines = item_lines(rederived)
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
-    flaws = rederivation_findings(rederived, context.ids)
+    flaws = rederivation_findings(rederived, context.ids, context.levels)
+    if level_unread(rederived, context.levels):
+        tally.unread += 1
+        lines += ["", f"- MDM level of {rederived.level} not checked: its CPT 2026 descriptor could not be read "
+                  "for the service date; counted in the unread remainder"]
     if flaws:
         tally.rederivation_findings += len(flaws)
         lines += ["", *["- FINDING (re-derivation): " + flaw for flaw in flaws]]
@@ -689,10 +770,13 @@ def code_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
 class Context:
     """Run-wide records each check-off reads once."""
 
-    def __init__(self, run: Path, receipt: dict, tally: Tally) -> None:
+    def __init__(self, run: Path, receipt: dict, tally: Tally, service_date: str) -> None:
         self.ids = sheet_ids(receipt)
         if self.ids is None:
             tally.unread += 1  # no committed sheet version matches the receipt: entry ids are not graded
+        self.levels = mdm_levels(service_date)
+        if not self.levels.readable:
+            tally.unread += 1  # no verified CPT 2026 descriptors: levels against their MDM are not graded
         self.unreadable = False
         try:
             self.answers = preapproval_answers.read(run)
@@ -766,7 +850,14 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
     found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
-                           billed=frozenset(cpt))
+                           billed=frozenset(cpt), levels=context.levels)
+    if level_unread(block_, context.levels):
+        tally.unread += 1
+        lines.append(f"- MDM level of {block_.level} not checked: its CPT 2026 descriptor could not be read "
+                     "for the service date; counted in the unread remainder")
+    if not context.levels.readable:
+        lines.append("- MDM levels: not checked; the committed procedure-code database is unreadable or its "
+                     "CPT 2026 descriptors are not verified, counted once in the unread remainder")
     if context.unreadable:
         lines.append("- Answer ids: not checked; the pre-approval answers record could not be read")
     if elements.blocks > 1:
@@ -843,7 +934,8 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     if any(number not in orders for number in notes):
         raise UnknownNote("unknown note number")
     moved = [encounter.item["order"] for encounter in validated.encounters
-             if encounter.item["private_worksheet_path"] in fingerprints
+             if (not notes or encounter.item["order"] in notes)
+             and encounter.item["private_worksheet_path"] in fingerprints
              and fingerprints[encounter.item["private_worksheet_path"]]
              != review_manifest.private_worksheet_sha256(encounter.private)]
     if moved:
@@ -853,7 +945,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     # Reached only on the command's --submission path: completion_gate returns its exemption for a
     # pre-start run before it renders, so inside the gate predates is always False.
     tally.predates = not completion_checks.active("em_audit:" + EXPECTED_ROW)
-    context = Context(run, receipt, tally)
+    context = Context(run, receipt, tally, manifest["service_date"])
     sheets = []
     for encounter in validated.encounters:
         item = encounter.item
@@ -990,15 +1082,13 @@ EXPECTED_ROW = em_audit_scope.ROW
 
 
 def selects_em_level(run: Path) -> bool:
-    """Whether a private worksheet of the run carries a selected E/M line; an unreadable one counts."""
-    for path in sorted((run / "worksheets").glob("*.md")):
-        try:
-            lines = physical_lines(review_manifest.read_text(path))
-        except (DamagedRecord, UnreadableRecord, OSError, UnicodeError):
-            return True
-        if selected_em_lines(lines):
-            return True
-    return False
+    """Whether a private worksheet of the run carries a selected E/M line.
+
+    A worksheet carrying content damage raises ``DamagedRecord``, and one that cannot be read
+    raises ``OSError`` or ``UnicodeError``; the caller reports each as what it is.
+    """
+    return any(selected_em_lines(physical_lines(review_manifest.read_text(path)))
+               for path in sorted((run / "worksheets").glob("*.md")))
 
 
 STALE_FINDINGS = {
@@ -1024,7 +1114,14 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     if frozen is not None:
         return False, frozen, 0
     if not (run / review_manifest.MANIFEST).exists():
-        if selects_em_level(run):
+        try:
+            selects = selects_em_level(run)
+        except DamagedRecord:
+            return True, f"{EXPECTED_ROW}: finding - a private worksheet carries content damage", 0
+        except (UnreadableRecord, OSError, UnicodeError):
+            return False, (f"{EXPECTED_ROW}: incomplete - a private worksheet could not be read, and the run "
+                           "has no coding manifest"), 1
+        if selects:
             return False, (f"{EXPECTED_ROW}: incomplete - a worksheet selects an E/M level, but the run has "
                            "no coding manifest to render its check-offs from"), 1
         return False, f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no E/M worksheet", 0

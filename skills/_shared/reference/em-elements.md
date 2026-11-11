@@ -36,7 +36,10 @@ E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
 - **Reason** describes what the note documents, under ADR 0376 ruling 2, and holds no `|`.
 - **Level** in the MDM line is the column each element meets: `straightforward`, `low`,
   `moderate` or `high`. `mdm` is the level two of the three elements meet, the middle of the three,
-  and `EM-LEVEL` is the code that MDM level selects for the setting.
+  and `EM-LEVEL` is the code whose CPT 2026 descriptor names that MDM level; the check-off reads it
+  from the verified descriptors in `reference/procedure-codes-2026.sqlite`. Where the level is
+  selected by total time instead, write the rule line `EM-RULE: level selected by total time on the
+  date of the encounter`; the level is then not held to the MDM line, and the selected code still is.
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
   relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed; where the worksheet
   bills 93000 or 93005, the line names that code. Exactly one `EM-MDM` and one `EM-LEVEL`. A

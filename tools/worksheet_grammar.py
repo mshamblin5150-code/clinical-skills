@@ -120,6 +120,8 @@ def entry_is_for_entry(
     A field, an E/M element line or the next entry closes the header. This retains
     readable historical worksheets whose official descriptor wrapped before the
     line-scoped marker; an element line's free text is never read as the marker.
+    EM- lines exist only in worksheets written with the element block, which put NOT
+    FOR ENTRY on the code's own line, so the element-line closer moves no historical one.
     """
 
     start = entries[index].start()
