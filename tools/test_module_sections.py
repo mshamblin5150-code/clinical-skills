@@ -97,6 +97,7 @@ DECLARED_SECTIONS = {
     "compaction_reminder": "Compaction reminder",
     "corpus_census": "Corpus census",
     "day_file_text": "Day-file text",
+    "em_audit": "E/M audit check-off",
     "entry_copy": "Medatrax Entry copy",
     "encounter_openers": "Encounter openers and identity rows",
     "encounter_status": "Clinical manifest and office status",

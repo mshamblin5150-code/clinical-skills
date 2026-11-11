@@ -480,6 +480,9 @@ new direct commands for #1206; both call `use_utf8` and `require_python_floor` f
 **Correction, 2026-10-19:** `backslash_pair_hook.py` is now the most recent direct command
 and calls `use_utf8()` then `require_python_floor()` from that path.
 
+**Correction, 2026-11-10:** `em_audit.py` is a direct command; its command path calls
+`use_utf8()` then `require_python_floor()`.
+
 ### Memory index
 
 Claude Code loads the auto-memory index `MEMORY.md` into every session and cuts it at its line and
@@ -2811,6 +2814,21 @@ The rendered artifact receives only the compact pass line. URLs, source and data
 the as-of date, selected-code population, committed-sheet SHA-256, and status evidence stay in the private JSON receipt. The
 gate's complete claim boundary is `coding_freshness.DECLARED_LIMITS`; this section points to that
 object without copying its rows.
+
+### E/M audit check-off
+
+`python tools/em_audit.py <run> [--note N ...] [--write]` renders the human-readable check-off for
+`em-audit` and for the note path of `icd10-cpt`. It reads the manifest through
+`review_manifest.validated_population`, the same validation approval uses, so a stale manifest or
+receipt refuses rather than rendering a packet that disagrees with the records. Codes for entry
+come from the private worksheet through `worksheet_grammar`; its icd10-cpt step 4 blocks, the visible worksheet
+and the E/M paragraph of the note are copied verbatim. Agreement with a re-derivation record is
+computed from its `RE-DERIVED LEVEL` line, never claimed by the reader. Sheets are written with
+`encounter_openers.atomic_write`, which keeps them under the private `scratch/` run. The default
+output is counts only and prints the shared unread remainder. Exit 0 is clean, 1 is a disagreement
+or a damaged record, and 2 is a refused run or an unreadable re-derivation record. The complete
+boundary belongs to `em_audit.DECLARED_LIMITS`. Covered by `tools/test_em_audit.py`, which builds a
+synthetic run with `test_review_manifest.synthetic_run`.
 
 ### CDC BMI-for-age table
 

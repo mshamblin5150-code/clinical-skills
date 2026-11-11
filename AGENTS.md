@@ -21,6 +21,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | vitalsource-chrome | [skills/vitalsource-chrome/SKILL.md](skills/vitalsource-chrome/SKILL.md) | An authenticated VitalSource or Bookshelf chapter must be read completely by any browser agent |
 | aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
 | peer-critique | [skills/peer-critique/SKILL.md](skills/peer-critique/SKILL.md) | A classmate's case study needs the graded eight-heading peer clinical critique written against it |
+| em-audit | [skills/em-audit/SKILL.md](skills/em-audit/SKILL.md) | A finished note needs its coding decisions rendered as an E/M audit check-off for an auditor, with an independent re-derivation of the professional level |
 
 <!-- Additional skills are appended here as they are written. -->
 
@@ -72,6 +73,13 @@ change list shown verbatim with every showing after the first, under
 **`tools/form_sections.py` is a Required command before Medatrax note entry on `clinical-note` and `batch-shift`.** It reads each Entry copy, partitions every line into preamble, `S`, `O`, `A`, `P`, and tail, and writes `private/form-sections/note-N.json` only when absent. An existing record is compared and any divergence is reported without changing exit status or overwriting the evidence; replacement requires `--replace`. A refusal blocks posting; a divergence does not.
 
 **`tools/cpt_mdm_sheet.py` is a Required command for the committed CPT E/M MDM sheet.** Its comparison mode requires distinct transcript paths and records exact two-reader agreement, printed-page locators, date, and per-entry SHA-256; its ordinary and `--staged` modes refuse missing coverage or changed entries. The pre-commit hook runs the staged mode when an edition sheet changes. The sheet in `reference/cpt-em-mdm-2026.md` supplies the licensed MDM grid and dependent definitions, not other CPT instructions. `coding_freshness.py` requires a passing sheet whose line-ending-normalized content matches `HEAD` and whose edition covers the service date for a finalized ED or office E/M selection.
+
+**`tools/em_audit.py` is a Required command for `em-audit`.** It renders each note's E/M audit
+check-off from the validated coding manifest, passing freshness receipt, visible and private
+worksheets and any independent re-derivation record, writes it only into the private run, and
+computes agreement with the re-derivation. `icd10-cpt` runs it when its note-path records are
+written, as a produced artifact rather than a gate. It changes no code or note. Without it there is
+no check-off. Its complete ceiling belongs to `em_audit.DECLARED_LIMITS`.
 
 **`tools/post_text.py` is a Required command for `peer-critique`.** It builds the plain
 Canvas comment from the approved Markdown; a refusal stops loading. The completion grader

@@ -291,6 +291,17 @@ def approval_binding(run: Path, *, batch: bool) -> Binding:
     return _validated_binding(run, batch=batch)[0]
 
 
+def validated_population(run: Path, *, batch: bool) -> tuple[dict, list[tuple[str, str]]]:
+    """The validated manifest with the current note and worksheet text of each encounter.
+
+    This is the validation approval uses: a stale manifest or receipt refuses. A reader that
+    renders the coding decisions of a run uses it so it cannot describe a population that
+    approval rejects.
+    """
+    _, manifest, contents = _validated_binding(run, batch=batch)
+    return manifest, contents
+
+
 def render(run: Path, output: Path, *, force: bool = False) -> Path:
     from docx_write import PAGE_BREAK, write_docx
     binding, manifest, contents = _validated_binding(run, batch=True)

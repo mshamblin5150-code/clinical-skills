@@ -11,6 +11,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | `clinical-note` | Turns one encounter's shorthand into a comprehensive SOAP note or FNP H&P, with proposed reasoning kept outside the document for review. |
 | `batch-shift` | Reads one scanned day file, separates its encounters, and carries each one through the clinical-note workflow. |
 | `icd10-cpt` | Proposes ICD-10-CM and CPT codes for a documented encounter, checking code identity and specificity before use. |
+| `em-audit` | Renders the coding decisions of a finished note as an E/M audit check-off the clinician can hand to an auditor, with an independent re-derivation of his professional E/M level. |
 
 ### Coursework
 

@@ -1003,6 +1003,13 @@ completeness, code identity, billability where applicable, service-date activity
 encounter's account-backed patient status must all pass. The rendered worksheet says only
 `Coding freshness: PASS`; technical receipt content remains private.
 
+On the note path, those records also produce the human-readable audit packet: after the freshness
+gate passes, run `python tools/em_audit.py <run> --write`, and again whenever the manifest is
+rebuilt. It writes each note's check-off into the private run's `em-audit/` from the same records,
+so the two cannot disagree. It is a produced artifact, not a gate: report a nonzero exit to the
+clinician and block nothing on it. [em-audit](../em-audit/SKILL.md) re-renders it later and adds the
+independent re-derivation of the E/M level.
+
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 
 **Every for-entry ICD-10 code has a separated read whose reader did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed ICD-10-CM release; and the original reason has been read beside the independent `"about"` account. A missing or partial read is not completion. Agreement is a smoke test and never proof.
