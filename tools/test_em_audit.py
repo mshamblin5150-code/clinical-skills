@@ -3826,5 +3826,62 @@ class FleetRoundThreeFindings(RunFixture):
                 self.assertTrue(shown or "unread remainder 0" not in output, output)
 
 
+class FleetRoundFourFindings(RunFixture):
+    """Round 4 of the adversarial fleet review: every counted unread input is named in its check-off."""
+
+    def test_fd1_a_line_the_em_section_leaves_unplaced_is_named(self):
+        cases = {
+            "wrapped reason": ("evaluated this visit\n", "evaluated\n    this visit\n", "this visit"),
+            "prose after the block": ("  EM-LEVEL: 99283\n", "  EM-LEVEL: 99283\n  Reviewed with attending.\n",
+                                      "Reviewed with attending."),
+            "rejected label": ("  EM-LEVEL: 99283\n", "  EM-LEVEL: 99283\n  E/M: 99284 considered NOT FOR ENTRY\n",
+                               "99284 considered"),
+        }
+        for name, (old, new, marker) in cases.items():
+            with self.subTest(case=name):
+                self.write_private(PRIVATE.format(elements=ELEMENTS).replace(old, new, 1))
+                status, output = self.in_process("--write")
+                self.assertEqual(2, status, output)
+                text = self.sheet.read_text(encoding="utf-8")
+                self.assertIn("could not be placed and are counted in the unread remainder", text)
+                self.assertIn(marker, text)
+
+    def test_fd2_run_wide_unread_checks_are_named_without_an_element_block(self):
+        self.write_private(PRIVATE.format(elements="  ANCHOR: x"))
+        self.record(ELEMENTS.replace("table-low", "made-up-id"))
+        name_the_committed_sheet(self.run_dir, "absent-mdm-sheet.md")
+        status, output = self.in_process("--write")
+        self.assertIn("unread remainder 1", output)
+        self.assertIn("- Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+
+    # Phrases a check-off uses to name an unread input; one of them must appear wherever it counts one.
+    NAMING = ("unread remainder", "not checked", "could not", "unread and left out", "not compared")
+    JUNK = ("  Reviewed with attending.", "EM-PROBLEM: stray", "  EM-PROBLEM: bogus", "  SPECIFICITY: extra",
+            "SPECIFICITY: margin", "  E/M: 99284 considered NOT FOR ENTRY", "E/M: 99285 margin",
+            "    wrapped continuation", "  EM-RULEX: odd")
+
+    def test_fd3_every_counted_unread_line_is_named_wherever_it_is_inserted(self):
+        # Rounds 3 and 4 each found an unread input the check-off counted without naming. This sweeps
+        # the class: one stray line at every position of the worksheet, and wherever the remainder
+        # rises the check-off must name why. The live count keeps the sweep from passing on nothing.
+        base = PRIVATE.format(elements=ELEMENTS).split("\n")
+        live, misses = 0, []
+        for position in range(1, len(base)):
+            for junk in self.JUNK:
+                try:
+                    self.write_private("\n".join(base[:position] + [junk] + base[position:]))
+                except ValueError:
+                    continue  # the manifest build refuses this worksheet, so nothing renders
+                status, output = self.in_process("--write")
+                if "unread remainder 0" in output or not self.sheet.is_file():
+                    continue
+                live += 1
+                body = self.sheet.read_text(encoding="utf-8").split("## Encounter", 1)[-1]
+                if not any(phrase in body for phrase in self.NAMING):
+                    misses.append((position, junk, status))
+        self.assertGreater(live, 50)
+        self.assertEqual([], misses)
+
+
 if __name__ == "__main__":
     unittest.main()

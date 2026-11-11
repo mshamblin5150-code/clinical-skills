@@ -421,8 +421,9 @@ def block_quote(private: PrivateWorksheet, heading: re.Pattern[str], kind: str) 
     """One icd10-cpt step 4 block as its grader reads it, less the lines the E/M section renders.
 
     ``worksheet_grammar.step_four_lines`` reads the block with its grader's terminator and line
-    splitting (``BLOCK_READERS``); every line a ``sections`` E/M line renders (the line, its
-    wrapped header, its fields and its EM- lines) is shown there once and left out here. A line the
+    splitting (``BLOCK_READERS``); every line a ``sections`` E/M line renders (``EmSection.rendered``:
+    the line, its wrapped header, its fields, any nested E/M line and its EM- lines) is shown there
+    once and left out here. A line the
     E/M section leaves unplaced stays quoted. None when the heading is absent; ``EM_ONLY_BLOCK``
     when the E/M section shows every line the block holds.
     """
@@ -511,6 +512,10 @@ def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
         # A selected E/M label inside this line's body is part of its block, shown here as written.
         out += ["- Nested E/M line: " + private.physical.lines[position].strip()
                 for position in section.nested(private.physical.selected)]
+        if section.unplaced:
+            out += [f"- {len(section.unplaced)} line(s) in this E/M line's body could not be placed and are "
+                    "counted in the unread remainder (after the element block only a field is read):", "",
+                    *quoted("\n".join(private.physical.lines[position] for position in section.unplaced)), ""]
     return out
 
 
@@ -971,6 +976,13 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     if elements.outside:
         lines.append(f"- {elements.outside} element line(s) outside the element block could not be read and "
                      "are counted in the unread remainder; move each under its E/M line and render again")
+    # Run-wide checks the re-derivation takes as well, so they are named whether or not a block exists.
+    if not context.levels.readable:
+        lines.append("- MDM levels: not checked; the committed procedure-code database is unreadable or its "
+                     "CPT 2026 descriptors are not verified, counted once in the unread remainder")
+    if context.ids is None:
+        lines.append("- Entry ids: not checked; no committed version of the CPT MDM sheet the receipt names "
+                     "matches its fingerprint, counted once in the unread remainder")
     if block_ is None:
         if tally.predates:
             tally.blocks_predating += 1
@@ -1002,16 +1014,10 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
         tally.unread += 1
         lines.append(f"- MDM level of {block_.level} not checked: its CPT 2026 descriptor could not be read "
                      "for the service date; counted in the unread remainder")
-    if not context.levels.readable:
-        lines.append("- MDM levels: not checked; the committed procedure-code database is unreadable or its "
-                     "CPT 2026 descriptors are not verified, counted once in the unread remainder")
     if context.unreadable:
         lines.append("- Answer ids: not checked; the pre-approval answers record could not be read")
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
-    if context.ids is None:
-        lines.append("- Entry ids: not checked; no committed version of the CPT MDM sheet the receipt names "
-                     "matches its fingerprint, counted once in the unread remainder")
     if found:
         tally.block_findings += len(found)
         lines += ["", *["- FINDING: " + finding for finding in found]]
