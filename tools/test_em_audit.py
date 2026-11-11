@@ -425,14 +425,17 @@ class ReviewFindings(RunFixture):
         self.assertNotIn("entry_is_for_entry", called)
         self.assertTrue({"read_entries", "paired_entry"} <= called, called)
 
-    def test_f10_the_terminal_grader_imports_the_gate_at_module_level_and_names_the_run_once(self):
+    def test_f10_the_terminal_grader_imports_the_gate_lazily_and_names_the_run_once(self):
+        # Seventh review: the module-level import loaded the approval and manifest stack on every
+        # specificity_scan import; the load-order cycle it once guarded is handled inside em_audit.
         source = Path(em_audit.__file__).with_name("specificity_scan.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
         top = {alias.name for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
-        nested = [node for node in ast.walk(tree) if isinstance(node, ast.Import) and node not in tree.body
+        grade = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_grade")
+        nested = [node for node in ast.walk(grade) if isinstance(node, ast.Import)
                   and any(alias.name == "em_audit" for alias in node.names)]
-        self.assertIn("em_audit", top)
-        self.assertEqual([], nested)
+        self.assertNotIn("em_audit", top)
+        self.assertEqual(1, len(nested))
         self.assertEqual(1, source.count("source.directory.parent if source.directory.name == \"worksheets\""))
 
 
@@ -892,12 +895,13 @@ class SixthReviewFindings(RunFixture):
         import anchor_scan
         import refusal_scan
         import worksheet_grammar
-        text = PRIVATE.format(elements=ELEMENTS) + "\nE/M: 99283 low complexity\n" + ELEMENTS
-        lines = text.splitlines()
-        self.assertEqual(refusal_scan._block_lines(lines)[0],
-                         worksheet_grammar.step_four_block(lines, worksheet_grammar.REFUSAL_HEADING)[0])
-        self.assertEqual(anchor_scan._block_lines(text)[0],
-                         worksheet_grammar.step_four_block(lines, worksheet_grammar.BLOCK_HEADING, every=True)[0])
+        for text in (PRIVATE.format(elements=ELEMENTS) + "\nE/M: 99283 low complexity\n" + ELEMENTS,
+                     SeventhReviewFindings.SYNTHETIC):
+            with self.subTest(text=text[:20]):
+                self.assertEqual("\n".join(refusal_scan._block_lines(text.splitlines())[0]).strip("\n"),
+                                 worksheet_grammar.block_text(text, worksheet_grammar.REFUSAL_HEADING, "refusal"))
+                self.assertEqual("\n".join(anchor_scan._block_lines(text)[0]).strip("\n"),
+                                 worksheet_grammar.block_text(text, worksheet_grammar.BLOCK_HEADING, "filled"))
 
     def test_x3_a_refused_element_line_without_a_colon_is_left_out_of_the_comparison(self):
         self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
@@ -961,6 +965,114 @@ class SixthReviewFindings(RunFixture):
         result = self.specificity()
         self.assertIn("unread remainder 1", result.stdout)
         self.assertIn("unread tool-written records 1", result.stdout)
+
+
+
+def main_refusal_block_lines(lines: list[str]) -> tuple[list[str], bool]:
+    """refusal_scan._block_lines exactly as origin/main held it (1c5c34b1)."""
+    import worksheet_grammar
+    start = next((i for i, line in enumerate(lines) if worksheet_grammar.REFUSAL_HEADING.search(line)), None)
+    if start is None:
+        return [], False
+    any_heading = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
+    block: list[str] = []
+    for line in lines[start + 1:]:
+        if any_heading.match(line):
+            break
+        block.append(line)
+    return block, True
+
+
+def main_anchor_block_lines(text: str) -> tuple[list[str], bool]:
+    """anchor_scan._block_lines exactly as origin/main held it (1c5c34b1)."""
+    import worksheet_grammar
+    other = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+    collected: list[str] = []
+    found = inside = False
+    for line in text.splitlines():
+        if worksheet_grammar.BLOCK_HEADING.match(line):
+            found = inside = True
+            continue
+        if inside:
+            if other.match(line):
+                inside = False
+                continue
+            collected.append(line)
+    return collected, found
+
+
+class SeventhReviewFindings(RunFixture):
+    """The seventh code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    SYNTHETIC = (
+        "---CODED, ANCHOR WAS FILLED---\nZ68.41\n---\nafter a bare rule\n"
+        "---NOT CODED, NOTHING ESTABLISHED IT---\nNOT CODED: J18.9  Pneumonia, unspecified organism\n---\n"
+        "----\nneeds: imaging" + chr(0x2028) + "establishing pneumonia\nproposed instead:\fR05.9  Cough\n"
+        "--- UNDOCUMENTED, WOULD SUPPORT A MORE SPECIFIC CODE ---\nnone\n")
+
+    def test_y0_the_graders_read_exactly_the_lines_main_read_on_every_worksheet_without_a_block(self):
+        import anchor_scan
+        import refusal_scan
+        import worksheet_grammar
+        texts = {path: path.read_text(encoding="utf-8") for path in sorted((ROOT / "fixtures").rglob("*.md"))}
+        texts["synthetic"] = self.SYNTHETIC
+        compared = 0
+        for name, text in texts.items():
+            if worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES).blocks:
+                continue
+            with self.subTest(worksheet=str(name)):
+                compared += 1
+                self.assertEqual(main_refusal_block_lines(text.splitlines()), refusal_scan._block_lines(text.splitlines()))
+                self.assertEqual(main_anchor_block_lines(text), anchor_scan._block_lines(text))
+        self.assertGreater(compared, 20)
+        self.assertEqual(["NOT CODED: J18.9  Pneumonia, unspecified organism", "---", "----", "needs: imaging",
+                          "establishing pneumonia", "proposed instead:", "R05.9  Cough"],
+                         refusal_scan._block_lines(self.SYNTHETIC.splitlines())[0])
+
+    def section(self, text: str, title: str) -> str:
+        return text.split("## " + title, 1)[1].split("\n## ", 1)[0]
+
+    def test_y1_the_check_off_quotes_a_refusal_block_as_its_grader_reads_it(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "  needs: imaging establishing pneumonia\n", "---\n  needs: imaging establishing pneumonia\n"))
+        self.assertEqual(0, self.invoke("--write").returncode)
+        refused = self.section(self.sheet.read_text(encoding="utf-8"), "Codes refused, with what would establish them")
+        self.assertIn(">   needs: imaging establishing pneumonia", refused)
+
+    def test_y2_a_not_for_entry_em_line_is_never_an_anchor(self):
+        import worksheet_grammar
+        lines = ["---NOT CODED, NOTHING ESTABLISHED IT---", "refused",
+                 "CPT 99285 Emergency visit, high MDM NOT FOR ENTRY", "  EM-LEVEL: 99285", "  EM-MDM: high",
+                 "CPT 93000 Electrocardiogram", "  EM-LEVEL: 99285", "kept"]
+        self.assertEqual((lines[1:], True), worksheet_grammar.step_four_block(
+            lines, worksheet_grammar.REFUSAL_HEADING, worksheet_grammar.ANY_HEADING))
+        text = PRIVATE.format(elements=ELEMENTS) + "\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n" + ELEMENTS
+        elements = worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES)
+        self.assertEqual((1, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
+
+    def test_y2_em_lines_under_a_not_for_entry_em_line_are_unread(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS)
+                           + "\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n  EM-LEVEL: 99285\n")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("findings 0", result.stdout)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertNotIn("E/M line: CPT 99285", self.sheet.read_text(encoding="utf-8"))
+
+    def test_y3_a_direct_consultation_without_a_note_path_is_not_graded(self):
+        (self.run / review_manifest.MANIFEST).unlink()
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+        (self.run / "openers.json").unlink()
+        finding, report, unread = em_audit.completion_gate(self.run, "consultation-synthetic")
+        self.assertEqual((False, 0), (finding, unread), report)
+        self.assertIn("not graded", report)
+
+    def test_y5_the_re_derivation_reader_carries_no_dead_branch(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "rederivation_lines")
+        self.assertEqual([], [ast.unparse(node) for node in ast.walk(function) if isinstance(node, ast.IfExp)])
 
 
 if __name__ == "__main__":

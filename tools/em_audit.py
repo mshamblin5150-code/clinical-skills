@@ -46,9 +46,9 @@ from run_grader import format_unread_remainder
 from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, collecting_errors,
                                damaged_record_result, fault_report, read_handwritten_record, read_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
-                               UNDOCUMENTED_HEADING, EmBlock, block_text, em_anchor, em_block, entry_region,
+                               UNDOCUMENTED_HEADING, EmBlock, block_text, em_block, entry_region,
                                opens_element_block, paired_entry, physical_lines, read_entries,
-                               worksheet_em_block)
+                               selected_em_anchor, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -84,19 +84,24 @@ DECLARED_LIMITS = (
     "element line is not a placed re-derivation.",
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
-    "lines dropped, not parsed, through worksheet_grammar.step_four_block, the reader refusal_scan "
-    "and anchor_scan grade. A block ends at a heading-shaped line or at a margin E/M line whose "
-    "indented body holds an element line; a margin E/M line with no element line beneath it stays "
-    "the block's text.",
+    "lines dropped, not parsed, through worksheet_grammar.step_four_block with the terminator, "
+    "iteration and line splitting of the grader that grades each block (BLOCK_READERS); the "
+    "undocumented block, which no grader reads, takes refusal_scan's. A block also ends at a "
+    "selected E/M line whose indented body holds an element line; any other line, an E/M entry "
+    "marked NOT FOR ENTRY included, stays the block's text.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
     "and an indented line after an element block, are counted unread. A continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
-    "Every E/M line of the for-entry region, and every later one that opens an element block, is "
-    "rendered with its own provenance fields in the E/M section.",
+    "Every selected E/M line (an E/M: label, or a for-entry E/M-family CPT entry) of the for-entry "
+    "region, and every later one that opens an element block, is rendered with its own provenance "
+    "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY anchor no block "
+    "and are counted unread as outside lines.",
     "The element block is bound to the approved records only through the manifest element "
-    "fingerprint; a manifest without it is counted unread on each check-off, and a run with no "
-    "manifest whose worksheets carry an E/M line is incomplete at submission.",
+    "fingerprint; a manifest without it is counted unread on each check-off. At submission, a run "
+    "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
+    "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
+    "record is not graded, so a note-path run whose opener record is lost reads the same way.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
     "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
     "only the other code; with no ECG code billed, the limb's text is not graded.",
@@ -245,7 +250,7 @@ def em_entry_lines(private: str, tally: Tally) -> list[str]:
     out: list[str] = []
     claimed: set[int] = set()
     for index, line in enumerate(lines):
-        if index in claimed or not em_anchor(line, review_manifest.EM_CODES):
+        if index in claimed or not selected_em_anchor(lines, index, review_manifest.EM_CODES):
             continue
         if index >= region_lines and not opens_element_block(lines, index):
             continue
@@ -443,7 +448,7 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
         return absent_rederivation(tally, "The re-derivation record holds no readable element line, so no "
                                           "re-derivation is placed for this note.")
     if rederived.unread:
-        tally.unread += rederived.unread if rederived else 1
+        tally.unread += rederived.unread
         return ["The re-derivation record is not a complete element block and was not compared."]
     lines = item_lines(rederived)
     found = differences(worksheet, rederived, selected)
@@ -587,11 +592,11 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
             f"- Rendered from {review_manifest.MANIFEST}, worksheets/{stem}.md and {visible_name}",
             "- Coding content fingerprint: " + item["normalized_sha256"], ""]
     out += ["## " + SECTIONS[1], "", *code_lines(private, tally), ""]
-    blocks = ((BLOCK_HEADING, "filled_blocks"), (REFUSAL_HEADING, "refusal_blocks"),
-              (UNDOCUMENTED_HEADING, "undocumented_blocks"))
-    for index, (heading, attribute) in enumerate(blocks, start=2):
-        # The filled-anchor block is read under every heading, as anchor_scan grades it.
-        text = block_text(private, heading, every=heading is BLOCK_HEADING)
+    blocks = ((BLOCK_HEADING, "filled"), (REFUSAL_HEADING, "refusal"), (UNDOCUMENTED_HEADING, "undocumented"))
+    for index, (heading, kind) in enumerate(blocks, start=2):
+        # Each block is quoted with its grader's terminator and line splitting, so it is the text graded.
+        text = block_text(private, heading, kind)
+        attribute = kind + "_blocks"
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
@@ -741,18 +746,19 @@ def status_of(tally: Tally) -> int:
 EXPECTED_ROW = "the E/M audit check-offs"
 
 
-def selects_em_level(run: Path) -> bool:
-    """Whether a private worksheet of the run carries an E/M line; an unreadable one counts.
+# The encounter opener record review_manifest.build reads first: a run carrying it is on the
+# clinical-note or batch-shift path, where ADR 0445 ruling 6 requires the manifest and check-offs.
+NOTE_PATH_MARKER = "openers.json"
 
-    icd10-cpt selects an E/M level only on the note path, where ADR 0445 ruling 6 requires the
-    manifest and its check-offs, so such a run without a manifest is incomplete coverage.
-    """
+
+def selects_em_level(run: Path) -> bool:
+    """Whether a private worksheet of the run carries a selected E/M line; an unreadable one counts."""
     for path in sorted((run / "worksheets").glob("*.md")):
         try:
-            text = review_manifest.read_text(path)
+            lines = physical_lines(review_manifest.read_text(path))
         except (DamagedRecord, UnreadableRecord, OSError, UnicodeError):
             return True
-        if any(em_anchor(line, review_manifest.EM_CODES) for line in text.splitlines()):
+        if any(selected_em_anchor(lines, index, review_manifest.EM_CODES) for index in range(len(lines))):
             return True
     return False
 
@@ -772,6 +778,9 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied", 0
     run = run.resolve()
     if not (run / review_manifest.MANIFEST).exists():
+        if not (run / NOTE_PATH_MARKER).exists():
+            return False, (f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no encounter "
+                           "opener record, so it is a direct consultation rather than the note path"), 0
         if selects_em_level(run):
             return False, (f"{EXPECTED_ROW}: incomplete - a worksheet selects an E/M level, but the run has "
                            "no coding manifest to render its check-offs from"), 1

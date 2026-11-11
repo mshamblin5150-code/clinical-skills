@@ -84,7 +84,7 @@ from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
     BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
     REFUSAL_HEADING, STEP_FOUR_START, detail_belongs_to_entry, entry_is_for_entry,
-    heading_counts, paired_entry, step_four_block,
+    OTHER_HEADING, heading_counts, paired_entry, step_four_block,
 )
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -95,8 +95,8 @@ CDC_COMPUTED = re.compile(
     r"CDC 2022 Extended BMI-for-Age\.?$"
 )
 
-# Any other ``--- ... ---`` or Markdown heading closes the block.
-OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+# Any other ``--- ... ---`` or Markdown heading closes the block: worksheet_grammar.OTHER_HEADING,
+# shared so the em-audit check-off quotes the filled-anchor block as this grader reads it.
 
 # ``Z68.36 - BMI 36.4 ...``. The bare code is pinned at the start of its line by a
 # dash, which is what makes this a line format rather than a substring search.
@@ -278,7 +278,7 @@ def _block_lines(text: str) -> tuple[list[str], bool]:
 
     The shared icd10-cpt step 4 reader em_audit's check-off quotes from, so both read the same lines.
     """
-    return step_four_block(text.splitlines(), BLOCK_HEADING, every=True)
+    return step_four_block(text.splitlines(), BLOCK_HEADING, OTHER_HEADING, every=True)
 
 
 def read_worksheet(text: str) -> Worksheet:

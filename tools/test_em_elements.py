@@ -110,7 +110,7 @@ class TheStrictReader(unittest.TestCase):
         for anchor in (EM_LINE, "CPT  99213  Office visit, established patient\n"):
             with self.subTest(anchor=anchor):
                 text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + anchor + BLOCK
-                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING))
+                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
 
     def test_u6_an_element_line_ending_in_not_for_entry_leaves_the_em_entry_for_entry(self):
         text = ("ICD-10  E11.9  Type 2 diabetes mellitus without complications\n"
@@ -122,18 +122,18 @@ class TheStrictReader(unittest.TestCase):
     def test_v5_only_an_unindented_em_line_ends_a_step_four_block(self):
         inside = "refused\n  E/M: 99214 would be supported if the history were documented\n  more"
         text = "---NOT CODED, NOTHING ESTABLISHED IT---\n" + inside + "\n"
-        self.assertEqual(inside, grammar.block_text(text, grammar.REFUSAL_HEADING))
+        self.assertEqual(inside, grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
         indented_entry = "refused\n  CPT  99214  Office visit, established patient"
         self.assertEqual(indented_entry, grammar.block_text(
-            "---NOT CODED, NOTHING ESTABLISHED IT---\n" + indented_entry + "\n", grammar.REFUSAL_HEADING))
+            "---NOT CODED, NOTHING ESTABLISHED IT---\n" + indented_entry + "\n", grammar.REFUSAL_HEADING, "refusal"))
         self.assertEqual("refused", grammar.block_text(
-            "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK, grammar.REFUSAL_HEADING))
+            "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK, grammar.REFUSAL_HEADING, "refusal"))
         # A margin E/M line or entry with no element block beneath it is the block's own text.
         for margin in (EM_LINE, "CPT 99214 would be supported with documented time\n"):
             with self.subTest(margin=margin):
                 text = "---UNDOCUMENTED, WOULD SUPPORT A MORE SPECIFIC CODE---\n" + margin + "history in part\n"
                 self.assertEqual(margin + "history in part",
-                                 grammar.block_text(text, grammar.UNDOCUMENTED_HEADING))
+                                 grammar.block_text(text, grammar.UNDOCUMENTED_HEADING, "undocumented"))
 
     def test_x2_a_unicode_line_separator_inside_note_text_stays_on_its_element_line(self):
         moved = BLOCK.replace('"Diabetes stable"', '"Diabetes' + chr(0x2028) + 'stable"')
@@ -156,8 +156,8 @@ class TheStrictReader(unittest.TestCase):
 
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
-        self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))
-        self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING))
+        self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING, "filled"))
+        self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
 
 
 class EveryWorksheetReaderToleratesTheBlock(unittest.TestCase):

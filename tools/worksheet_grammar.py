@@ -37,6 +37,7 @@ STEP_FOUR_START = _heading(
 )
 _BLOCKS = (DIFFERENTIAL_HEADING, UNDOCUMENTED_HEADING, BLOCK_HEADING, REFUSAL_HEADING)
 _HEADING_SHAPE = re.compile(r"^[ \t]*(?:(?:#{1,6}[ \t]+)?---[^\r\n]+---|#{1,6}[ \t]+[^\r\n]+)[ \t]*$")
+ANY_HEADING = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
 _STEP_FOUR_WORD = re.compile(
     r"DIFFERENTIAL|NOT[ \t]+FOR[ \t]+ENTRY|NOT[ \t]+CODED|"
     r"ANCHOR[ \t]+WAS[ \t]+FILLED|UNDOCUMENTED",
@@ -224,11 +225,36 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def em_anchor(line: str, em_codes: frozenset[str]) -> bool:
-    """Whether ``line`` is an E/M line the code reader accepts: a label line or an E/M CPT entry."""
+def em_family() -> frozenset[str]:
+    """The E/M-family CPT codes, the rule ``review_manifest.EM_CODES`` selects by.
+
+    Imported when first needed: ``coding_freshness`` opens the code databases' modules, which a
+    worksheet reader that meets no CPT line never needs.
+    """
+    import coding_freshness
+    return coding_freshness.ED_EM | coding_freshness.OFFICE_EM
+
+
+def selected_em_anchor(lines: list[str], index: int, em_codes: frozenset[str] | None = None) -> bool:
+    """Whether the line at ``index`` is a selected E/M line: an ``E/M:`` label, or a for-entry
+    ``CPT`` entry whose code is E/M-family (``em_codes``, by default ``em_family``).
+
+    An E/M entry marked ``NOT FOR ENTRY`` in its header (``entry_is_for_entry``) is reasoning, never
+    the line an element block, a block end or the check-off's E/M section is anchored to.
+    """
+    line = lines[index]
+    if EM_CODE_LABEL.match(line):
+        return True
     entry = ENTRY.match(line)
-    return bool(EM_CODE_LABEL.match(line)) or (
-        entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
+    if entry is None or entry.group("system").upper() != "CPT":
+        return False
+    if entry.group("code").upper() not in (em_family() if em_codes is None else em_codes):
+        return False
+    end = index + 1
+    while end < len(lines) and lines[end].strip() and lines[end][0] in " \t" and not ENTRY.match(lines[end]):
+        end += 1
+    header = "\n".join(lines[index:end])
+    return entry_is_for_entry(header, list(ENTRY.finditer(header))[:1], 0)
 
 
 def physical_lines(text: str) -> list[str]:
@@ -240,20 +266,18 @@ def physical_lines(text: str) -> list[str]:
     return [line.removesuffix("\r") for line in text.split("\n")]
 
 
-# A line that ends an icd10-cpt step 4 block for every reader of one: any heading-shaped line.
-# It is the wider of the two rules refusal_scan and anchor_scan held before they shared it.
-BLOCK_END = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+# The line anchor_scan ends its icd10-cpt step 4 block at; refusal_scan ends its own at ANY_HEADING.
+OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 
 
 def opens_element_block(lines: list[str], index: int) -> bool:
-    """Whether the margin line at ``index`` is an E/M line whose indented body holds an EM- line.
+    """Whether the margin line at ``index`` is a selected E/M line whose indented body holds an EM- line.
 
     em-elements.md places the element block indented directly under an E/M line, so an entry
-    written inside an icd10-cpt step 4 block, with no element line beneath it, never qualifies.
+    written inside an icd10-cpt step 4 block with no element line beneath it never qualifies, and
+    neither does a margin code that is not a selected E/M line.
     """
-    line = lines[index]
-    entry = ENTRY.match(line)
-    if not line[:1].strip() or not (EM_CODE_LABEL.match(line) or (entry and entry.group("system").upper() == "CPT")):
+    if not lines[index][:1].strip() or not selected_em_anchor(lines, index):
         return False
     for follower in lines[index + 1:]:
         if not follower.strip() or follower[0] not in " \t":
@@ -263,12 +287,14 @@ def opens_element_block(lines: list[str], index: int) -> bool:
     return False
 
 
-def step_four_block(lines: list[str], heading: re.Pattern[str], *, every: bool = False) -> tuple[list[str], bool]:
+def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False) -> tuple[list[str], bool]:
     """The lines under an icd10-cpt step 4 heading, and whether the heading was found.
 
-    The block ends at a ``BLOCK_END`` line or at an E/M line that opens its element block. Only
-    the first heading is read unless ``every``, which collects under each occurrence.
-    refusal_scan, anchor_scan and em_audit all read their blocks here.
+    The caller supplies the lines, split as it splits them, and the terminator it grades by:
+    refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING``
+    under ``every`` heading. The one shared addition is the E/M section: a block also ends at a
+    selected E/M line that opens its element block, which a worksheet without the block never has.
     """
     collected: list[str] = []
     found = inside = False
@@ -277,7 +303,7 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], *, every: bool =
             found = inside = True
             continue
         if inside:
-            if BLOCK_END.match(line) or opens_element_block(lines, index):
+            if end.match(line) or opens_element_block(lines, index):
                 inside = False
                 if not every:
                     break
@@ -286,9 +312,19 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], *, every: bool =
     return collected, found
 
 
-def block_text(text: str, heading: re.Pattern[str], *, every: bool = False) -> str | None:
-    """The text of one icd10-cpt step 4 block as ``step_four_block`` reads it; None when the heading is absent."""
-    collected, found = step_four_block(physical_lines(text), heading, every=every)
+# How the check-off quotes each block: with the terminator, iteration and line splitting of the
+# grader that grades it. The undocumented block has no grader and takes refusal_scan's rule.
+BLOCK_READERS = {
+    "filled": (OTHER_HEADING, True),
+    "refusal": (ANY_HEADING, False),
+    "undocumented": (ANY_HEADING, False),
+}
+
+
+def block_text(text: str, heading: re.Pattern[str], kind: str) -> str | None:
+    """One icd10-cpt step 4 block as its grader reads it (``BLOCK_READERS``); None when the heading is absent."""
+    end, every = BLOCK_READERS[kind]
+    collected, found = step_four_block(text.splitlines(), heading, end, every=every)
     return "\n".join(collected).strip("\n") if found else None
 
 EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
@@ -404,8 +440,8 @@ class WorksheetElements:
 def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
-    An E/M line is either anchor the code reader accepts: an ``EM_CODE_LABEL`` line, or an
-    ``ENTRY`` whose CPT code is in ``em_codes``. An anchor nested in another anchor body adds no
+    An E/M line is a ``selected_em_anchor``: an ``EM_CODE_LABEL`` line, or a for-entry ``ENTRY``
+    whose CPT code is in ``em_codes``; EM- lines under a ``NOT FOR ENTRY`` E/M entry are outside. An anchor nested in another anchor body adds no
     block of its own. ``blocks`` counts the distinct blocks; when it exceeds one the first is
     returned and the caller reports the rest. EM- candidates under no anchor are ``outside``. A
     worksheet written before the block existed reads ``(None, 0, 0)``.
@@ -415,7 +451,7 @@ def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements
     claimed: set[int] = set()
     groups: list[list[int]] = []
     for index, line in enumerate(lines):
-        if not em_anchor(line, em_codes) or index in claimed:
+        if index in claimed or not selected_em_anchor(lines, index, em_codes):
             continue
         body = []
         for follower in range(index + 1, len(lines)):

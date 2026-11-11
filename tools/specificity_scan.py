@@ -56,7 +56,6 @@ import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
 import completion_checks
-import em_audit
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import reader_remarks
 from worksheet_grammar import (
@@ -904,7 +903,9 @@ def _grade(
         parsed.value("--submission"),
         tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
     )
-    # ADR 0445: every coded note needs a blind re-derivation and a current check-off.
+    # ADR 0445: every coded note needs a blind re-derivation and a current check-off. Imported here so
+    # a specificity_scan import does not load the approval and manifest stack the gate reads.
+    import em_audit
     em_failed, em_report, em_unread = em_audit.completion_gate(run_directory, parsed.value("--submission"))
     if em_unread:
         scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
