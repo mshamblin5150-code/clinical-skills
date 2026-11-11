@@ -81,7 +81,9 @@ def note_parts(text: str) -> tuple[str, str, list[str]]:
     if len(fields) != 1:
         raise ValueError("note needs exactly one Medatrax field block")
     # A separating horizontal rule belongs to the boundary, not clinical content.
-    clean = lambda value: re.sub(r"(?:\n[ \t]*---[ \t]*)+\s*$", "\n", value)
+    def clean(value: str) -> str:
+        return re.sub(r"(?:\n[ \t]*---[ \t]*)+\s*$", "\n", value)
+
     return normalized(clean("".join(visible))), normalized(clean(fields[0])), [clean(item) for item in worksheets]
 
 
@@ -577,13 +579,18 @@ def main(argv=None) -> int:
             render(args.run, args.output, force=args.force)
             print("review-manifest: rendered")
     except UnreadableRecord as error:
-        print(fault_report(error, check="review manifest")); return 2
+        print(fault_report(error, check="review manifest"))
+        return 2
     except DamagedRecord as error:
-        print(damaged_record_result(error, check="review manifest", force=True)[1]); return 1
+        print(damaged_record_result(error, check="review manifest", force=True)[1])
+        return 1
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
-        print("review-manifest: refused — missing, invalid, or stale evidence"); return 2
+        print("review-manifest: refused — missing, invalid, or stale evidence")
+        return 2
     return 0
 
 
 if __name__ == "__main__":
-    use_utf8(); require_python_floor(); raise SystemExit(main())
+    use_utf8()
+    require_python_floor()
+    raise SystemExit(main())

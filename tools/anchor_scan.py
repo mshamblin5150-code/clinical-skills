@@ -1550,10 +1550,10 @@ def _binding_findings(pair: AgreementPair) -> tuple[list[str], list[str]]:
         if note_side != worksheet_side
     ]
     substitutes: set[str] = set()
-    for field in PROPOSED_INSTEAD.finditer(pair.worksheet):
-        value = field["value"]
-        for line in SUBSTITUTE_CONTINUATION.finditer(pair.worksheet, field.end()):
-            if (not detail_belongs_to_entry(pair.worksheet, field, line)
+    for proposed in PROPOSED_INSTEAD.finditer(pair.worksheet):
+        value = proposed["value"]
+        for line in SUBSTITUTE_CONTINUATION.finditer(pair.worksheet, proposed.end()):
+            if (not detail_belongs_to_entry(pair.worksheet, proposed, line)
                     or FIELD.match(line.group()) or REFUSAL_FIELD.match(line.group())
                     or OTHER_HEADING.match(line.group())):
                 break

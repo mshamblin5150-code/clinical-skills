@@ -59,6 +59,7 @@ import completion_checks
 import em_audit_scope
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import reader_remarks
+from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 from worksheet_grammar import (
     ENTRY,
     ENTRY_CANDIDATE,
@@ -72,7 +73,6 @@ from worksheet_grammar import (
 )
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
-from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
 

@@ -442,7 +442,7 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     not counted. EM- candidates are counted by ``worksheet_em_block``, and E/M lines are read by
     ``em_entry_lines``.
     """
-    region, matches = private.region, private.matches
+    matches = private.matches
     lines = list(private.physical.lines[:private.region_lines])
     # Every entry and selected E/M line of the region owns the body entry_walk gave it; a field line
     # no body owns, such as one after a blank line, and an E/M label no rule selects are unread

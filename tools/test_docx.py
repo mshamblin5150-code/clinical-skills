@@ -12,7 +12,7 @@ work are both outside this repo.
 
 from __future__ import annotations
 
-import artifact_lock_test_support
+import artifact_lock_test_support  # noqa: F401
 import ast
 import contextlib
 import io

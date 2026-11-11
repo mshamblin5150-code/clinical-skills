@@ -94,14 +94,19 @@ def main(argv=None) -> int:
         reply = args.reply_file.read_text(encoding="utf-8") if args.reply_file else None
         record_status(args.run, args.note, args.value, args.evidence, args.evidence_path, args.pointer, reply)
     except UnreadableRecord as error:
-        print(fault_report(error, check="patient status")); return 2
+        print(fault_report(error, check="patient status"))
+        return 2
     except DamagedRecord as error:
-        print(damaged_record_result(error, check="patient status", force=True)[1]); return 1
+        print(damaged_record_result(error, check="patient status", force=True)[1])
+        return 1
     except (OSError, UnicodeError, ValueError):
-        print("encounter-status: refused — invalid or unreadable evidence"); return 2
+        print("encounter-status: refused — invalid or unreadable evidence")
+        return 2
     print("encounter-status: recorded 1 encounter")
     return 0
 
 
 if __name__ == "__main__":
-    use_utf8(); require_python_floor(); raise SystemExit(main())
+    use_utf8()
+    require_python_floor()
+    raise SystemExit(main())
