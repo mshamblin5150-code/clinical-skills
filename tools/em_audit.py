@@ -58,7 +58,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
                                EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block,
-                               entry_region, indented_line, physical_lines, read_entries, selected_em_lines,
+                               entry_region, physical_lines, read_entries, selected_em_lines,
                                step_four_lines, worksheet_em_block)
 
 
@@ -126,10 +126,12 @@ DECLARED_LIMITS = (
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
     "a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
-    "entry, the bound worksheet_grammar pairs a detail by; a field or indented line no entry or "
-    "E/M line owns, such as one after a blank line, an E/M label no rule selects with every line "
-    "under it, and any line after an element block, are counted "
-    "unread. A code marked NOT FOR ENTRY in the region is rendered, marked, with its fields. A "
+    "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line "
+    "owns, such as one after a blank line, an E/M label no rule selects with every field under "
+    "it, and any line after an element block, are counted unread. Indented prose no entry owns, "
+    "such as a wrapped list item before the entries or the wrapped value of an orphaned field, "
+    "is not a detail line and is not counted, so an orphaned field written without a field name "
+    "is not seen. A code marked NOT FOR ENTRY in the region is rendered, marked, with its fields. A "
     "continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
     "Every selected E/M line (an E/M: label naming an E/M code outside the lines of an entry marked "
@@ -389,20 +391,24 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
     wrapped lines; a code marked NOT FOR ENTRY, an E/M one included, comes back with for entry
     False so its recorded lines are rendered once rather than dropped.
     The region, the entries and the for-entry split are the readers ``review_manifest.selected_codes``
-    uses. A detail or indented line no entry or E/M line's body owns (``entry_walk``), or one a
-    body leaves unplaced, is counted unread rather than dropped; E/M lines are read by
+    uses. A detail line (a ``FIELD`` line or an E/M label no rule selects) no entry or E/M line's
+    body owns (``entry_walk``), or a line a body leaves unplaced, is counted unread rather than
+    dropped; the indented lines that continue a field are that field's, and indented prose no body
+    owns, such as a wrapped list item in the steps before the entries, is no detail line and is
+    not counted. EM- candidates are counted by ``worksheet_em_block``, and E/M lines are read by
     ``em_entry_lines``.
     """
     region, matches = private.region, private.matches
     lines = list(private.physical.lines[:private.region_lines])
-    # Every entry and selected E/M line of the region owns the body entry_walk gave it; a detail or
-    # indented line no body owns, such as one after a blank line, and an E/M label no rule selects
-    # are unread rather than dropped.
+    # Every entry and selected E/M line of the region owns the body entry_walk gave it; a field line
+    # no body owns, such as one after a blank line, and an E/M label no rule selects are unread
+    # rather than dropped. Only detail-shaped lines are candidates: an orphaned field's wrapped
+    # value is the field's own, and indented prose is not a detail line.
     owned = set(private.owners).union(*(range(index + 1, private.walks[index][3]) for index in private.owners))
     selected = private.physical.selected
     unread = sum(1 for index, line in enumerate(lines)
                  if index not in owned and not EM_CANDIDATE.match(line)
-                 and (indented_line(line) or FIELD.match(line) or EM_CODE_LABEL.match(line))
+                 and (FIELD.match(line) or EM_CODE_LABEL.match(line))
                  and index not in selected)
     # A line of an E/M section's body is that section's alone, rendered or counted unplaced there,
     # even inside another entry's body.
@@ -1022,7 +1028,8 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
     """The Word destination: under the main checkout output/ tree, and nowhere else.
 
     The default folder is the run's name and a short fingerprint of its resolved path, so two runs
-    sharing a name never share a folder. A destination that cannot be resolved is refused as one
+    sharing a name never share a folder. A relative ``--output-dir`` is read from the main checkout
+    root, wherever the command runs; an absolute one stays as given. A destination that cannot be resolved is refused as one
     that is not permitted.
     """
     try:
@@ -1030,6 +1037,9 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
         tag = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:10]
         folder = (repo_root.output_root() / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
                   else output_dir.expanduser())
+        if not folder.is_absolute():
+            # Relative to the main checkout root, as the help says, never to the working folder.
+            folder = repo_root.main_repo_root() / folder
         # The one destination rule, docx_write's own for a patient-information artifact.
         return repo_root.ensure_main_checkout(folder, under_output=True)
     except repo_root.ForeignCheckout as error:
@@ -1215,7 +1225,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", action="store_true", help="write the Markdown check-offs into the run")
     parser.add_argument("--docx", action="store_true", help="also render the check-offs to Word")
     parser.add_argument("--output-dir", type=Path,
-                        help="Word destination under the main checkout output/")
+                        help="Word destination under the main checkout output/; a relative path "
+                             "is read from the main checkout root")
     parser.add_argument("--force", action="store_true", help="replace a Word copy docx_write would refuse")
     parser.add_argument("--submission", help="the run's submission key; a run approved before the E/M audit "
                                              "check started is not graded on missing blocks or re-derivations")

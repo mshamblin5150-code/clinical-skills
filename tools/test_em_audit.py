@@ -2080,14 +2080,20 @@ class FifteenthReviewFindings(ProseBind, RunFixture):
     def gate(self):
         return em_audit.completion_gate(self.run, "shift-synthetic")
 
-    def test_k1_an_indented_line_after_a_blank_is_unread_never_dropped(self):
-        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
-            "  CONFIDENCE: verified against ICD-10-CM FY2026\n",
-            "  CONFIDENCE: verified against ICD-10-CM FY2026\n\n  a line no entry owns, after a blank\n"))
-        result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("unread remainder 1", result.stdout)
-        self.assertIn("1 detail line(s) could not be placed", self.sheet.read_text(encoding="utf-8"))
+    def test_k1_a_field_after_a_blank_is_unread_never_dropped(self):
+        # Twenty-first review: only a detail-shaped line is a candidate; indented prose no entry owns
+        # is not one, so it no longer turns a worksheet with wrapped step prose unread.
+        for stray, unread in (("  NOTE: a field no entry owns, after a blank\n", 1),
+                              ("  a line of prose no entry owns, after a blank\n", 0)):
+            with self.subTest(stray=stray):
+                self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+                    "  CONFIDENCE: verified against ICD-10-CM FY2026\n",
+                    "  CONFIDENCE: verified against ICD-10-CM FY2026\n\n" + stray))
+                result = self.invoke("--write")
+                self.assertEqual(2 if unread else 0, result.returncode, result.stdout + result.stderr)
+                self.assertIn(f"unread remainder {unread}", result.stdout)
+                placed = "1 detail line(s) could not be placed" in self.sheet.read_text(encoding="utf-8")
+                self.assertEqual(bool(unread), placed)
 
     def test_k2_an_ecg_code_is_named_as_a_whole_token_and_not_as_not_billed(self):
         import worksheet_grammar
@@ -2700,6 +2706,99 @@ class TwentiethReviewFindings(ProseBind, RunFixture):
                 with self.assertRaises(repo_root.ForeignCheckout):
                     docx_write.write_docx("# One\n", self.root / "out.docx", under_output=under_output)
         self.assertEqual([{"under_output": False}, {"under_output": True}], calls)
+
+
+def committed_worksheets() -> dict[str, str]:
+    """Every committed fixture file carrying a code entry, by path: the real worksheet population."""
+    found = {}
+    for path in sorted((ROOT / "fixtures").rglob("*.md")):
+        if path.name in ("README.md", "assertions.md"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if em_audit.parse_private(text).entries:
+            found[path.relative_to(ROOT).as_posix()] = text
+    return found
+
+
+class TwentyFirstReviewFindings(ProseBind, RunFixture):
+    """The twenty-first code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_q1_wrapped_prose_before_the_entries_is_not_an_unplaced_detail_line(self):
+        worksheets = committed_worksheets()
+        for name in ("fixtures/filled-anchor/run-2/case-03.md", "fixtures/filled-anchor/run-2/case-05.md",
+                     "fixtures/filled-anchor/run-2/case-06.md", "fixtures/worksheet-grammar-positive-control/case-01.md"):
+            self.assertIn(name, worksheets)
+        unread = {name: em_audit.for_entry_codes(em_audit.parse_private(text))[1]
+                  for name, text in worksheets.items()}
+        self.assertEqual({}, {name: count for name, count in unread.items() if count})
+
+    def test_q1_only_a_field_nothing_owns_is_counted_and_its_wrap_is_its_own(self):
+        prose = "## Encounter summary\n\n1. A synthetic list item whose sentence\n   wraps onto an indented line.\n\n"
+        orphan = "\n  NOTE: an orphaned field\n    whose value wraps onto a second line\n"
+        for prefix, expected in ((prose, 0), (prose + orphan, 1)):
+            with self.subTest(expected=expected):
+                private = em_audit.parse_private(prefix + PRIVATE.format(elements=ELEMENTS))
+                self.assertEqual(expected, em_audit.for_entry_codes(private)[1])
+
+    def test_q2_a_failed_fingerprint_write_leaves_no_false_edit_finding_and_a_rebuild_repairs_it(self):
+        note = self.run / "note-1.md"
+        note.write_text(note.read_text(encoding="utf-8").replace("Cough.", "Cough and fever."), encoding="utf-8")
+        private = self.run / "worksheets/note-1.md"
+        private.write_text(private.read_text(encoding="utf-8").replace(
+            "needs: imaging establishing pneumonia", "needs: imaging, edited with the note"), encoding="utf-8")
+        manifest = (self.run / review_manifest.MANIFEST).read_bytes()
+        real = review_manifest.update_tool_record
+
+        def failing(target, *args, **options):
+            if Path(target).name == Path(review_manifest.PRIVATE_FINGERPRINTS).name:
+                raise OSError("synthetic write failure")
+            return real(target, *args, **options)
+        with mock.patch.object(review_manifest, "update_tool_record", side_effect=failing):
+            with self.assertRaises(OSError):
+                review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        self.assertEqual(manifest, (self.run / review_manifest.MANIFEST).read_bytes())
+        status, output = self.in_process()
+        self.assertEqual(1, status, output)
+        self.assertNotIn("private worksheet changed", output)
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+        passing_receipt(self.run)
+        name_the_committed_sheet(self.run)
+        status, output = self.in_process()
+        self.assertEqual(0, status, output)
+
+    def test_q3_a_relative_output_folder_is_read_from_the_main_checkout(self):
+        import os
+        checkout = self.fake_checkout()
+        worktree = self.root / "worktree"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        previous = os.getcwd()
+        os.chdir(worktree)
+        try:
+            with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
+                self.assertEqual((checkout / "output" / "em-audit" / "x").resolve(),
+                                 em_audit.word_folder(self.run, Path("output/em-audit/x")))
+                status, output = self.in_process("--docx", "--output-dir", "output/em-audit/x")
+                self.assertEqual(0, status, output)
+                absolute = checkout / "output" / "absolute"
+                self.assertEqual(absolute.resolve(), em_audit.word_folder(self.run, absolute))
+        finally:
+            os.chdir(previous)
+        self.assertTrue((checkout / "output" / "em-audit" / "x" / "note-1.docx").is_file())
+        self.assertFalse((worktree / "output").exists())
+
+    def test_q5_review_manifest_reads_the_worksheet_grammar_at_module_level(self):
+        source = Path(review_manifest.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)
+                         and node.name in ("code_key", "selected_codes")):
+            self.assertEqual([], [node for node in ast.walk(function) if isinstance(node, (ast.Import, ast.ImportFrom))],
+                             function.name)
+        self.assertTrue(any(isinstance(node, ast.ImportFrom) and node.module == "worksheet_grammar" for node in tree.body))
+        self.assertNotIn("\n\n\n\ndef code_key", source)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import coding_freshness
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import OpenerChanged, OpenerRecordMissing, digest, private_target, read_openers
 from encounter_status import EvidenceChanged, StatusMissing, status_for
+from worksheet_grammar import ENTRY_CANDIDATE, em_identity, entry_reading, entry_region, read_entries, selected_em
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
                                read_handwritten_record, read_tool_record, update_tool_record)
 
@@ -183,11 +184,8 @@ def clean_codes(codes: dict) -> dict:
             "hcpcs": coding_freshness.normalize_codes(codes.get("hcpcs", []), "hcpcs")}
 
 
-
-
 def code_key(system: str, code: str) -> str:
     """The code population an entry selects into: icd10, em, cpt or hcpcs."""
-    from worksheet_grammar import em_identity
     if system.upper().startswith("ICD"):
         return "icd10"
     return "em" if em_identity(system, code) else system.lower()
@@ -201,8 +199,6 @@ def selected_codes(text: str, *, private: bool) -> dict:
     explicit code label or a shared-parsed CPT entry from the E/M families, as
     ``worksheet_grammar.selected_em`` selects it: the one rule the E/M audit check-off anchors to.
     """
-    from worksheet_grammar import (ENTRY_CANDIDATE, em_identity, entry_reading, entry_region, read_entries,
-                                   selected_em)
     entry_text = entry_region(text) if private else entry_reading(text, private=False)
     entries = read_entries(entry_text)
     if len(list(ENTRY_CANDIDATE.finditer(entry_text))) != len(entries):
@@ -311,10 +307,12 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
     def change_record(previous):
         return RecordUpdate(None if previous == record else record_payload, record)
 
-    manifest = update_tool_record(run / MANIFEST, decode_manifest, change)
+    # The fingerprint record first: it records only the worksheets as they are now, so a manifest
+    # write that then fails leaves a stale manifest, refused as stale, and never a new manifest
+    # beside an old record, which would read as a private worksheet edited after the manifest.
     (run / PRIVATE_FINGERPRINTS).parent.mkdir(parents=True, exist_ok=True)
     update_tool_record(run / PRIVATE_FINGERPRINTS, decode_private_fingerprints, change_record)
-    return manifest
+    return update_tool_record(run / MANIFEST, decode_manifest, change)
 
 
 def decode_private_fingerprints(text: str) -> dict:
