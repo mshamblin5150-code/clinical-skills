@@ -5,8 +5,10 @@ reads the validated coding manifest of the run, its passing freshness receipt, t
 worksheet of each encounter with its E/M element block, the pre-approval answers record, and
 any re-derivation record under ``RUN/em-audit/rederivation/<note stem>.md``. ``--write`` writes
 one Markdown check-off per selected note to ``RUN/em-audit/<note stem>.md``. ``--docx`` renders
-the same text to Word through ``docx_write.write_docx``, by default under the owning checkout
-``output/em-audit/<run name>/``; nothing writes a Word copy unless asked.
+the same text to Word through ``docx_write.write_docx`` with ``literal=True``, so copied note
+text, reasons, questions and replies keep their asterisks and backticks, by default under the
+owning checkout ``output/em-audit/<run name>/``; nothing writes a Word copy unless asked, and
+``--output-dir`` or ``--force`` without ``--docx`` is refused.
 
 The check-off is derived from the records the coding run wrote, so the two cannot disagree: a
 manifest or receipt that approval would refuse is refused here too. Output is counts only; the
@@ -16,8 +18,8 @@ Exit 0 when every selected note rendered with no finding; 1 for a finding: a not
 element block or a placed re-derivation (ADR 0445), an element block that contradicts itself or
 the selected code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
 differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
-note number is unknown, a check-off or Word copy was refused, or a candidate went unread
-(``unread remainder``). A finding outranks an unread remainder.
+note number is unknown, a Word option was given without ``--docx``, a check-off or Word copy was
+refused, or a candidate went unread (``unread remainder``). A finding outranks an unread remainder.
 """
 from __future__ import annotations
 
@@ -54,7 +56,9 @@ DECLARED_LIMITS = (
     "itself does not establish which question a reply answered.",
     "A re-derivation is compared with the lines of the worksheet block that were read, on the "
     "counted and not-counted (element, entry id) population, each MDM element and the level; an "
-    "unread worksheet line is counted in the unread remainder and stays outside the comparison. "
+    "unread worksheet line is counted in the unread remainder and stays outside the comparison, "
+    "with every re-derivation line of its element and entry id, or of its whole element where its "
+    "entry id is unreadable. A required line that is missing rather than refused excludes nothing. "
     "Note text, reasons, rules, answers and ECG lines are rendered side by side but not compared, "
     "and nothing establishes that the re-derivation was written before its author read the "
     "worksheet.",
@@ -125,7 +129,7 @@ class Tally:
         self.marks = self.blocks_present = self.blocks_absent = self.block_findings = 0
         self.answers_shown = 0
         self.agree = self.differ = self.differences = self.damaged = self.absent = 0
-        self.unread = self.written = self.word = 0
+        self.unread = 0
 
 
 def for_entry_codes(private: str) -> list[tuple[str, str, str, str, dict[str, list[str]]]]:
@@ -211,8 +215,13 @@ def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) ->
     """Each element of the re-derivation that differs from the worksheet block."""
     found = []
     if worksheet is not None:
+        # An unread worksheet line stays outside the comparison on both sides, keyed by element and
+        # entry id; a line whose entry id is unreadable leaves its whole element out.
+        unread = set(worksheet.unread_items)
+
         def population(source: EmBlock) -> Counter:
-            return Counter((item.kind, item.entry, item.counted) for item in source.items)
+            return Counter((item.kind, item.entry, item.counted) for item in source.items
+                           if (item.kind, item.entry) not in unread and (item.kind, None) not in unread)
         ours, theirs = population(worksheet), population(rederived)
         for label, extra in (("the worksheet block only", ours - theirs), ("the re-derivation only", theirs - ours)):
             for kind, entry, counted in sorted(extra.elements()):
@@ -313,7 +322,7 @@ def code_lines(private: str, tally: Tally) -> list[str]:
         if not anchors:
             tally.unanchored += 1
         out.append(f"- [ ] {system} {code} {descriptor}")
-        out.append("  - Anchor: " + (anchors[0] if anchors else "not recorded"))
+        out += ["  - Anchor: " + anchor for anchor in anchors or ["not recorded"]]
         source = "; ".join(fields["SOURCE"]) if "SOURCE" in fields else "recorded (no SOURCE line)"
         out.append("  - Source: " + source)
         for label in ("SPECIFICITY", "CONFIDENCE", "NOTE"):
@@ -368,11 +377,13 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
         lines += ["", f"{block_.unread} element line(s) or required line(s) could not be read and are counted "
                   "in the unread remainder; the lines read follow."]
     lines += ["", "Element block from the private worksheet:", "", *item_lines(block_)]
-    unverified = [answer for answer in block_.answers if context.answer_states.get(answer) == "unreadable"]
-    lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
-              "coverage is incomplete (counted with the answers below)" for answer in unverified]
     note_answers = (None if context.answers is None
                     else {entry["id"] for entry in preapproval_answers.entries_for(context.answers, item["order"])})
+    # Only an answer of this note is listed and counted below; another note's answer is a finding.
+    unverified = [answer for answer in block_.answers
+                  if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
+    lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
+              "coverage is incomplete (counted with the answers below)" for answer in unverified]
     found = block_findings(block_, selected, context.ids, note_answers)
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
@@ -404,7 +415,7 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     blocks = ((BLOCK_HEADING, "filled_blocks"), (REFUSAL_HEADING, "refusal_blocks"),
               (UNDOCUMENTED_HEADING, "undocumented_blocks"))
     for index, (heading, attribute) in enumerate(blocks, start=2):
-        text = block_text(private, heading)
+        text = block_text(private, heading, review_manifest.EM_CODES)
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
@@ -466,7 +477,8 @@ def export_word(run: Path, sheets: list[tuple[str, str]], output_dir: Path | Non
     from docx_write import write_docx
     folder = word_folder(run, output_dir)
     for stem, text in sheets:
-        write_docx(text, folder / (stem + ".docx"), force=force, bold_headings=True, layout="plain")
+        # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
+        write_docx(text, folder / (stem + ".docx"), force=force, bold_headings=True, layout="plain", literal=True)
     return len(sheets)
 
 
@@ -522,19 +534,21 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         return True, f"{EXPECTED_ROW}: finding - a coding record carries content damage", 0
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or stale", 1
-    stale = 0
+    stale = unreadable = 0
     for stem, text in sheets:
         try:
             current = read_tool_record(run / OUTPUT_DIRECTORY / (stem + ".md"), str)
         except UnreadableRecord:
-            current = None
+            unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
+            continue
         stale += current != text
+    unread = tally.unread + unreadable
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
-              f"differing {tally.differ}; check-offs missing or stale {stale}")
+              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
     if tally.blocks_absent or tally.block_findings or tally.absent or tally.damaged or stale:
-        return True, f"{EXPECTED_ROW}: finding - {counts}", tally.unread
-    return False, f"{EXPECTED_ROW}: " + ("incomplete - " if tally.unread else "clean - ") + counts, tally.unread
+        return True, f"{EXPECTED_ROW}: finding - {counts}", unread
+    return False, f"{EXPECTED_ROW}: " + ("incomplete - " if unread else "clean - ") + counts, unread
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -548,6 +562,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Word destination under the main checkout output/ or outside every checkout")
     parser.add_argument("--force", action="store_true", help="replace a Word copy docx_write would refuse")
     args = parser.parse_args(argv)
+    if not args.docx and (args.force or args.output_dir is not None):
+        parser.error("--force and --output-dir apply only to a Word copy; pass --docx with them")
     from docx_write import RefusedToOverwrite
     try:
         tally, total, sheets = render(args.run, args.note)

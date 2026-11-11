@@ -5,7 +5,8 @@ adds one keyed entry to ``RUN/pre-approval-answers.json`` through the shared loc
 transaction. The reply is matched as a whole clinician message in the run transcript after the
 opener source, through ``approval_record.verify_clinician_reply``: a verified reply is recorded
 ``verified``, an unreadable transcript is recorded ``unreadable``, and a reply no later whole
-message matches writes nothing. An identical question and reply already recorded writes nothing,
+message matches writes nothing. A run carrying a delegated-answers record writes nothing either.
+An identical question and reply already recorded writes nothing,
 except that an unreadable entry is upgraded to verified once the transcript matches.
 
 Exit 0 when the entry is recorded or already present; 2 when nothing could be recorded. Output
@@ -15,11 +16,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import time
 
 import approval_record
+import delegated_answers
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import private_target, read_openers
 from run_record_reader import RecordUpdate, UnreadableRecord, fault_report, object_record, read_tool_record, update_tool_record
@@ -35,7 +38,8 @@ DECLARED_LIMITS = (
     "upgrades an unreadable entry to verified when the same question and reply are recorded with a "
     "readable transcript; a verified entry is never downgraded.",
     "A delegated run records nothing: a delegate cannot supply the clinician answer, and the "
-    "lower level stands.",
+    "lower level stands. A run is read as delegated when its delegated-answers record exists, "
+    "whatever questions that record covers; its contents are not read.",
 )
 
 RECORD = "pre-approval-answers.json"
@@ -84,10 +88,16 @@ def entries_for(record: dict, note: int) -> list[dict]:
     return [entry for entry in record["answers"] if entry["note"] == note]
 
 
+class DelegatedRun(ValueError):
+    """The run delegated its questions, so no clinician answer is recorded."""
+
+
 def record(run: Path, note: int, question: str, levels: list[str], reply: str, *,
            transcripts=None) -> tuple[str, str]:
     """Add one verified or unreadable-transcript entry; return its id and reply check."""
     run = private_target(Path(run))
+    if os.path.lexists(run / delegated_answers.RECORD):
+        raise DelegatedRun("the run delegated its questions")
     openers = read_openers(run)
     if note not in [item["note"] for item in openers["encounters"]]:
         raise ValueError("note is outside the opener population")
@@ -138,6 +148,10 @@ def main(argv: list[str] | None = None) -> int:
         identifier, state = record(args.run, args.note, args.question, args.level, args.reply)
     except UnreadableRecord as error:
         print(fault_report(error, check="pre-approval answers"))
+        return 2
+    except DelegatedRun:
+        print("pre-approval answers: refused - nothing recorded; the run delegated its questions, so the lower "
+              "level stands")
         return 2
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         print("pre-approval answers: refused - nothing recorded; check the run, note, levels and whole reply")

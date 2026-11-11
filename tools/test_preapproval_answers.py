@@ -95,6 +95,15 @@ class AnswersRecord(unittest.TestCase):
         entries = preapproval_answers.read(self.run)["answers"]
         self.assertEqual([("note-1.q1", "verified")], [(entry["id"], entry["verification"]) for entry in entries])
 
+    def test_t7_a_delegated_run_records_nothing(self):
+        import delegated_answers
+        (self.run / delegated_answers.RECORD).write_text("## QUESTION: synthetic delegated question\n", encoding="utf-8")
+        status, output = self.main("--note", 1, "--question", QUESTION, "--reply", REPLY)
+        self.assertEqual(2, status, output)
+        self.assertIn("delegated", output)
+        self.assertNotIn(REPLY, output)
+        self.assertFalse(self.path.exists())
+
     def test_declared_limits_are_named_by_the_reference_and_not_copied(self):
         self.assertEqual((), bind(preapproval_answers.DECLARED_LIMITS, REFERENCE.read_text(encoding="utf-8"),
                                   mode=NAMING))

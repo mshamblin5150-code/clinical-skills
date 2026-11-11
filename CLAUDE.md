@@ -2830,8 +2830,9 @@ sheet ids and the pre-approval answers record; a worksheet without a block shows
 worksheet instead. A re-derivation record is compared element by element. `--write` uses
 `encounter_openers.atomic_write`, which keeps check-offs under the private `scratch/` run; `--docx`
 renders the same text through `docx_write.write_docx` into the main checkout `output/`, keeping its
-overwrite refusal. The default output is counts only with the shared unread remainder. Exit 0 is
-clean, 1 is a finding, and 2 is a refused run, a refused Word copy or an unread candidate.
+overwrite refusal and setting the copied text literally (`literal=True`). The default output is
+counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, and 2 is a refused
+run, a refused Word copy, a Word option without `--docx` or an unread candidate.
 `em_audit.completion_gate` is the `the E/M audit check-offs` row that `specificity_scan.py` grades
 at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`. The
 complete boundary belongs to `em_audit.DECLARED_LIMITS`. Covered by `tools/test_em_audit.py`, and
@@ -2843,8 +2844,8 @@ the element grammar and its worksheet-reader tolerance by `tools/test_em_element
 adds one keyed entry to the private `pre-approval-answers.json` through
 `run_record_reader.update_tool_record`. It matches the reply with
 `approval_record.verify_clinician_reply`; an unreadable transcript records the entry as
-unreadable, and an unmatched reply writes nothing. Exit 0 records or finds the entry; exit 2 writes
-nothing. Output names the entry id and reply check only. The complete boundary belongs to
+unreadable, and an unmatched reply or a run carrying `delegated-answers.md` writes nothing. Exit 0
+records or finds the entry; exit 2 writes nothing. Output names the entry id and reply check only. The complete boundary belongs to
 `preapproval_answers.DECLARED_LIMITS`. Covered by `tools/test_preapproval_answers.py`.
 
 ### CDC BMI-for-age table

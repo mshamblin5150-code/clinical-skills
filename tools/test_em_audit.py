@@ -516,5 +516,96 @@ class SecondReviewFindings(RunFixture):
         self.assertNotIn("quoted_value", defined)
 
 
+
+class ThirdReviewFindings(RunFixture):
+    """The third code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def private(self, elements: str, tail: str = "") -> None:
+        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=elements) + tail, encoding="utf-8")
+
+    def test_t1_the_counterpart_of_an_unread_worksheet_line_is_not_a_difference(self):
+        self.private(ELEMENTS.replace("history only, no evaluation documented",
+                                      "history only | no evaluation documented"))
+        self.record(ELEMENTS)
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 1; differ 0", result.stdout)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertNotIn("DIFFERS", self.sheet.read_text(encoding="utf-8"))
+        self.record(ELEMENTS.replace("definition-acute-uncomplicated | counted",
+                                     "definition-acute-uncomplicated | not counted"))
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("element differences 2", result.stdout)
+        self.assertNotIn("definition-stable-chronic", "".join(
+            line for line in self.sheet.read_text(encoding="utf-8").splitlines() if "DIFFERS" in line))
+
+    def test_t2_an_em_line_after_the_step_four_blocks_is_not_quoted_inside_them(self):
+        self.private("", "\nE/M: 99283 low complexity\n" + ELEMENTS)
+        self.assertEqual(0, self.invoke("--write").returncode)
+        text = self.sheet.read_text(encoding="utf-8")
+        refused = text.split("## Codes refused", 1)[1].split("## Documentation", 1)[0]
+        self.assertIn("NOT CODED: J18.9", refused)
+        self.assertNotIn("EM-", refused)
+        self.assertNotIn("E/M: 99283", refused)
+
+    def test_t3_every_recorded_anchor_is_rendered(self):
+        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS).replace(
+            '  ANCHOR: "Cough."\n', '  ANCHOR: "Cough."\n  ANCHOR: "Coughing for two days."\n'), encoding="utf-8")
+        self.assertEqual(0, self.invoke("--write").returncode)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn('  - Anchor: "Cough."', text)
+        self.assertIn('  - Anchor: "Coughing for two days."', text)
+
+    def test_t4_the_word_copy_reproduces_asterisks_and_backticks_literally(self):
+        marked = ELEMENTS.replace('"Education: Rest." | rest and education',
+                                  '"Education: *recheck* rest." | rest ** education')
+        self.private(marked)
+        self.record(marked)
+        question = "Synthetic question with `code` and *recheck* in it?"
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            preapproval_answers.record(self.run, 1, question, [], "Reply with **bold** markers.")
+        folder = self.root / "export"
+        result = self.invoke("--docx", "--output-dir", folder)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        import docx_read
+        text = "\n".join(docx_read.read_docx(folder / "note-1.docx"))
+        for literal in ("*recheck* rest.", "rest ** education", "`code` and *recheck*", "**bold** markers."):
+            self.assertIn(literal, text)
+
+    def test_t5_an_unreadable_check_off_is_unread_rather_than_stale(self):
+        self.assertEqual(0, self.invoke("--write").returncode)
+        self.sheet.write_bytes(b"\xff\xfe not utf-8")
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("check-offs missing or stale 0", report)
+        self.assertIn("unreadable 1", report)
+
+    def test_t8_an_unreadable_answer_of_another_note_is_not_claimed_as_counted_here(self):
+        SecondReviewFindings.with_answer_entries(self, {"id": "note-2.q1", "note": 2, "question": QUESTION, "levels": [],
+                                  "clinician_reply": REPLY, "verification": "unreadable",
+                                  "reply_matched_at": None, "recorded_at": 4102444800.0})
+        moved = ELEMENTS.replace("note-1.q1", "note-2.q1")
+        self.private(moved)
+        self.record(moved)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("- FINDING: answer note-2.q1 is not a pre-approval answer of this note", text)
+        self.assertNotIn("counted with the answers below", text)
+
+    def test_t9_word_options_without_docx_are_refused(self):
+        for options in (("--force",), ("--output-dir", self.root / "export")):
+            with self.subTest(options=options):
+                result = self.invoke("--write", *options)
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn("--docx", result.stderr)
+                self.assertFalse(self.sheet.exists())
+
+    def test_t10_the_tally_carries_no_dead_counters(self):
+        tally = em_audit.Tally()
+        self.assertFalse(hasattr(tally, "written") or hasattr(tally, "word"))
+
+
 if __name__ == "__main__":
     unittest.main()

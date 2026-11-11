@@ -94,6 +94,24 @@ class TheStrictReader(unittest.TestCase):
         block, outside, blocks = astuple_of(grammar.worksheet_em_block(text, EM_CODES))
         self.assertEqual((0, 1, 0), (outside, blocks, block.unread))
 
+    def test_t6_a_block_without_an_answer_or_an_ecg_line_is_incomplete(self):
+        for missing in ("  EM-ANSWER: none\n", "  EM-ECG: not applicable\n"):
+            with self.subTest(missing=missing):
+                self.assertEqual(1, grammar.em_block(BLOCK.replace(missing, "")).unread)
+
+    def test_t1_a_refused_element_line_keeps_its_element_and_entry_id(self):
+        refused = ('  EM-PROBLEM: definition-stable-chronic | not counted | "History" | history | only\n'
+                   "  EM-RISK: unreadable entry id! | counted | none | x\n")
+        block = grammar.em_block(BLOCK + refused)
+        self.assertEqual(2, block.unread)
+        self.assertEqual((("PROBLEM", "definition-stable-chronic"), ("RISK", None)), block.unread_items)
+
+    def test_t2_a_step_four_block_ends_at_an_em_line_written_after_it(self):
+        for anchor in (EM_LINE, "CPT  99213  Office visit, established patient\n"):
+            with self.subTest(anchor=anchor):
+                text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + anchor + BLOCK
+                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, EM_CODES))
+
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
         self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))

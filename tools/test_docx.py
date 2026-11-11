@@ -2239,6 +2239,18 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         self.assertIn("<w:b/><w:i/>", xml)
         self.assertIn("Neisseria gonorrhoeae", xml)
 
+    def test_a_literal_render_keeps_asterisks_and_backticks_and_its_block_grammar(self):
+        """The em-audit check-off copies record text verbatim; a literal render reads
+        no inline span but still sets headings, bullets and quotations."""
+        text = "# Heading *x*\n\n- *recheck* and ** and `code`\n\n> quoted **reply**\n"
+        body, _ = docx_write.render_body(text, layout="plain", literal=True)
+        for literal in ("Heading *x*", "*recheck* and ** and `code`", "quoted **reply**"):
+            self.assertIn(literal, body)
+        self.assertNotIn("<w:i/>", body)
+        self.assertIn('w:val="ListParagraph"', body)
+        self.assertIn('w:val="BlockQuotation"', body)
+        self.assertNotIn("*recheck*", docx_write.render_body(text, layout="plain")[0])
+
     def test_an_unnested_bold_span_is_unchanged(self):
         """The nesting branch must not fire on ordinary bold, which is almost all
         of it."""

@@ -226,13 +226,31 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def block_text(text: str, heading: re.Pattern[str]) -> str | None:
-    """The text under one block heading, to the next heading line; None when it is absent."""
+def em_anchor(line: str, em_codes: frozenset[str]) -> bool:
+    """Whether ``line`` is an E/M line the code reader accepts: a label line or an E/M CPT entry."""
+    entry = ENTRY.match(line)
+    return bool(EM_CODE_LABEL.match(line)) or (
+        entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
+
+
+_LINE = re.compile(r"(?m)^.*$")
+
+
+def block_text(text: str, heading: re.Pattern[str], em_codes: frozenset[str] = frozenset()) -> str | None:
+    """The text under one block heading, to the next heading or E/M line; None when it is absent.
+
+    An E/M line written after the icd10-cpt step 4 blocks, with its element block, is not part
+    of the last block. An E/M-family ``CPT`` entry ends a block only when ``em_codes`` names it.
+    """
     match = heading.search(text)
     if match is None:
         return None
-    following = HEADING_LINE.search(text, match.end())
-    return text[match.end():following.start() if following else len(text)].strip("\n")
+    end = len(text)
+    for line in _LINE.finditer(text, match.end() + 1):
+        if HEADING_LINE.fullmatch(line.group(0)) or em_anchor(line.group(0), em_codes):
+            end = line.start()
+            break
+    return text[match.end():end].strip("\n")
 
 EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
@@ -243,6 +261,9 @@ _EM_ITEM = re.compile(
 _EM_MDM = re.compile(
     r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
 )
+# A refused element line still names its element and, in its first field, usually its entry id.
+_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[^:]*:(?P<entry>[^|]*)")
+_EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
 _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
 
@@ -267,6 +288,8 @@ class EmBlock:
     mdm: dict[str, str] | None
     level: str | None
     unread: int
+    # (element, entry id) of each refused PROBLEM, DATA or RISK line; None where the id is unreadable.
+    unread_items: tuple[tuple[str, str | None], ...] = ()
 
     def two_of_three(self) -> str | None:
         """The MDM level two of the three elements meet: the middle of the three."""
@@ -279,8 +302,10 @@ class EmBlock:
 def em_block(text: str) -> EmBlock | None:
     """Read every EM- line in ``text``; None when the text holds no EM- candidate.
 
-    A block missing a PROBLEM, DATA or RISK line, or not holding exactly one MDM and one
-    LEVEL line, adds one to ``unread``: an incomplete block is not a clean one.
+    A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM
+    and one LEVEL line, adds one to ``unread``: an incomplete block is not a clean one. A refused
+    PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
+    ``unread_items``, so a comparison can leave its counterpart out.
     """
     lines = [line for line in text.splitlines() if EM_CANDIDATE.match(line)]
     if not lines:
@@ -290,7 +315,9 @@ def em_block(text: str) -> EmBlock | None:
     mdms: list[dict[str, str]] = []
     levels: list[str] = []
     unread = 0
+    unread_items: list[tuple[str, str | None]] = []
     for line in lines:
+        loose = _EM_LOOSE_ITEM.search(line)
         match = _EM_LINE.match(line)
         kind = match.group("kind") if match else ""
         value = match.group("value") if match else ""
@@ -307,10 +334,14 @@ def em_block(text: str) -> EmBlock | None:
             free[kind].append(value)
         else:
             unread += 1
-    complete = {item.kind for item in items} >= set(ITEM_KINDS) and len(mdms) == 1 and len(levels) == 1
+            if loose is not None:
+                entry = loose.group("entry").strip(" \t*")
+                unread_items.append((loose.group("kind"), entry if _EM_ENTRY.fullmatch(entry) else None))
+    complete = ({item.kind for item in items} >= set(ITEM_KINDS) and len(mdms) == 1 and len(levels) == 1
+                and bool(free["ANSWER"]) and bool(free["ECG"]))
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), tuple(free["ECG"]),
                    mdms[0] if len(mdms) == 1 else None, levels[0] if len(levels) == 1 else None,
-                   unread + (0 if complete else 1))
+                   unread + (0 if complete else 1), tuple(unread_items))
 
 
 @dataclass(frozen=True)
@@ -336,10 +367,7 @@ def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements
     claimed: set[int] = set()
     groups: list[list[int]] = []
     for index, line in enumerate(lines):
-        entry = ENTRY.match(line)
-        anchored = EM_CODE_LABEL.match(line) or (
-            entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
-        if not anchored or index in claimed:
+        if not em_anchor(line, em_codes) or index in claimed:
             continue
         body = []
         for follower in range(index + 1, len(lines)):
