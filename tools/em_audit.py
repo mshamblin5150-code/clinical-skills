@@ -40,6 +40,7 @@ from typing import NamedTuple
 
 import coding_freshness
 import cpt_mdm_sheet
+from cpt_identity import EM_CODES  # the codes mdm_levels looks up; selection is worksheet_grammar's
 import procedure_codes_lookup
 import em_audit_scope
 import preapproval_answers
@@ -53,7 +54,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
-                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
+                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block,
                                entry_region, indented_line, physical_lines, read_entries, selected_em_lines,
                                step_four_lines, worksheet_em_block)
 
@@ -126,7 +127,8 @@ DECLARED_LIMITS = (
     "unread. A code marked NOT FOR ENTRY in the region is rendered, marked, with its fields. A "
     "continuation that a "
     "reader would place under a different field than its author meant cannot be told apart.",
-    "Every selected E/M line (an E/M: label, or a for-entry E/M-family CPT entry) of the for-entry "
+    "Every selected E/M line (an E/M: label naming an E/M code outside the lines of an entry marked "
+    "NOT FOR ENTRY, or a for-entry E/M-family CPT entry) of the for-entry "
     "region, and every later one that opens an element block, is rendered with its own provenance "
     "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY anchor no block "
     "and are counted unread as outside lines.",
@@ -510,11 +512,11 @@ def mdm_levels(service_date: str) -> MdmLevels:
             return unreadable
         levels: dict[str, str] = {}
         unleveled: set[str] = set()
-        # Every CPT code worksheet_grammar.em_identity reads as an E/M identity, valid on the date.
-        for entry in procedure_codes_lookup.find(connection, "", "CPT"):
-            if not em_identity(entry.system, entry.code) or not procedure_codes_lookup.valid_on(entry, service_date):
-                continue  # not an E/M identity, or no descriptor on the service date: unread if used
-            code = entry.code
+        # Each E/M code is looked up by itself (cpt_identity.EM_CODES), valid on the service date.
+        for code in sorted(EM_CODES):
+            entry = procedure_codes_lookup.describe(connection, code)
+            if entry is None or not procedure_codes_lookup.valid_on(entry, service_date):
+                continue  # no descriptor on the service date: unread if a block uses it
             named = {match.group(1).lower() for match in MDM_PHRASE.finditer(entry.description)}
             if len(named) == 1:
                 levels[code] = named.pop()
@@ -1003,17 +1005,16 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
     that is not permitted.
     """
     try:
-        output = repo_root.output_root().resolve()
         resolved = run.resolve()
         tag = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:10]
-        folder = (output / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
-                  else output_dir.expanduser().resolve())
-        inside = repo_root.enclosing_checkout(folder) is not None
+        folder = (repo_root.output_root() / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
+                  else output_dir.expanduser())
+        # The one destination rule, docx_write's own: the main checkout's output/ or no checkout.
+        return repo_root.ensure_main_checkout(folder, under_output=True)
+    except repo_root.ForeignCheckout as error:
+        raise WordTargetRefused(str(error.target)) from error
     except (OSError, ValueError, RuntimeError) as error:
         raise WordTargetRefused("the Word destination could not be resolved") from error
-    if inside and not folder.is_relative_to(output):
-        raise WordTargetRefused(str(folder))
-    return folder
 
 
 def export_word(run: Path, sheets: list[Sheet], output_dir: Path | None, force: bool) -> int:
@@ -1029,7 +1030,7 @@ def export_word(run: Path, sheets: list[Sheet], output_dir: Path | None, force: 
         try:
             # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
             write_docx(sheet_.text, folder / (sheet_.stem + ".docx"), force=force, bold_headings=True,
-                       layout="plain", literal=True)
+                       layout="plain", literal=True, under_output=True)
         except (RefusedToOverwrite, repo_root.ForeignCheckout, OutboundTextError, OSError) as error:
             raise WordExportStopped(written, sheet_.order, error) from error
         written += 1
@@ -1193,10 +1194,14 @@ def main(argv: list[str] | None = None) -> int:
         print("em-audit: refused - a --note number is not an encounter of this run")
         return 2
     except PrivateWorksheetMoved:
-        print("em-audit: refused - a private worksheet changed after its fingerprint was recorded; restore it, "
-              "or build the manifest again, which records the new fingerprint and leaves the approved manifest "
-              "unchanged when only provenance moved")
-        return 2
+        print("em-audit: finding - a private worksheet changed after the manifest recorded its fingerprint; "
+              "restore it, or build the manifest again, which records the new fingerprint and leaves the "
+              "approved manifest unchanged when only provenance moved")
+        return 1
+    except review_manifest.StaleRecord:
+        print("em-audit: finding - a coding record changed after the manifest (a note, worksheet, opener, "
+              "patient status or receipt); restore it, or rebuild the manifest and run coding_freshness again")
+        return 1
     except SheetMoved:
         print("em-audit: refused - the committed CPT MDM sheet version the receipt fingerprinted does not "
               "parse with the current sheet reader; report it to a maintainer as a tool defect, since the "

@@ -9,11 +9,13 @@ the [em-audit](../../em-audit/SKILL.md) re-derivation writes an element block of
 ## The element block
 
 In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces directly
-under either E/M line the code reader accepts (an `E/M:` label line or an E/M-family `CPT`
-entry for entry, each at the margin or indented), one element per physical line, with no blank
-line inside the block. A label written inside that entry's own indented lines belongs to the same
-block. EM- lines under an
-E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
+under either E/M line the code reader accepts (an `E/M:` label line naming an office or
+emergency department E/M code, or an E/M-family `CPT` entry for entry, each at the margin or
+indented), one element per physical line, with no blank line inside the block. A label written
+inside that entry's own indented lines belongs to the same block. A heading, indented or not,
+ends the block. An E/M entry marked `NOT FOR ENTRY` is a rejected level, and so is a label written
+inside its lines: neither is the selected code, and EM- lines under either form no block and are
+counted unread:
 
 ```text
   EM-PROBLEM: <entry id> | <counted | not counted> | "<verbatim note text>" | <reason>

@@ -240,8 +240,8 @@ class CheckOffCommand(RunFixture):
         note = self.run / "note-1.md"
         note.write_text(note.read_text(encoding="utf-8").replace("Cough.", "Cough and fever."), encoding="utf-8")
         result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("refused", result.stdout)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
+        self.assertIn("changed after the manifest", result.stdout)
         self.assertFalse(self.sheet.exists())
 
     def test_note_selection_and_unknown_note(self):
@@ -696,8 +696,8 @@ class FourthReviewFindings(RunFixture):
         (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=ELEMENTS.replace(
             "rest and education", "rest and education, edited after the manifest")), encoding="utf-8")
         result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("refused", result.stdout)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
+        self.assertIn("changed after the manifest", result.stdout)
         finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertEqual((True, 0), (finding, unread), report)  # eleventh review: a finding, not unread
 
@@ -1220,8 +1220,8 @@ class NinthReviewFindings(RunFixture):
         path.write_text(path.read_text(encoding="utf-8").replace(
             "needs: imaging establishing pneumonia", "needs: imaging, edited after the manifest"), encoding="utf-8")
         result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("refused", result.stdout)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
+        self.assertIn("changed after the manifest", result.stdout)
         manifest = json.loads((self.run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
         self.assertNotIn("private_worksheet_sha256", manifest["encounters"][0])  # thirteenth review
         self.assertNotIn("element_block_sha256", manifest["encounters"][0])
@@ -1775,13 +1775,18 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
                                                                        worksheet_grammar.read_entries(region)))
         # One rule: nothing outside worksheet_grammar's own rule reads the E/M code families.
         # em_audit still reads an E/M label as a line of an element block's body, never to select one.
-        for module, forbidden in ((review_manifest, ("EM_CODES", "EM_CODE_LABEL")), (em_audit, ("EM_CODES",))):
-            tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
-            names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-            names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
-            names |= {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
-            for name in forbidden:
-                self.assertNotIn(name, names, module.__name__)
+        tree = ast.parse(Path(review_manifest.__file__).read_text(encoding="utf-8"))
+        names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+        names |= {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+        for name in ("EM_CODES", "EM_CODE_LABEL"):
+            self.assertNotIn(name, names, "review_manifest")
+        # Eighteenth review: em_audit names the E/M families only to look their CPT 2026 descriptors up.
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        levels = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "mdm_levels")
+        inside = {id(node) for node in ast.walk(levels)}
+        self.assertEqual([], [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Name)
+                              and node.id == "EM_CODES" and id(node) not in inside])
 
     def test_h3_a_provenance_edit_and_rebuild_keeps_the_approved_manifest_bytes(self):
         manifest = self.run / review_manifest.MANIFEST
@@ -1793,8 +1798,8 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
         path.write_text(path.read_text(encoding="utf-8").replace(
             "documents no further axis", "documents no further axis, restated"), encoding="utf-8")
         result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("refused", result.stdout)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
+        self.assertIn("changed after the manifest", result.stdout)
         self.assertEqual((True, 0), self.gate()[::2])
         review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
         self.assertEqual(before, manifest.read_bytes())
@@ -2250,11 +2255,11 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
 
     def test_m_a_a_missing_descriptor_is_unread_never_guessed(self):
         import procedure_codes_lookup
-        real = procedure_codes_lookup.find
+        real = procedure_codes_lookup.describe
 
-        def find(connection, phrase, system):
-            return [entry for entry in real(connection, phrase, system) if entry.code != "99283"]
-        with mock.patch.object(procedure_codes_lookup, "find", side_effect=find):
+        def describe(connection, code, kind="code"):
+            return None if code == "99283" else real(connection, code, kind)
+        with mock.patch.object(procedure_codes_lookup, "describe", side_effect=describe):
             status, output = self.in_process("--write")
         self.assertEqual(2, status, output)
         self.assertIn("unread remainder 2", output)  # the worksheet block and the re-derivation
@@ -2343,6 +2348,112 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
         dumps = [node for node in ast.walk(record) if isinstance(node, ast.Call)
                  and isinstance(node.func, ast.Attribute) and node.func.attr == "dumps"]
         self.assertEqual(1, len(dumps), [ast.unparse(node) for node in dumps])
+
+
+class EighteenthReviewFindings(ProseBind, RunFixture):
+    """The eighteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_n1_a_label_selects_only_an_em_identity_outside_a_rejected_entry(self):
+        import worksheet_grammar
+        entries = 'ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\n'
+        # (a) a label naming a code outside the E/M families is not the E/M identity.
+        with self.assertRaises(ValueError):
+            review_manifest.selected_codes(entries + "E/M: 93000 tracing reviewed\n", private=True)
+        # (b) a label inside a NOT FOR ENTRY entry is a rejected level, never the final one.
+        rejected = (entries + "CPT 99283 Emergency visit\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n"
+                    "  E/M: 99285 rejected level\n" + ELEMENTS.replace("99283", "99285"))
+        self.assertEqual("99283", review_manifest.selected_codes(rejected, private=True)["em"])
+        lines = worksheet_grammar.physical_lines(rejected)
+        self.assertNotIn(lines.index("  E/M: 99285 rejected level"), worksheet_grammar.selected_em_lines(lines))
+        elements = worksheet_grammar.worksheet_em_block(rejected)
+        self.assertEqual((0, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
+        # No committed fixture's selected E/M identity moves.
+        moved = []
+        for path in sorted((ROOT / "fixtures").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            region = worksheet_grammar.entry_region(text)
+            labels = {match.group("code") for match in worksheet_grammar.EM_CODE_LABEL.finditer(text)}
+            entries_ = {entry.code.upper() for entry in worksheet_grammar.read_entries(region)
+                        if entry.for_entry and worksheet_grammar.em_identity(entry.system, entry.code)}
+            new = {code for _, code in worksheet_grammar.selected_em(text, region, worksheet_grammar.read_entries(region))}
+            if labels | entries_ != new:
+                moved.append(str(path))
+        self.assertEqual([], moved)
+
+    def test_n2_an_indented_heading_ends_an_element_body(self):
+        import worksheet_grammar
+        text = ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99283 Emergency visit\n' + ELEMENTS
+                + "  ## Not coded, nothing established it\n  EM-RULE: a stray line under the refusal heading\n"
+                "  NOT CODED: J18.9  Pneumonia, unspecified organism\n")
+        elements = worksheet_grammar.worksheet_em_block(text)
+        self.assertEqual(("ADR 0308 ruling 1",), elements.block.rules)
+        self.assertEqual(1, elements.outside)
+        private = em_audit.parse_private(text)
+        quote = em_audit.block_quote(private, worksheet_grammar.REFUSAL_HEADING, "refusal")
+        self.assertIn("a stray line under the refusal heading", quote)
+        self.assertEqual(1, quote.count("NOT CODED: J18.9"))
+
+    def test_n3_a_changed_status_evidence_is_stale(self):
+        run = FourteenthReviewFindings.office_run(self)
+        status = json.loads((run / review_manifest.MANIFEST).read_text(encoding="utf-8"))["encounters"][0]["patient_status"]
+        evidence = Path(status["evidence_path"])
+        evidence.write_text(evidence.read_text(encoding="utf-8") + "edited after the manifest\n", encoding="utf-8")
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(run)
+
+    def test_n3_a_moved_run_is_stale_and_a_mismatched_pair_never_valid(self):
+        import shutil
+        copy = self.root / "moved" / "run"
+        shutil.copytree(self.run, copy)
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(copy)
+        path = self.run / review_manifest.MANIFEST
+        value = json.loads(path.read_text(encoding="utf-8"))
+        other = self.run / "worksheets" / "other-name.md"
+        shutil.copy(self.run / "worksheets/note-1.md", other)
+        value["encounters"][0]["private_worksheet_path"] = str(other)
+        path.write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaises(ValueError) as raised:
+            review_manifest.validated_population(self.run)
+        self.assertNotIsInstance(raised.exception, review_manifest.StaleRecord)
+
+    def test_n4_the_command_reports_a_changed_record_as_a_finding(self):
+        self.edit_manifest = json.loads((self.run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
+        self.edit_manifest["encounters"][0]["normalized_sha256"] = "0" * 64
+        (self.run / review_manifest.MANIFEST).write_text(json.dumps(self.edit_manifest), encoding="utf-8")
+        status, output = self.in_process()
+        self.assertEqual(1, status, output)
+        self.assertIn("finding", output)
+        self.assertIn("changed after the manifest", output)
+        self.assertTrue(self.gate()[0])
+        step = SKILL.read_text(encoding="utf-8").split("## 1.", 1)[1].split("## 2.", 1)[0]
+        self.assertProseIn("Exit 1 naming a record that changed after the manifest", step)
+
+    def test_n6_the_mdm_levels_read_only_the_em_codes(self):
+        import procedure_codes_lookup
+        with mock.patch.object(procedure_codes_lookup, "find", side_effect=AssertionError("table scan")):
+            levels = em_audit.mdm_levels("2026-10-01")
+        self.assertEqual("low", levels.levels["99283"])
+        self.assertIn("99281", levels.unleveled)
+
+    def test_n7_the_word_destination_rule_is_the_shared_guard(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "word_folder")
+        source = ast.unparse(function)
+        self.assertNotIn("enclosing_checkout", source)
+        self.assertNotIn("is_relative_to", source)
+        self.assertIn("ensure_main_checkout", source)
+        checkout = self.root / "main-checkout"
+        (checkout / ".git").mkdir(parents=True)
+        with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
+            with self.assertRaises(repo_root.ForeignCheckout):
+                repo_root.ensure_main_checkout(checkout / "reference" / "audit", under_output=True)
+            self.assertEqual((checkout / "output" / "audit").resolve(),
+                             repo_root.ensure_main_checkout(checkout / "output" / "audit", under_output=True))
+            self.assertEqual((checkout / "reference").resolve(), repo_root.ensure_main_checkout(checkout / "reference"))
 
 
 if __name__ == "__main__":

@@ -1392,6 +1392,7 @@ def write_docx(
     bold_headings: bool = False,
     layout: str = "apa",
     literal: bool = False,
+    under_output: bool = False,
 ) -> Path:
     """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
 
@@ -1408,7 +1409,9 @@ def write_docx(
     limb is now on the path the test drives.
     """
     _require_layout(layout)
-    destination = ensure_main_checkout(destination)
+    # under_output: repo_root.ensure_main_checkout's narrower rule for a patient-information artifact.
+    destination = (ensure_main_checkout(destination, under_output=True) if under_output
+                   else ensure_main_checkout(destination))
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
     if not force:

@@ -34,9 +34,11 @@ Run `python tools/em_audit.py <run>` on the coding run named in
 already approved run, add `--submission <key>`: a run approved before this check started reports
 its missing element blocks and re-derivations as not graded.
 
-Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
-receipt is missing or stale, or a private worksheet changed after its fingerprint was recorded;
-icd10-cpt rebuilds them, then repeat this step. A refusal naming the CPT MDM sheet version is a
+Done when it prints `notes in run` and exits 0 or 1. Exit 1 naming a record that changed after the
+manifest (a note, worksheet, opener, patient status, receipt, or a private worksheet against its
+recorded fingerprint) is a finding: restore the record, or have icd10-cpt rebuild the manifest and
+run coding_freshness again, then repeat this step. Exit 2 with `refused` means the manifest or
+receipt is missing or cannot be read; icd10-cpt rebuilds them, then repeat this step. A refusal naming the CPT MDM sheet version is a
 tool defect: report it to a maintainer and tell the clinician the check-offs cannot be rendered
 until it is fixed. Exit 2 with a nonzero `unread remainder` means an input could not be read:
 repair it as step 3 says, then repeat this step. Where no private worksheet fingerprint is

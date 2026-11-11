@@ -17,7 +17,7 @@ import re
 import coding_freshness
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import digest, private_target, read_openers
-from encounter_status import status_for
+from encounter_status import EvidenceChanged, status_for
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
                                read_handwritten_record, read_tool_record, update_tool_record)
 
@@ -393,12 +393,20 @@ def _validated(run: Path, *, batch: bool | None,
             raise StaleRecord("manifest is stale against current notes or worksheets")
         if item["opener"] != {key: opener[key] for key in ("name", "age", "sex")}:
             raise StaleRecord("opener details changed")
-        if item["setting"] == "office" and item["patient_status"] != status_for(run, item["order"]):
-            raise StaleRecord("patient status changed")
+        if item["setting"] == "office":
+            try:
+                current = status_for(run, item["order"])
+            except EvidenceChanged as error:
+                raise StaleRecord("patient-status evidence changed after the manifest") from error
+            if item["patient_status"] != current:
+                raise StaleRecord("patient status changed")
         notes.append(resolve(run, item["note_path"]))
         private = run / "worksheets" / (notes[-1].stem + ".md")
         if resolve(run, item["private_worksheet_path"]) != private:
-            raise ValueError("private worksheet is not the canonical note pair")
+            # The same filename in another folder is a run that moved after the manifest; another
+            # filename is a manifest that never named the note's own pair.
+            moved = Path(item["private_worksheet_path"]).name == private.name
+            raise (StaleRecord if moved else ValueError)("private worksheet is not the canonical note pair")
         worksheets.extend((resolve(run, item["worksheet_path"]), private))
     receipt_path = resolve(run, manifest["receipt_path"])
     receipt = read_tool_record(receipt_path, decode_receipt)

@@ -311,16 +311,20 @@ def ensure_outside_checkout(
     return target
 
 
-def ensure_main_checkout(path: Path | str, start: Path | None = None) -> Path:
+def ensure_main_checkout(path: Path | str, start: Path | None = None, *, under_output: bool = False) -> Path:
     """The resolved target, or ``ForeignCheckout`` for a disposable checkout.
 
     A target under the main checkout is allowed. A target outside every checkout
     is also allowed so tests and deliberate exports can render in temporary
-    directories. Only a target inside another checkout is refused.
+    directories. Only a target inside another checkout is refused. ``under_output``
+    narrows the main checkout to its ``output/`` tree, for an artifact that carries
+    patient information and so never lands among tracked files.
     """
     target = Path(path).expanduser().resolve()
     expected = main_repo_root(start).resolve()
     checkout = enclosing_checkout(target)
     if checkout is not None and checkout.resolve() != expected:
+        raise ForeignCheckout(target, expected)
+    if under_output and checkout is not None and not target.is_relative_to((expected / "output").resolve()):
         raise ForeignCheckout(target, expected)
     return target

@@ -36,6 +36,10 @@ def decode_record(text: str) -> dict:
     return record
 
 
+class EvidenceChanged(ValueError):
+    """The recorded patient-status evidence file no longer has the bytes its record fingerprinted."""
+
+
 def status_for(run: Path, note: int) -> dict:
     record = read_tool_record(run / "encounter-status.json", decode_record)
     item = record["encounters"].get(str(note)) if record else None
@@ -43,7 +47,7 @@ def status_for(run: Path, note: int) -> dict:
         raise ValueError("office encounter has no recorded patient status")
     evidence = Path(item["evidence_path"])
     if digest(evidence.read_bytes()) != item["evidence_sha256"]:
-        raise ValueError("patient-status evidence changed")
+        raise EvidenceChanged("patient-status evidence changed")
     return dict(item)
 
 

@@ -38,6 +38,9 @@ STEP_FOUR_START = _heading(
 _BLOCKS = (DIFFERENTIAL_HEADING, UNDOCUMENTED_HEADING, BLOCK_HEADING, REFUSAL_HEADING)
 _HEADING_SHAPE = re.compile(r"^[ \t]*(?:(?:#{1,6}[ \t]+)?---[^\r\n]+---|#{1,6}[ \t]+[^\r\n]+)[ \t]*$")
 ANY_HEADING = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
+# Any heading line, indented or not: a Markdown heading or a delimited one, spaced or not. It ends
+# an entry's or E/M line's body (``body_end``), as an icd10-cpt step 4 heading ends the region.
+HEADING_LINE = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+\S|---[ \t]*\S.*---[ \t]*$)")
 _STEP_FOUR_WORD = re.compile(
     r"DIFFERENTIAL|NOT[ \t]+FOR[ \t]+ENTRY|NOT[ \t]+CODED|"
     r"ANCHOR[ \t]+WAS[ \t]+FILLED|UNDOCUMENTED",
@@ -234,17 +237,30 @@ def em_identity(system: str, code: str) -> bool:
     return system.upper() == "CPT" and code.upper() in EM_CODES
 
 
-def selected_em(text: str, region: str, entries: list[WorksheetEntry]) -> tuple[tuple[int, str], ...]:
+def selected_em(text: str, region: str, entries: list[WorksheetEntry],
+                lines: list[str] | None = None) -> tuple[tuple[int, str], ...]:
     """Every selected E/M line of ``text`` with its code: the one rule that selects the E/M identity.
 
     ``review_manifest.selected_codes`` takes the worksheet's E/M identity from these codes and the
     E/M audit check-off anchors its element block to these lines. A selected line is an
-    ``EM_CODE_LABEL`` line anywhere in ``text``, or a for-entry ``em_identity`` entry of ``region``
-    (``text`` itself, or its for-entry region), indented or not. ``entries`` are ``read_entries``
-    of ``region``, whose lines are ``text``'s, so each line is numbered over ``text`` split on LF.
-    An entry marked ``NOT FOR ENTRY`` and an entry outside ``region`` are never selected.
+    ``EM_CODE_LABEL`` line anywhere in ``text`` whose code is an ``em_identity``, or a for-entry
+    ``em_identity`` entry of ``region`` (``text`` itself, or its for-entry region), indented or not.
+    ``entries`` are ``read_entries`` of ``region``, whose lines are ``text``'s, so each line is
+    numbered over ``text`` split on LF. An entry marked ``NOT FOR ENTRY``, an entry outside
+    ``region``, and a label inside the body (``body_end``) of an entry marked ``NOT FOR ENTRY`` are
+    never selected: a rejected level is never the final one. ``lines`` is ``physical_lines(text)``,
+    passed by a caller that already split it.
     """
-    found = {(text.count("\n", 0, match.start()), match.group("code")) for match in EM_CODE_LABEL.finditer(text)}
+    lines = physical_lines(text) if lines is None else lines
+    every = list(ENTRY.finditer(text))
+    rejected: set[int] = set()
+    for index, match in enumerate(every):
+        if not entry_is_for_entry(text, every, index):
+            start = text.count("\n", 0, match.start())
+            rejected.update(range(start + 1, body_end(lines, start)))
+    found = {(line, match.group("code")) for match in EM_CODE_LABEL.finditer(text)
+             if em_identity("CPT", match.group("code"))
+             and (line := text.count("\n", 0, match.start())) not in rejected}
     found |= {(region.count("\n", 0, entry.start), entry.code.upper()) for entry in entries
               if entry.for_entry and em_identity(entry.system, entry.code)}
     return tuple(sorted(found))
@@ -260,7 +276,7 @@ def selected_em_lines(lines: list[str], read: tuple[str, list[WorksheetEntry]] |
     if read is None:
         region = entry_region(text)
         read = region, read_entries(region)
-    return frozenset(index for index, _ in selected_em(text, *read))
+    return frozenset(index for index, _ in selected_em(text, *read, lines))
 
 
 @dataclass(frozen=True)
@@ -312,15 +328,15 @@ def body_end(lines: list[str], index: int) -> int:
 
     A body line is an indented line, or a field line while every body line before it is indented
     text (``indented_pieces``), so a field may sit at the margin directly after the line or after
-    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A blank line, an entry line, or
-    any other margin line ends it. The E/M audit check-off reads an entry's provenance and the
+    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A blank line, an entry line, a
+    heading indented or not (``HEADING_LINE``), or any other margin line ends it. The E/M audit check-off reads an entry's provenance and the
     element block's extent through this rule alike.
     """
     owned = True
     position = index + 1
     while position < len(lines):
         line = lines[position]
-        if not line.strip() or ENTRY.match(line):
+        if not line.strip() or ENTRY.match(line) or HEADING_LINE.match(line):
             break
         if FIELD.match(line):
             if not owned:
