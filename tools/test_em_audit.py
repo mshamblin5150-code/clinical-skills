@@ -73,6 +73,12 @@ REPLY = "Synthetic reply: no, radiology read it."
 VERIFIED = approval_record.ReplyVerification("verified", "synthetic reply", 4102444800.0)
 
 
+def em_audit_gate(run: Path, submission: str | None):
+    """The production E/M audit gate, specificity_scan's: it scopes the run, then grades it in em_audit."""
+    import specificity_scan
+    return specificity_scan.em_audit_gate(run, submission)
+
+
 def headings(text: str) -> list[str]:
     return re.findall(r"(?m)^## (.+?)[ \t]*$", text)
 
@@ -277,16 +283,16 @@ class CheckOffCommand(RunFixture):
 
     def test_completion_requires_a_re_derivation_and_a_current_check_off(self):
         self.rederivation.unlink()
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertTrue(finding, report)
         self.assertIn("re-derivations absent 1", report)
         self.assertIn("check-offs missing or stale 1", report)
         self.record(ELEMENTS)
         self.assertEqual(0, self.invoke("--write").returncode)
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 0), (finding, unread), report)
         self.assertIn("the E/M audit check-offs: clean", report)
-        not_graded = em_audit.completion_gate(self.run, None)
+        not_graded = em_audit_gate(self.run, None)
         self.assertFalse(not_graded[0])
         self.assertIn("not graded", not_graded[1])
 
@@ -347,7 +353,7 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
     def test_completion_requires_a_re_derivation_and_a_current_check_off(self):
         self.record(ELEMENTS)
         self.assertEqual(1, self.invoke("--write").returncode)
-        finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, _ = em_audit_gate(self.run, "shift-synthetic")
         self.assertTrue(finding)
         self.assertIn("element blocks absent 1", report)
 
@@ -608,7 +614,7 @@ class ThirdReviewFindings(RunFixture):
     def test_t5_an_unreadable_check_off_is_unread_rather_than_stale(self):
         self.assertEqual(0, self.invoke("--write").returncode)
         self.sheet.write_bytes(b"\xff\xfe not utf-8")
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
         self.assertIn("check-offs missing or stale 0", report)
         self.assertIn("unreadable 1", report)
@@ -708,7 +714,7 @@ class FourthReviewFindings(RunFixture):
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
         self.assertIn("changed after the manifest", result.stdout)
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((True, 0), (finding, unread), report)  # eleventh review: a finding, not unread
 
     def test_u5_a_run_without_its_private_fingerprint_record_is_unread(self):
@@ -721,20 +727,20 @@ class FourthReviewFindings(RunFixture):
 
     def test_u7_a_coded_run_without_a_manifest_is_incomplete_at_submission(self):
         (self.run / review_manifest.MANIFEST).unlink()
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
         self.assertIn("incomplete", report)
-        self.assertIn("not graded", em_audit.completion_gate(self.run, None)[1])
+        self.assertIn("not graded", em_audit_gate(self.run, None)[1])
         (self.run / "worksheets/note-1.md").write_text("ICD-10-CM R05.9 Cough\n  ANCHOR: \"Cough.\"\n",
                                                        encoding="utf-8")
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 0), (finding, unread), report)
         self.assertIn("not graded", report)
 
     def test_u8_the_command_and_the_gate_share_one_finding_predicate(self):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
-        for name in ("status_of", "scoped_gate"):  # nineteenth review: completion_gate scopes, then delegates
+        for name in ("status_of", "completion_gate"):  # twenty-second review: the grading body
             calls = {node.func.id for node in ast.walk(functions[name])
                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
             self.assertIn("has_finding", calls, name)
@@ -750,7 +756,7 @@ class FourthReviewFindings(RunFixture):
         self.assertTrue(em_audit.has_finding(em_audit.Tally(), differences=False, stale=1))
         self.rederivation.unlink()
         status, _ = self.in_process()
-        finding, _, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, _, _ = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((1, True), (status, finding))
 
     def test_u9_a_word_refusal_names_the_note_and_counts_the_copies_already_written(self):
@@ -802,7 +808,7 @@ class FifthReviewFindings(RunFixture):
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertIn("unread remainder 1", result.stdout)
         self.assertIn("- Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
 
     def two_sheets(self):
@@ -956,7 +962,7 @@ class SixthReviewFindings(RunFixture):
         for moment, expected in ((before, (False, "not graded")), (after, (True, "finding"))):
             with mock.patch.object(completion_checks, "approval_moment", return_value=moment), \
                     completion_checks.grading(self.run, "shift-synthetic"):
-                finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+                finding, report, _ = em_audit_gate(self.run, "shift-synthetic")
             self.assertEqual(expected[0], finding, report)
             self.assertIn(expected[1], report)
 
@@ -1088,10 +1094,10 @@ class SeventhReviewFindings(RunFixture):
 
     def test_y3_a_direct_consultation_without_a_note_path_is_not_graded(self):
         (self.run / review_manifest.MANIFEST).unlink()
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
         (self.run / "openers.json").unlink()
-        finding, report, unread = em_audit.completion_gate(self.run, "consultation-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "consultation-synthetic")
         self.assertEqual((False, 0), (finding, unread), report)
         self.assertIn("not graded", report)
 
@@ -1115,12 +1121,12 @@ class EighthReviewFindings(ProseBind, RunFixture):
             self.assertProseIn("rebuild the manifest", text)
         self.record(ELEMENTS.replace("definition-stable-chronic | not counted", "definition-stable-chronic | counted"))
         self.assertEqual(1, self.invoke("--write").returncode)
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 0), (finding, unread), report)
         self.assertIn("differing 1", report)
         self.write_private(PRIVATE.format(elements=ELEMENTS.replace("risk low; mdm low", "risk low; mdm moderate")))
         self.invoke("--write")
-        finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, _ = em_audit_gate(self.run, "shift-synthetic")
         self.assertTrue(finding, report)
 
     def git_repository(self) -> Path:
@@ -1221,7 +1227,7 @@ class NinthReviewFindings(RunFixture):
     def test_n3_a_check_off_is_stale_only_when_the_fresh_render_read_everything(self):
         self.assertEqual(0, self.invoke("--write").returncode)
         (self.run / preapproval_answers.RECORD).write_text("not json", encoding="utf-8")
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
         self.assertIn("check-offs missing or stale 0", report)
         self.assertIn("not compared", report)
@@ -1287,7 +1293,7 @@ class TenthReviewFindings(RunFixture):
 
     def test_q3_a_check_off_never_written_is_missing_even_when_the_render_is_partial(self):
         (self.run / preapproval_answers.RECORD).write_text("not json", encoding="utf-8")
-        finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, _ = em_audit_gate(self.run, "shift-synthetic")
         self.assertTrue(finding, report)
         self.assertIn("check-offs missing or stale 1", report)
 
@@ -1328,7 +1334,7 @@ class EleventhReviewFindings(ProseBind, RunFixture):
     """The eleventh code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def edit_json(self, name: str, change) -> None:
         path = self.run / name
@@ -1422,8 +1428,8 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         bare = self.root / "consultation"
         bare.mkdir()
         with mock.patch.object(completion_checks, "exemption", side_effect=AssertionError("read")) as exemption:
-            self.assertIn("not graded", em_audit.completion_gate(self.run, None)[1])
-            self.assertIn("not graded", em_audit.completion_gate(bare, "consultation-synthetic")[1])
+            self.assertIn("not graded", em_audit_gate(self.run, None)[1])
+            self.assertIn("not graded", em_audit_gate(bare, "consultation-synthetic")[1])
         self.assertEqual(0, exemption.call_count)
 
     def test_e5_specificity_scan_answers_both_not_graded_cases_without_loading_em_audit(self):
@@ -1432,8 +1438,9 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         bare.mkdir()
         for run, submission in ((self.run, None), (bare, "consultation-synthetic")):
             with self.subTest(submission=submission):
-                self.assertEqual(em_audit.completion_gate(run, submission),
-                                 specificity_scan.em_audit_gate(run, submission))
+                finding, report, unread = specificity_scan.em_audit_gate(run, submission)
+                self.assertEqual((False, 0), (finding, unread), report)
+                self.assertIn("not graded", report)
         import em_audit_scope
         self.assertIs(em_audit_scope.ROW, em_audit.EXPECTED_ROW)
         self.assertEqual(review_manifest.MANIFEST, em_audit_scope.MANIFEST)
@@ -1584,7 +1591,7 @@ class TwelfthReviewFindings(ProseBind, RunFixture):
     """The twelfth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def edit_json(self, name: str, change) -> None:
         path = self.run / name
@@ -1773,7 +1780,7 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
     """The thirteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_h1_an_indented_for_entry_em_entry_is_selected_by_the_one_rule(self):
         import worksheet_grammar
@@ -1928,7 +1935,7 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
     """The fourteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def office_run(self) -> Path:
         """A synthetic office run whose identity fields all carry a SALT marker."""
@@ -2078,7 +2085,7 @@ class FifteenthReviewFindings(ProseBind, RunFixture):
     """The fifteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_k1_a_field_after_a_blank_is_unread_never_dropped(self):
         # Twenty-first review: only a detail-shaped line is a candidate; indented prose no entry owns
@@ -2164,7 +2171,7 @@ class SixteenthReviewFindings(ProseBind, RunFixture):
     """The sixteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_l1_a_blind_level_that_differs_is_shown_never_failed(self):
         consistent = ELEMENTS.replace("problems low; data straightforward; risk low; mdm low",
@@ -2251,7 +2258,7 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
     """The seventeenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_m_a_the_mdm_levels_come_from_the_verified_cpt_2026_descriptors(self):
         import cpt_identity
@@ -2374,7 +2381,7 @@ class EighteenthReviewFindings(ProseBind, RunFixture):
     """The eighteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_n1_a_label_selects_only_an_em_identity_outside_a_rejected_entry(self):
         import worksheet_grammar
@@ -2480,7 +2487,7 @@ class NineteenthReviewFindings(ProseBind, RunFixture):
     """The nineteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def gate(self):
-        return em_audit.completion_gate(self.run, "shift-synthetic")
+        return em_audit_gate(self.run, "shift-synthetic")
 
     def test_o1_an_unselected_label_and_its_lines_are_counted_unread(self):
         self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
@@ -2537,7 +2544,7 @@ class NineteenthReviewFindings(ProseBind, RunFixture):
         self.assertEqual(1, scope.call_count)
         with mock.patch.object(em_audit_scope, "not_graded", wraps=em_audit_scope.not_graded) as scope:
             em_audit.completion_gate(self.run, "shift-synthetic")
-        self.assertEqual(1, scope.call_count)
+        self.assertEqual(0, scope.call_count)  # twenty-second review: the scope is the production gate's
 
 
 def committed_tree(root: Path, steps: list[tuple[str, str | None, bytes | None]]) -> None:
@@ -2565,7 +2572,7 @@ class TwentiethReviewFindings(ProseBind, RunFixture):
             status = em_audit.main([str(run)])
         self.assertEqual(1, status, captured.getvalue())
         self.assertIn("changed or went missing after the manifest", captured.getvalue())
-        finding, report, unread = em_audit.completion_gate(run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(run, "shift-synthetic")
         self.assertEqual((True, 0), (finding, unread), report)
         with self.assertRaises(review_manifest.StaleRecord):
             review_manifest.validated_population(run)
@@ -2635,7 +2642,7 @@ class TwentiethReviewFindings(ProseBind, RunFixture):
         (self.run / review_manifest.RECEIPT).unlink()
         status, output = self.in_process()
         self.assertEqual(2, status, output)
-        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
         self.assertEqual((False, 1), (finding, unread), report)
 
     def test_p3_the_command_and_the_gate_read_one_start_row(self):
@@ -2650,7 +2657,7 @@ class TwentiethReviewFindings(ProseBind, RunFixture):
             em_audit.render(self.run, [])
             command = {key for key in keys if key.startswith("em_audit:")}
             keys.clear()
-            em_audit.scoped_gate(self.run, "shift-synthetic")
+            em_audit.completion_gate(self.run, "shift-synthetic")
             gate = {key for key in keys if key.startswith("em_audit:")}
         self.assertEqual({"em_audit:completion_gate"}, command)
         self.assertEqual(command, gate)
@@ -2799,6 +2806,179 @@ class TwentyFirstReviewFindings(ProseBind, RunFixture):
                              function.name)
         self.assertTrue(any(isinstance(node, ast.ImportFrom) and node.module == "worksheet_grammar" for node in tree.body))
         self.assertNotIn("\n\n\n\ndef code_key", source)
+
+
+class TwentySecondReviewFindings(ProseBind, RunFixture):
+    """The twenty-second code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_s1_an_indented_hash_line_in_a_body_is_body_text_for_both_rules(self):
+        import specificity_scan
+        import worksheet_grammar
+        text = ("ICD-10-CM E11.9 Type 2 diabetes mellitus without complications\n"
+                "  # 2 visits this year\n"
+                "  SPECIFICITY: complete - the synthetic encounter documents no further axis\n")
+        flags, orphans = specificity_scan.read_flags_with_orphans(text)
+        self.assertEqual((["E11.9"], 0), ([flag.code for flag in flags], orphans))
+        self.assertEqual(3, worksheet_grammar.body_end(text.split("\n"), 0))
+        codes, unread = em_audit.for_entry_codes(em_audit.parse_private(text))
+        self.assertEqual(0, unread)
+        self.assertIn("SPECIFICITY", codes[0][4])
+
+    def test_s1_a_step_four_heading_ends_a_body_for_both_rules(self):
+        import worksheet_grammar
+        text = ("ICD-10-CM E11.9 Type 2 diabetes mellitus without complications\n"
+                "  ## Not coded, nothing established it\n"
+                "  SPECIFICITY: complete - the synthetic encounter documents no further axis\n")
+        entry = next(worksheet_grammar.ENTRY.finditer(text))
+        detail = next(worksheet_grammar.FIELD.finditer(text))
+        self.assertFalse(worksheet_grammar.detail_belongs_to_entry(text, entry, detail))
+        self.assertEqual(1, worksheet_grammar.body_end(text.split("\n"), 0))
+
+    def test_s1_the_two_rules_agree_on_every_committed_fixture(self):
+        import worksheet_grammar as grammar
+        disagree, details = [], 0
+        for name, text in committed_worksheets().items():
+            entries = list(grammar.ENTRY.finditer(text))
+            lines = text.split("\n")
+            for detail in grammar.FIELD.finditer(text):
+                owner = next((entry for entry in reversed(entries) if entry.start() < detail.start()), None)
+                if owner is None:
+                    continue
+                details += 1
+                first, line = text.count("\n", 0, owner.start()), text.count("\n", 0, detail.start())
+                if (first < line < grammar.body_end(lines, first)) != grammar.detail_belongs_to_entry(text, owner, detail):
+                    disagree.append((name, line + 1))
+        self.assertGreater(details, 0)
+        self.assertEqual([], disagree)
+
+    def test_s2_a_negation_on_either_side_of_the_billed_code_is_not_naming_it(self):
+        import worksheet_grammar
+        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
+        cases = {"  EM-ECG: not billed: 93005\n": True,
+                 "  EM-ECG: 93005 not billed\n": True,
+                 "  EM-ECG: 93005 is not billed; reading documented\n": True,
+                 "  EM-ECG: 93000 not billed; 93005 tracing only, billed here\n": False,
+                 "  EM-ECG: 93005 tracing only. Interpretation 93000 not billed\n": False}
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), frozenset({"93005"}))
+                self.assertEqual(expected, bool(found), found)
+                if expected:
+                    self.assertEqual(["the worksheet bills 93005, but its EM-ECG line says 93005 is not billed"], found)
+
+    def private_code_edit(self) -> None:
+        """Add a fever code to the worksheets and inputs, as a coding correction before a rebuild."""
+        private = self.run / "worksheets/note-1.md"
+        private.write_text(private.read_text(encoding="utf-8").replace(
+            "CPT 99283 Emergency visit\n", 'ICD-10-CM R50.9 Fever, unspecified\n  ANCHOR: "Cough."\n'
+            "CPT 99283 Emergency visit\n", 1), encoding="utf-8")
+        visible = self.run / "visible-worksheet-1.md"
+        visible.write_text(visible.read_text(encoding="utf-8").replace(
+            "CPT 99283", "ICD-10-CM R50.9 Fever, unspecified\nCPT 99283", 1), encoding="utf-8")
+        inputs = self.run / "inputs.json"
+        rows = json.loads(inputs.read_text(encoding="utf-8"))
+        rows[0]["codes"]["icd10"].append("R50.9")
+        inputs.write_text(json.dumps(rows), encoding="utf-8")
+
+    def failed_manifest_write(self) -> None:
+        real = review_manifest.update_tool_record
+
+        def failing(target, *args, **options):
+            if Path(target).name == Path(review_manifest.MANIFEST).name:
+                raise OSError("synthetic manifest write failure")
+            return real(target, *args, **options)
+        with mock.patch.object(review_manifest, "update_tool_record", side_effect=failing):
+            with self.assertRaises(OSError):
+                review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+
+    def test_s3_a_manifest_write_that_fails_after_a_code_edit_leaves_a_stale_manifest(self):
+        self.private_code_edit()
+        self.failed_manifest_write()
+        fingerprints = review_manifest.private_fingerprints(self.run)
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run, fingerprints)
+        # The visible worksheet restored to the manifest's codes: only the private worksheet, which
+        # the newer fingerprint record binds, disagrees, and the manifest is still the stale one.
+        visible = self.run / "visible-worksheet-1.md"
+        visible.write_text(VISIBLE, encoding="utf-8")
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run, fingerprints)
+        finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
+        self.assertEqual((True, 0), (finding, unread), report)
+
+    def test_s4_a_wrapped_filled_mark_is_read_and_an_unclosed_one_is_unread(self):
+        self.assertEqual((["[SOURCE: filled - data: chest radiograph]"], 0), em_audit.filled_marks(
+            "E/M: 99283 support [SOURCE: filled -\n  data: chest\n  radiograph]\n"))
+        self.assertEqual(([], 1), em_audit.filled_marks("E/M: 99283 support [SOURCE: filled - data: chest\n\nnext\n"))
+        self.assertEqual(([], 0), em_audit.filled_marks("ICD-10-CM E66.9 [SOURCE: filled - BMI 31]\n"))
+        for visible, unread in ((VISIBLE.replace("[SOURCE: filled - data: chest radiograph]",
+                                                 "[SOURCE: filled - data:\n  chest radiograph]"), 0),
+                                (VISIBLE.replace("[SOURCE: filled - data: chest radiograph]",
+                                                 "[SOURCE: filled - data: chest radiograph"), 1)):
+            with self.subTest(unread=unread):
+                (self.run / "visible-worksheet-1.md").write_text(visible, encoding="utf-8")
+                review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+                passing_receipt(self.run)
+                name_the_committed_sheet(self.run)
+                status, output = self.in_process("--write")
+                self.assertIn(f"unread remainder {unread}", output)
+                text = self.sheet.read_text(encoding="utf-8")
+                if unread:
+                    self.assertIn("- Filled marks: none; 1 could not be read", text)
+                else:
+                    self.assertIn("- Filled marks: [SOURCE: filled - data: chest radiograph]", text)
+
+    def test_s5_a_note_left_unread_does_not_stop_its_neighbor_being_compared(self):
+        folder = self.run / em_audit.OUTPUT_DIRECTORY
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "note-1.md").write_text("# One, unread\n", encoding="utf-8")
+        (folder / "note-2.md").write_text("# Two, as rendered before an answer\n", encoding="utf-8")
+        sheets = [em_audit.Sheet(1, "note-1", "# One\n", 1), em_audit.Sheet(2, "note-2", "# Two\n", 0)]
+        tally = em_audit.Tally()
+        tally.unread = 1
+        with mock.patch.object(em_audit, "render", return_value=(tally, 2, sheets)):
+            finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
+        self.assertTrue(finding, report)
+        self.assertIn("check-offs missing or stale 1", report)
+        self.assertIn("render the check-offs again with --write", report)
+        self.assertIn("not compared 1", report)
+        tally.run_wide.append("no committed CPT MDM sheet version matches the receipt")
+        with mock.patch.object(em_audit, "render", return_value=(tally, 2, sheets)):
+            finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
+        self.assertFalse(finding, report)
+        self.assertIn("check-offs missing or stale 0", report)
+        self.assertIn("no committed CPT MDM sheet version matches the receipt", report)
+
+    def test_s5_the_render_attributes_unread_to_its_note_and_names_run_wide_reasons(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n",
+            "  CONFIDENCE: verified against ICD-10-CM FY2026\n\n  NOTE: a field no entry owns\n"))
+        tally, _, sheets = em_audit.render(self.run, [])
+        self.assertEqual(([1], []), ([sheet_.unread for sheet_ in sheets], tally.run_wide))
+        import coding_freshness
+        with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=None):
+            tally, _, sheets = em_audit.render(self.run, [])
+        self.assertEqual(1, len(tally.run_wide))
+
+    def test_s6_the_production_gate_is_the_one_the_tests_drive(self):
+        import specificity_scan
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        functions = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+        self.assertNotIn("scoped_gate", functions)
+        self.assertNotIn("not_graded", Path(em_audit.__file__).read_text(encoding="utf-8"))
+        gate = next(node for node in ast.parse(Path(specificity_scan.__file__).read_text(encoding="utf-8")).body
+                    if isinstance(node, ast.FunctionDef) and node.name == "em_audit_gate")
+        calls = {node.func.attr for node in ast.walk(gate)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        self.assertIn("completion_gate", calls)
+
+    def test_s7_the_history_walk_reads_through_the_shared_byte_safe_reader(self):
+        import coding_freshness
+        import git_paths
+        with mock.patch.object(git_paths, "read_path_records", wraps=git_paths.read_path_records) as reader:
+            coding_freshness.bound_sheet_version(ROOT / "reference" / "cpt-em-mdm-2026.md", "0" * 64)
+        self.assertEqual(1, reader.call_count)
+        self.assertNotIn('split("\\0")', Path(coding_freshness.__file__).read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

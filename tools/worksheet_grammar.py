@@ -38,9 +38,6 @@ STEP_FOUR_START = _heading(
 _BLOCKS = (DIFFERENTIAL_HEADING, UNDOCUMENTED_HEADING, BLOCK_HEADING, REFUSAL_HEADING)
 _HEADING_SHAPE = re.compile(r"^[ \t]*(?:(?:#{1,6}[ \t]+)?---[^\r\n]+---|#{1,6}[ \t]+[^\r\n]+)[ \t]*$")
 ANY_HEADING = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
-# Any heading line, indented or not: a Markdown heading or a delimited one, spaced or not. It ends
-# an entry's or E/M line's body (``body_end``), as an icd10-cpt step 4 heading ends the region.
-HEADING_LINE = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+\S|---[ \t]*\S.*---[ \t]*$)")
 _STEP_FOUR_WORD = re.compile(
     r"DIFFERENTIAL|NOT[ \t]+FOR[ \t]+ENTRY|NOT[ \t]+CODED|"
     r"ANCHOR[ \t]+WAS[ \t]+FILLED|UNDOCUMENTED",
@@ -191,7 +188,8 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     """Whether ``detail`` is in ``entry``'s contiguous indented body.
 
     The entry line itself ends at ``entry.end()``.  Every complete physical line
-    after that and before the detail must contain text and begin with indentation.
+    after that and before the detail must contain text, begin with indentation, and not end a
+    body (``ends_body``): the one body rule ``body_end`` reads too.
     """
 
     if detail.start() <= entry.end():
@@ -199,7 +197,7 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     between = text[entry.end() : detail.start()]
     lines = between.splitlines()
     intervening = lines[1:] if lines else ()
-    return all(indented_line(line) for line in intervening)
+    return all(indented_line(line) and not ends_body(line) for line in intervening)
 
 
 def paired_entry(
@@ -331,6 +329,21 @@ def indented_line(line: str) -> bool:
     return bool(line.strip()) and line[0] in " \t"
 
 
+def block_heading_line(line: str) -> bool:
+    """Whether ``line`` is an icd10-cpt step 4 block heading, at the margin or indented."""
+    return any(pattern.match(line) for pattern in _BLOCKS)
+
+
+def ends_body(line: str) -> bool:
+    """Whether ``line`` ends a body however it is indented: a blank line, an entry line, or an
+    icd10-cpt step 4 block heading. Any other indented line, a ``#`` line included, is body text.
+
+    ``body_end`` and ``detail_belongs_to_entry`` both stop at these lines, so the check-off and the
+    graders draw one body.
+    """
+    return not line.strip() or bool(ENTRY.match(line)) or block_heading_line(line)
+
+
 def indented_pieces(line: str) -> bool:
     """Whether every line ``str.splitlines`` makes of this LF line, its ending included, is indented.
 
@@ -345,15 +358,17 @@ def body_end(lines: list[str], index: int) -> int:
 
     A body line is an indented line, or a field line while every body line before it is indented
     text (``indented_pieces``), so a field may sit at the margin directly after the line or after
-    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A blank line, an entry line, a
-    heading indented or not (``HEADING_LINE``), or any other margin line ends it. The E/M audit check-off reads an entry's provenance and the
-    element block's extent through this rule alike.
+    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A line that ends any body
+    (``ends_body``: a blank line, an entry line, an icd10-cpt step 4 block heading indented or not),
+    or any other margin line ends it; an indented ``#`` line that is no step 4 heading is body text.
+    The E/M audit check-off reads an entry's provenance and the element block's extent through this
+    rule alike.
     """
     owned = True
     position = index + 1
     while position < len(lines):
         line = lines[position]
-        if not line.strip() or ENTRY.match(line) or HEADING_LINE.match(line):
+        if ends_body(line):
             break
         if FIELD.match(line):
             if not owned:

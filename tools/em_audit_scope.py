@@ -1,6 +1,6 @@
 """Which runs the E/M audit check-off row grades, readable without loading the coding records.
 
-``em_audit.completion_gate`` and ``specificity_scan`` both read this module first, so a run the row
+``specificity_scan.em_audit_gate`` reads this module before ``em_audit.completion_gate``, so a run the row
 does not grade never loads the approval and manifest stack ``em_audit`` imports. It holds the row
 name, the two records whose absence marks a direct consultation, and the not-graded answers for a
 missing ``--submission`` and for that consultation. It imports only the standard library.

@@ -920,16 +920,17 @@ def _grade(
 
 
 def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, str, int]:
-    """``em_audit.completion_gate``, importing em_audit only for a run ``em_audit_scope`` says it grades.
+    """The E/M audit check-offs row: the one production path to ``em_audit.completion_gate``.
 
     A run the row never grades gets the scope module's not-graded report, so the approval and
-    manifest stack the gate reads is never loaded.
+    manifest stack the gate reads is never loaded; every other run is graded by em_audit,
+    imported only then.
     """
     skipped = em_audit_scope.not_graded(run_directory, submission)
     if skipped is not None:
         return False, skipped, 0
     import em_audit
-    return em_audit.scoped_gate(run_directory, submission)  # the scope check already ran above
+    return em_audit.completion_gate(run_directory, submission)
 
 
 GRADER = run_grader.Grader(

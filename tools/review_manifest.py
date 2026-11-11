@@ -154,7 +154,10 @@ def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[
         raise (StaleRecord if moved else ValueError)("visible worksheet selected codes disagree with manifest")
     private = recorded_text(resolve(run, item["private_worksheet_path"]), recorded)
     if _codes_or_none(private, private=True) != expected:
-        moved = private_sha256 not in (None, private_worksheet_sha256(private))
+        # A recorded fingerprint binds this worksheet to a build: a worksheet that changed after it,
+        # or one it already binds because build wrote the record and then failed to write the
+        # manifest, means the manifest is the stale record.
+        moved = private_sha256 is not None
         raise (StaleRecord if moved else ValueError)("private worksheet selected codes disagree with manifest")
     return note, worksheet, private, code_hash, digest(fields.encode("utf-8"))
 

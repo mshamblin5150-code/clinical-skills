@@ -148,13 +148,20 @@ DECLARED_LIMITS = (
     "manifest was built from that went missing after it; a bound sheet version the current reader "
     "refuses is a tool defect, incomplete like a missing freshness receipt or an unreadable record. A "
     "check-off written before the last pre-approval answer was recorded is stale until rendered "
-    "again. At submission, a run "
+    "again; a check-off is compared only when its note's own render read everything, and a record "
+    "outside any one note left unread (the sheet version, the CPT 2026 descriptors, the answers "
+    "record) stops every comparison, named in the report. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
     "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
     "record is not graded, so a note-path run whose opener record is lost reads the same way.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
     "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
-    "only the other code; with no ECG code billed, the limb's text is not graded.",
+    "only the other code; with no ECG code billed, the limb's text is not graded. A billed code "
+    "sharing a clause (to a semicolon or a sentence's period) with \"not billed\" is read as said "
+    "not billed, whichever side the words stand on; a comma does not end a clause.",
+    "An E/M filled mark is read from the visible worksheet and the note across line wraps within "
+    "its paragraph; an opener whose bracket never closes there is counted unread. A mark spelled "
+    "otherwise than [SOURCE: filled - data: or risk: ...] is not an E/M mark and is not shown.",
     "Validation re-reads the opener source, notes, worksheets, status evidence and receipt; a "
     "moved or edited source refuses the check-off even long after the shift.",
     "Each check-off is written through run_record_reader.update_tool_record: the exclusive "
@@ -184,6 +191,9 @@ SECTIONS = (
     "Clinician attestation",
 )
 FILLED_MARK = re.compile(r"\[SOURCE: filled - (?:data|risk): [^\]\n]+\]")
+# Where a filled mark opens; its bracket may close on a later line of the same paragraph.
+FILLED_OPENER = re.compile(r"\[SOURCE:\s*filled\b")
+MARK_BREAK = re.compile(r"\n[ \t]*\n|\[")
 # The note's E/M paragraph, opened by the label the manifest reads (worksheet_grammar.EM_LABEL).
 EM_PARAGRAPH = re.compile(rf"(?msi){EM_LABEL}.*?(?=\n[ \t]*\n|\Z)")
 SHARED_RULES = (
@@ -230,6 +240,8 @@ class Tally:
         self.predates = False
         # Coverage faults a capturing command counts itself, kept so the gate knows the render was partial.
         self.faults = 0
+        # Why records outside any one note went unread; any reason stops every check-off comparison.
+        self.run_wide: list[str] = []
         self.blocks_predating = self.absent_predating = 0
 
 
@@ -621,13 +633,43 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
     return found
 
 
+def filled_marks(text: str) -> tuple[list[str], int]:
+    """The E/M filled marks of ``text`` (``FILLED_MARK``), each read across its line wraps, and
+    the openers whose bracket never closes.
+
+    A mark runs from ``[SOURCE: filled`` to the next ``]`` inside its paragraph; its whitespace is
+    collapsed before it is matched, so a hard-wrapped mark reads as written on one line. An opener
+    with no ``]`` before a blank line or another ``[`` is counted unread. A closed mark of another
+    kind (not data or risk) is no E/M mark and is not counted.
+    """
+    marks: set[str] = set()
+    unclosed = 0
+    for opener in FILLED_OPENER.finditer(text):
+        rest = text[opener.start():]
+        close = rest.find("]")
+        broken = MARK_BREAK.search(rest, 1)
+        if close < 0 or (broken is not None and broken.start() < close):
+            unclosed += 1
+            continue
+        mark = " ".join(rest[:close + 1].split())
+        if FILLED_MARK.fullmatch(mark):
+            marks.add(mark)
+    return sorted(marks), unclosed
+
+
+NOT_BILLED = re.compile(r"\bnot[ \t]+(?:separately[ \t]+)?billed\b", re.IGNORECASE)
+# A clause of an EM-ECG line ends at a semicolon or at a sentence's period.
+CLAUSE_END = re.compile(r";|\.(?=\s|$)")
+
+
 def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
     """Where the EM-ECG limb does not name each ADR 0443 ECG code the worksheet bills.
 
     em-elements.md: where the worksheet bills 93000 or 93005, the line names that code, so with
     both billed it names both. With no ECG code billed, the limb is free text and is not graded;
     a block with no EM-ECG line is already incomplete. A code is named as a whole token, and a
-    billed code the line says is not billed is a finding.
+    billed code sharing a clause (to a semicolon or a sentence's period) with "not billed", before
+    or after it, is said not billed: a finding.
     """
     codes = sorted(billed & ECG_RULES.keys())
     if not codes or not block_.ecg:
@@ -637,9 +679,8 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
     found = []
     for code in codes:
         token = re.compile(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])")
-        named = [line for line in block_.ecg if token.search(line)]
-        if any(re.search(rf"(?<![0-9A-Za-z]){code}[ \t,;:]*(?:is[ \t]+)?not[ \t]+billed", line, re.IGNORECASE)
-               for line in named):
+        named = [clause for line in block_.ecg for clause in CLAUSE_END.split(line) if token.search(clause)]
+        if any(NOT_BILLED.search(clause) for clause in named):
             found.append(f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed")
         elif not named:
             found.append(f"the worksheet bills {code}, but its EM-ECG line does not name it")
@@ -802,14 +843,17 @@ class Context:
         self.ids = sheet_ids(receipt)
         if self.ids is None:
             tally.unread += 1  # no committed sheet version matches the receipt: entry ids are not graded
+            tally.run_wide.append("no committed CPT MDM sheet version matches the receipt")
         self.levels = mdm_levels(service_date)
         if not self.levels.readable:
             tally.unread += 1  # no verified CPT 2026 descriptors: levels against their MDM are not graded
+            tally.run_wide.append("the CPT 2026 descriptors are not verified")
         self.unreadable = False
         try:
             self.answers = preapproval_answers.read(run)
         except UnreadableRecord:
             self.answers, self.unreadable = None, True
+            tally.run_wide.append("the pre-approval answers record cannot be read")
             tally.faults += 1
             if not collecting_errors():  # a capturing command counts the record once itself
                 tally.unread += 1
@@ -831,13 +875,16 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     selected = codes["em"]
     cpt_source = receipt["sources"]["cpt"]
     mdm_name, mdm_digest = cpt_source["mdm_sheet_filename"], cpt_source["mdm_sheet_sha256"]
-    marks = sorted(set(FILLED_MARK.findall(worksheet + "\n" + note)))
+    (worksheet_marks, worksheet_open), (note_marks, note_open) = filled_marks(worksheet), filled_marks(note)
+    marks, unclosed = sorted(set(worksheet_marks) | set(note_marks)), worksheet_open + note_open
     tally.marks += len(marks)
+    tally.unread += unclosed
     tally.systems["em"] += 1
     cpt = set(codes["cpt"])
     ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
-             "- Filled marks: " + ("; ".join(marks) if marks else "none"),
+             "- Filled marks: " + ("; ".join(marks) if marks else "none")
+             + (f"; {unclosed} could not be read, its bracket never closes" if unclosed else ""),
              *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
     if not fingerprinted:
         if tally.predates:
@@ -938,6 +985,7 @@ class Sheet(NamedTuple):
     order: int
     stem: str
     text: str
+    unread: int = 0  # what this note's own render left unread or faulted, run-wide records apart
 
 
 class PrivateWorksheetMoved(ValueError):
@@ -970,7 +1018,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
         raise PrivateWorksheetMoved(f"private worksheet of note {moved[0]} changed after its fingerprint")
     tally = Tally()
     import completion_checks
-    # Reached only on the command's --submission path: completion_gate returns its exemption for a
+    # Reached only on the command's --submission path: the gate returns its exemption for a
     # pre-start run before it renders, so inside the gate predates is always False. START_KEY is
     # the row that exemption reads, so the command and the gate cannot start on different dates.
     tally.predates = not completion_checks.active(START_KEY)
@@ -980,9 +1028,11 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
         item = encounter.item
         if notes and item["order"] not in notes:
             continue
+        before = tally.unread + tally.faults
         text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
                      context, tally, item["private_worksheet_path"] in fingerprints)
-        sheets.append(Sheet(item["order"], Path(item["note_path"]).stem, text))
+        sheets.append(Sheet(item["order"], Path(item["note_path"]).stem, text,
+                            tally.unread + tally.faults - before))
     return tally, len(orders), sheets
 
 
@@ -1130,22 +1180,15 @@ STALE_FINDINGS = {
 }
 
 
-def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
+def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
     """Grade every note of a coded run at its terminal submission: finding, report, unread.
 
     A note needs its element block, a placed re-derivation record and a written check-off equal
     to a fresh render. Differences from the re-derivation are counted, not failed: icd10-cpt
-    shows each one to the clinician before approval. ``em_audit_scope.not_graded`` decides first
-    which runs are graded; ``scoped_gate`` grades a run past it.
+    shows each one to the clinician before approval. The production path is
+    ``specificity_scan.em_audit_gate``: it answers the runs ``em_audit_scope`` never grades
+    without loading this module, and calls this for every other run.
     """
-    skipped = em_audit_scope.not_graded(run, submission)
-    if skipped is not None:
-        return False, skipped, 0
-    return scoped_gate(run, submission)
-
-
-def scoped_gate(run: Path, submission: str) -> tuple[bool, str, int]:
-    """``completion_gate`` for a run ``em_audit_scope.not_graded`` has already said it grades."""
     run = run.resolve()
     import completion_checks
     frozen = completion_checks.exemption(run, submission, "em_audit", EXPECTED_ROW)
@@ -1180,23 +1223,32 @@ def scoped_gate(run: Path, submission: str) -> tuple[bool, str, int]:
         return True, f"{EXPECTED_ROW}: finding - {STALE_FINDINGS[type(error)]}", 0
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or cannot be read", 1
-    stale = unreadable = 0
+    stale = unreadable = uncompared = 0
     # A fresh render that left something unread is not the check-off a complete read would write, so
-    # a difference from it is incomplete coverage, never a stale check-off.
-    compared = not (tally.unread or tally.faults)
+    # a difference from it is incomplete coverage, never a stale check-off. A note's own unread
+    # stops only its comparison; a run-wide record left unread stops every one.
+    outside = tally.unread + tally.faults - sum(sheet_.unread for sheet_ in sheets)
+    reasons = tally.run_wide or (["a record outside any one note was left unread"] if outside > 0 else [])
     for sheet_ in sheets:
         try:
             current = read_tool_record(run / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), str)
         except UnreadableRecord:
             unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
             continue
-        stale += current is None or (compared and current != sheet_.text)
+        if current is None:
+            stale += 1
+        elif reasons or sheet_.unread:
+            uncompared += 1
+        else:
+            stale += current != sheet_.text
     unread = tally.unread + (0 if collecting_errors() else unreadable)
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, findings "
               f"{tally.rederivation_findings}, "
-              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}"
-              + ("" if compared else "; check-offs not compared, the fresh render left a record unread"))
+              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
+    if uncompared:
+        counts += (f"; check-offs not compared {uncompared}, because "
+                   + ("; ".join(reasons) if reasons else "their notes' fresh render left a record unread"))
     if stale:
         # The answers section reads the pre-approval answers record, so an answer recorded after the
         # render stales every check-off of its note until it is rendered again.

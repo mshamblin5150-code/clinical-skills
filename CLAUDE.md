@@ -2836,8 +2836,8 @@ renders the same text through `docx_write.write_docx` only into the main checkou
 overwrite refusal and setting the copied text literally (`literal=True`). The default output is
 counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, and 2 is a refused
 run, a refused Word copy, a Word option without `--docx` or an unread candidate.
-`em_audit.completion_gate` is the `the E/M audit check-offs` row that `specificity_scan.py` grades
-at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`; there a
+`specificity_scan.em_audit_gate` grades the `the E/M audit check-offs` row through
+`em_audit.completion_gate` at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`; there a
 stale record, or one the manifest was built from that changed or went missing, is a finding, and a
 missing freshness receipt or an unreadable record is incomplete. The command and the gate read one
 start row. `em_audit_scope`

@@ -28,6 +28,7 @@ from run_record_reader import (DamagedRecord, damaged_record_result, check_handw
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
+import git_paths
 from cpt_identity import ED_EM, OFFICE_EM  # the one E/M family constant, shared with the worksheet readers
 
 
@@ -77,15 +78,16 @@ def committed_sheet(path: Path) -> bytes | None:
     return None if committed.returncode else committed.stdout
 
 
-def history_paths(log: bytes, relative: str) -> list[tuple[str, str]]:
+def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, str]]:
     """Each commit of ``git log -z --name-only --format=%H`` with the path it held the sheet at.
 
-    A commit is followed by its name list, which ``-z`` opens with a line break; a commit listing
-    no name, such as a merge, holds the path of the newer commit before it, ``relative`` first.
+    ``records`` are ``git_paths.read_path_records``'s, split on NUL before byte-safe decoding. A
+    commit is followed by its name list, which ``-z`` opens with a line break; a commit listing no
+    name, such as a merge, holds the path of the newer commit before it, ``relative`` first.
     """
     found: list[tuple[str, str]] = []
     at = relative
-    for token in log.decode("utf-8", errors="surrogateescape").split("\0"):
+    for token in records:
         if token.startswith("\n"):
             at = token[1:]
             if found:
@@ -114,16 +116,13 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
         if head is not None and sheet_sha256(head) == digest:
             return head
         relative = path.relative_to(ROOT).as_posix()
-        log = subprocess.run(["git", "log", "-z", "--full-history", "--follow", "--name-only", "--format=%H",
-                              "--", relative], cwd=ROOT, capture_output=True)
-        if log.returncode:
-            return None
-        commits = history_paths(log.stdout, relative)
+        commits = history_paths(git_paths.read_path_records(
+            ROOT, "log", "-z", "--full-history", "--follow", "--name-only", "--format=%H", "--", relative), relative)
         if not commits:
             return None
         batch = subprocess.Popen(["git", "cat-file", "--batch"], cwd=ROOT, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    except (OSError, ValueError):
+    except (OSError, ValueError, git_paths.GitPathError):
         return None
     try:
         for commit, at in commits:
