@@ -872,11 +872,11 @@ class FifthReviewFindings(RunFixture):
 
     def test_v7_an_ecg_limb_contradicting_the_billed_code_is_a_finding(self):
         for code, ecg, finding in (
-                ("93005", "ADR 0443: 93005 billed while the findings are pending; one test ordered", False),
-                ("93000", "ADR 0443: 93000, his own read; counts nothing toward data", False),
+                ("93005", "93005 | ADR 0443 tracing billed while the findings are pending, one test ordered", False),
+                ("93000", "93000 | ADR 0443 office read, interpretation billed", False),
                 ("93005", "not applicable", True),
-                ("93005", "ADR 0443: 93000, his own read; counts nothing toward data", True),
-                ("93000", "ADR 0443: 93005 billed while the findings are pending; one test ordered", True)):
+                ("93005", "93000 | ADR 0443 office read, interpretation billed", True),
+                ("93000", "93005 | ADR 0443 tracing billed while the findings are pending, one test ordered", True)):
             with self.subTest(code=code, ecg=ecg):
                 self.bill_ecg(code, ecg)
                 result = self.invoke("--write")
@@ -1406,7 +1406,7 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         name_the_committed_sheet(self.run)
         tally, _, sheets = em_audit.render(self.run, [])
         self.assertIn("- ECG code: " + em_audit.ECG_RULES["93005"], sheets[0].text)
-        self.assertIn("EM-ECG line says not applicable", sheets[0].text)
+        self.assertIn("the worksheet bills 93005, but its EM-ECG line does not list it", sheets[0].text)
 
     def test_e4_a_missing_fingerprint_is_unread_and_its_repair_keeps_the_approved_manifest(self):
         # Thirteenth review: with the fingerprint beside the manifest, building again records it and
@@ -2021,20 +2021,6 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
         import worksheet_grammar
         return worksheet_grammar.em_block(lines)
 
-    def test_i3_a_billed_ecg_code_must_be_named_by_the_ecg_line(self):
-        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
-        cases = {
-            ("93005",): {"  EM-ECG: the ADR 0443 limb for a pending reading\n": True,
-                         "  EM-ECG: not applicable\n": True, "  EM-ECG: 93005 counts one test ordered\n": False},
-            ("93000", "93005"): {"  EM-ECG: 93005 counts one test ordered\n": True,
-                                 "  EM-ECG: 93000 read here; 93005 pending, one test ordered\n": False},
-        }
-        for billed, lines in cases.items():
-            for line, expected in lines.items():
-                with self.subTest(billed=billed, line=line):
-                    found = em_audit.ecg_findings(self.block(base + line), frozenset(billed))
-                    self.assertEqual(expected, bool(found), found)
-
     def test_i4_a_counted_item_needs_an_entry_id_and_note_text(self):
         all_none = ("  EM-PROBLEM: none | counted | none | high problems\n"
                     "  EM-DATA: none | counted | none | extensive data\n"
@@ -2113,20 +2099,6 @@ class FifteenthReviewFindings(ProseBind, RunFixture):
                 self.assertIn(f"unread remainder {unread}", result.stdout)
                 placed = "1 detail line(s) could not be placed" in self.sheet.read_text(encoding="utf-8")
                 self.assertEqual(bool(unread), placed)
-
-    def test_k2_an_ecg_code_is_named_as_a_whole_token_and_not_as_not_billed(self):
-        import worksheet_grammar
-        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
-        cases = {"  EM-ECG: 930001 reading of the tracing\n": True,
-                 "  EM-ECG: 93000 not billed; 93005 pending\n": True,
-                 "  EM-ECG: 93000 read and reported here\n": False}
-        for line, expected in cases.items():
-            with self.subTest(line=line):
-                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), frozenset({"93000"}))
-                self.assertEqual(expected, bool(found), found)
-        found = em_audit.ecg_findings(worksheet_grammar.em_block(base + "  EM-ECG: 93000 not billed\n"),
-                                      frozenset({"93000"}))
-        self.assertEqual(["the worksheet bills 93000, but its EM-ECG line says 93000 is not billed"], found)
 
     def test_k3_a_flawed_re_derivation_is_a_finding_even_when_it_agrees(self):
         flawed = ELEMENTS.replace("risk low; mdm low", "risk low; mdm moderate")
@@ -2866,21 +2838,6 @@ class TwentySecondReviewFindings(ProseBind, RunFixture):
         self.assertGreater(details, 0)
         self.assertEqual([], disagree)
 
-    def test_s2_a_negation_on_either_side_of_the_billed_code_is_not_naming_it(self):
-        import worksheet_grammar
-        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
-        cases = {"  EM-ECG: not billed: 93005\n": True,
-                 "  EM-ECG: 93005 not billed\n": True,
-                 "  EM-ECG: 93005 is not billed; reading documented\n": True,
-                 "  EM-ECG: 93000 not billed; 93005 tracing only, billed here\n": False,
-                 "  EM-ECG: 93005 tracing only. Interpretation 93000 not billed\n": False}
-        for line, expected in cases.items():
-            with self.subTest(line=line):
-                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), frozenset({"93005"}))
-                self.assertEqual(expected, bool(found), found)
-                if expected:
-                    self.assertEqual(["the worksheet bills 93005, but its EM-ECG line says 93005 is not billed"], found)
-
     def private_code_edit(self) -> None:
         """Add a fever code to the worksheets and inputs, as a coding correction before a rebuild."""
         private = self.run / "worksheets/note-1.md"
@@ -3001,22 +2958,6 @@ class TwentySecondReviewFindings(ProseBind, RunFixture):
 
 class TwentyThirdReviewFindings(ProseBind, RunFixture):
     """The twenty-third code-review findings of 2026-11-11, each reproduced red before its fix."""
-
-    def test_t1_a_negation_qualifies_only_the_code_it_is_attached_to(self):
-        import worksheet_grammar
-        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
-        both, one = frozenset({"93000", "93005"}), frozenset({"93005"})
-        cases = {"  EM-ECG: 93005 billed, 93000 not billed\n": (both, ["93000"]),
-                 "  EM-ECG: 93005 billed while the read is pending (93000 not billed)\n": (both, ["93000"]),
-                 "  EM-ECG: not billed: 93005\n": (one, ["93005"]),
-                 "  EM-ECG: 93005 tracing only, not billed\n": (one, ["93005"]),
-                 "  EM-ECG: 93005 is not billed; 93000 reading documented\n": (both, ["93005"]),
-                 "  EM-ECG: 93000 read and reported; 93005 traced here\n": (both, [])}
-        for line, (billed, expected) in cases.items():
-            with self.subTest(line=line):
-                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), billed)
-                self.assertEqual([f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed"
-                                  for code in expected], found)
 
     def element_field(self) -> str:
         return ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99283 Emergency visit\n' + ELEMENTS
@@ -3201,7 +3142,9 @@ class TwentyFourthReviewFindings(ProseBind, RunFixture):
     def test_w8_one_fingerprint_rule(self):
         import coding_freshness
         import encounter_openers
-        self.assertIs(encounter_openers.digest, coding_freshness.sheet_sha256)
+        # Twenty-eighth review: one rule held by equality, not by an import of encounter_openers.
+        for content in (b"", b"a synthetic sheet\n", "caf\u00e9\r\n".encode("utf-8")):
+            self.assertEqual(encounter_openers.digest(content), coding_freshness.sheet_sha256(content))
 
 
 class TwentyFifthReviewFindings(ProseBind, RunFixture):
@@ -3364,20 +3307,6 @@ class TwentyFifthReviewFindings(ProseBind, RunFixture):
 class TwentySixthReviewFindings(ProseBind, RunFixture):
     """The twenty-sixth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
-    def test_y1_the_colon_form_applies_only_where_it_opens_the_clause(self):
-        both, one = frozenset({"93000", "93005"}), frozenset({"93005"})
-        cases = {"93005 not billed: 93000 is billed for the read": {"93005"},
-                 "not billed: 93005": {"93005"},
-                 "93005 tracing only, not billed": {"93005"},
-                 "93005 billed, 93000 not billed": {"93000"},
-                 "93005 billed while the read is pending (93000 not billed)": {"93000"},
-                 "93005 is not billed; 93000 reading documented": {"93005"},
-                 "93000 read and reported; 93005 traced here": set()}
-        for line, expected in cases.items():
-            with self.subTest(line=line):
-                self.assertEqual(expected, em_audit.negated_codes(line) & both)
-        self.assertEqual({"93005"}, em_audit.negated_codes("Tracing not billed: 93005") & one)
-
     def test_y2_a_tab_in_a_reply_renders_as_a_space_in_word(self):
         reply = "Synthetic reply:\tno, radiology read it."
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
@@ -3535,7 +3464,8 @@ class TwentySeventhReviewFindings(ProseBind, RunFixture):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
         self.assertNotIn("re.compile", ast.unparse(functions["ecg_findings"]))
-        self.assertIn("ECG_TOKEN", ast.unparse(functions["ecg_findings"]))
+        # Twenty-eighth review: the EM-ECG grammar's code list replaced ECG_TOKEN's prose reading.
+        self.assertIn("ecg_listed", ast.unparse(functions["ecg_findings"]))
         for module, name in ((encounter_openers, "bound_bytes"), (encounter_status, "status_for"),
                              (review_manifest, "recorded_text")):
             source = ast.unparse(next(node for node in ast.parse(Path(module.__file__).read_text(encoding="utf-8")).body
@@ -3557,6 +3487,99 @@ class TwentySeventhReviewFindings(ProseBind, RunFixture):
             em_audit.render(self.run, [])
         self.assertEqual(1, clean.call_count)
         self.assertEqual(2, levels.call_count)  # the worksheet block once, the re-derivation once
+
+
+class TwentyEighthReviewFindings(ProseBind, RunFixture):
+    """The twenty-eighth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def ecg(self, line: str):
+        import worksheet_grammar
+        return worksheet_grammar.em_block(ELEMENTS.replace("  EM-ECG: not applicable\n", "  EM-ECG: " + line + "\n"))
+
+    def test_aa2_the_ecg_line_lists_exactly_the_billed_ecg_codes(self):
+        none, office, tracing, both = frozenset(), frozenset({"93000"}), frozenset({"93005"}), frozenset({"93000", "93005"})
+        missing = "the worksheet bills {}, but its EM-ECG line does not list it"
+        extra = "the EM-ECG line lists {}, which the worksheet does not bill"
+        cases = [
+            ("not applicable", none, []),
+            ("none | ADR 0443 outside tracing, counted as test and interpretation", none, []),
+            ("93000 | ADR 0443 office read, interpretation billed", office, []),
+            ("93005 | ADR 0443 tracing billed while the findings are pending", tracing, []),
+            ("93000, 93005 | ADR 0443 traced and read here", both, []),
+            ("not applicable", tracing, [missing.format("93005")]),
+            ("none | ADR 0443 outside tracing", office, [missing.format("93000")]),
+            ("93000 | ADR 0443 office read, interpretation billed", none, [extra.format("93000")]),
+            ("93005 | ADR 0443 tracing only", office, [missing.format("93000"), extra.format("93005")]),
+            ("93000, 93005 | ADR 0443 traced and read here", office, [extra.format("93005")]),
+            ("93005 | ADR 0443 tracing, 93000 not billed for the read", both, [missing.format("93000")]),
+            ("93000 | interpretation not billed: 93005 is pending", both, [missing.format("93005")]),
+        ]
+        for line, billed, expected in cases:
+            with self.subTest(line=line, billed=sorted(billed)):
+                block = self.ecg(line)
+                self.assertEqual(0, block.unread)
+                self.assertEqual(expected, em_audit.ecg_findings(block, billed))
+
+    def test_aa2_a_line_outside_the_grammar_is_unread_and_not_graded(self):
+        for line in ("93000 read here, interpretation billed", "none", "93000 |", "930001 | six digits",
+                     "the ADR 0443 limb applied"):
+            with self.subTest(line=line):
+                block = self.ecg(line)
+                self.assertEqual(1, block.unread)
+                self.assertEqual([], em_audit.ecg_findings(block, frozenset({"93000"})))
+        self.assertFalse(hasattr(em_audit, "negated_codes"))
+        doc = (ROOT / "skills" / "_shared" / "reference" / "em-elements.md").read_text(encoding="utf-8")
+        self.assertProseIn("EM-ECG: <the billed ECG codes, comma-separated, or none> | <the ADR 0443 limb applied>", doc)
+        self.assertProseIn("the limb text is never read", doc)
+
+    def test_aa2_the_re_derivation_ecg_line_is_held_to_its_grammar_only(self):
+        rederived = self.ecg("93000 | ADR 0443 office read")
+        self.assertEqual([], em_audit.rederivation_findings(rederived, None))
+        self.assertEqual(1, self.ecg("93000 office read").unread)
+
+    def test_aa3_a_damaged_fingerprint_record_is_rebuilt_and_kept_beside_it(self):
+        record = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        damaged = record.read_bytes()[: len(record.read_bytes()) // 2]
+        record.write_bytes(damaged)
+        notices: list[str] = []
+        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS, notices=notices)
+        self.assertEqual(1, len(notices), notices)
+        self.assertIn("rebuilt", notices[0])
+        self.assertEqual(damaged, record.with_name(record.name + ".damaged").read_bytes())
+        self.assertIn(str((self.run / "worksheets/note-1.md").resolve()), review_manifest.private_fingerprints(self.run))
+        manifest = self.run / review_manifest.MANIFEST
+        manifest.write_bytes(manifest.read_bytes()[:10])
+        from run_record_reader import UnreadableRecord
+        with self.assertRaises(UnreadableRecord):
+            review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+
+    def test_aa1_a_miss_in_a_partial_cpt_set_is_unread_never_absent(self):
+        import procedure_codes_lookup
+        real = procedure_codes_lookup.describe
+
+        def describe(connection, code, kind="code"):
+            return None if code == "99284" else real(connection, code, kind)
+        with mock.patch.object(procedure_codes_lookup, "describe", side_effect=describe):
+            complete = em_audit.mdm_levels("2026-10-01")
+            with mock.patch.object(procedure_codes_lookup, "complete", return_value=False):
+                partial = em_audit.mdm_levels("2026-10-01")
+        self.assertIn("99284", complete.absent)
+        self.assertNotIn("99284", partial.absent)
+        block = self.ecg("not applicable").__class__(*[getattr(self.ecg("not applicable"), field) for field in
+                                                        ("items", "rules", "answers", "ecg", "mdm")], "99284", 0)
+        self.assertTrue(em_audit.level_unread(block, partial))
+        self.assertEqual([], em_audit.level_code_findings(block, partial))
+
+    def test_aa4_and_aa5_cleanups(self):
+        import coding_freshness
+        import inspect
+        source = Path(em_audit.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("line_of(list(", source)
+        freshness = ast.parse(Path(coding_freshness.__file__).read_text(encoding="utf-8"))
+        imported = {alias.name for node in ast.walk(freshness) if isinstance(node, ast.Import) for alias in node.names}
+        imported |= {node.module for node in ast.walk(freshness) if isinstance(node, ast.ImportFrom)}
+        self.assertNotIn("encounter_openers", imported)
+        self.assertNotIn("digest", inspect.signature(coding_freshness.bound_sheet_version).parameters)
 
 
 if __name__ == "__main__":

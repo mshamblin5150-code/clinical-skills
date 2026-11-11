@@ -937,7 +937,8 @@ line, after the line's own ANCHOR, SOURCE, SPECIFICITY and CONFIDENCE fields, wr
 block defined in
 [em-elements.md](../_shared/reference/em-elements.md): every problem, data item and risk this step
 weighed, counted or not, with its CPT MDM sheet entry id and verbatim note text, then the rules,
-answers, ECG limb, MDM line and selected level. Record every question this step puts before
+answers, ECG line (the billed ECG codes, or `none`, then `|` and the ADR 0443 limb), MDM line and
+selected level. Record every question this step puts before
 approval, with the clinician's whole reply, in that file's pre-approval answers record, including
 a question whose answer leaves the level unchanged. The visible worksheet keeps its concise support.
 

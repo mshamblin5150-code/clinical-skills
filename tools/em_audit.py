@@ -58,7 +58,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
                                EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
-                               line_of, line_starts, step_four_lines, worksheet_em_block)
+                               ecg_listed, line_of, line_starts, step_four_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -159,12 +159,11 @@ DECLARED_LIMITS = (
     "with no manifest is incomplete on the note path, marked by its encounter opener record, "
     "whatever its worksheets select; a direct consultation with no opener record is not graded, "
     "so a note-path run whose opener record is lost reads the same way.",
-    "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
-    "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
-    "only the other code; with no ECG code billed, the limb's text is not graded. \"not billed\" "
-    "qualifies only the nearest ECG code before it in its clause (to a semicolon or a sentence's "
-    "period), or after a leading \"not billed:\"; a negation worded otherwise, or one a reader "
-    "would attach to a farther code, is not read.",
+    "The EM-ECG line is read by its fixed grammar only: the codes before its | (or none, or the "
+    "whole line not applicable) must equal the ECG codes (93000, 93005) the worksheet bills, and "
+    "the limb text after the | is never read, so whether the limb is true of the ECG is a reading. "
+    "A line outside the grammar is unread. A re-derivation's EM-ECG is held to the grammar alone "
+    "and is never compared with the billed codes.",
     "An E/M filled mark is read from the visible worksheet and the note across line wraps within "
     "its paragraph; an opener whose bracket never closes there is counted unread. A mark spelled "
     "otherwise than [SOURCE: filled - data: or risk: ...] is not an E/M mark and is not shown.",
@@ -458,7 +457,7 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
         key = review_manifest.code_key(entry.system, entry.code)
         if entry.for_entry and key == "em":
             continue  # a selected E/M line, read by em_entry_lines
-        tail, fields, unplaced, _ = private.walks[line_of(list(private.region_starts), match.start())]
+        tail, fields, unplaced, _ = private.walks[line_of(private.region_starts, match.start())]
         unread += len(set(unplaced) - sectioned)
         codes.append((key, entry.system.upper(), entry.code.upper(),
                       " ".join([entry.descriptor.strip(), *tail]), fields, entry.for_entry))
@@ -558,7 +557,8 @@ class MdmLevels(NamedTuple):
     ``readable`` is False when the committed procedure-code database cannot be opened or its CPT
     descriptors are not ``verified``. ``levels`` holds each code whose descriptor names one level,
     ``unleveled`` each code whose descriptor names none (99211, 99281), and ``absent`` each code of
-    the E/M families the verified database carries no entry for at all (99210): no CPT 2026 code.
+    the E/M families a verified, complete CPT set carries no entry for at all (99210): no CPT 2026
+    code. In a partial CPT set a missing code is unread, never absent.
     Any other E/M code had no readable descriptor on the service date, and its level is unread,
     never guessed.
     """
@@ -582,11 +582,14 @@ def mdm_levels(service_date: str) -> MdmLevels:
         levels: dict[str, str] = {}
         unleveled: set[str] = set()
         absent: set[str] = set()
+        # Only a complete CPT set shows a code is not a CPT 2026 code; in a partial one a miss is unread.
+        complete = procedure_codes_lookup.complete(connection, "CPT")
         # Each E/M code is looked up by itself (cpt_identity.EM_CODES), valid on the service date.
         for code in sorted(EM_CODES):
             entry = procedure_codes_lookup.describe(connection, code)
             if entry is None:
-                absent.add(code)  # no CPT 2026 code at all: a level naming it is a finding
+                if complete:
+                    absent.add(code)  # no CPT 2026 code at all: a level naming it is a finding
                 continue
             if not procedure_codes_lookup.valid_on(entry, service_date):
                 continue  # no descriptor on the service date: unread if a block uses it
@@ -710,53 +713,24 @@ def filled_marks(text: str) -> tuple[list[str], int]:
     return sorted(marks), unclosed
 
 
-NOT_BILLED = re.compile(r"\bnot[ \t]+(?:separately[ \t]+)?billed\b(?P<lead>[ \t]*:)?", re.IGNORECASE)
-# A clause of an EM-ECG line ends at a semicolon or at a sentence's period.
-CLAUSE_END = re.compile(r";|\.(?=\s|$)")
-ECG_TOKEN = re.compile(r"(?<![0-9A-Za-z])(?:" + "|".join(sorted(ECG_RULES)) + r")(?![0-9A-Za-z])")
-
-
-def negated_codes(line: str) -> set[str]:
-    """The ECG codes an EM-ECG line says are not billed, each negation qualifying one code.
-
-    "not billed" qualifies the nearest ECG code before it in its clause, so no other ECG code
-    stands between them; a leading "not billed:" qualifies the nearest one after it, or, with
-    none after, the nearest before. A negation with no ECG code beside it qualifies nothing.
-    """
-    negated: set[str] = set()
-    for clause in CLAUSE_END.split(line):
-        tokens = list(ECG_TOKEN.finditer(clause))
-        for negation in NOT_BILLED.finditer(clause):
-            before = [token for token in tokens if token.end() <= negation.start()]
-            after = [token for token in tokens if token.start() >= negation.end()]
-            # The colon form opens its clause: with an ECG code before it, it qualifies that one.
-            colon_form = negation.group("lead") and not before and after
-            chosen = after[0] if colon_form else before[-1] if before else None
-            if chosen is not None:
-                negated.add(chosen.group())
-    return negated
-
-
 def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
-    """Where the EM-ECG limb does not name each ADR 0443 ECG code the worksheet bills.
+    """Where the EM-ECG code list differs from the ADR 0443 ECG codes the worksheet bills.
 
-    em-elements.md: where the worksheet bills 93000 or 93005, the line names that code, so with
-    both billed it names both. With no ECG code billed, the limb is free text and is not graded;
-    a block with no EM-ECG line is already incomplete. A code is named as a whole token, and a
-    billed code a "not billed" qualifies (``negated_codes``) is said not billed: a finding.
+    em-elements.md: ``EM-ECG: <the billed ECG codes, comma-separated, or none> | <the limb>`` or
+    ``EM-ECG: not applicable``. The listed codes (``worksheet_grammar.ecg_listed``) must equal the
+    billed ECG codes exactly; a billed code the line does not list and a listed code the worksheet
+    does not bill are each a finding. The limb text is never read. A line outside the grammar is
+    refused by ``em_block`` and counted unread, and a block with no EM-ECG line is already
+    incomplete, so neither is graded here.
     """
-    codes = sorted(billed & ECG_RULES.keys())
-    if not codes or not block_.ecg:
+    if not block_.ecg:
         return []
-    if all(line.strip().lower() == "not applicable" for line in block_.ecg):
-        return [f"the worksheet bills {', '.join(codes)}, but its EM-ECG line says not applicable"]
-    found = []
-    for code in codes:
-        named = [line for line in block_.ecg if code in {token.group() for token in ECG_TOKEN.finditer(line)}]
-        if any(code in negated_codes(line) for line in named):
-            found.append(f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed")
-        elif not named:
-            found.append(f"the worksheet bills {code}, but its EM-ECG line does not name it")
+    billed_ecg = billed & ECG_RULES.keys()
+    listed = frozenset().union(*(ecg_listed(value) for value in block_.ecg))
+    found = [f"the worksheet bills {code}, but its EM-ECG line does not list it"
+             for code in sorted(billed_ecg - listed)]
+    found += [f"the EM-ECG line lists {code}, which the worksheet does not bill"
+              for code in sorted(listed - billed_ecg)]
     return found
 
 

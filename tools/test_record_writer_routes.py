@@ -74,6 +74,8 @@ GUARDED_SIBLINGS = {
     ('artifact_repairs', 'record_repair'): 'Immutable repair comparison artifact under ADR 0405.',
     ('frozen_grade', '_write'): 'Existing locked freeze/adoption transaction, ADR 0422 ruling 5.',
     ('run_record_reader', 'update_tool_record'): 'Shared lock-owned read/change/atomic replace or append.',
+    ('review_manifest', 'set_aside_damaged_fingerprints'): 'Unreadable derived fingerprint record moved aside '
+                                                           'under its record lock before build rewrites it.',
 }
 
 

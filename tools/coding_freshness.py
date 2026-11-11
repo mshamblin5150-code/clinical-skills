@@ -28,7 +28,6 @@ from run_record_reader import (DamagedRecord, damaged_record_result, check_handw
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
-from encounter_openers import digest
 import git_paths
 from cpt_identity import ED_EM, OFFICE_EM  # the one E/M family constant, shared with the worksheet readers
 
@@ -67,9 +66,13 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-# The receipt's MDM sheet fingerprint rule over one committed version's bytes: the one SHA-256
-# rule the run records use, not a second one.
-sheet_sha256 = digest
+def sheet_sha256(content: bytes) -> str:
+    """The receipt's MDM sheet fingerprint over one committed version's bytes.
+
+    It is the SHA-256 hex digest the run records use (``encounter_openers.digest``); a test holds
+    the two equal rather than this module importing the opener stack.
+    """
+    return hashlib.sha256(content).hexdigest()
 
 
 def committed_sheet(path: Path) -> bytes | None:
@@ -116,8 +119,8 @@ def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, tu
     return found
 
 
-def bound_sheet_version(path: Path, digest: str) -> bytes | None:
-    """The committed version of the sheet at ``path`` whose fingerprint is ``digest``.
+def bound_sheet_version(path: Path, fingerprint: str) -> bytes | None:
+    """The committed version of the sheet at ``path`` whose fingerprint is ``fingerprint``.
 
     HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
     when HEAD does not match is the path's history walked, newest first, each version hashed by
@@ -133,7 +136,7 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     """
     try:
         head = committed_sheet(path)
-        if head is not None and sheet_sha256(head) == digest:
+        if head is not None and sheet_sha256(head) == fingerprint:
             return head
         relative = path.relative_to(ROOT).as_posix()
         commits = history_paths(git_paths.read_path_records(
@@ -164,7 +167,7 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
                 batch.stdout.read(1)  # every object type carries its body and a trailing LF
                 if len(version) != size:
                     return None
-                if header[1] == b"blob" and sheet_sha256(version) == digest:
+                if header[1] == b"blob" and sheet_sha256(version) == fingerprint:
                     return version
         return None
     except OSError:

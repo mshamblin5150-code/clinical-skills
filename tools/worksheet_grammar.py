@@ -307,7 +307,7 @@ def line_starts(text: str) -> list[int]:
     return starts
 
 
-def line_of(starts: list[int], offset: int) -> int:
+def line_of(starts: list[int] | tuple[int, ...], offset: int) -> int:
     """The LF line holding ``offset``: one bisect over ``line_starts`` instead of a count per match."""
     return bisect_right(starts, offset) - 1
 
@@ -481,6 +481,19 @@ _EM_LOOSE = re.compile(r"EM-(?P<kind>[A-Z]+)\b[ \t*]*:?(?P<entry>[^|]*)", re.IGN
 _EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
 _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
+# em-elements.md: EM-ECG lists the billed ECG codes, comma-separated, or none, then the limb text,
+# which nothing parses; or reads not applicable.
+_EM_ECG = re.compile(r"^(?:(?i:not[ \t]+applicable)|(?P<codes>(?i:none)|\d{5}(?:[ \t]*,[ \t]*\d{5})*)"
+                     r"[ \t]*\|[ \t]*\S.*)$")
+
+
+def ecg_listed(value: str) -> frozenset[str]:
+    """The ECG codes an EM-ECG value lists (``_EM_ECG``): none for ``not applicable`` or ``none``."""
+    match = _EM_ECG.match(value)
+    codes = match.group("codes") if match else None
+    if codes is None or codes.lower() == "none":
+        return frozenset()
+    return frozenset(code.strip() for code in codes.split(","))
 
 
 @dataclass(frozen=True)
@@ -553,7 +566,9 @@ def em_block(text: str) -> EmBlock | None:
             levels.append(value)
         elif kind == "ANSWER" and _EM_ANSWER.match(value):
             free[kind].append(value)
-        elif kind in ("RULE", "ECG") and value:
+        elif kind == "RULE" and value:
+            free[kind].append(value)
+        elif kind == "ECG" and _EM_ECG.match(value):
             free[kind].append(value)
         else:
             unread += 1

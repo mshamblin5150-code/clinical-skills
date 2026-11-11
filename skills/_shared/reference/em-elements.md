@@ -26,7 +26,7 @@ counted unread:
   EM-RISK: <entry id> | <counted | not counted> | "<verbatim note text>" | <reason>
   EM-RULE: <the house rule, counting note, documentation check or ADR ruling applied>
   EM-ANSWER: <pre-approval answer id | none>
-  EM-ECG: <the ADR 0443 limb applied | not applicable>
+  EM-ECG: <the billed ECG codes, comma-separated, or none> | <the ADR 0443 limb applied>
   EM-MDM: problems <level>; data <level>; risk <level>; mdm <level>
   EM-LEVEL: <the selected E/M code>
 ```
@@ -46,9 +46,13 @@ counted unread:
   selected by total time instead, write the rule line `EM-RULE: level selected by total time on the
   date of the encounter`; the level is then not held to the MDM line, and the selected code still is.
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
-  relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed; where the worksheet
-  bills 93000 or 93005, the line names that code. Exactly one `EM-MDM` and one `EM-LEVEL`. A
-  block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
+  relied on. Write one `EM-ECG` line: the ECG codes (93000, 93005) the worksheet bills,
+  comma-separated, or `none`, then `|` and the ADR 0443 limb applied, such as
+  `EM-ECG: 93000 | ADR 0443 office read, interpretation billed` or
+  `EM-ECG: none | ADR 0443 outside tracing, counted as test and interpretation`; or
+  `EM-ECG: not applicable` where no ECG was weighed. The listed codes must equal the billed ECG
+  codes; the limb text is never read, and a line in another shape is unread. Exactly one `EM-MDM`
+  and one `EM-LEVEL`. A block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
 - The manifest build records a fingerprint of the whole private worksheet in its own file beside
   the manifest; after editing the worksheet, build again, or the E/M audit check-off refuses. An
   edit that changes no selected code leaves the manifest byte-identical.
