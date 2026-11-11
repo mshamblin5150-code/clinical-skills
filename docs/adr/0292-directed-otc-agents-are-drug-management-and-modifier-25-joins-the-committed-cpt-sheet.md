@@ -50,6 +50,8 @@ risk low on the ground that a directed agent needs no prescription.
 This ruling reaches agents the clinician directs. How a drug the skill itself proposes counts toward
 risk is not decided here.
 
+*Superseded 2026-11-10.* The words "the risk element counts it as prescription drug management, because the clinician writes a prescription for every agent he directs" are superseded by [ADR 0442](0442-a-directed-over-the-counter-agent-is-graded-by-the-patient-s-documented-risk-and-a-prescription-written-for-it-does-not-raise-the-risk.md) ruling 1. A directed over-the-counter agent counts as prescription drug management only where the clinician states its patient-specific risk; general advice still counts toward nothing.
+
 ## Ruling 2 — `clinical-note` writes every directed over-the-counter agent with its dose and directions
 
 So that ruling 1 never turns on how loosely a note was drafted, `clinical-note` writes each

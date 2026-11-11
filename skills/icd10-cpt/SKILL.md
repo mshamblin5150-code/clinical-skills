@@ -781,6 +781,15 @@ never "not done": "no prescription drug management documented", rather than
 [ADR 0376](../../docs/adr/0376-a-filled-sig-fits-the-entered-diagnosis-and-the-e-m-reasoning-says-not-documented-rather-than-not-done.md)
 ruling 2 and leaves the level unchanged.
 
+**The office check sheet.** For an office or other outpatient E/M level
+(99202–99215), apply the house rules, counting notes and documentation checks in
+[office-mdm-check.md](../../reference/office-mdm-check.md) alongside the passing
+sheet. It never supports a level the CPT text does not, and its level-changing
+questions join the run's existing pre-approval questions. The
+[ED facility grid](../../reference/ed-facility-grid.md) sets the hospital's
+level and is never used for the clinician's. These rules follow
+[ADR 0444](../../docs/adr/0444-the-repository-carries-a-tested-ed-facility-grid-and-office-mdm-check-sheet.md).
+
 **Problems addressed.** Apply `definition-problem-addressed` from the passing
 sheet. Count a condition only where the clinician's shorthand or recorded answer
 shows he evaluated or treated it this visit. A skill-proposed Plan line for a
@@ -846,6 +855,11 @@ two-reader procedure. If that live reading cannot be completed, the E/M line
 stays pending. The database and this prose never
 substitute for the sheet or required rendered page.
 
+An E/M point system or audit score sheet built on the CMS 1995 or 1997
+documentation guidelines never selects a level either;
+[reference/em-point-systems.md](../../reference/em-point-systems.md) explains
+why and where its counting habits disagree with the CPT sheet.
+
 The freshness gate still requires a committed sheet covering the service date;
 a live reading cannot carry the 2026 sheet into a later edition.
 
@@ -854,13 +868,22 @@ apply `-25` from the passing sheet's `modifier-25` entry when the note supports
 it. Whether the E/M work is significant and separately identifiable remains
 a reading of the note; reporting the procedure alone does not settle that reading.
 
-**Directed agents.** Apply the risk entry `table-moderate` to a **Directed agent**
-as defined in [CONTEXT.md](../../CONTEXT.md). An over-the-counter agent the
-clinician directs in the Plan with a dose and directions is prescription drug
-management under [ADR 0292](../../docs/adr/0292-directed-otc-agents-are-drug-management-and-modifier-25-joins-the-committed-cpt-sheet.md).
+**Directed agents.** Grade a **Directed agent** as defined in
+[CONTEXT.md](../../CONTEXT.md) under
+[ADR 0442](../../docs/adr/0442-a-directed-over-the-counter-agent-is-graded-by-the-patient-s-documented-risk-and-a-prescription-written-for-it-does-not-raise-the-risk.md).
+An over-the-counter agent the clinician directs in the Plan with a dose and
+directions counts toward `table-moderate` as prescription drug management only
+where his shorthand or recorded answer states its patient-specific risk;
+otherwise it supports no more than low risk, and a prescription written for it
+does not change that. When that moderate reading would raise the level and no
+risk is stated, select the lower level and put one question in the run's
+existing pre-approval questions: whether the agent carried a patient-specific
+risk he weighed, naming both levels. Where pre-approval questions are
+delegated, the lower level stands; the pass never supplies the reason.
 General advice naming an option without a dose and directions counts toward
-nothing. A skill-proposed drug counts as prescription drug management where it
-treats a problem the clinician addressed. A proposed drug for a condition left
+nothing. A skill-proposed prescription drug counts as prescription drug
+management where it treats a problem the clinician addressed; a skill-proposed
+over-the-counter agent is graded as above. A proposed drug for a condition left
 out under *Problems addressed* counts for nothing.
 
 Re-derive two of three elements without the skill-proposed drugs. If the
@@ -879,13 +902,18 @@ avoid duplicate counts within a category; apply the ECG rule below when a test
 is both ordered and independently interpreted.
 
 **The clinician's own ECG read.** Apply `definition-independent-interpretation`
-and `definition-data-analyzed`. Where the shorthand records his own ECG read,
-count the ECG as a test ordered and an independent interpretation, and bill
-neither 93000 nor 93010. In an office or clinic encounter add 93005 for the
-tracing unless the note says the tracing came from elsewhere. In an emergency
-department encounter bill no ECG code. Verify the selected procedure through
-the existing lookup and rendered-descriptor route; these rules do not supply
-a CPT descriptor.
+and `definition-data-analyzed`. In an office or clinic encounter where the
+shorthand records his own read of an ECG traced at that office, bill 93000 and
+count the ECG toward nothing in the data element (ADR 0443). The note carries
+his read as a written interpretation and report, not a bare "normal"; where the
+shorthand records only "normal" or no findings, put one question in the run's
+existing pre-approval questions asking for his findings, and until he answers
+bill 93005 and count the ECG as one test ordered. If the tracing came from
+elsewhere, bill no ECG code and count his read as a test ordered and an
+independent interpretation. In an emergency department encounter bill no ECG
+code, and count his read as a test ordered and an independent interpretation.
+Verify the selected procedure through the existing lookup and
+rendered-descriptor route; these rules do not supply a CPT descriptor.
 
 Remove the skill-proposed orders and re-derive the elements and supported level.
 If the level becomes lower, append this exact inline mark to the E/M line:
@@ -923,14 +951,17 @@ no risk while hypertension is left out.
 **Synthetic worked case — an office ECG.** A new office patient's chest pain
 is evaluated by the clinician as an undiagnosed new problem with uncertain
 prognosis. The shorthand records his own read of an ECG traced at that office;
-it records no treatment or disposition consistent with a threat to life. Apply
-`table-moderate`, `definition-independent-interpretation`,
-`definition-data-analyzed`, and `mdm-two-of-three`: count the ECG as a test
-ordered and as an independent interpretation. Moderate problems and moderate
-data support 99204 even with low risk. Add 93005 for the office tracing;
-bill neither 93000 nor 93010. If the tracing came from elsewhere, omit 93005;
-in an emergency department encounter, bill no ECG code and select from the
-ED E/M family. The pass's own proposed workup supplies no threat-to-life count.
+it records no treatment or disposition consistent with a threat to life, and
+his read names rate, rhythm, intervals and ST segments. Apply `table-low`,
+`table-moderate`, `definition-data-analyzed`, and `mdm-two-of-three`: bill
+93000, which reports his interpretation, so the ECG counts toward nothing in
+the data element (ADR 0443). Moderate problems, minimal data and low risk
+support 99203. Had the tracing come from elsewhere, he would bill no ECG code
+and his read would count as a test ordered and an independent interpretation,
+so moderate problems and moderate data would support 99204. In an emergency
+department encounter, bill no ECG code, count it the same way, and select
+from the ED E/M family. The pass's own proposed workup supplies no
+threat-to-life count.
 
 The first authenticated 2026 reader confirms the ebook identifier and edition
 against the procedure database's CPT `source` row before transcribing. The rendered

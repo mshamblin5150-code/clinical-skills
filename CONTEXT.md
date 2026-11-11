@@ -1557,7 +1557,7 @@ The committed, per-edition verbatim copy of the CPT medical decision making grid
 _Avoid_: E/M table, MDM grid, cheat sheet, level chart
 
 **Directed agent**:
-An over-the-counter drug the clinician's Plan directs with a dose and directions. It is prescription drug management for the E/M risk element because he writes a prescription for every agent he directs. Distinct from general advice that names an over-the-counter option without a dose and directions, which counts toward no element, and from a **Proposed** drug the skill itself adds.
+An over-the-counter drug the clinician's Plan directs with a dose and directions. It counts as prescription drug management for the E/M risk element only where his shorthand or recorded answer states why it carries more risk for this patient; otherwise it supports no more than low risk, and a prescription written for it does not raise that ([ADR 0442](docs/adr/0442-a-directed-over-the-counter-agent-is-graded-by-the-patient-s-documented-risk-and-a-prescription-written-for-it-does-not-raise-the-risk.md)). Distinct from general advice that names an over-the-counter option without a dose and directions, which counts toward no element, and from a **Proposed** drug the skill itself adds.
 _Avoid_: OTC recommendation, self-care drug, nonprescription agent
 
 **Problem addressed**:

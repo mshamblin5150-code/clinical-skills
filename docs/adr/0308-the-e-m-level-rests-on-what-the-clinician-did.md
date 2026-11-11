@@ -136,6 +136,8 @@ Billing 93000 or 93010 and counting the ECG toward nothing was declined because 
 loses up to two points and the clinician made the opposite call on this run. Billing the
 interpretation and counting it too is not available: both sheet entries above forbid it.
 
+*Superseded 2026-11-10.* The words "In an office or clinic encounter it adds 93005 for the tracing, unless the note says the tracing came from elsewhere" are superseded by [ADR 0443](0443-an-office-ecg-the-clinician-reads-is-billed-with-its-interpretation-and-counts-nothing-toward-data.md) ruling 1. An office ECG the clinician reads is billed as 93000 and counts nothing toward data; the emergency department limb stands.
+
 ## Ruling 7 — a book-only CPT page is read live each time, and a recurring one joins the sheet
 
 When an E/M line needs one of the CPT pages ADR 0251 ruling 3 still sends to the rendered book, the
