@@ -6,10 +6,25 @@ Configuration for the maintainer's engineering skills. **None of this is require
 
 ### Pinned engineering skills
 
-The Matt Pocock and pstack skills are pinned in
-[docs/agents/agent-skills-lock.json](docs/agents/agent-skills-lock.json): each source names its
-repository, release and exact commit, and each skill names its installed name and its directory at
-that commit. Install a pinned skill from a checkout of its source at that commit:
+pstack and the Matt Pocock skills are installed whole, as Claude Code plugins, from the pinned
+marketplace at [docs/agents/engineering-plugins](docs/agents/engineering-plugins/.claude-plugin/marketplace.json).
+Each plugin entry names its release and one exact upstream commit (`sha`). pstack is the Claude Code
+package that `cursor/plugins` publishes: every skill, both agents, the guide and its Claude Code
+harness notes. Install at user scope, so consumers of the clinical skills are never offered them:
+
+```bash
+claude plugin marketplace add ./docs/agents/engineering-plugins --scope user
+claude plugin install pstack@clinical-skills-engineering --scope user
+claude plugin install mattpocock-skills@clinical-skills-engineering --scope user
+```
+
+pstack's skills are written for Cursor; its `docs/harness/claude-code.md`, inside the installed
+plugin, maps their tool, agent and model names to Claude Code. Run `/pstack:setup-pstack` once to
+write `~/.claude/rules/pstack-models.md`.
+
+[docs/agents/agent-skills-lock.json](docs/agents/agent-skills-lock.json) pins, by the same commits,
+every skill installed loose rather than through a plugin, including the Pocock skills its plugin
+does not publish and pstack's Benny automation skills. Install one from a checkout of its source:
 
 ```bash
 git init <dir> && git -C <dir> fetch --depth 1 <repository> <commit> && git -C <dir> checkout FETCH_HEAD
@@ -17,8 +32,9 @@ cp -R <dir>/<path> ~/.claude/skills/<name>
 ```
 
 Where the installed name differs from the upstream directory name, set the `name:` line of the
-copied `SKILL.md` to the installed name. To move to a newer release, replace the source's version
-and commit in the lock and confirm every listed path still holds a `SKILL.md` at the new commit.
+copied `SKILL.md` to the installed name. To move to a newer release, change the version and commit
+in both files together, run `claude plugin validate docs/agents/engineering-plugins`, and confirm
+every lock path still holds a `SKILL.md` at the new commit.
 
 ### Maintainer harness checkpoints
 
