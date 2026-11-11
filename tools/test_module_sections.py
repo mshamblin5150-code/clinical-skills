@@ -137,6 +137,7 @@ DECLARED_SECTIONS = {
     "phi_scan": "PHI pre-commit hook",
     "post_text": "Peer critique grading",
     "post_html": "Discussion post grading",
+    "preapproval_answers": "Pre-approval answers record",
     "project_context": "Coursework project context",
     "procedure_codes_build": "Procedure-code database",
     "procedure_codes_lookup": "Procedure-code database",

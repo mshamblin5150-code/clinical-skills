@@ -927,13 +927,22 @@ def _grade(
         parsed.value("--submission"),
         tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
     )
+    # ADR 0445: every coded note needs a blind re-derivation and a current check-off.
+    import em_audit
+    em_failed, em_report, em_unread = em_audit.completion_gate(
+        source.directory.parent if source.directory.name == "worksheets" else source.directory,
+        parsed.value("--submission"),
+    )
+    if em_unread:
+        scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
+        coverage_failed = True
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=findings_failed or aar_failed or chain_failed,
+        findings_failed=findings_failed or aar_failed or chain_failed or em_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
-        reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report),
+        reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report, em_report),
     )
 
 

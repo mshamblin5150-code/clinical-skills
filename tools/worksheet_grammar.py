@@ -179,3 +179,108 @@ def paired_entry(
     if owner is None or not detail_belongs_to_entry(text, owner, detail):
         return None
     return owner
+
+
+# The E/M element block (skills/_shared/reference/em-elements.md). icd10-cpt step 5 indents it
+# under the E/M line of the private worksheet; the em-audit re-derivation record carries the same
+# lines. Every EM- line is a candidate, so a line the strict reader refuses is counted as unread.
+EM_KINDS = ("PROBLEM", "DATA", "RISK", "RULE", "ANSWER", "ECG", "MDM", "LEVEL")
+ITEM_KINDS = ("PROBLEM", "DATA", "RISK")
+MDM_LEVELS = ("straightforward", "low", "moderate", "high")
+EM_LABEL = re.compile(r"^[ \t]*(?:E/M[ \t]*:|CPT[ \t]+992(?:0[2-5]|1[1-5]|8[1-5])\b)")
+EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
+_EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
+_EM_ITEM = re.compile(
+    r"^(?P<entry>[a-z0-9][a-z0-9-]*|none)[ \t]*\|[ \t]*(?P<counted>counted|not counted)[ \t]*\|"
+    r"[ \t]*(?P<text>\".*\"|none)[ \t]*\|[ \t]*(?P<reason>[^|]*\S)$"
+)
+_EM_MDM = re.compile(
+    r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
+)
+_EM_CODE = re.compile(r"^\d{5}$")
+_EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
+
+
+@dataclass(frozen=True)
+class EmItem:
+    kind: str
+    entry: str
+    counted: bool
+    text: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class EmBlock:
+    """The strictly read element lines; ``unread`` counts every refused candidate."""
+
+    items: tuple[EmItem, ...]
+    rules: tuple[str, ...]
+    answers: tuple[str, ...]
+    ecg: tuple[str, ...]
+    mdm: dict[str, str] | None
+    level: str | None
+    unread: int
+
+    def two_of_three(self) -> str | None:
+        """The MDM level two of the three elements meet: the middle of the three."""
+        if self.mdm is None:
+            return None
+        ranks = sorted(MDM_LEVELS.index(self.mdm[element]) for element in ("problems", "data", "risk"))
+        return MDM_LEVELS[ranks[1]]
+
+
+def em_block(text: str) -> EmBlock | None:
+    """Read every EM- line in ``text``; None when the text holds no EM- candidate.
+
+    A block missing a PROBLEM, DATA or RISK line, or not holding exactly one MDM and one
+    LEVEL line, adds one to ``unread``: an incomplete block is not a clean one.
+    """
+    lines = [line for line in text.splitlines() if EM_CANDIDATE.match(line)]
+    if not lines:
+        return None
+    items: list[EmItem] = []
+    free: dict[str, list[str]] = {"RULE": [], "ANSWER": [], "ECG": []}
+    mdms: list[dict[str, str]] = []
+    levels: list[str] = []
+    unread = 0
+    for line in lines:
+        match = _EM_LINE.match(line)
+        kind = match.group("kind") if match else ""
+        value = match.group("value") if match else ""
+        if kind in ITEM_KINDS and (item := _EM_ITEM.match(value)):
+            items.append(EmItem(kind, item.group("entry"), item.group("counted") == "counted",
+                                item.group("text"), item.group("reason")))
+        elif kind == "MDM" and (mdm := _EM_MDM.match(value)) and set(mdm.groupdict().values()) <= set(MDM_LEVELS):
+            mdms.append(mdm.groupdict())
+        elif kind == "LEVEL" and _EM_CODE.match(value):
+            levels.append(value)
+        elif kind == "ANSWER" and _EM_ANSWER.match(value):
+            free[kind].append(value)
+        elif kind in ("RULE", "ECG") and value:
+            free[kind].append(value)
+        else:
+            unread += 1
+    complete = {item.kind for item in items} >= set(ITEM_KINDS) and len(mdms) == 1 and len(levels) == 1
+    return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), tuple(free["ECG"]),
+                   mdms[0] if len(mdms) == 1 else None, levels[0] if len(levels) == 1 else None,
+                   unread + (0 if complete else 1))
+
+
+def worksheet_em_block(text: str) -> tuple[EmBlock | None, int]:
+    """The element block indented under the first E/M line, and EM- candidates outside it.
+
+    A worksheet written before the block existed returns ``(None, 0)`` and stays valid.
+    """
+    lines = text.splitlines()
+    inside: list[str] = []
+    for index, line in enumerate(lines):
+        if EM_LABEL.match(line):
+            for follower in lines[index + 1:]:
+                if not follower.strip() or follower[0] not in " \t":
+                    break
+                inside.append(follower)
+            break
+    total = sum(1 for line in lines if EM_CANDIDATE.match(line))
+    within = sum(1 for line in inside if EM_CANDIDATE.match(line))
+    return em_block("\n".join(inside)), total - within
