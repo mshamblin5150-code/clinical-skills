@@ -10,12 +10,13 @@ the faculty video remains the **Case material**. Follow the narration rules in
 
 Use an existing run under `scratch/`. Keep all video, audio, still images, logs and text there.
 Confirm the video link in the Sanity Check. Set up a separate environment once, using a Python
-version supported by the pinned packages, then pass its interpreter explicitly. Python 3.11 was
-used for the [historical build probe](../../../reference/case-video-probe.md). For example on
-Windows, with that Python installed:
+version supported by the pinned packages, then pass its interpreter explicitly. The pinned `av`
+release requires Python 3.12 or newer; Python 3.11 was used for the
+[historical build probe](../../../reference/case-video-probe.md), before that pin. For example on
+Windows, with Python 3.12 installed:
 
 ```powershell
-py -3.11 -m venv <scratch>/sessions/<environment-key>/env
+py -3.12 -m venv <scratch>/sessions/<environment-key>/env
 <scratch>/sessions/<environment-key>/env/Scripts/python.exe -m pip install -r tools/case-video-requirements.txt
 python tools/case_video.py prepare <run> --python <environment-python> --source <youtube-link>
 ```

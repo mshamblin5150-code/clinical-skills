@@ -49,10 +49,10 @@ jobs:
     outputs:
       full_code: ${{ steps.scope.outputs.full_code }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .github/maintainer-python-version
       - name: Select code validation scope
@@ -100,13 +100,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A push may carry more than one commit. Its `before..sha` range must
           # exist locally or the last clean message can hide an earlier hazard.
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # ADR 0431 pins the exact maintainer release, preserving ADR 0002's
           # windows-latest paragraph: CI red should reproduce on that machine.
@@ -211,7 +211,7 @@ jobs:
 
       - name: Diagnostic receipt (missing means unavailable)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-diagnostic-suite-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-suite.json
@@ -226,11 +226,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
           check-latest: true
@@ -250,7 +250,7 @@ jobs:
 
       - name: Diagnostic receipt (missing means unavailable)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-diagnostic-canary-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-canary.json
@@ -268,11 +268,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # ADR 0431: a minor-version floor has no maintainer machine to match;
           # 3.10's scheduled October 2026 end of life ends patch-release drift.
@@ -288,7 +288,7 @@ jobs:
 
       - name: Diagnostic receipt (missing means unavailable)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-diagnostic-floor-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-floor.json

@@ -1,0 +1,512 @@
+{
+  "schema": "agent-skills-lock/1",
+  "sources": {
+    "mattpocock-skills": {
+      "repository": "https://github.com/mattpocock/skills",
+      "version": "v1.3.2",
+      "commit": "d1478fcb140db0b93c0c8df17bcfd311844749d0"
+    },
+    "pstack": {
+      "repository": "https://github.com/cursor/plugins",
+      "version": "0.15.36",
+      "commit": "5866df557357d005b3c0c9d3da0d9e739b4bdde3"
+    }
+  },
+  "skills": [
+    {
+      "name": "architect",
+      "source": "pstack",
+      "path": "pstack/skills/architect"
+    },
+    {
+      "name": "arena",
+      "source": "pstack",
+      "path": "pstack/skills/arena"
+    },
+    {
+      "name": "ask-matt",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/ask-matt"
+    },
+    {
+      "name": "automate-me",
+      "source": "pstack",
+      "path": "pstack/skills/automate-me"
+    },
+    {
+      "name": "benchmark-checklist",
+      "source": "pstack",
+      "path": "pstack/skills/benchmark-checklist"
+    },
+    {
+      "name": "blast-radius",
+      "source": "pstack",
+      "path": "pstack/skills/blast-radius"
+    },
+    {
+      "name": "bro",
+      "source": "pstack",
+      "path": "pstack/skills/bro"
+    },
+    {
+      "name": "chief-of-staff",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/chief-of-staff"
+    },
+    {
+      "name": "claude-handoff",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/claude-handoff"
+    },
+    {
+      "name": "codebase-design",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/codebase-design"
+    },
+    {
+      "name": "correct",
+      "source": "pstack",
+      "path": "pstack/skills/correct"
+    },
+    {
+      "name": "create-formal-verification-skill",
+      "source": "pstack",
+      "path": "pstack/skills/create-formal-verification-skill"
+    },
+    {
+      "name": "create-verification-skill",
+      "source": "pstack",
+      "path": "pstack/skills/create-verification-skill"
+    },
+    {
+      "name": "diagnosing-bugs",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/diagnosing-bugs"
+    },
+    {
+      "name": "domain-modeling",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/domain-modeling"
+    },
+    {
+      "name": "figure-it-out",
+      "source": "pstack",
+      "path": "pstack/skills/figure-it-out"
+    },
+    {
+      "name": "git-guardrails-claude-code",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/git-guardrails-claude-code"
+    },
+    {
+      "name": "grill-me",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/grill-me"
+    },
+    {
+      "name": "grill-with-docs",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/grill-with-docs"
+    },
+    {
+      "name": "grilling",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/grilling"
+    },
+    {
+      "name": "handoff",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/handoff"
+    },
+    {
+      "name": "how",
+      "source": "pstack",
+      "path": "pstack/skills/how"
+    },
+    {
+      "name": "implement",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/implement"
+    },
+    {
+      "name": "implement-spec",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/implement-spec"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/improve-codebase-architecture"
+    },
+    {
+      "name": "in-your-own-words",
+      "source": "pstack",
+      "path": "pstack/skills/in-your-own-words"
+    },
+    {
+      "name": "interrogate",
+      "source": "pstack",
+      "path": "pstack/skills/interrogate"
+    },
+    {
+      "name": "ketchup",
+      "source": "pstack",
+      "path": "pstack/skills/ketchup"
+    },
+    {
+      "name": "ketchup-video",
+      "source": "pstack",
+      "path": "pstack/skills/ketchup-video"
+    },
+    {
+      "name": "loop-me",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/loop-me"
+    },
+    {
+      "name": "maintain-formal-verification-skill",
+      "source": "pstack",
+      "path": "pstack/skills/maintain-formal-verification-skill"
+    },
+    {
+      "name": "maintain-verification-skill",
+      "source": "pstack",
+      "path": "pstack/skills/maintain-verification-skill"
+    },
+    {
+      "name": "make-bot-ui",
+      "source": "pstack",
+      "path": "pstack/skills/make-bot-ui"
+    },
+    {
+      "name": "matt-code-review",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/code-review"
+    },
+    {
+      "name": "migrate-to-shoehorn",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/migrate-to-shoehorn"
+    },
+    {
+      "name": "no-comments",
+      "source": "pstack",
+      "path": "pstack/skills/no-comments"
+    },
+    {
+      "name": "poteto-help",
+      "source": "pstack",
+      "path": "pstack/skills/poteto-help"
+    },
+    {
+      "name": "poteto-mode",
+      "source": "pstack",
+      "path": "pstack/skills/poteto-mode"
+    },
+    {
+      "name": "pr",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/pr"
+    },
+    {
+      "name": "principle-attack-the-premise",
+      "source": "pstack",
+      "path": "pstack/skills/principle-attack-the-premise"
+    },
+    {
+      "name": "principle-boundary-discipline",
+      "source": "pstack",
+      "path": "pstack/skills/principle-boundary-discipline"
+    },
+    {
+      "name": "principle-build-the-lever",
+      "source": "pstack",
+      "path": "pstack/skills/principle-build-the-lever"
+    },
+    {
+      "name": "principle-encode-lessons-in-structure",
+      "source": "pstack",
+      "path": "pstack/skills/principle-encode-lessons-in-structure"
+    },
+    {
+      "name": "principle-exhaust-the-design-space",
+      "source": "pstack",
+      "path": "pstack/skills/principle-exhaust-the-design-space"
+    },
+    {
+      "name": "principle-experience-first",
+      "source": "pstack",
+      "path": "pstack/skills/principle-experience-first"
+    },
+    {
+      "name": "principle-explain-the-number",
+      "source": "pstack",
+      "path": "pstack/skills/principle-explain-the-number"
+    },
+    {
+      "name": "principle-fix-root-causes",
+      "source": "pstack",
+      "path": "pstack/skills/principle-fix-root-causes"
+    },
+    {
+      "name": "principle-foundational-thinking",
+      "source": "pstack",
+      "path": "pstack/skills/principle-foundational-thinking"
+    },
+    {
+      "name": "principle-guard-the-context-window",
+      "source": "pstack",
+      "path": "pstack/skills/principle-guard-the-context-window"
+    },
+    {
+      "name": "principle-laziness-protocol",
+      "source": "pstack",
+      "path": "pstack/skills/principle-laziness-protocol"
+    },
+    {
+      "name": "principle-make-operations-idempotent",
+      "source": "pstack",
+      "path": "pstack/skills/principle-make-operations-idempotent"
+    },
+    {
+      "name": "principle-migrate-callers-then-delete-legacy-apis",
+      "source": "pstack",
+      "path": "pstack/skills/principle-migrate-callers-then-delete-legacy-apis"
+    },
+    {
+      "name": "principle-minimize-reader-load",
+      "source": "pstack",
+      "path": "pstack/skills/principle-minimize-reader-load"
+    },
+    {
+      "name": "principle-model-the-domain",
+      "source": "pstack",
+      "path": "pstack/skills/principle-model-the-domain"
+    },
+    {
+      "name": "principle-never-block-on-the-human",
+      "source": "pstack",
+      "path": "pstack/skills/principle-never-block-on-the-human"
+    },
+    {
+      "name": "principle-outcome-oriented-execution",
+      "source": "pstack",
+      "path": "pstack/skills/principle-outcome-oriented-execution"
+    },
+    {
+      "name": "principle-prove-it-works",
+      "source": "pstack",
+      "path": "pstack/skills/principle-prove-it-works"
+    },
+    {
+      "name": "principle-redesign-from-first-principles",
+      "source": "pstack",
+      "path": "pstack/skills/principle-redesign-from-first-principles"
+    },
+    {
+      "name": "principle-separate-before-serializing-shared-state",
+      "source": "pstack",
+      "path": "pstack/skills/principle-separate-before-serializing-shared-state"
+    },
+    {
+      "name": "principle-sequence-verifiable-units",
+      "source": "pstack",
+      "path": "pstack/skills/principle-sequence-verifiable-units"
+    },
+    {
+      "name": "principle-subtract-before-you-add",
+      "source": "pstack",
+      "path": "pstack/skills/principle-subtract-before-you-add"
+    },
+    {
+      "name": "principle-test-behavior-not-implementation",
+      "source": "pstack",
+      "path": "pstack/skills/principle-test-behavior-not-implementation"
+    },
+    {
+      "name": "principle-type-system-discipline",
+      "source": "pstack",
+      "path": "pstack/skills/principle-type-system-discipline"
+    },
+    {
+      "name": "prototype",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/prototype"
+    },
+    {
+      "name": "pstack-tdd",
+      "source": "pstack",
+      "path": "pstack/skills/tdd"
+    },
+    {
+      "name": "pstack-teach",
+      "source": "pstack",
+      "path": "pstack/skills/teach"
+    },
+    {
+      "name": "recall",
+      "source": "pstack",
+      "path": "pstack/skills/recall"
+    },
+    {
+      "name": "reflect",
+      "source": "pstack",
+      "path": "pstack/skills/reflect"
+    },
+    {
+      "name": "reproduce-and-fix-issues",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/reproduce-and-fix-issues"
+    },
+    {
+      "name": "research",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/research"
+    },
+    {
+      "name": "retro",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/retro"
+    },
+    {
+      "name": "scaffold-exercises",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/scaffold-exercises"
+    },
+    {
+      "name": "setup-benny",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/setup-benny"
+    },
+    {
+      "name": "setup-matt-pocock-skills",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/setup-matt-pocock-skills"
+    },
+    {
+      "name": "setup-pre-commit",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/setup-pre-commit"
+    },
+    {
+      "name": "setup-pstack",
+      "source": "pstack",
+      "path": "pstack/skills/setup-pstack"
+    },
+    {
+      "name": "setup-ts-deep-modules",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/setup-ts-deep-modules"
+    },
+    {
+      "name": "sharpen",
+      "source": "pstack",
+      "path": "pstack/skills/sharpen"
+    },
+    {
+      "name": "show-me-your-work",
+      "source": "pstack",
+      "path": "pstack/skills/show-me-your-work"
+    },
+    {
+      "name": "statechart",
+      "source": "pstack",
+      "path": "pstack/skills/statechart"
+    },
+    {
+      "name": "swarm",
+      "source": "pstack",
+      "path": "pstack/skills/swarm"
+    },
+    {
+      "name": "tdd",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/tdd"
+    },
+    {
+      "name": "teach",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/teach"
+    },
+    {
+      "name": "technical-writing",
+      "source": "pstack",
+      "path": "pstack/skills/technical-writing"
+    },
+    {
+      "name": "to-questionnaire",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/to-questionnaire"
+    },
+    {
+      "name": "to-spec",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/to-spec"
+    },
+    {
+      "name": "to-tickets",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/to-tickets"
+    },
+    {
+      "name": "triage",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/triage"
+    },
+    {
+      "name": "triage-issue-reports",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/triage-issue-reports"
+    },
+    {
+      "name": "typescript-best-practices",
+      "source": "pstack",
+      "path": "pstack/skills/typescript-best-practices"
+    },
+    {
+      "name": "unslop",
+      "source": "pstack",
+      "path": "pstack/skills/unslop"
+    },
+    {
+      "name": "wait-what",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/wait-what"
+    },
+    {
+      "name": "wayfinder",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/wayfinder"
+    },
+    {
+      "name": "why",
+      "source": "pstack",
+      "path": "pstack/skills/why"
+    },
+    {
+      "name": "wizard",
+      "source": "mattpocock-skills",
+      "path": "skills/engineering/wizard"
+    },
+    {
+      "name": "writing-beats",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-beats"
+    },
+    {
+      "name": "writing-for-agents",
+      "source": "mattpocock-skills",
+      "path": "skills/productivity/writing-for-agents"
+    },
+    {
+      "name": "writing-fragments",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-fragments"
+    },
+    {
+      "name": "writing-shape",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-shape"
+    }
+  ]
+}

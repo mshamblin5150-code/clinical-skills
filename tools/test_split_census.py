@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+import collections
 import io
 import tempfile
 import unittest
+from collections.abc import Set
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -17,7 +19,7 @@ import split_census as census
 from prose_bind import NAMING, ProseBind, bind, section
 
 
-def rawline(text: str, split_at: set[int] = frozenset()) -> dict:
+def rawline(text: str, split_at: Set[int] = frozenset()) -> dict:
     """One synthetic rawdict line; ``split_at`` names wide incoming gaps."""
     chars = []
     right = 0.0
@@ -132,7 +134,7 @@ class CommandTests(unittest.TestCase):
             err.getvalue().strip(),
             "pymupdf is not installed. This is one of the tools in tools/ that is "
             "not stdlib, because it reads a PDF:\n"
-            "    python -m pip install pymupdf",
+            "    python -m pip install -r tools/pdf-requirements.txt",
         )
 
     def test_a_quantity_shaped_split_is_a_finding(self):
@@ -152,7 +154,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn("0.5 -> 0.|5", out.getvalue())
 
     def test_classification_mode_rebuilds_the_lexicon_and_writes_nothing(self):
-        measured = census.Census(shapes={"primarycare -> primary|care": 1})
+        measured = census.Census(shapes=collections.Counter({"primarycare -> primary|care": 1}))
         root = Path(tempfile.mkdtemp())
         (root / "synthetic.pdf").touch()
         with mock.patch.object(census, "scan_corpus", return_value=measured), mock.patch.object(

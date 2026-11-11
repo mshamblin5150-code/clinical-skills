@@ -4,6 +4,22 @@ See [AGENTS.md](AGENTS.md) for the skill index and the standing rules that bind 
 
 Configuration for the maintainer's engineering skills. **None of this is required to use the clinical skills** — consumers read [AGENTS.md](AGENTS.md) and need nothing else, with no plugin to install.
 
+### Pinned engineering skills
+
+The Matt Pocock and pstack skills are pinned in
+[docs/agents/agent-skills-lock.json](docs/agents/agent-skills-lock.json): each source names its
+repository, release and exact commit, and each skill names its installed name and its directory at
+that commit. Install a pinned skill from a checkout of its source at that commit:
+
+```bash
+git init <dir> && git -C <dir> fetch --depth 1 <repository> <commit> && git -C <dir> checkout FETCH_HEAD
+cp -R <dir>/<path> ~/.claude/skills/<name>
+```
+
+Where the installed name differs from the upstream directory name, set the `name:` line of the
+copied `SKILL.md` to the installed name. To move to a newer release, replace the source's version
+and commit in the lock and confirm every listed path still holds a `SKILL.md` at the new commit.
+
 ### Maintainer harness checkpoints
 
 Use the existing Matt Pocock implementation and review workflow, with relevant
@@ -2902,7 +2918,7 @@ python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 **One of the three tools here that is not stdlib** — see *Corpus census* above:
 
 ```bash
-python -m pip install pymupdf
+python -m pip install -r tools/pdf-requirements.txt
 ```
 
 That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for the dependency once up front rather than once per document.

@@ -1,0 +1,6 @@
+# The PDF engine, pinned to its newest release for each supported Python.
+# PyMuPDF 2.x requires Python 3.11; the consumer floor is 3.10, which takes
+# the newest 1.x release. Install with:
+#     python -m pip install -r tools/pdf-requirements.txt
+pymupdf==2.1; python_version >= "3.11"
+pymupdf==1.28.2; python_version < "3.11"

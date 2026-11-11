@@ -192,7 +192,7 @@ Only `.claude/settings.json` is tracked under `.claude/`. The skill mirror and o
 The committed artifacts are enough for consumers. A maintainer who has the separate source corpus can rebuild the reference tier with the same pipeline:
 
 ```bash
-python -m pip install pymupdf
+python -m pip install -r tools/pdf-requirements.txt
 python tools/guidelines_build.py <corpus-folder>
 python tools/guidelines_catalog.py
 python tools/threshold_coverage.py

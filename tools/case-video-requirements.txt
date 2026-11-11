@@ -1,5 +1,5 @@
 # Install only in the separate case video environment, never the consumer Python.
 faster-whisper==1.2.1
-yt-dlp==2026.8.19
-av==18.1.0
+yt-dlp==2026.10.26
+av==19.0.2
 Pillow==13.0.0
