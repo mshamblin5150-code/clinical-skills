@@ -305,22 +305,40 @@ def indented_pieces(line: str) -> bool:
     return all(indented_line(piece) for piece in (line + "\n").splitlines())
 
 
-def indented_body_end(lines: list[str], index: int) -> int:
-    """The index after the contiguous ``indented_line`` run below the line at ``index``."""
-    follower = index + 1
-    while follower < len(lines) and indented_line(lines[follower]):
-        follower += 1
-    return follower
+def body_end(lines: list[str], index: int) -> int:
+    """The index after the body of the entry or E/M line at ``index``: the one body rule.
+
+    A body line is an indented line, or a field line while every body line before it is indented
+    text (``indented_pieces``), so a field may sit at the margin directly after the line or after
+    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A blank line, an entry line, or
+    any other margin line ends it. The E/M audit check-off reads an entry's provenance and the
+    element block's extent through this rule alike.
+    """
+    owned = True
+    position = index + 1
+    while position < len(lines):
+        line = lines[position]
+        if not line.strip() or ENTRY.match(line):
+            break
+        if FIELD.match(line):
+            if not owned:
+                break
+        elif not indented_line(line):
+            break
+        owned = owned and indented_pieces(line)
+        position += 1
+    return position
 
 
 def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> int | None:
-    """The index after the indented body of a selected E/M line (``selected_em_lines``) holding an EM- line.
+    """The index after the body of a selected E/M line (``selected_em_lines``) holding an EM- line.
 
-    None when the line is not such an anchor. The body is ``indented_body_end``'s run below it.
+    None when the line is not such an anchor. The body is ``body_end``'s, the rule an entry's
+    provenance is read by too.
     """
     if index not in selected:
         return None
-    end = indented_body_end(lines, index)
+    end = body_end(lines, index)
     return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
 
 

@@ -59,7 +59,9 @@ python tools/em_audit.py <run> --write
 Done when the report shows `absent 0` for both element blocks and re-derivations, `findings 0`,
 and it exits 0, or exits 1 only for `DIFFERS` lines the clinician has seen with their note numbers
 before approval. Each difference is his to rule on through icd10-cpt, and the check-off keeps it as
-found. A `FINDING` is a defect in the coding record, not a ruling for him: correct the element
+found. A `FINDING (re-derivation)` is repaired in the re-derivation record as
+[rederivation.md](rederivation.md) says, never toward the worksheet. A `FINDING` is a defect in the
+coding record, not a ruling for him: correct the element
 block through icd10-cpt, rebuild the manifest and render again before approval. On exit 2, the
 `unread remainder` counts inputs the command could not read, and each check-off names its own:
 repair what it names and render again. When an input cannot be repaired, tell the clinician which

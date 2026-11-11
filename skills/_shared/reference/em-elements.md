@@ -35,7 +35,8 @@ E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
 - **Note text** is the exact run of note text the element rests on, in double quotes.
 - **Reason** describes what the note documents, under ADR 0376 ruling 2, and holds no `|`.
 - **Level** in the MDM line is the column each element meets: `straightforward`, `low`,
-  `moderate` or `high`. `mdm` is the level two of the three elements meet, the middle of the three.
+  `moderate` or `high`. `mdm` is the level two of the three elements meet, the middle of the three,
+  and `EM-LEVEL` is the code that MDM level selects for the setting.
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
   relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed; where the worksheet
   bills 93000 or 93005, the line names that code. Exactly one `EM-MDM` and one `EM-LEVEL`. A

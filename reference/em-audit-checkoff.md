@@ -23,6 +23,7 @@ procedure and [em-elements.md](../skills/_shared/reference/em-elements.md) the r
   - Source: <recorded (no SOURCE line) | the SOURCE line>
   - Specificity: <the SPECIFICITY line>
   - Confidence: <the CONFIDENCE line>
+- Not for entry: <ICD-10-CM | CPT | HCPCS> <code> <descriptor>, with its recorded fields
 
 ## Codes resting on a filled anchor
 

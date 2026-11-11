@@ -1300,7 +1300,9 @@ class TenthReviewFindings(RunFixture):
         self.assertNotIn("em_codes", inspect.signature(worksheet_grammar.selected_em_lines).parameters)
         source = ast.unparse(next(node for node in ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8")).body
                                   if isinstance(node, ast.FunctionDef) and node.name == "entry_walk"))
-        self.assertIn("indented_line", source)
+        # Sixteenth review: the walk reads worksheet_grammar.body_end, the one body rule.
+        self.assertIn("body_end(", source)
+        self.assertIn("indented_line", inspect.getsource(worksheet_grammar.body_end))
         self.assertNotIn('" \\t"', source)
 
 
@@ -1876,11 +1878,12 @@ class ThirteenthReviewFindings(ProseBind, RunFixture):
             for index, line in enumerate(lines):
                 if grammar.ENTRY.match(line) or grammar.EM_CODE_LABEL.match(line):
                     compared += 1
+                    tail, fields, unplaced, end = em_audit.entry_walk(lines, index)
                     self.assertEqual(entry_details_before_the_thirteenth_review(lines, index),
-                                     em_audit.entry_details(lines, index), f"{name}:{index}")
+                                     (tail, fields, len(unplaced), end), f"{name}:{index}")
         self.assertGreater(compared, 200)
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
-        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "entry_details")
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "entry_walk")
         source = ast.unparse(function)
         self.assertNotIn("detail_belongs_to_entry(", source)
         self.assertNotIn(".join(", source)
@@ -2013,8 +2016,8 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
         # The same holds under a code entry carrying stray element lines.
         import worksheet_grammar
         lines = worksheet_grammar.physical_lines('ICD-10-CM R05.9 Cough\n  EM-LEVEL: 99283\n' + late)
-        tail, fields, unplaced, _ = em_audit.entry_details(lines, 0)
-        self.assertEqual(({}, 1), (fields, unplaced))
+        tail, fields, unplaced, _ = em_audit.entry_walk(lines, 0)
+        self.assertEqual(({}, 1), (fields, len(unplaced)))
 
     def test_i6_no_process_lifetime_cache_of_the_sheet(self):
         import coding_freshness
@@ -2123,6 +2126,93 @@ class FifteenthReviewFindings(ProseBind, RunFixture):
                 ROOT / "reference" / "cpt-em-mdm-2026.md", coding_freshness.sheet_sha256(wanted)))
         self.assertEqual(2, len(requests))
         self.assertLessEqual(runs.call_count + batches.call_count, 3)
+
+
+class SixteenthReviewFindings(ProseBind, RunFixture):
+    """The sixteenth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def gate(self):
+        return em_audit.completion_gate(self.run, "shift-synthetic")
+
+    def test_l1_a_blind_level_that_differs_is_shown_never_failed(self):
+        consistent = ELEMENTS.replace("problems low; data straightforward; risk low; mdm low",
+                                      "problems moderate; data straightforward; risk moderate; mdm moderate"
+                                      ).replace("EM-LEVEL: 99283", "EM-LEVEL: 99284")
+        self.record(consistent)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("re-derivations: agree 0; differ 1; damaged 0; absent 0; findings 0", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("- DIFFERS: Level: selected 99283, re-derived 99284", text)
+        self.assertNotIn("FINDING (re-derivation)", text)
+        self.assertEqual((False, 0), self.gate()[::2])
+        # A re-derivation contradicting itself is a re-derivation finding, whatever the worksheet says.
+        self.record(consistent.replace("EM-LEVEL: 99284", "EM-LEVEL: 99285"))
+        self.assertEqual(1, self.invoke("--write").returncode)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("- FINDING (re-derivation): the level 99285 is high MDM", text)
+        self.assertTrue(self.gate()[0])
+        rederivation = (SKILL.parent / "rederivation.md").read_text(encoding="utf-8")
+        self.assertProseIn("never toward the worksheet", rederivation)
+
+    def test_l1_only_the_worksheet_block_is_compared_with_the_worksheet_decisions(self):
+        import worksheet_grammar
+        block = worksheet_grammar.em_block(ELEMENTS.replace("EM-ECG: not applicable", "EM-ECG: not applicable")
+                                           .replace("EM-ANSWER: note-1.q1", "EM-ANSWER: note-9.q1"))
+        self.assertEqual([], em_audit.rederivation_findings(block, None))
+        found = em_audit.block_findings(block, "99284", None, set(), billed=frozenset({"93005"}))
+        self.assertEqual(3, len(found), found)  # level vs selected, answer id and ECG; the block is consistent
+        inconsistent = worksheet_grammar.em_block(ELEMENTS.replace("EM-LEVEL: 99283", "EM-LEVEL: 99285"))
+        self.assertEqual(["the level 99285 is high MDM, but the block's elements meet low"],
+                         em_audit.rederivation_findings(inconsistent, None))
+
+    def test_l2_one_body_rule_for_an_em_line_with_a_margin_field(self):
+        import worksheet_grammar
+        text = PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n",
+                                                   'CPT 99283 Emergency visit\nANCHOR: "Cough."\n' + ELEMENTS)
+        elements = worksheet_grammar.worksheet_em_block(text)
+        self.assertEqual((1, 0), (elements.blocks, elements.outside))
+        self.write_private(text)
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("element blocks: present 1, absent 0; findings 0", result.stdout)
+
+    def test_l3_a_not_for_entry_code_in_the_region_is_rendered_once(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            "CPT 99283 Emergency visit\n",
+            "ICD-10-CM J18.9 Pneumonia, unspecified organism NOT FOR ENTRY\n"
+            '  ANCHOR: "Possible pneumonia, not established."\nCPT 99283 Emergency visit\n'))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("codes rendered: icd10 1,", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("- Not for entry: ICD-10-CM J18.9", text)
+        self.assertEqual(1, text.count("Possible pneumonia, not established."))
+
+    def test_l4_a_block_holding_only_the_em_line_says_so(self):
+        self.write_private(PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n", "").replace(
+            "## Coded, anchor was filled: confirm before submitting\n\nNone.\n",
+            "## Coded, anchor was filled: confirm before submitting\n\nE/M: 99283 low complexity\n" + ELEMENTS))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("filled-anchor 1", result.stdout)
+        filled = self.sheet.read_text(encoding="utf-8").split("## Codes resting on a filled anchor", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(em_audit.EM_ONLY_BLOCK, filled)
+        self.assertNotIn("None recorded", filled)
+
+    def test_l5_each_body_is_walked_once_per_check_off(self):
+        with mock.patch.object(em_audit, "entry_walk", wraps=em_audit.entry_walk) as walk:
+            em_audit.render(self.run, [])
+        indexes = [call.args[1] for call in walk.call_args_list]
+        self.assertEqual(len(indexes), len(set(indexes)), indexes)
+
+    def test_l6_and_l7_no_entry_details_wrapper_and_a_word_refusal_counts_zero(self):
+        self.assertFalse(hasattr(em_audit, "entry_details"))
+        with mock.patch.object(repo_root, "output_root", side_effect=ValueError("no owning checkout")):
+            status, output = self.in_process("--docx")
+        self.assertEqual(2, status, output)
+        self.assertIn("Word copies written 0", output)
+        self.assertNotIn("nothing written", output)
 
 
 if __name__ == "__main__":
