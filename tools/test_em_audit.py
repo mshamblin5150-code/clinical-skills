@@ -3486,7 +3486,7 @@ class TwentySeventhReviewFindings(ProseBind, RunFixture):
                 mock.patch.object(em_audit, "level_code_findings", wraps=em_audit.level_code_findings) as levels:
             em_audit.render(self.run, [])
         self.assertEqual(1, clean.call_count)
-        self.assertEqual(2, levels.call_count)  # the worksheet block once, the re-derivation once
+        self.assertGreater(levels.call_count, 0)  # twenty-ninth review: each reader computes it itself
 
 
 class TwentyEighthReviewFindings(ProseBind, RunFixture):
@@ -3580,6 +3580,136 @@ class TwentyEighthReviewFindings(ProseBind, RunFixture):
         imported |= {node.module for node in ast.walk(freshness) if isinstance(node, ast.ImportFrom)}
         self.assertNotIn("encounter_openers", imported)
         self.assertNotIn("digest", inspect.signature(coding_freshness.bound_sheet_version).parameters)
+
+
+class TwentyNinthReviewFindings(ProseBind, RunFixture):
+    """The twenty-ninth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def ecg(self, lines: str):
+        import worksheet_grammar
+        return worksheet_grammar.em_block(ELEMENTS.replace("  EM-ECG: not applicable\n", lines))
+
+    def test_ab1_a_second_ecg_line_leaves_the_block_s_ecg_ungraded(self):
+        office = frozenset({"93000"})
+        for lines in ("  EM-ECG: 93000 | ADR 0443 office read\n  EM-ECG: none | ADR 0443 outside tracing\n",
+                      "  EM-ECG: not applicable\n  EM-ECG: 93000 | ADR 0443 office read\n",
+                      "  EM-ECG: 93000 | ADR 0443 office read\n  EM-ECG: 93000 | ADR 0443 office read again\n",
+                      "  EM-ECG: 93000 | ADR 0443 office read\n  EM-ECG: 93000 read here\n"):
+            with self.subTest(lines=lines):
+                block = self.ecg(lines)
+                self.assertEqual(1, block.unread)
+                self.assertEqual((), block.ecg)
+                self.assertEqual([], em_audit.ecg_findings(block, office))
+                self.assertEqual([], em_audit.ecg_findings(block, frozenset()))
+
+    def test_ab2_a_listed_code_that_is_no_ecg_code_says_so_and_only_ascii_digits_are_codes(self):
+        block = self.ecg("  EM-ECG: 99213 | an office visit, not an ECG\n")
+        self.assertEqual(["the EM-ECG line lists 99213, which is not an ECG code"],
+                         em_audit.ecg_findings(block, frozenset({"99213"})))
+        arabic_indic = "".join(chr(0x0660 + int(digit)) for digit in "93000")
+        block = self.ecg(f"  EM-ECG: {arabic_indic} | ADR 0443 office read\n")
+        self.assertEqual(1, block.unread)
+        self.assertEqual([], em_audit.ecg_findings(block, frozenset({"93000"})))
+
+    def build(self, notices=None):
+        return review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS,
+                                     notices=notices)
+
+    def test_ab3_a_record_that_cannot_be_opened_is_left_alone_and_its_fault_raised(self):
+        import pathlib
+        from run_record_reader import UnreadableRecord
+        record = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        before = record.read_bytes()
+        real = pathlib.Path.open
+
+        def flaky(self_path, *args, **kwargs):
+            if self_path.name == record.name and self_path.parent == record.parent:
+                raise PermissionError(13, "Permission denied", str(self_path))
+            return real(self_path, *args, **kwargs)
+        with mock.patch.object(pathlib.Path, "open", flaky):
+            with self.assertRaises(UnreadableRecord) as refused:
+                self.build()
+        self.assertIn("could not be opened", str(refused.exception))
+        self.assertEqual(before, record.read_bytes())
+        self.assertEqual([], [path.name for path in record.parent.iterdir() if ".damaged" in path.name])
+
+    def test_ab3_the_set_aside_and_the_rebuild_are_one_lock_hold(self):
+        import run_record_reader
+        record = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        record.write_bytes(record.read_bytes()[:20])
+        spans = []
+        real = run_record_reader.locked_record
+
+        @contextlib.contextmanager
+        def counted(path):
+            with real(path):
+                spans.append(Path(path).name)
+                yield
+        with contextlib.ExitStack() as stack:
+            # Every name the lock is reached by: the shared seam's and any import of it.
+            for module in (run_record_reader, review_manifest):
+                if hasattr(module, "locked_record"):
+                    stack.enter_context(mock.patch.object(module, "locked_record", counted))
+            self.build(notices := [])
+        self.assertEqual(1, spans.count(record.name))
+        self.assertEqual(1, len(notices))
+
+    def test_ab4_the_notice_names_the_copy_it_kept(self):
+        record = self.run / review_manifest.PRIVATE_FINGERPRINTS
+        for expected in (record.name + ".damaged", record.name + ".damaged.2"):
+            with self.subTest(expected=expected):
+                record.write_bytes(record.read_bytes()[:20])
+                notices: list[str] = []
+                self.build(notices)
+                self.assertTrue((record.parent / expected).exists())
+                self.assertIn(expected, notices[0])
+                if expected.endswith(".2"):
+                    self.assertNotIn(".damaged ", notices[0] + " ")
+
+    def test_ab5_the_writer_posture_is_declared(self):
+        self.assertTrue(any("damaged" in row and "lock" in row for row in review_manifest.DECLARED_LIMITS))
+        self.assertTrue(any("fingerprint record" in row and "refuses its replacement" in row
+                            for row in em_audit.DECLARED_LIMITS))
+
+    def test_ab6_a_replaced_path_is_read_by_stat_and_errno_alone(self):
+        import errno
+        import encounter_openers
+        target = self.run / "note-1.md"
+        for code, expected in ((errno.ENOENT, True), (errno.ENOTDIR, True)):
+            with self.subTest(code=code):
+                with mock.patch.object(encounter_openers.os, "stat", side_effect=OSError(code, "synthetic")):
+                    self.assertIs(expected, encounter_openers.no_longer_a_file(target))
+        with mock.patch.object(encounter_openers.os, "stat", side_effect=PermissionError(errno.EACCES, "synthetic")):
+            with self.assertRaises(PermissionError):
+                encounter_openers.no_longer_a_file(target)
+        self.assertFalse(encounter_openers.no_longer_a_file(target))
+        folder = self.root / "a-folder"
+        folder.mkdir()
+        self.assertTrue(encounter_openers.no_longer_a_file(folder))
+        self.assertNotIn("is_file", ast.unparse(next(
+            node for node in ast.parse(Path(encounter_openers.__file__).read_text(encoding="utf-8")).body
+            if isinstance(node, ast.FunctionDef) and node.name == "no_longer_a_file")))
+
+    def test_ab7_the_region_line_starts_are_required(self):
+        import inspect
+        parameter = inspect.signature(em_audit.PrivateWorksheet).parameters["region_starts"]
+        self.assertIs(inspect.Parameter.empty, parameter.default)
+
+    def test_ab8_each_reader_reads_the_level_code_the_same_way(self):
+        import worksheet_grammar
+        levels = em_audit.mdm_levels("2026-10-01")
+        block = worksheet_grammar.em_block(ELEMENTS.replace("EM-LEVEL: 99283", "EM-LEVEL: 93000"))
+        finding = "EM-LEVEL 93000 is not an E/M code"
+        self.assertIn(finding, em_audit.rederivation_findings(block, None, levels))
+        self.assertIn(finding, em_audit.block_findings(block, "99283", None, None, levels=levels))
+        self.assertFalse(em_audit.level_unread(block, levels))
+        for name in ("level_unread", "rederivation_findings", "block_findings"):
+            import inspect
+            self.assertNotIn("level_codes", inspect.signature(getattr(em_audit, name)).parameters, name)
+
+    def test_ab9_both_instruction_files_name_not_applicable(self):
+        step = (ROOT / "skills" / "icd10-cpt" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertProseIn("`EM-ECG: not applicable`", step)
 
 
 if __name__ == "__main__":

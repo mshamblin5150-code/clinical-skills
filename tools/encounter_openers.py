@@ -7,6 +7,8 @@ bookkeeping retain their separate shared reader boundaries.
 from __future__ import annotations
 
 import argparse
+import errno
+import stat
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 from datetime import date
 import hashlib
@@ -140,15 +142,19 @@ class OpenerChanged(ValueError):
 def no_longer_a_file(path: Path) -> bool:
     """Whether a file a record bound is no longer a regular file at its path.
 
-    Missing, replaced by a folder or another non-file, or under a parent that is no longer a
-    folder: the record's file is gone, whatever error the read raised (Windows raises a permission
-    error for a folder). A path that cannot even be examined is not called replaced, so a genuine
-    permission error on a regular file stays an unreadable record.
+    Missing or under a parent that is no longer a folder (``ENOENT``, ``ENOTDIR``), or present as
+    a folder or another non-file: the record's file is gone, whatever error the read raised
+    (Windows raises a permission error for a folder). Read by ``os.stat`` and its errno alone, so
+    no interpreter's own file test decides it; any other error, such as a permission error,
+    re-raises, so the path stays unreadable.
     """
     try:
-        return not path.is_file()
-    except OSError:
-        return False
+        status = os.stat(path)
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR):
+            return True
+        raise
+    return not stat.S_ISREG(status.st_mode)
 
 
 def read_or_changed(path: Path, read, changed):
@@ -157,7 +163,11 @@ def read_or_changed(path: Path, read, changed):
     try:
         return read(path)
     except OSError as error:
-        if no_longer_a_file(path):
+        try:
+            replaced = no_longer_a_file(path)
+        except OSError:
+            raise error from None  # the path cannot be examined: the read's own fault stands
+        if replaced:
             raise changed() from error
         raise
 

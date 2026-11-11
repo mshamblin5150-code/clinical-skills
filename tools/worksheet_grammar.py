@@ -483,7 +483,7 @@ _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
 # em-elements.md: EM-ECG lists the billed ECG codes, comma-separated, or none, then the limb text,
 # which nothing parses; or reads not applicable.
-_EM_ECG = re.compile(r"^(?:(?i:not[ \t]+applicable)|(?P<codes>(?i:none)|\d{5}(?:[ \t]*,[ \t]*\d{5})*)"
+_EM_ECG = re.compile(r"^(?:(?i:not[ \t]+applicable)|(?P<codes>(?i:none)|[0-9]{5}(?:[ \t]*,[ \t]*[0-9]{5})*)"
                      r"[ \t]*\|[ \t]*\S.*)$")
 
 
@@ -536,8 +536,8 @@ def element_of(name: str) -> str | None:
 def em_block(text: str) -> EmBlock | None:
     """Read every EM- line in ``text``; None when the text holds no EM- candidate.
 
-    A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM
-    and one LEVEL line, adds one to ``unread``: an incomplete block is not a clean one. A refused
+    A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM,
+    one LEVEL and one ECG line, adds one to ``unread``: an incomplete block is not a clean one. A refused
     PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
     ``unread_items``, so a comparison can leave its counterpart out. A refused MDM or LEVEL line
     leaves the block's MDM or level unknown (None), even beside a readable copy.
@@ -585,12 +585,13 @@ def em_block(text: str) -> EmBlock | None:
     present |= {"MDM"} if mdms else set()
     present |= {"LEVEL"} if levels else set()
     complete = (present >= {*ITEM_KINDS, "ANSWER", "ECG", "MDM", "LEVEL"}
-                and len(mdms) <= 1 and len(levels) <= 1)
-    # A refused copy of the MDM or LEVEL line leaves that line unknown: the readable copy is not
-    # known to be the one the author meant, so nothing is graded against it.
+                and len(mdms) <= 1 and len(levels) <= 1 and len(free["ECG"]) <= 1)
+    # A refused copy of the MDM, LEVEL or ECG line, or a second copy, leaves that line unknown: the
+    # readable copy is not known to be the one the author meant, so nothing is graded against it.
     mdm = mdms[0] if len(mdms) == 1 and "MDM" not in refused else None
     level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
-    return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), tuple(free["ECG"]),
+    ecg = tuple(free["ECG"]) if len(free["ECG"]) == 1 and "ECG" not in refused else ()
+    return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), ecg,
                    mdm, level, unread + (0 if complete else 1), tuple(unread_items))
 
 

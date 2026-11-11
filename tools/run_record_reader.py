@@ -21,7 +21,7 @@ import uuid
 
 DECLARED_LIMITS = (
     'run_record_reader record reads use the shared decoder boundary; damaged bookkeeping leaves its dependent checks not graded and contributes one record per command to coverage. Absence preserves the existing caller meaning.',
-    'The locked update callback owns history-dependent reads and decisions; one replacement is atomic, append remains append-only, and compound sibling recovery is best effort under the same lock rather than a cross-file transaction.',
+    'The locked update callback owns history-dependent reads and decisions; one replacement is atomic, append remains append-only, and compound sibling recovery is best effort under the same lock rather than a cross-file transaction. A caller passing set_aside for a wholly derived record has content damage moved aside under the same lock hold and the record written new; an open failure still refuses.',
     'Handwritten damage covers raw C0 and strings/keys in successfully decoded declared JSON bodies, not printable escape loss or outbound DEL/C1. Copied-post body tabs are the sole exception. Diagnostics use declared filenames/field names or numeric locators without values. Known historical reads retain their prior newline view and existing validation; writers and original boundaries force refusal. Callers must withhold only damaged dependencies and continue independent records.',
 )
 
@@ -639,17 +639,29 @@ def locked_record(path: Path):
 
 def update_tool_record(
     path: Path, decode: Callable[[str], T], change: Callable[[T | None], RecordUpdate],
-    *, append: bool = False,
+    *, append: bool = False, set_aside: Callable[[Path], object] | None = None,
 ) -> object:
     """Own the exclusive read/change/write transaction, or an explicit no-write result.
 
     The callback runs under the lock and must make history-dependent decisions there.
     Append-only kinds validate their whole prior record before appending under this lock.
     Other kinds replace one file atomically; no cross-file transaction is promised.
+    ``set_aside`` is for a record derived wholly from other files: where the existing record
+    opened and read but its content does not decode or validate, ``set_aside(path)`` moves it
+    out of the way under this same lock hold and the record is written as new. A record that
+    could not be opened at all still refuses, with its own fault.
     """
     path = Path(path)
     with locked_record(path):
-        previous = read_tool_record(path, decode)
+        try:
+            previous = read_tool_record(path, decode)
+        except UnreadableRecord as fault:
+            if set_aside is None or isinstance(fault.__cause__, OSError):
+                raise
+            if (faults := _FAULTS.get()) is not None:
+                faults.pop(fault.path, None)  # handled here: no unread record is left behind
+            set_aside(path)
+            previous = None
         update = change(previous)
         if update.payload is None:
             return update.result

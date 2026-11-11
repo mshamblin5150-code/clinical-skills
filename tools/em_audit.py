@@ -162,6 +162,8 @@ DECLARED_LIMITS = (
     "The EM-ECG line is read by its fixed grammar only: the codes before its | (or none, or the "
     "whole line not applicable) must equal the ECG codes (93000, 93005) the worksheet bills, and "
     "the limb text after the | is never read, so whether the limb is true of the ECG is a reading. "
+    "A listed code that is no ECG code is named as such. A second EM-ECG line, or a refused one, "
+    "leaves the block's ECG ungraded. "
     "A line outside the grammar is unread. A re-derivation's EM-ECG is held to the grammar alone "
     "and is never compared with the billed codes.",
     "An E/M filled mark is read from the visible worksheet and the note across line wraps within "
@@ -172,7 +174,10 @@ DECLARED_LIMITS = (
     "Each check-off is written through run_record_reader.update_tool_record: the exclusive "
     "run-record lock covers the strict read of the existing check-off and its atomic replacement, "
     "one file at a time with no transaction across notes. An existing check-off that cannot be "
-    "read refuses its replacement, as every tool-written run record does. Word copies are outbound "
+    "read refuses its replacement, as tool-written run records do, except the private worksheet "
+    "fingerprint record, which review_manifest.build sets aside and rebuilds when its content is "
+    "damaged (a fingerprint record that cannot be opened still refuses its replacement). Word "
+    "copies are outbound "
     "artifacts written by docx_write under its own overwrite refusal; a tab in the copied text "
     "renders as a space there, whitespace rather than a changed word, while the Markdown check-off "
     "keeps it as recorded.",
@@ -340,7 +345,7 @@ class PrivateWorksheet(NamedTuple):
     owners: tuple[int, ...]
     walks: dict[int, tuple[list[str], dict[str, list[str]], list[int], int]]
     sections: tuple[EmSection, ...]
-    region_starts: tuple[int, ...] = ()  # line_starts of ``region``
+    region_starts: tuple[int, ...]  # line_starts of ``region``, required so a reader never bisects nothing
 
 
 def parse_private(text: str, read: review_manifest.PrivateRead | None = None) -> PrivateWorksheet:
@@ -610,7 +615,7 @@ def time_based(block_: EmBlock) -> bool:
     return any(TIME_BASIS in rule.lower() for rule in block_.rules)
 
 
-def level_unread(block_: EmBlock, levels: MdmLevels | None, level_codes: list[str] | None = None) -> bool:
+def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
     """Whether the block's level against its MDM went unchecked for want of a readable descriptor.
 
     Only a code of the E/M families can be unread; a level naming any other code, or one the
@@ -618,7 +623,7 @@ def level_unread(block_: EmBlock, levels: MdmLevels | None, level_codes: list[st
     """
     if levels is None or not levels.readable or block_.level is None or time_based(block_):
         return False
-    if level_codes if level_codes is not None else level_code_findings(block_, levels):
+    if level_code_findings(block_, levels):
         return False
     return block_.level not in levels.levels and block_.level not in levels.unleveled
 
@@ -634,8 +639,7 @@ def level_code_findings(block_: EmBlock, levels: MdmLevels | None) -> list[str]:
     return []
 
 
-def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None,
-                          level_codes: list[str] | None = None) -> list[str]:
+def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None) -> list[str]:
     """What an element block states against itself: the only checks a blind re-derivation takes.
 
     Counted items name an entry id and quote note text, ``none`` reads only ``none | not counted |
@@ -646,8 +650,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
     with the worksheet's decisions, so a blind reader who reaches another level shows only as a
     difference.
     """
-    # ``level_codes`` is ``level_code_findings`` of this block, from a caller that already read it.
-    found = list(level_codes if level_codes is not None else level_code_findings(block_, levels))
+    found = level_code_findings(block_, levels)
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
@@ -668,7 +671,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
 
 def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
                    *, answers_unread: bool = False, billed: frozenset[str] = frozenset(),
-                   levels: MdmLevels | None = None, level_codes: list[str] | None = None) -> list[str]:
+                   levels: MdmLevels | None = None) -> list[str]:
     """What the worksheet's element block states against itself and against the worksheet's decisions.
 
     ``rederivation_findings``, then the level against the selected code, the answer ids against the
@@ -676,7 +679,7 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
     leaves the answer ids ungraded: an unreadable answers record is incomplete coverage, not a
     record shown to lack them.
     """
-    found = rederivation_findings(block_, ids, levels, level_codes)
+    found = rederivation_findings(block_, ids, levels)
     if block_.level is not None and block_.level != selected:
         found.append(f"the block level {block_.level} differs from the selected code {selected}")
     named = [answer for answer in block_.answers if answer != "none"]
@@ -729,7 +732,8 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
     listed = frozenset().union(*(ecg_listed(value) for value in block_.ecg))
     found = [f"the worksheet bills {code}, but its EM-ECG line does not list it"
              for code in sorted(billed_ecg - listed)]
-    found += [f"the EM-ECG line lists {code}, which the worksheet does not bill"
+    found += [f"the EM-ECG line lists {code}, which is not an ECG code" if code not in ECG_RULES
+              else f"the EM-ECG line lists {code}, which the worksheet does not bill"
               for code in sorted(listed - billed_ecg)]
     return found
 
@@ -821,9 +825,8 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     lines = item_lines(rederived)
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
-    level_codes = level_code_findings(rederived, context.levels)
-    flaws = rederivation_findings(rederived, context.ids, context.levels, level_codes)
-    if level_unread(rederived, context.levels, level_codes):
+    flaws = rederivation_findings(rederived, context.ids, context.levels)
+    if level_unread(rederived, context.levels):
         tally.unread += 1
         lines += ["", f"- MDM level of {rederived.level} not checked: its CPT 2026 descriptor could not be read "
                   "for the service date; counted in the unread remainder"]
@@ -971,10 +974,9 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
                   if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
-    level_codes = level_code_findings(block_, context.levels)
     found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
-                           billed=frozenset(cpt), levels=context.levels, level_codes=level_codes)
-    if level_unread(block_, context.levels, level_codes):
+                           billed=frozenset(cpt), levels=context.levels)
+    if level_unread(block_, context.levels):
         tally.unread += 1
         lines.append(f"- MDM level of {block_.level} not checked: its CPT 2026 descriptor could not be read "
                      "for the service date; counted in the unread remainder")

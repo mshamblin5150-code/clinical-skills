@@ -23,7 +23,7 @@ from encounter_status import EvidenceChanged, StatusMissing, status_for
 from worksheet_grammar import (ENTRY_CANDIDATE, WorksheetEntry, em_identity, entry_reading, entry_region,
                                physical_lines, read_entries, selected_em)
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
-                               locked_record, read_handwritten_record, read_tool_record, update_tool_record)
+                               read_handwritten_record, read_tool_record, update_tool_record)
 
 DECLARED_LIMITS = (
     "Normalization is UTF-8, LF, per-line trailing-whitespace removal and exactly one final newline; it does not reinterpret prose or collapse internal spaces. Review layout changes do not alter the manifest.",
@@ -32,6 +32,7 @@ DECLARED_LIMITS = (
     "The whole private worksheet is fingerprinted for the E/M audit check-off in a separate record beside the manifest, never in the approval-bound manifest: a provenance-only edit and rebuild leave the manifest byte-identical and update only that record, which em_audit compares. The manifest and that record are written one after the other, not as one transaction.",
     "A matching passing receipt establishes its recorded currency check, not perpetual publisher currency. Run coding_freshness visibly whenever the manifest changes.",
     "The locked manifest write is atomic, not a cross-file snapshot. Approval and rendering re-read current sources; a source changing after validation remains an ordinary concurrent-edit risk.",
+    "An existing private worksheet fingerprint record whose content does not decode or validate is not a refusal: it is derived from the worksheets alone, so build moves its damaged bytes beside it (private-worksheets.json.damaged, or the next numbered name) and writes it new, both in one hold of its record lock, and reports the copy kept. A record that cannot be opened at all, and an unreadable manifest, still refuse.",
 )
 
 MANIFEST = "batch-codes.json"
@@ -356,38 +357,33 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
     # write that then fails leaves a stale manifest, refused as stale, and never a new manifest
     # beside an old record, which would read as a private worksheet edited after the manifest.
     (run / PRIVATE_FINGERPRINTS).parent.mkdir(parents=True, exist_ok=True)
-    if set_aside_damaged_fingerprints(run) and notices is not None:
-        notices.append("the private worksheet fingerprint record could not be read; it is rebuilt from the "
-                       "worksheets, and its damaged bytes are kept beside it as "
-                       + Path(PRIVATE_FINGERPRINTS).name + DAMAGED_SUFFIX)
-    update_tool_record(run / PRIVATE_FINGERPRINTS, decode_private_fingerprints, change_record)
+    kept: list[Path] = []
+    # A damaged record is set aside and rewritten in one hold of its lock, so no reader sees it absent.
+    update_tool_record(run / PRIVATE_FINGERPRINTS, decode_private_fingerprints, change_record,
+                       set_aside=lambda path: kept.append(set_aside_damaged(path)))
+    if kept and notices is not None:
+        notices.append("the private worksheet fingerprint record did not decode; it is rebuilt from the "
+                       f"worksheets, and its damaged bytes are kept beside it as {kept[0].name}")
     return update_tool_record(run / MANIFEST, decode_manifest, change)
 
 
 DAMAGED_SUFFIX = ".damaged"
 
 
-def set_aside_damaged_fingerprints(run: Path) -> bool:
-    """Move an unreadable fingerprint record aside so build can write it again; True when it did.
+def set_aside_damaged(path: Path) -> Path:
+    """Move a damaged fingerprint record aside, beside it; the path its bytes are kept at.
 
-    The record is derived from the worksheets alone, so a damaged one is rebuilt rather than
-    blocking the manifest; its bytes are kept beside it, ``DAMAGED_SUFFIX`` appended, for
-    inspection, under the record's own lock. The manifest itself is never set aside: an unreadable
-    manifest still refuses.
+    ``update_tool_record`` calls it under the record's lock, only for content damage. The record is
+    derived from the worksheets alone, so it is rebuilt rather than blocking the manifest; an
+    earlier damaged copy is kept too, the next free name taking this one. The manifest itself is
+    never set aside: an unreadable manifest still refuses.
     """
-    path = Path(run) / PRIVATE_FINGERPRINTS
-    with locked_record(path):
-        try:
-            read_tool_record(path, decode_private_fingerprints)
-        except UnreadableRecord:
-            # An earlier damaged copy is kept too: the next free name takes this one.
-            kept, number = path.with_name(path.name + DAMAGED_SUFFIX), 1
-            while kept.exists():
-                number += 1
-                kept = path.with_name(f"{path.name}{DAMAGED_SUFFIX}.{number}")
-            os.replace(path, kept)
-            return True
-    return False
+    kept, number = path.with_name(path.name + DAMAGED_SUFFIX), 1
+    while kept.exists():
+        number += 1
+        kept = path.with_name(f"{path.name}{DAMAGED_SUFFIX}.{number}")
+    os.replace(path, kept)
+    return kept
 
 
 def decode_private_fingerprints(text: str) -> dict:
