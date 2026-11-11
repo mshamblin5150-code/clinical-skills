@@ -53,10 +53,13 @@ procedure and [em-elements.md](../skills/_shared/reference/em-elements.md) the r
 
 ## Pre-approval questions and replies
 
-- Question <answer id>: <the question as shown>
-  - Levels named: <codes, or none named>
-  - Reply: "<the whole reply>"
-  - Reply check: <verified as a whole clinician message | not verified: the transcript was unreadable>
+- Question <answer id>; levels named: <codes, or none named>; reply check: <verified as a whole clinician message | not verified: the transcript was unreadable when it was recorded>
+
+> <the question as shown, every line quoted>
+
+Reply:
+
+> <the whole reply, every line quoted; a blank line stays a paragraph break>
 
 ## Independent re-derivation
 

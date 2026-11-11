@@ -187,7 +187,27 @@ def paired_entry(
 EM_KINDS = ("PROBLEM", "DATA", "RISK", "RULE", "ANSWER", "ECG", "MDM", "LEVEL")
 ITEM_KINDS = ("PROBLEM", "DATA", "RISK")
 MDM_LEVELS = ("straightforward", "low", "moderate", "high")
-EM_LABEL = re.compile(r"^[ \t]*(?:E/M[ \t]*:|CPT[ \t]+992(?:0[2-5]|1[1-5]|8[1-5])\b)")
+# The E/M code label, as review_manifest.selected_codes reads it when it selects the final code.
+EM_CODE_LABEL = re.compile(r"(?mi)^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:[ \t]*(?P<code>\d{5})\b")
+# Every heading line the icd10-cpt step 4 phrases are read from, including the unspaced ``---PHRASE---`` form.
+HEADING_LINE = re.compile("(?m)" + _HEADING_SHAPE.pattern)
+
+
+def entry_region(text: str) -> str:
+    """The private worksheet before its differential and icd10-cpt step 4 blocks: the for-entry codes."""
+    boundaries = [match.start() for pattern in (DIFFERENTIAL_HEADING, STEP_FOUR_START)
+                  if (match := pattern.search(text)) is not None]
+    return text[:min(boundaries)] if boundaries else text
+
+
+def block_text(text: str, heading: re.Pattern[str]) -> str | None:
+    """The text under one block heading, to the next heading line; None when it is absent."""
+    match = heading.search(text)
+    if match is None:
+        return None
+    following = HEADING_LINE.search(text, match.end())
+    return text[match.end():following.start() if following else len(text)].strip("\n")
+
 EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
 _EM_ITEM = re.compile(
@@ -267,20 +287,39 @@ def em_block(text: str) -> EmBlock | None:
                    unread + (0 if complete else 1))
 
 
-def worksheet_em_block(text: str) -> tuple[EmBlock | None, int]:
-    """The element block indented under the first E/M line, and EM- candidates outside it.
+@dataclass(frozen=True)
+class WorksheetElements:
+    """The element block of one private worksheet, and where its EM- lines sat."""
 
-    A worksheet written before the block existed returns ``(None, 0)`` and stays valid.
+    block: EmBlock | None
+    outside: int
+    blocks: int
+
+
+def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements:
+    """Read the element block under whichever E/M line carries it.
+
+    An E/M line is either anchor the code reader accepts: an ``EM_CODE_LABEL`` line, or an
+    ``ENTRY`` whose CPT code is in ``em_codes``. ``blocks`` counts anchors carrying EM- lines; when
+    it exceeds one the first block is returned and the caller reports the rest. EM- candidates under
+    no anchor are ``outside``. A worksheet written before the block existed reads ``(None, 0, 0)``.
     """
     lines = text.splitlines()
-    inside: list[str] = []
+    groups: list[list[str]] = []
     for index, line in enumerate(lines):
-        if EM_LABEL.match(line):
-            for follower in lines[index + 1:]:
-                if not follower.strip() or follower[0] not in " \t":
-                    break
-                inside.append(follower)
-            break
+        entry = ENTRY.match(line)
+        anchored = EM_CODE_LABEL.match(line) or (
+            entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
+        if not anchored:
+            continue
+        group = []
+        for follower in lines[index + 1:]:
+            if not follower.strip() or follower[0] not in " \t":
+                break
+            group.append(follower)
+        if any(EM_CANDIDATE.match(line) for line in group):
+            groups.append(group)
     total = sum(1 for line in lines if EM_CANDIDATE.match(line))
-    within = sum(1 for line in inside if EM_CANDIDATE.match(line))
-    return em_block("\n".join(inside)), total - within
+    within = sum(1 for group in groups for line in group if EM_CANDIDATE.match(line))
+    block = em_block("\n".join(groups[0])) if groups else None
+    return WorksheetElements(block, total - within, len(groups))

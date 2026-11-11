@@ -95,7 +95,8 @@ def read_text(path: Path) -> str:
     return read_handwritten_record(path, "text").require_text(force=True)
 
 
-def content(run: Path, item: dict) -> tuple[str, str, str, str]:
+def _content(run: Path, item: dict) -> tuple[str, str, str, str, str]:
+    """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints."""
     note, fields, embedded = note_parts(read_text(resolve(run, item["note_path"])))
     worksheet = visible_worksheet(read_text(resolve(run, item["worksheet_path"])))
     if any(visible_worksheet(value).strip() != worksheet.strip() for value in embedded):
@@ -103,10 +104,15 @@ def content(run: Path, item: dict) -> tuple[str, str, str, str]:
     expected = clean_codes(item["codes"])
     if selected_codes(worksheet, private=False) != expected:
         raise ValueError("visible worksheet selected codes disagree with manifest")
-    private = resolve(run, item["private_worksheet_path"])
-    if selected_codes(read_text(private), private=True) != expected:
+    private = read_text(resolve(run, item["private_worksheet_path"]))
+    if selected_codes(private, private=True) != expected:
         raise ValueError("private worksheet selected codes disagree with manifest")
-    return note, worksheet, digest((note + worksheet).encode("utf-8")), digest(fields.encode("utf-8"))
+    return note, worksheet, private, digest((note + worksheet).encode("utf-8")), digest(fields.encode("utf-8"))
+
+
+def content(run: Path, item: dict) -> tuple[str, str, str, str]:
+    note, worksheet, _, code_hash, field_hash = _content(run, item)
+    return note, worksheet, code_hash, field_hash
 
 
 def clean_codes(codes: dict) -> dict:
@@ -114,6 +120,17 @@ def clean_codes(codes: dict) -> dict:
             "em": str(codes.get("em", "")).strip().upper(),
             "cpt": coding_freshness.normalize_codes(codes.get("cpt", []), "cpt"),
             "hcpcs": coding_freshness.normalize_codes(codes.get("hcpcs", []), "hcpcs")}
+
+
+EM_CODES = coding_freshness.ED_EM | coding_freshness.OFFICE_EM
+
+
+def code_key(system: str, code: str) -> str:
+    """The code population an entry selects into: icd10, em, cpt or hcpcs."""
+    system, code = system.upper(), code.upper()
+    if system.startswith("ICD"):
+        return "icd10"
+    return "em" if system == "CPT" and code in EM_CODES else system.lower()
 
 
 def selected_codes(text: str, *, private: bool) -> dict:
@@ -124,12 +141,10 @@ def selected_codes(text: str, *, private: bool) -> dict:
     explicit code label or a shared-parsed CPT entry from the E/M families.
     """
     from specificity_scan import read_entries
-    from worksheet_grammar import DIFFERENTIAL_HEADING, STEP_FOUR_START, ENTRY_CANDIDATE
-    em = set(re.findall(r"(?mi)^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:[ \t]*(\d{5})\b", text))
+    from worksheet_grammar import EM_CODE_LABEL, ENTRY_CANDIDATE, entry_region
+    em = {match.group("code") for match in EM_CODE_LABEL.finditer(text)}
     if private:
-        boundaries = [match.start() for pattern in (DIFFERENTIAL_HEADING, STEP_FOUR_START)
-                      if (match := pattern.search(text)) is not None]
-        entry_text = text[:min(boundaries)] if boundaries else text
+        entry_text = entry_region(text)
     else:
         entry_text = re.sub(r"(?mi)^(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]*:[ \t]*", r"\1 ", text)
     result = {"icd10": set(), "em": em, "cpt": set(), "hcpcs": set()}
@@ -139,12 +154,7 @@ def selected_codes(text: str, *, private: bool) -> dict:
     for entry in entries:
         if not entry.for_entry:
             continue
-        code = entry.code.upper()
-        system = entry.system.upper()
-        key = "icd10" if system.startswith("ICD") else system.lower()
-        if key == "cpt" and code in coding_freshness.ED_EM | coding_freshness.OFFICE_EM:
-            key = "em"
-        result[key].add(code)
+        result[code_key(entry.system, entry.code)].add(entry.code.upper())
     if len(result["em"]) != 1:
         raise ValueError("worksheet needs exactly one final E/M identity")
     return {key: next(iter(values)) if key == "em" else sorted(values) for key, values in result.items()}
@@ -255,16 +265,36 @@ def decode_receipt(text: str) -> dict:
     return coding_freshness.receipt_record(text)
 
 
-def _validated_binding(run: Path, *, batch: bool) -> tuple[Binding, dict, list[tuple[str, str]]]:
+@dataclass(frozen=True)
+class ValidatedEncounter:
+    item: dict
+    note: str
+    worksheet: str
+    private: str
+
+
+@dataclass(frozen=True)
+class ValidatedRun:
+    """What one validation read: the manifest, its receipt and each encounter text."""
+
+    manifest: dict
+    receipt: dict
+    encounters: tuple[ValidatedEncounter, ...]
+
+
+def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]:
+    """Validate once; ``batch=None`` takes the mode the manifest records."""
     run = run.resolve()
-    manifest = manifest_for(run, batch=batch)
+    manifest = read_tool_record(run / MANIFEST, decode_manifest)
+    if manifest is None or (batch is not None and manifest["batch"] != batch):
+        raise ValueError("missing manifest or wrong clinical mode")
     openers = read_openers(run)
     if manifest["service_date"] != openers["service_date"] or len(manifest["encounters"]) != len(openers["encounters"]):
         raise ValueError("opener population or service date changed")
-    notes, worksheets, contents = [], [], []
+    notes, worksheets, encounters = [], [], []
     for item, opener in zip(manifest["encounters"], openers["encounters"]):
-        note, worksheet, code_hash, field_hash = content(run, item)
-        contents.append((note, worksheet))
+        note, worksheet, private_text, code_hash, field_hash = _content(run, item)
+        encounters.append(ValidatedEncounter(item, note, worksheet, private_text))
         if code_hash != item["normalized_sha256"] or field_hash != item["field_block_sha256"]:
             raise ValueError("manifest is stale against current notes or worksheets")
         if item["opener"] != {key: opener[key] for key in ("name", "age", "sex")}:
@@ -284,22 +314,26 @@ def _validated_binding(run: Path, *, batch: bool) -> tuple[Binding, dict, list[t
             or receipt["encounters"] != population or findings):
         raise ValueError("freshness receipt is missing or stale")
     sources = (run / MANIFEST, receipt_path)
-    return Binding(sources, tuple(notes), tuple(worksheets), (*notes, *worksheets, *sources)), manifest, contents
+    binding = Binding(sources, tuple(notes), tuple(worksheets), (*notes, *worksheets, *sources))
+    return binding, ValidatedRun(manifest, receipt, tuple(encounters))
+
+
+def _validated_binding(run: Path, *, batch: bool) -> tuple[Binding, dict, list[tuple[str, str]]]:
+    binding, validated = _validated(run, batch=batch)
+    return binding, validated.manifest, [(item.note, item.worksheet) for item in validated.encounters]
 
 
 def approval_binding(run: Path, *, batch: bool) -> Binding:
     return _validated_binding(run, batch=batch)[0]
 
 
-def validated_population(run: Path, *, batch: bool) -> tuple[dict, list[tuple[str, str]]]:
-    """The validated manifest with the current note and worksheet text of each encounter.
+def validated_population(run: Path) -> ValidatedRun:
+    """The run as approval validates it, with every text the validation read.
 
-    This is the validation approval uses: a stale manifest or receipt refuses. A reader that
-    renders the coding decisions of a run uses it so it cannot describe a population that
-    approval rejects.
+    A reader that renders the coding decisions of a run uses this, so the text it renders is the
+    text that was validated and a stale manifest or receipt refuses.
     """
-    _, manifest, contents = _validated_binding(run, batch=batch)
-    return manifest, contents
+    return _validated(run, batch=None)[1]
 
 
 def render(run: Path, output: Path, *, force: bool = False) -> Path:

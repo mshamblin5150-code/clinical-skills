@@ -26,13 +26,18 @@ BLOCK = """  EM-PROBLEM: definition-stable-chronic | counted | "Diabetes stable"
   EM-LEVEL: 99213
 """
 EM_LINE = "E/M: 99213 Office or other outpatient visit, established patient, low MDM\n"
+EM_CODES = review_manifest.EM_CODES
+
+
+def astuple_of(elements):
+    return elements.block, elements.outside, elements.blocks
 
 
 class TheStrictReader(unittest.TestCase):
     def test_the_reference_example_is_a_complete_block(self):
         text = REFERENCE.read_text(encoding="utf-8")
         example = text.split("Synthetic example", 1)[1].split("```text", 1)[1].split("```", 1)[0]
-        block, outside = grammar.worksheet_em_block(example)
+        block, outside, _ = astuple_of(grammar.worksheet_em_block(example, EM_CODES))
         self.assertEqual(0, outside)
         self.assertEqual(0, block.unread)
         self.assertEqual(("low", "low"), (block.mdm["mdm"], block.two_of_three()))
@@ -57,18 +62,37 @@ class TheStrictReader(unittest.TestCase):
         self.assertEqual("moderate", block.two_of_three())
 
     def test_a_worksheet_without_the_block_stays_valid(self):
-        self.assertEqual((None, 0), grammar.worksheet_em_block(PRESERVED.read_text(encoding="utf-8")))
+        preserved = PRESERVED.read_text(encoding="utf-8")
+        self.assertEqual(grammar.WorksheetElements(None, 0, 0), grammar.worksheet_em_block(preserved, EM_CODES))
         self.assertIsNone(grammar.em_block("E/M: 99213 low MDM\nNo element lines here.\n"))
 
     def test_element_lines_away_from_the_em_line_are_counted_outside(self):
         text = "ICD-10  E11.9  Type 2 diabetes mellitus without complications\n" + BLOCK + "\n" + EM_LINE
-        block, outside = grammar.worksheet_em_block(text)
+        block, outside, _ = astuple_of(grammar.worksheet_em_block(text, EM_CODES))
         self.assertIsNone(block)
         self.assertEqual(len(BLOCK.splitlines()), outside)
 
-    def test_the_block_reads_under_an_em_family_cpt_entry(self):
-        block, outside = grammar.worksheet_em_block("CPT  99213  Office visit, established patient\n" + BLOCK)
-        self.assertEqual((0, 0, "99213"), (outside, block.unread, block.level))
+    def test_every_anchor_spelling_the_code_reader_accepts_carries_the_block(self):
+        for anchor in ("CPT  99213  Office visit, established patient", "cpt 99213 Office",
+                       "**E/M**: 99213 low MDM", "e/m: 99213 low MDM", EM_LINE.strip()):
+            with self.subTest(anchor=anchor):
+                block, outside, blocks = astuple_of(grammar.worksheet_em_block(anchor + "\n" + BLOCK, EM_CODES))
+                self.assertEqual((0, 0, "99213", 1), (outside, block.unread, block.level, blocks))
+                self.assertEqual("99213", review_manifest.selected_codes(
+                    "ICD-10  E11.9  Type 2 diabetes mellitus without complications\n" + anchor + "\n" + BLOCK,
+                    private=True)["em"])
+
+    def test_the_block_under_the_second_anchor_is_read_and_two_blocks_are_counted(self):
+        entry = "CPT  99213  Office visit, established patient\n"
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(entry + "\n" + EM_LINE + BLOCK, EM_CODES))
+        self.assertEqual((0, 1, "99213"), (outside, blocks, block.level))
+        _, _, blocks = astuple_of(grammar.worksheet_em_block(entry + BLOCK + "\n" + EM_LINE + BLOCK, EM_CODES))
+        self.assertEqual(2, blocks)
+
+    def test_a_block_ends_at_an_unspaced_step_four_heading(self):
+        text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
+        self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))
+        self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING))
 
 
 class EveryWorksheetReaderToleratesTheBlock(unittest.TestCase):

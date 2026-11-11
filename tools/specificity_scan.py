@@ -56,6 +56,7 @@ import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
 import completion_checks
+import em_audit
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import reader_remarks
 from worksheet_grammar import (
@@ -922,17 +923,14 @@ def _grade(
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, parsed.value("--submission")
     )
+    run_directory = source.directory.parent if source.directory.name == "worksheets" else source.directory
     chain_failed, chain_report = artifact_repairs.completion_gate(
-        source.directory.parent if source.directory.name == "worksheets" else source.directory,
+        run_directory,
         parsed.value("--submission"),
         tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
     )
     # ADR 0445: every coded note needs a blind re-derivation and a current check-off.
-    import em_audit
-    em_failed, em_report, em_unread = em_audit.completion_gate(
-        source.directory.parent if source.directory.name == "worksheets" else source.directory,
-        parsed.value("--submission"),
-    )
+    em_failed, em_report, em_unread = em_audit.completion_gate(run_directory, parsed.value("--submission"))
     if em_unread:
         scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
         coverage_failed = True

@@ -8,9 +8,9 @@ the [em-audit](../../em-audit/SKILL.md) re-derivation writes an element block of
 
 ## The element block
 
-In the private worksheet `worksheets/<note stem>.md`, indent the block two spaces directly under
-the E/M line (its `E/M:` label line or its E/M-family `CPT` entry), one element per physical line,
-with no blank line inside the block:
+In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces directly
+under either E/M line the code reader accepts (an `E/M:` label line or an E/M-family `CPT` entry),
+one element per physical line, with no blank line inside the block:
 
 ```text
   EM-PROBLEM: <entry id> | <counted | not counted> | "<verbatim note text>" | <reason>

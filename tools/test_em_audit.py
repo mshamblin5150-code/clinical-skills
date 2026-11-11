@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import artifact_lock_test_support
 
+import ast
 import contextlib
 import io
 from pathlib import Path
@@ -67,7 +68,9 @@ def headings(text: str) -> list[str]:
     return re.findall(r"(?m)^## (.+?)[ \t]*$", text)
 
 
-class CheckOffCommand(unittest.TestCase):
+class RunFixture(unittest.TestCase):
+    """A built synthetic run with a passing receipt and one recorded answer; no tests of its own."""
+
     elements = ELEMENTS
 
     def setUp(self):
@@ -105,6 +108,8 @@ class CheckOffCommand(unittest.TestCase):
         return {path: path.read_bytes() for path in (self.run / "note-1.md", self.run / "visible-worksheet-1.md",
                                                      self.run / "worksheets/note-1.md")}
 
+
+class CheckOffCommand(RunFixture):
     def test_default_prints_counts_only_and_writes_nothing(self):
         result = self.invoke()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -141,8 +146,8 @@ class CheckOffCommand(unittest.TestCase):
                          "- [ ] Data: none, not counted; note text none; reason: no test documented",
                          "- MDM: problems low; data straightforward; risk low; two of three low",
                          "- Level: 99283", "- Answer relied on: note-1.q1", "- Rule applied: ADR 0308 ruling 1",
-                         "- Question note-1.q1: " + QUESTION, "  - Levels named: none named",
-                         "  - Reply: \"" + REPLY + "\"", "verified as a whole clinician message",
+                         "- Question note-1.q1; levels named: none named; reply check: verified as a whole clinician message",
+                         "> " + QUESTION, "> " + REPLY,
                          "- Setting: emergency department", "No re-derivation record is placed for this note.",
                          "Clinician signature:", "- Entry ids: not checked"):
             self.assertIn(expected, text)
@@ -301,6 +306,111 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
         finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertTrue(finding)
         self.assertIn("element blocks absent 1", report)
+
+
+class ReviewFindings(RunFixture):
+    """The code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def private(self, text: str) -> None:
+        (self.run / "worksheets/note-1.md").write_text(text, encoding="utf-8")
+
+    def test_f1_every_em_spelling_the_code_reader_accepts_anchors_the_block(self):
+        for spelling in ("cpt 99283 Emergency visit", "**E/M**: 99283 Emergency visit", "e/m: 99283 Emergency visit"):
+            with self.subTest(spelling=spelling):
+                self.private(PRIVATE.format(elements=ELEMENTS).replace("CPT 99283 Emergency visit", spelling))
+                result = self.invoke()
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertIn("element blocks: present 1, absent 0; findings 0", result.stdout)
+                self.assertIn("unread remainder 0", result.stdout)
+
+    def test_f2_a_step_four_heading_without_spaces_ends_the_copied_block(self):
+        self.private(PRIVATE.format(elements=ELEMENTS)
+                     .replace("## Coded, anchor was filled: confirm before submitting", "---CODED, ANCHOR WAS FILLED---")
+                     .replace("## Not coded, nothing established it", "---NOT CODED, NOTHING ESTABLISHED IT---"))
+        self.assertEqual(0, self.invoke("--write").returncode)
+        text = self.sheet.read_text(encoding="utf-8")
+        filled = text.split("## Codes resting on a filled anchor", 1)[1].split("## Codes refused", 1)[0]
+        refused = text.split("## Codes refused", 1)[1].split("## Documentation", 1)[0]
+        self.assertNotIn("NOT CODED", filled)
+        self.assertIn("NOT CODED: J18.9", refused)
+
+    def test_f3_a_multi_line_question_or_reply_stays_one_quoted_value(self):
+        question = "First line of the question\n## injected question heading\n- injected bullet"
+        reply = "First line of the reply\n\n> injected quote\n## injected reply heading"
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            preapproval_answers.record(self.run, 1, question, ["99283"], reply)
+        self.assertEqual(0, self.invoke("--write").returncode)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertEqual(list(em_audit.SECTIONS), headings(text))
+        injected = [line for line in text.splitlines() if "injected" in line]
+        self.assertEqual(4, len(injected))
+        self.assertTrue(all(line.startswith("> ") for line in injected), injected)
+        import docx_write
+        self.assertEqual({"block-quotation"},
+                         {block.kind for block in docx_write.blocks(text) if "injected" in block.text})
+
+    def test_f4_the_block_under_either_anchor_is_read_and_two_blocks_are_a_finding(self):
+        self.private(PRIVATE.format(elements="") + "\nE/M: 99283 low complexity\n" + ELEMENTS)
+        result = self.invoke()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("element blocks: present 1, absent 0; findings 0", result.stdout)
+        self.private(PRIVATE.format(elements=ELEMENTS) + "\nE/M: 99283 low complexity\n" + ELEMENTS)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("- FINDING: the private worksheet carries 2 element blocks",
+                      self.sheet.read_text(encoding="utf-8"))
+
+    def test_f5_a_partly_unread_block_is_still_compared_element_by_element(self):
+        self.private(PRIVATE.format(elements=ELEMENTS + "  EM-OPINION: an unrecognized line\n"))
+        self.record(ELEMENTS.replace("| not counted | \"Hypertension.\"", "| counted | \"Hypertension.\""))
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertNotIn("the worksheet has no element block", text)
+        self.assertIn("- DIFFERS: Problem definition-stable-chronic counted: in the re-derivation only", text)
+
+    def test_f6_a_level_resting_on_an_unverified_answer_is_incomplete(self):
+        (self.run / preapproval_answers.RECORD).unlink()
+        self.assertEqual("unreadable", preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)[1])
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+        self.assertIn("recorded unverified", self.sheet.read_text(encoding="utf-8"))
+
+    def test_f8_the_rendered_text_is_the_text_that_was_validated(self):
+        private = (self.run / "worksheets/note-1.md").resolve()
+        reads = []
+        original = review_manifest.read_text
+
+        def counting(path):
+            reads.append(Path(path).resolve())
+            return original(path)
+
+        with mock.patch.object(review_manifest, "read_text", side_effect=counting), \
+                mock.patch.object(em_audit, "read_tool_record", wraps=em_audit.read_tool_record) as tool_reads:
+            em_audit.render(self.run, [])
+        self.assertEqual(1, reads.count(private))
+        self.assertEqual(0, tool_reads.call_count)
+
+    def test_f9_the_for_entry_region_is_read_by_the_validators_own_readers(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+        called = {node.func.id for node in ast.walk(tree)
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertNotIn("system_key", defined)
+        self.assertNotIn("entry_is_for_entry", called)
+        self.assertTrue({"read_entries", "paired_entry"} <= called, called)
+
+    def test_f10_the_terminal_grader_imports_the_gate_at_module_level_and_names_the_run_once(self):
+        source = Path(em_audit.__file__).with_name("specificity_scan.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        top = {alias.name for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
+        nested = [node for node in ast.walk(tree) if isinstance(node, ast.Import) and node not in tree.body
+                  and any(alias.name == "em_audit" for alias in node.names)]
+        self.assertIn("em_audit", top)
+        self.assertEqual([], nested)
+        self.assertEqual(1, source.count("source.directory.parent if source.directory.name == \"worksheets\""))
 
 
 if __name__ == "__main__":

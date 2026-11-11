@@ -5,7 +5,8 @@ adds one keyed entry to ``RUN/pre-approval-answers.json`` through the shared loc
 transaction. The reply is matched as a whole clinician message in the run transcript after the
 opener source, through ``approval_record.verify_clinician_reply``: a verified reply is recorded
 ``verified``, an unreadable transcript is recorded ``unreadable``, and a reply no later whole
-message matches writes nothing. An identical question and reply already recorded writes nothing.
+message matches writes nothing. An identical question and reply already recorded writes nothing,
+except that an unreadable entry is upgraded to verified once the transcript matches.
 
 Exit 0 when the entry is recorded or already present; 2 when nothing could be recorded. Output
 names the entry id and its reply check and never repeats the question or the reply.
@@ -30,7 +31,9 @@ DECLARED_LIMITS = (
     "An unreadable transcript records the entry as unreadable rather than refusing it, and every "
     "reader of the record shows that state.",
     "Entries only accumulate, through one locked replacement of the JSON file. A correction is a "
-    "later entry, and nothing reconciles two entries about one question.",
+    "later entry, and nothing reconciles two entries about one question. The one change in place "
+    "upgrades an unreadable entry to verified when the same question and reply are recorded with a "
+    "readable transcript; a verified entry is never downgraded.",
     "A delegated run records nothing: a delegate cannot supply the clinician answer, and the "
     "lower level stands.",
 )
@@ -98,9 +101,17 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
 
     def change(previous: dict | None) -> RecordUpdate:
         value = previous or {"schema": 1, "producer": PRODUCER, "answers": []}
-        for entry in value["answers"]:
-            if (entry["note"], entry["question"], entry["clinician_reply"], entry["levels"]) == (note, question, reply, levels):
+        for index, entry in enumerate(value["answers"]):
+            if (entry["note"], entry["question"], entry["clinician_reply"], entry["levels"]) != (note, question, reply, levels):
+                continue
+            if entry["verification"] == "verified" or state != "verified":
                 return RecordUpdate(None, (entry["id"], entry["verification"]))
+            # A transcript readable now upgrades the same answer in place; nothing downgrades it.
+            upgraded = dict(entry, verification="verified", reply_matched_at=verification.matched_at)
+            answers = [*value["answers"][:index], upgraded, *value["answers"][index + 1:]]
+            payload = (json.dumps(dict(value, answers=answers), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+            decode(payload.decode("utf-8"))
+            return RecordUpdate(payload, (entry["id"], "verified"))
         number = 1 + len(entries_for(value, note))
         entry = {"id": f"note-{note}.q{number}", "note": note, "question": question, "levels": levels,
                  "clinician_reply": reply, "verification": state,

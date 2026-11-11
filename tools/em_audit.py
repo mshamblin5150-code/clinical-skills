@@ -34,9 +34,9 @@ from encounter_openers import atomic_write
 from run_grader import format_unread_remainder
 from run_record_reader import (DamagedRecord, UnreadableRecord, damaged_record_result, fault_report,
                                read_handwritten_record, read_tool_record)
-from worksheet_grammar import (BLOCK_HEADING, DIFFERENTIAL_HEADING, ENTRY, FIELD, REFUSAL_HEADING,
-                               STEP_FOUR_START, UNDOCUMENTED_HEADING, EmBlock, em_block,
-                               entry_is_for_entry, worksheet_em_block)
+from worksheet_grammar import (BLOCK_HEADING, ENTRY, FIELD, REFUSAL_HEADING, UNDOCUMENTED_HEADING, EmBlock,
+                               block_text, em_block, entry_region, paired_entry, worksheet_em_block)
+
 
 DECLARED_LIMITS = (
     "The check-off restates what the run recorded. It establishes neither that a code is correct "
@@ -44,24 +44,29 @@ DECLARED_LIMITS = (
     "the coding graders.",
     "An element block is checked for its line shape, entry ids known to the CPT MDM sheet the "
     "receipt names, an MDM line whose level is the middle of its three elements, a LEVEL equal to "
-    "the selected code, and answer ids present in the pre-approval answers record. It is not "
-    "checked that the code follows from the MDM level, setting and status, that a quotation is "
-    "faithful to the note, or that every element weighed was written down.",
+    "the selected code, answer ids present in the pre-approval answers record, and one block per "
+    "worksheet. It is not checked that the code follows from the MDM level, setting and status, "
+    "that a quotation is faithful to the note, or that every element weighed was written down.",
     "Entry ids are checked only when the sheet the receipt names exists under reference/.",
-    "A re-derivation is compared with the worksheet block on its counted and not-counted "
-    "(element, entry id) population, each MDM element and the level. Note text, reasons, rules, "
-    "answers and ECG lines are rendered side by side but not compared, and nothing establishes "
-    "that the re-derivation was written before its author read the worksheet.",
+    "An answer recorded as unreadable is shown and counted as incomplete coverage; the record "
+    "itself does not establish which question a reply answered.",
+    "A re-derivation is compared with the lines of the worksheet block that were read, on the "
+    "counted and not-counted (element, entry id) population, each MDM element and the level; an "
+    "unread worksheet line is counted in the unread remainder and stays outside the comparison. "
+    "Note text, reasons, rules, answers and ECG lines are rendered side by side but not compared, "
+    "and nothing establishes that the re-derivation was written before its author read the "
+    "worksheet.",
     "A worksheet without an element block renders the visible worksheet and the E/M paragraph of "
     "the note verbatim, with the governing rules for the setting, and a re-derivation of it is "
     "compared on the level alone.",
-    "Codes for entry are read from the private worksheet before its differential and the "
-    "icd10-cpt step 4 blocks; those blocks are copied as quotations with blank lines "
-    "dropped, not parsed.",
+    "Codes for entry are read from the private worksheet region and with the readers the "
+    "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
+    "lines dropped, not parsed.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet.",
     "Validation re-reads the opener source, notes, worksheets, status evidence and receipt; a "
     "moved or edited source refuses the check-off even long after the shift.",
 )
+
 
 OUTPUT_DIRECTORY = "em-audit"
 REDERIVATION_DIRECTORY = "rederivation"
@@ -78,11 +83,8 @@ SECTIONS = (
     "Independent re-derivation",
     "Clinician attestation",
 )
-EM_FAMILIES = coding_freshness.ED_EM | coding_freshness.OFFICE_EM
 FILLED_MARK = re.compile(r"\[SOURCE: filled - (?:data|risk): [^\]\n]+\]")
 EM_PARAGRAPH = re.compile(r"(?ms)^E/M:.*?(?=\n[ \t]*\n|\Z)")
-# The shared ANY_HEADING has no multiline flag; an icd10-cpt step 4 block ends at the next heading line.
-NEXT_HEADING = re.compile(r"(?m)^[ \t]*(?:#{1,6}[ \t]+\S|---[ \t]+\S.*---[ \t]*$)")
 SHEET_ENTRY = re.compile(r"(?m)^## Entry: (\S+)[ \t]*$")
 SHARED_RULES = (
     "reference/cpt-em-mdm-2026.md entries, by id, for the service-date edition",
@@ -124,38 +126,26 @@ class Tally:
         self.unread = self.written = self.word = 0
 
 
-def for_entry_codes(private: str) -> list[tuple[str, str, str, dict[str, list[str]], list[str]]]:
-    """Each for-entry code with its fields and any other indented detail line."""
-    boundaries = [match.start() for pattern in (DIFFERENTIAL_HEADING, STEP_FOUR_START)
-                  if (match := pattern.search(private)) is not None]
-    region = private[:min(boundaries)] if boundaries else private
-    entries = list(ENTRY.finditer(region))
-    result = []
-    for index, entry in enumerate(entries):
-        if not entry_is_for_entry(region, entries, index):
-            continue
-        fields: dict[str, list[str]] = {}
-        other: list[str] = []
-        for line in region[entry.end():].splitlines()[1:]:
-            if not line.strip() or line[0] not in " \t" or ENTRY.fullmatch(line):
-                break
-            field = FIELD.match(line)
-            if field:
-                fields.setdefault(field.group("field").upper(), []).append(line[field.end():].strip())
-            elif not line.lstrip().startswith("EM-"):
-                other.append(line.strip())
-        code = entry.group("code").upper()
-        result.append((entry.group("system").upper(), code, entry.group("descriptor").strip(), fields, other))
-    return result
+def for_entry_codes(private: str) -> list[tuple[str, str, str, str, dict[str, list[str]]]]:
+    """Each for-entry code as the manifest validation reads it: (key, system, code, descriptor, fields).
 
-
-def block(private: str, heading: re.Pattern[str]) -> str | None:
-    """The verbatim text under one icd10-cpt step 4 heading, to the next heading."""
-    match = heading.search(private)
-    if match is None:
-        return None
-    following = NEXT_HEADING.search(private, match.end())
-    return private[match.end():following.start() if following else len(private)].strip("\n")
+    The region, the entries and the for-entry split are the readers ``review_manifest.selected_codes``
+    uses; each field line is paired to its entry by ``worksheet_grammar.paired_entry``.
+    """
+    # specificity_scan imports this module at load time, so its reader is imported here.
+    from specificity_scan import read_entries
+    region = entry_region(private)
+    matches = list(ENTRY.finditer(region))
+    fields: dict[int, dict[str, list[str]]] = {}
+    for field in FIELD.finditer(region):
+        owner = paired_entry(region, matches, field)
+        if owner is not None:
+            end = region.find("\n", field.end())
+            value = region[field.end():end if end != -1 else len(region)].strip()
+            fields.setdefault(owner.start(), {}).setdefault(field.group("field").upper(), []).append(value)
+    return [(review_manifest.code_key(entry.system, entry.code), entry.system.upper(), entry.code.upper(),
+             entry.descriptor.strip(), fields.get(entry.start, {}))
+            for entry in read_entries(region) if entry.for_entry]
 
 
 def quoted(text: str | None, empty: str) -> list[str]:
@@ -163,14 +153,6 @@ def quoted(text: str | None, empty: str) -> list[str]:
     if text is None or not text.strip():
         return [empty]
     return ["> " + line.rstrip() for line in text.splitlines() if line.strip()]
-
-
-def system_key(system: str, code: str) -> str:
-    if system.startswith("ICD"):
-        return "icd10"
-    if system == "CPT" and code in EM_FAMILIES:
-        return "em"
-    return system.lower()
 
 
 def sheet_ids(receipt: dict) -> set[str] | None:
@@ -238,12 +220,16 @@ def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) ->
     return found
 
 
+def quoted_value(text: str) -> list[str]:
+    """A verbatim value of any length as one quotation; a blank line inside it stays a paragraph break."""
+    return ["> " + line.rstrip() if line.strip() else "" for line in text.strip("\n").splitlines()]
+
+
 def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict, tally: Tally) -> list[str]:
     lines = []
     status = item["patient_status"]
     if item["setting"] == "office" and status.get("evidence") == "clinician-answer" and status.get("clinician_reply"):
-        reply = status["clinician_reply"]
-        lines += ["- Patient status question", f"  - Reply: \"{reply}\""]
+        lines += ["Patient status question. Reply:", "", *quoted_value(status["clinician_reply"]), ""]
     if unreadable:
         return lines + ["The pre-approval answers record could not be read; its entries are not shown."]
     if answers is None:
@@ -256,9 +242,9 @@ def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict,
         levels = ", ".join(entry["levels"]) or "none named"
         state = ("verified as a whole clinician message" if entry["verification"] == "verified"
                  else "not verified: the transcript was unreadable when it was recorded")
-        identifier, question, reply = entry["id"], entry["question"], entry["clinician_reply"]
-        lines += [f"- Question {identifier}: {question}", f"  - Levels named: {levels}",
-                  "  - Reply: \"" + reply + "\"", f"  - Reply check: {state}"]
+        identifier = entry["id"]
+        lines += [f"- Question {identifier}; levels named: {levels}; reply check: {state}", "",
+                  *quoted_value(entry["question"]), "", "Reply:", "", *quoted_value(entry["clinician_reply"]), ""]
     return lines
 
 
@@ -281,8 +267,13 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
         return ["The re-derivation record is not a complete element block and was not compared."]
     lines = item_lines(rederived)
     found = differences(worksheet, rederived, selected)
-    scope = ("elements, MDM and level" if worksheet is not None
-             else "level only, because the worksheet has no element block")
+    if worksheet is None:
+        scope = "level only, because the worksheet has no element block"
+    elif worksheet.unread:
+        scope = (f"elements, MDM and level on the worksheet lines read; {worksheet.unread} worksheet "
+                 "element line(s) or required line(s) unread and left out")
+    else:
+        scope = "elements, MDM and level"
     if found:
         tally.differ += 1
         tally.differences += len(found)
@@ -305,8 +296,7 @@ def status_text(item: dict) -> str:
 
 def code_lines(private: str, tally: Tally) -> list[str]:
     out: list[str] = []
-    for system, code, descriptor, fields, other in for_entry_codes(private):
-        key = system_key(system, code)
+    for key, system, code, descriptor, fields in for_entry_codes(private):
         if key == "em":
             continue
         tally.systems[key] += 1
@@ -319,7 +309,6 @@ def code_lines(private: str, tally: Tally) -> list[str]:
         out.append("  - Source: " + source)
         for label in ("SPECIFICITY", "CONFIDENCE", "NOTE"):
             out += ["  - " + label.title() + ": " + value for value in fields.get(label, ())]
-        out += ["  - Other: " + line for line in other]
     return out or ["None recorded in the worksheet."]
 
 
@@ -334,8 +323,9 @@ class Context:
         except UnreadableRecord:
             self.answers, self.unreadable = None, True
             tally.unread += 1
-        self.answer_ids = (None if self.answers is None
-                           else {entry["id"] for entry in self.answers["answers"]})
+        self.answer_states = ({} if self.answers is None
+                              else {entry["id"]: entry["verification"] for entry in self.answers["answers"]})
+        self.answer_ids = None if self.answers is None else set(self.answer_states)
 
 
 def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict, context: Context,
@@ -351,8 +341,9 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
              *["- ECG code: " + line for line in ecg]]
-    block_, outside = worksheet_em_block(private)
-    tally.unread += outside
+    elements = worksheet_em_block(private, review_manifest.EM_CODES)
+    block_ = elements.block
+    tally.unread += elements.outside
     if block_ is None:
         tally.blocks_absent += 1
         paragraph = EM_PARAGRAPH.search(note)
@@ -366,16 +357,22 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     tally.blocks_present += 1
     if block_.unread:
         tally.unread += block_.unread
-        lines += ["", f"{block_.unread} element line(s) or a required line could not be read; "
-                  "the readable lines follow."]
+        lines += ["", f"{block_.unread} element line(s) or required line(s) could not be read and are counted "
+                  "in the unread remainder; the lines read follow."]
     lines += ["", "Element block from the private worksheet:", "", *item_lines(block_)]
+    unverified = [answer for answer in block_.answers if context.answer_states.get(answer) == "unreadable"]
+    tally.unread += len(unverified)
+    lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
+              "coverage is incomplete" for answer in unverified]
     found = block_findings(block_, selected, context.ids, context.answer_ids)
+    if elements.blocks > 1:
+        found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
     if context.ids is None:
         lines.append("- Entry ids: not checked; the CPT MDM sheet the receipt names is not under reference/")
     if found:
         tally.block_findings += len(found)
         lines += ["", *["- FINDING: " + finding for finding in found]]
-    return lines, None if block_.unread else block_
+    return lines, block_
 
 
 def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, worksheet: str,
@@ -398,7 +395,7 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     blocks = ((BLOCK_HEADING, "filled_blocks"), (REFUSAL_HEADING, "refusal_blocks"),
               (UNDOCUMENTED_HEADING, "undocumented_blocks"))
     for index, (heading, attribute) in enumerate(blocks, start=2):
-        text = block(private, heading)
+        text = block_text(private, heading)
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
@@ -411,26 +408,22 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
 
 
 def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[tuple[str, str]]]:
-    """Every selected check-off as (note stem, Markdown text), from validated records only."""
+    """Every selected check-off as (note stem, Markdown text), rendered from the validated read itself."""
     run = run.resolve()
-    header = read_tool_record(run / review_manifest.MANIFEST, review_manifest.decode_manifest)
-    if header is None:
-        raise ValueError("no coding manifest")
-    manifest, contents = review_manifest.validated_population(run, batch=header["batch"])
-    receipt = read_tool_record(review_manifest.resolve(run, manifest["receipt_path"]), review_manifest.decode_receipt)
-    if receipt is None:
-        raise ValueError("no freshness receipt")
-    orders = [item["order"] for item in manifest["encounters"]]
+    validated = review_manifest.validated_population(run)
+    manifest, receipt = validated.manifest, validated.receipt
+    orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
         raise ValueError("unknown note number")
     tally = Tally()
     context = Context(run, receipt, tally)
     sheets = []
-    for item, (note, worksheet) in zip(manifest["encounters"], contents):
+    for encounter in validated.encounters:
+        item = encounter.item
         if notes and item["order"] not in notes:
             continue
-        private = review_manifest.read_text(review_manifest.resolve(run, item["private_worksheet_path"]))
-        text = sheet(run, manifest, receipt, item, note, worksheet, private, context, tally)
+        text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
+                     context, tally)
         sheets.append((Path(item["note_path"]).stem, text))
     return tally, len(orders), sheets
 

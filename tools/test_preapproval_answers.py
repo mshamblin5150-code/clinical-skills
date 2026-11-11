@@ -77,6 +77,18 @@ class AnswersRecord(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     preapproval_answers.read(self.run)
 
+    def test_f7_an_unreadable_entry_is_upgraded_once_verified_and_never_downgraded(self):
+        self.assertEqual("unreadable", preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)[1])
+        status, output = self.main("--note", 1, "--question", QUESTION, "--reply", REPLY)
+        self.assertEqual("pre-approval answers: note-1.q1 recorded; reply check verified\n", output)
+        entries = preapproval_answers.read(self.run)["answers"]
+        self.assertEqual([("note-1.q1", "verified", 4102444800.0)],
+                         [(entry["id"], entry["verification"], entry["reply_matched_at"]) for entry in entries])
+        before = self.path.read_bytes()
+        self.assertEqual(("note-1.q1", "verified"), preapproval_answers.record(self.run, 1, QUESTION, [], REPLY))
+        self.main("--note", 1, "--question", QUESTION, "--reply", REPLY)
+        self.assertEqual(before, self.path.read_bytes())
+
     def test_declared_limits_are_named_by_the_reference_and_not_copied(self):
         self.assertEqual((), bind(preapproval_answers.DECLARED_LIMITS, REFERENCE.read_text(encoding="utf-8"),
                                   mode=NAMING))
