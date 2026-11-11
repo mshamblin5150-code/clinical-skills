@@ -20,10 +20,11 @@ start in ``reference/completion-check-starts.tsv`` (``--submission`` reads the a
 the run is judged current), an element block that contradicts itself or the selected code or the
 billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
 differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
-note number is unknown, the CPT MDM sheet is not the one the receipt fingerprinted, a Word option
-was given without ``--docx``, a check-off or Word copy was refused (naming the note number that
-stopped it and the copies already written; a refused check-off leaves the Word copies unattempted),
-or a candidate went unread (``unread remainder``), such as an absent CPT MDM sheet. A finding
+note number is unknown, a private worksheet changed after the manifest recorded it, the CPT MDM
+sheet version the receipt bound does not parse, a Word option was given without ``--docx``, a
+check-off or Word copy was refused (naming the note number that stopped it and the copies already
+written; a refused check-off leaves the Word copies unattempted), or a candidate went unread
+(``unread remainder``), such as no committed sheet version matching the receipt. A finding
 outranks an unread remainder.
 """
 from __future__ import annotations
@@ -47,9 +48,9 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
-                               UNDOCUMENTED_HEADING, EmBlock, block_text, em_block, entry_region,
-                               opens_element_block, paired_entry, physical_lines, read_entries,
-                               selected_em_anchor, worksheet_em_block)
+                               UNDOCUMENTED_HEADING, EmBlock, block_text, detail_belongs_to_entry, em_block,
+                               entry_region, opens_element_block, paired_entry, physical_lines, read_entries,
+                               selected_em_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -101,8 +102,10 @@ DECLARED_LIMITS = (
     "region, and every later one that opens an element block, is rendered with its own provenance "
     "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY anchor no block "
     "and are counted unread as outside lines.",
-    "The element block is bound to the approved records only through the manifest element "
-    "fingerprint; a manifest without it is counted unread on each check-off. At submission, a run "
+    "The private worksheet is bound to the approved records only through the manifest's whole-file "
+    "fingerprint, which the check-off compares and approval validation does not; a changed file "
+    "refuses the check-off. A manifest without it is counted unread on each check-off, or not "
+    "graded for a run whose approval predates the em_audit start. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
     "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
     "record is not graded, so a note-path run whose opener record is lost reads the same way.",
@@ -123,6 +126,7 @@ OUTPUT_DIRECTORY = "em-audit"
 REDERIVATION_DIRECTORY = "rederivation"
 WORD_DIRECTORY = "em-audit"
 REPOSITORY = coding_freshness.ROOT  # the checkout whose reference/ holds the CPT MDM sheet
+FIRST_LINE = re.compile(r"[^\n]*")
 SECTIONS = (
     "Encounter",
     "Codes for entry",
@@ -177,25 +181,37 @@ class Tally:
         # A run approved before the em_audit start (completion-check-starts.tsv): a missing element
         # block or re-derivation is shown and counted here, never as a finding.
         self.predates = False
+        # Coverage faults a capturing command counts itself, kept so the gate knows the render was partial.
+        self.faults = 0
         self.blocks_predating = self.absent_predating = 0
 
 
 def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, list[str]], int, int]:
     """The wrapped header tail, field values, unplaced line count and body end of the entry at ``index``.
 
-    The body is the contiguous indented lines below the entry, the bound
-    ``worksheet_grammar.detail_belongs_to_entry`` pairs a detail by; a nested entry line ends it.
-    A line continues the field above it, or the header before the first field. Element lines and
-    an indented E/M label belong to the element block, and an indented line after them is unplaced.
+    A field line belongs to the entry exactly when ``worksheet_grammar.detail_belongs_to_entry``
+    says so, the rule ``paired_entry`` owns details by: every line between them is indented text,
+    so a field may itself sit at the margin directly after that run. Otherwise the body is the
+    contiguous indented lines below the entry; a nested entry line ends it. A line continues the
+    field above it, or the header before the first field. Element lines and an indented E/M label
+    belong to the element block, and an indented line after them is unplaced.
     """
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
     unplaced, state, end = 0, "header", index + 1
-    for line in lines[index + 1:]:
-        if not line.strip() or line[0] not in " \t" or ENTRY.match(line):
+    for position in range(index + 1, len(lines)):
+        line = lines[position]
+        field = FIELD.match(line)
+        if not line.strip() or ENTRY.match(line):
+            break
+        if field:
+            span = "\n".join(lines[index:position + 1])
+            owner = FIRST_LINE.match(span)  # the entry or E/M label line the detail would belong to
+            if not detail_belongs_to_entry(span, owner, FIELD.match(span, len(span) - len(line))):
+                break
+        elif line[0] not in " \t":
             break
         end += 1
-        field = FIELD.match(line)
         if EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
         elif field:
@@ -258,10 +274,11 @@ def em_entry_lines(private: str, tally: Tally) -> list[str]:
     region_lines = region.count("\n") if len(region) < len(private) else len(lines)
     out: list[str] = []
     claimed: set[int] = set()
+    selected = selected_em_lines(lines, review_manifest.EM_CODES)
     for index, line in enumerate(lines):
-        if index in claimed or not selected_em_anchor(lines, index, review_manifest.EM_CODES):
+        if index in claimed or index not in selected:
             continue
-        if index >= region_lines and not opens_element_block(lines, index):
+        if index >= region_lines and not opens_element_block(lines, index, selected):
             continue
         tail, fields, unplaced, end = entry_details(lines, index)
         claimed.update(range(index + 1, end))
@@ -510,6 +527,7 @@ class Context:
             self.answers = preapproval_answers.read(run)
         except UnreadableRecord:
             self.answers, self.unreadable = None, True
+            tally.faults += 1
             if not collecting_errors():  # a capturing command counts the record once itself
                 tally.unread += 1
         self.answer_states = ({} if self.answers is None
@@ -529,11 +547,15 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
              *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
-    if "element_block_sha256" not in item:
-        tally.unread += 1
-        lines.append("- Element block: not bound to the manifest, which predates the element fingerprint; "
-                     "an edit after the manifest is not detected. Rebuild the manifest. Counted in the "
-                     "unread remainder.")
+    if "private_worksheet_sha256" not in item:
+        if tally.predates:
+            lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
+                         "not graded, because the run's approval predates the E/M audit check.")
+        else:
+            tally.unread += 1
+            lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
+                         "an edit after the manifest is not detected. Rebuild the manifest. Counted in the "
+                         "unread remainder.")
     elements = worksheet_em_block(private, review_manifest.EM_CODES)
     block_ = elements.block
     tally.unread += elements.outside
@@ -617,6 +639,10 @@ class Sheet(NamedTuple):
     text: str
 
 
+class PrivateWorksheetMoved(ValueError):
+    """A private worksheet differs from the fingerprint its manifest recorded."""
+
+
 class UnknownNote(ValueError):
     """A --note number names no encounter of the run."""
 
@@ -633,6 +659,11 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
         raise UnknownNote("unknown note number")
+    moved = [encounter.item["order"] for encounter in validated.encounters
+             if "private_worksheet_sha256" in encounter.item
+             and encounter.item["private_worksheet_sha256"] != review_manifest.private_worksheet_sha256(encounter.private)]
+    if moved:
+        raise PrivateWorksheetMoved(f"private worksheet of note {moved[0]} changed after the manifest")
     tally = Tally()
     import completion_checks
     tally.predates = not completion_checks.active("em_audit:" + EXPECTED_ROW)
@@ -687,11 +718,18 @@ class WordExportStopped(WritesStopped):
 
 
 def word_folder(run: Path, output_dir: Path | None) -> Path:
-    """The Word destination: under the main checkout output/ tree, or outside every checkout."""
-    output = repo_root.output_root().resolve()
-    folder = (output / WORD_DIRECTORY / run.resolve().name if output_dir is None
-              else output_dir.expanduser().resolve())
-    if repo_root.enclosing_checkout(folder) is not None and not folder.is_relative_to(output):
+    """The Word destination: under the main checkout output/ tree, or outside every checkout.
+
+    A destination that cannot be resolved is refused as one that is not permitted.
+    """
+    try:
+        output = repo_root.output_root().resolve()
+        folder = (output / WORD_DIRECTORY / run.resolve().name if output_dir is None
+                  else output_dir.expanduser().resolve())
+        inside = repo_root.enclosing_checkout(folder) is not None
+    except (OSError, ValueError, RuntimeError) as error:
+        raise WordTargetRefused("the Word destination could not be resolved") from error
+    if inside and not folder.is_relative_to(output):
         raise WordTargetRefused(str(folder))
     return folder
 
@@ -771,7 +809,7 @@ def selects_em_level(run: Path) -> bool:
             lines = physical_lines(review_manifest.read_text(path))
         except (DamagedRecord, UnreadableRecord, OSError, UnicodeError):
             return True
-        if any(selected_em_anchor(lines, index, review_manifest.EM_CODES) for index in range(len(lines))):
+        if selected_em_lines(lines, review_manifest.EM_CODES):
             return True
     return False
 
@@ -808,17 +846,21 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or stale", 1
     stale = unreadable = 0
+    # A fresh render that left something unread is not the check-off a complete read would write, so
+    # a difference from it is incomplete coverage, never a stale check-off.
+    compared = not (tally.unread or tally.faults)
     for sheet_ in sheets:
         try:
             current = read_tool_record(run / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), str)
         except UnreadableRecord:
             unreadable += 1  # present but not read: incomplete coverage, not a missing check-off
             continue
-        stale += current != sheet_.text
+        stale += compared and current != sheet_.text
     unread = tally.unread + (0 if collecting_errors() else unreadable)
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, "
-              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
+              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}"
+              + ("" if compared else "; check-offs not compared, the fresh render left a record unread"))
     if has_finding(tally, differences=False, stale=stale):
         return True, f"{EXPECTED_ROW}: finding - {counts}", unread
     return False, f"{EXPECTED_ROW}: " + ("incomplete - " if unread else "clean - ") + counts, unread
@@ -854,6 +896,10 @@ def main(argv: list[str] | None = None) -> int:
             tally, total, sheets = render(args.run, args.note)
     except UnknownNote:
         print("em-audit: refused - a --note number is not an encounter of this run")
+        return 2
+    except PrivateWorksheetMoved:
+        print("em-audit: refused - a private worksheet changed after the manifest recorded it; restore it, "
+              "or rebuild the manifest and take a fresh approval")
         return 2
     except SheetMoved:
         print("em-audit: refused - the CPT MDM sheet under reference/ is not the one the receipt fingerprinted, "

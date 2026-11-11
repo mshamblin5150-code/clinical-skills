@@ -2828,8 +2828,8 @@ icd10-cpt step 4 blocks are quoted. The E/M section renders the element block th
 `worksheet_grammar.worksheet_em_block` reads and checks it against the selected code, the CPT MDM
 sheet ids, read by `cpt_mdm_sheet.read_entries` from the committed sheet version the receipt
 fingerprints, and the pre-approval answers record; a worksheet without a block shows its visible
-worksheet instead. The manifest binds the element lines through a fingerprint apart from the
-receipt-bound one. A re-derivation record is compared element by element. `--write` writes each
+worksheet instead. The manifest records a fingerprint of the whole private worksheet apart from the
+receipt-bound one; approval validation does not compare it, and the check-off refuses on a change. A re-derivation record is compared element by element. `--write` writes each
 check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`
 renders the same text through `docx_write.write_docx` into the main checkout `output/`, keeping its
 overwrite refusal and setting the copied text literally (`literal=True`). The default output is

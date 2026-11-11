@@ -225,23 +225,22 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def selected_em_anchor(lines: list[str], index: int, em_codes: frozenset[str] = EM_CODES) -> bool:
-    """Whether the line at ``index`` is a selected E/M line: an ``E/M:`` label, or a for-entry
-    ``CPT`` entry whose code is E/M-family (``cpt_identity.EM_CODES`` by default).
+def selected_em_lines(lines: list[str], em_codes: frozenset[str] = EM_CODES) -> frozenset[int]:
+    """The indexes of the selected E/M lines, read in one pass over the worksheet.
 
-    For entry is ``read_entries``' own rule, ``entry_is_for_entry``, over the text from this entry
-    to the next: its header runs past blank lines to the first field, element line or entry, so an
-    E/M entry marked ``NOT FOR ENTRY`` there is reasoning, never the line an element block, a block
-    end or the check-off's E/M section is anchored to.
+    A selected E/M line sits at the margin, the placement em-elements.md defines, and is the
+    line ``review_manifest.selected_codes`` selects the E/M code from: an ``E/M:`` label line, or
+    an E/M-family ``CPT`` entry of the for-entry region that ``read_entries`` marks for entry. An
+    indented anchor, an entry marked ``NOT FOR ENTRY`` and a ``CPT`` entry outside that region are
+    never the line an element block, a block skip or the check-off's E/M section is anchored to.
     """
-    line = lines[index]
-    if EM_CODE_LABEL.match(line):
-        return True
-    entry = ENTRY.match(line)
-    if entry is None or entry.group("system").upper() != "CPT" or entry.group("code").upper() not in em_codes:
-        return False
-    rest = "\n".join(lines[index:])
-    return entry_is_for_entry(rest, [match for _, match in zip(range(2), ENTRY.finditer(rest))], 0)
+    selected = {index for index, line in enumerate(lines) if line[:1].strip() and EM_CODE_LABEL.match(line)}
+    region = entry_region("\n".join(lines))
+    for match, entry in zip(ENTRY.finditer(region), read_entries(region)):
+        if (entry.for_entry and entry.system.upper() == "CPT" and entry.code.upper() in em_codes
+                and match.group(0)[:1].strip()):
+            selected.add(region.count("\n", 0, match.start()))
+    return frozenset(selected)
 
 
 def physical_lines(text: str) -> list[str]:
@@ -257,22 +256,22 @@ def physical_lines(text: str) -> list[str]:
 OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 
 
-def opens_element_block(lines: list[str], index: int) -> bool:
+def opens_element_block(lines: list[str], index: int, selected: frozenset[int]) -> bool:
     """Whether the margin line at ``index`` is a selected E/M line whose indented body holds an EM- line.
 
     em-elements.md places the element block indented directly under an E/M line, so an entry
     written inside an icd10-cpt step 4 block with no element line beneath it never qualifies, and
     neither does a margin code that is not a selected E/M line.
     """
-    return element_body_end(lines, index) is not None
+    return element_body_end(lines, index, selected) is not None
 
 
-def element_body_end(lines: list[str], index: int) -> int | None:
-    """The index after the indented body of a margin selected E/M line that holds an EM- line.
+def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> int | None:
+    """The index after the indented body of a selected E/M line (``selected_em_lines``) holding an EM- line.
 
     None when the line is not such an anchor. The body is the contiguous indented lines below it.
     """
-    if not lines[index][:1].strip() or not selected_em_anchor(lines, index):
+    if index not in selected:
         return None
     follower, holds_element = index + 1, False
     while follower < len(lines) and lines[follower].strip() and lines[follower][0] in " \t":
@@ -293,12 +292,13 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
     """
     collected: list[str] = []
     found = inside = False
+    selected = selected_em_lines(lines)
     index = 0
     while index < len(lines):
         line = lines[index]
         if heading.match(line) and (every or not found):
             found = inside = True
-        elif inside and (skip := element_body_end(lines, index)) is not None:
+        elif inside and (skip := element_body_end(lines, index, selected)) is not None:
             index = skip
             continue
         elif inside and end.match(line):
@@ -443,18 +443,20 @@ class WorksheetElements:
 def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
-    An E/M line is a ``selected_em_anchor``: an ``EM_CODE_LABEL`` line, or a for-entry ``ENTRY``
-    whose CPT code is in ``em_codes``; EM- lines under a ``NOT FOR ENTRY`` E/M entry are outside. An anchor nested in another anchor body adds no
+    An E/M line is one of ``selected_em_lines``: a margin ``EM_CODE_LABEL`` line, or a margin
+    for-entry ``ENTRY`` whose CPT code is in ``em_codes``; EM- lines under an indented anchor or a
+    ``NOT FOR ENTRY`` E/M entry are outside. An anchor nested in another anchor body adds no
     block of its own. ``blocks`` counts the distinct blocks; when it exceeds one the first is
     returned and the caller reports the rest. EM- candidates under no anchor are ``outside``. A
     worksheet written before the block existed reads ``(None, 0, 0)``.
     """
     lines = physical_lines(text)
     candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
+    selected = selected_em_lines(lines, em_codes)
     claimed: set[int] = set()
     groups: list[list[int]] = []
     for index, line in enumerate(lines):
-        if index in claimed or not selected_em_anchor(lines, index, em_codes):
+        if index in claimed or index not in selected:
             continue
         body = []
         for follower in range(index + 1, len(lines)):

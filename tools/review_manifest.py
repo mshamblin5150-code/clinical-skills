@@ -26,7 +26,7 @@ DECLARED_LIMITS = (
     "Normalization is UTF-8, LF, per-line trailing-whitespace removal and exactly one final newline; it does not reinterpret prose or collapse internal spaces. Review layout changes do not alter the manifest.",
     "Named Markdown or plain Medatrax, tier, schedule, summary and technical-receipt boundaries and fenced tier blocks are excluded. Unrecognized boundaries are retained rather than silently discarded; exactly one Medatrax field block is required. A visible worksheet embedded in a note must equal its separately selected worksheet.",
     "The caller supplies final code populations and visible worksheet paths. Shared worksheet entry parsing binds the selected identities in both the visible and canonical private worksheet; it does not compare MDM support prose, descriptors, anchors or other provenance. Those remain the clinical code graders' authority.",
-    "The private worksheet's E/M element lines are fingerprinted apart from the receipt-bound content fingerprint, as every line the element reader takes as a candidate; a manifest written before that fingerprint existed binds no element line, and validation then compares none.",
+    "The whole private worksheet is fingerprinted apart from the receipt-bound content fingerprint, for the E/M audit check-off; validation does not compare it, so a provenance-only edit leaves the approval identity unchanged while em_audit refuses its check-off. A manifest written before that fingerprint existed records none.",
     "A matching passing receipt establishes its recorded currency check, not perpetual publisher currency. Run coding_freshness visibly whenever the manifest changes.",
     "The locked manifest write is atomic, not a cross-file snapshot. Approval and rendering re-read current sources; a source changing after validation remains an ordinary concurrent-edit risk.",
 )
@@ -117,16 +117,17 @@ def content(run: Path, item: dict) -> tuple[str, str, str, str]:
     return note, worksheet, code_hash, field_hash
 
 
-def element_block_sha256(private: str) -> str:
-    """The fingerprint of every E/M element line of the private worksheet, in order.
+def private_worksheet_sha256(private: str) -> str:
+    """The fingerprint of the whole private worksheet, normalized as ``normalized`` normalizes.
 
     ``normalized_sha256`` binds the note and the visible worksheet, which the receipt carries;
-    this separate field binds the element block, so an element line edited after the manifest
-    refuses validation without changing the receipt's fingerprint.
+    this separate field records everything the E/M audit check-off renders from the private
+    worksheet (entries, anchors and provenance, the icd10-cpt step 4 blocks and the element block)
+    inside the approved manifest. Validation does not compare it: provenance-only edits keep the
+    approval identity, as the selected-code projection rules. ``em_audit`` compares it and refuses
+    a check-off whose private worksheet changed after the manifest.
     """
-    from worksheet_grammar import EM_CANDIDATE, physical_lines
-    lines = [line.rstrip() for line in physical_lines(private) if EM_CANDIDATE.match(line)]
-    return digest("\n".join(lines).encode("utf-8"))
+    return digest(normalized(private).encode("utf-8"))
 
 
 def clean_codes(codes: dict) -> dict:
@@ -193,8 +194,8 @@ def decode_manifest(text: str) -> dict:
                 raise ValueError("invalid artifact path")
         if not SHA.fullmatch(str(item.get("field_block_sha256", ""))):
             raise ValueError("invalid field fingerprint")
-        if "element_block_sha256" in item and not SHA.fullmatch(str(item["element_block_sha256"])):
-            raise ValueError("invalid element block fingerprint")
+        if "private_worksheet_sha256" in item and not SHA.fullmatch(str(item["private_worksheet_sha256"])):
+            raise ValueError("invalid private worksheet fingerprint")
         if not isinstance(item.get("opener"), dict) or set(item["opener"]) != {"name", "age", "sex"}:
             raise ValueError("invalid opener binding")
     if not value["batch"] and len(value["encounters"]) != 1:
@@ -250,7 +251,7 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
                     opener={key: opener[key] for key in ("name", "age", "sex")},
                     patient_status=status_for(run, order) if row["setting"] == "office" else {"value": "not-applicable"})
         _, _, private, item["normalized_sha256"], item["field_block_sha256"] = _content(run, item)
-        item["element_block_sha256"] = element_block_sha256(private)
+        item["private_worksheet_sha256"] = private_worksheet_sha256(private)
         value["encounters"].append(item)
     payload = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     decode_manifest(payload.decode("utf-8"))
@@ -311,8 +312,6 @@ def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]
         encounters.append(ValidatedEncounter(item, note, worksheet, private_text))
         if code_hash != item["normalized_sha256"] or field_hash != item["field_block_sha256"]:
             raise ValueError("manifest is stale against current notes or worksheets")
-        if "element_block_sha256" in item and item["element_block_sha256"] != element_block_sha256(private_text):
-            raise ValueError("manifest is stale against the private worksheet element block")
         if item["opener"] != {key: opener[key] for key in ("name", "age", "sex")}:
             raise ValueError("opener details changed")
         if item["setting"] == "office" and item["patient_status"] != status_for(run, item["order"]):

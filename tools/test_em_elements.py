@@ -107,10 +107,14 @@ class TheStrictReader(unittest.TestCase):
         self.assertEqual((("PROBLEM", "definition-stable-chronic"), ("RISK", None)), block.unread_items)
 
     def test_t2_a_step_four_block_ends_at_an_em_line_written_after_it(self):
-        for anchor in (EM_LINE, "CPT  99213  Office visit, established patient\n"):
-            with self.subTest(anchor=anchor):
-                text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + anchor + BLOCK
-                self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
+        text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK
+        self.assertEqual("refused", grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
+        # Ninth review: a CPT entry after the icd10-cpt step 4 blocks is not one the manifest selects, so it
+        # anchors nothing and stays the block's text, as selected_codes reads it.
+        entry = "CPT  99213  Office visit, established patient\n"
+        text = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + entry + BLOCK
+        self.assertEqual("refused\n" + entry + BLOCK.rstrip("\n"),
+                         grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
 
     def test_u6_an_element_line_ending_in_not_for_entry_leaves_the_em_entry_for_entry(self):
         text = ("ICD-10  E11.9  Type 2 diabetes mellitus without complications\n"
@@ -140,8 +144,8 @@ class TheStrictReader(unittest.TestCase):
         block, outside, blocks = astuple_of(grammar.worksheet_em_block(EM_LINE + moved, EM_CODES))
         self.assertEqual((1, 0, 0), (blocks, outside, block.unread))
         changed = moved.replace(chr(0x2028) + "stable", chr(0x2028) + "steady")
-        self.assertNotEqual(review_manifest.element_block_sha256(EM_LINE + moved),
-                            review_manifest.element_block_sha256(EM_LINE + changed))
+        self.assertNotEqual(review_manifest.private_worksheet_sha256(EM_LINE + moved),
+                            review_manifest.private_worksheet_sha256(EM_LINE + changed))
         self.assertIs(grammar.physical_lines, __import__("em_audit").physical_lines)
 
     def test_x3_a_refused_element_line_without_a_colon_keeps_its_element_and_entry_id(self):
@@ -160,16 +164,16 @@ class TheStrictReader(unittest.TestCase):
                 near = "  " + spelling + ': definition-acute-uncomplicated | counted | "Cough" | evaluated\n'
                 block, outside, _ = astuple_of(grammar.worksheet_em_block(EM_LINE + BLOCK + near, EM_CODES))
                 self.assertEqual((0, 1), (outside, block.unread))
-                self.assertNotEqual(review_manifest.element_block_sha256(EM_LINE + BLOCK + near),
-                                    review_manifest.element_block_sha256(EM_LINE + BLOCK + near.replace("Cough", "Fever")))
+                self.assertNotEqual(review_manifest.private_worksheet_sha256(EM_LINE + BLOCK + near),
+                                    review_manifest.private_worksheet_sha256(EM_LINE + BLOCK + near.replace("Cough", "Fever")))
         self.assertIsNone(grammar.em_block("- em-dashes set this sentence apart\n"))
 
     def test_z3_the_anchor_takes_its_for_entry_flag_from_the_entry_reader(self):
         text = "CPT 99284 Emergency visit\n\n  reasoning only, NOT FOR ENTRY\n"
         lines = text.splitlines()
         self.assertFalse(grammar.read_entries(text)[0].for_entry)
-        self.assertFalse(grammar.selected_em_anchor(lines, 0, EM_CODES))
-        self.assertTrue(grammar.selected_em_anchor(["CPT 99284 Emergency visit", "", "  reasoning"], 0, EM_CODES))
+        self.assertNotIn(0, grammar.selected_em_lines(lines, EM_CODES))
+        self.assertIn(0, grammar.selected_em_lines(["CPT 99284 Emergency visit", "", "  reasoning"], EM_CODES))
 
     def test_z4_an_element_block_inside_a_step_four_block_is_skipped_not_an_end(self):
         import anchor_scan
@@ -179,6 +183,12 @@ class TheStrictReader(unittest.TestCase):
         refused = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK + "more\n"
         self.assertEqual((["refused", "more"], True), refusal_scan._block_lines(refused.splitlines()))
         self.assertEqual("refused\nmore", grammar.block_text(refused, grammar.REFUSAL_HEADING, "refusal"))
+
+    def test_n2_for_entry_is_read_by_the_manifest_rule_over_the_entry_region(self):
+        text = "CPT  99213  Office visit, established patient\n\n## DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY\n"
+        self.assertEqual("99213", review_manifest.selected_codes("ICD-10  E11.9  Type 2 diabetes\n" + text,
+                                                                  private=True)["em"])
+        self.assertIn(0, grammar.selected_em_lines(text.splitlines(), EM_CODES))
 
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"

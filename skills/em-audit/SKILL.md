@@ -35,8 +35,8 @@ already approved run, add `--submission <key>`: a run approved before this check
 its missing element blocks and re-derivations as not graded.
 
 Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
-receipt is missing or stale, an element line changed after the manifest, or the CPT MDM sheet is not
-the one the receipt fingerprinted; icd10-cpt rebuilds them, then repeat this step.
+receipt is missing or stale, or a private worksheet changed after the manifest recorded it;
+icd10-cpt rebuilds them, then repeat this step.
 
 ## 2. Re-derive every note
 

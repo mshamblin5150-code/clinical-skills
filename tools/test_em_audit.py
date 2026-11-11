@@ -22,7 +22,7 @@ import em_audit
 import preapproval_answers
 import repo_root
 import review_manifest
-from prose_bind import bind, NAMING
+from prose_bind import bind, NAMING, ProseBind
 from test_review_manifest import passing_receipt, synthetic_run
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -692,7 +692,7 @@ class FourthReviewFindings(RunFixture):
     def test_u5_a_manifest_without_the_element_fingerprint_is_unread(self):
         path = self.run / review_manifest.MANIFEST
         value = json.loads(path.read_text(encoding="utf-8"))
-        del value["encounters"][0]["element_block_sha256"]
+        del value["encounters"][0]["private_worksheet_sha256"]
         path.write_text(json.dumps(value), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
@@ -1079,16 +1079,16 @@ class SeventhReviewFindings(RunFixture):
 
 
 
-class EighthReviewFindings(RunFixture):
+class EighthReviewFindings(ProseBind, RunFixture):
     """The eighth code-review findings of 2026-11-11, each reproduced red before its fix."""
 
     def test_z1_a_finding_is_repaired_before_approval_and_only_differences_are_shown(self):
         skill = SKILL.read_text(encoding="utf-8")
         coding = (ROOT / "skills" / "icd10-cpt" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertNotIn("`FINDING` lines the clinician has seen", skill)
-        self.assertNotIn("differences and findings shown to the clinician", coding)
+        self.assertProseNotIn("`FINDING` lines the clinician has seen", skill)
+        self.assertProseNotIn("differences and findings shown to the clinician", coding)
         for text in (skill, coding):
-            self.assertIn("rebuild the manifest", " ".join(text.split()))
+            self.assertProseIn("rebuild the manifest", text)
         self.record(ELEMENTS.replace("definition-stable-chronic | not counted", "definition-stable-chronic | counted"))
         self.assertEqual(1, self.invoke("--write").returncode)
         finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
@@ -1175,6 +1175,69 @@ class EighthReviewFindings(RunFixture):
         self.assertIs(em_audit.CheckOffsStopped.__init__, em_audit.WordExportStopped.__init__)
         self.assertTrue(issubclass(em_audit.CheckOffsStopped, em_audit.WritesStopped))
         self.assertTrue(issubclass(em_audit.WordExportStopped, em_audit.WritesStopped))
+
+
+
+class NinthReviewFindings(RunFixture):
+    """The ninth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_n1_a_margin_field_under_an_entry_is_owned_as_paired_entry_owns_it(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace(
+            '  ANCHOR: "Cough."\n  SPECIFICITY: complete - the synthetic encounter documents no further axis\n'
+            '  CONFIDENCE: verified against ICD-10-CM FY2026\n',
+            '  SPECIFICITY: complete - the synthetic encounter documents no further axis\n'
+            '  CONFIDENCE: verified against ICD-10-CM FY2026\nANCHOR: "Cough."\n'))
+        result = self.invoke("--write")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("codes without an anchor 0", result.stdout)
+        self.assertIn("unread remainder 0", result.stdout)
+        self.assertIn('  - Anchor: "Cough."', self.sheet.read_text(encoding="utf-8"))
+
+    def test_n3_a_check_off_is_stale_only_when_the_fresh_render_read_everything(self):
+        self.assertEqual(0, self.invoke("--write").returncode)
+        (self.run / preapproval_answers.RECORD).write_text("not json", encoding="utf-8")
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("check-offs missing or stale 0", report)
+        self.assertIn("not compared", report)
+
+    def test_n4_an_edit_anywhere_in_the_private_worksheet_after_the_manifest_refuses(self):
+        path = self.run / "worksheets/note-1.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "needs: imaging establishing pneumonia", "needs: imaging, edited after the manifest"), encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refused", result.stdout)
+        manifest = json.loads((self.run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
+        self.assertIn("private_worksheet_sha256", manifest["encounters"][0])
+        self.assertNotIn("element_block_sha256", manifest["encounters"][0])
+
+    def test_n5_a_manifest_without_the_fingerprint_is_not_graded_before_the_check_started(self):
+        import completion_checks
+        path = self.run / review_manifest.MANIFEST
+        value = json.loads(path.read_text(encoding="utf-8"))
+        del value["encounters"][0]["private_worksheet_sha256"]
+        path.write_text(json.dumps(value), encoding="utf-8")
+        with mock.patch.object(completion_checks, "approval_moment", return_value=1_700_000_000.0):
+            status, output = self.in_process("--submission", "shift-synthetic")
+        self.assertEqual(0, status, output)
+        self.assertIn("unread remainder 0", output)
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+
+    def test_n6_an_indented_em_anchor_carries_no_block(self):
+        import worksheet_grammar
+        text = (PRIVATE.format(elements=ELEMENTS) + "\nSupport restated:\n  E/M: 99283 restated\n"
+                + "".join("    " + line.strip() + "\n" for line in ELEMENTS.splitlines()))
+        elements = worksheet_grammar.worksheet_em_block(text, review_manifest.EM_CODES)
+        self.assertEqual((1, len(ELEMENTS.splitlines())), (elements.blocks, elements.outside))
+
+    def test_n8_a_word_destination_that_cannot_be_resolved_is_a_word_refusal(self):
+        with mock.patch.object(repo_root, "output_root", side_effect=ValueError("no owning checkout")):
+            status, output = self.in_process("--write", "--docx")
+        self.assertEqual(2, status, output)
+        self.assertIn("check-offs written 1", output)
+        self.assertIn("Word copy refused", output)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,8 @@ E/M entry marked `NOT FOR ENTRY` form no block and are counted unread:
   relied on, and an `EM-ECG` line, `not applicable` where no ECG was weighed; where the worksheet
   bills 93000 or 93005, the line names that code. Exactly one `EM-MDM` and one `EM-LEVEL`. A
   block missing its `EM-ANSWER` or `EM-ECG` line is incomplete.
-- The coding manifest fingerprints these lines; after editing one, build the manifest again.
+- The coding manifest fingerprints the whole private worksheet; after editing it, build the
+  manifest again, or the E/M audit check-off refuses.
 
 Synthetic example, an established office patient:
 

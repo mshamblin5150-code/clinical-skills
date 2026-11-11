@@ -57,9 +57,11 @@ normalized clinical-note and visible-worksheet fingerprints, separately fingerpr
 field block, and writes `batch-codes.json` through the shared locked transaction. It also binds
 opener details, status evidence, membership and order. Normalization uses UTF-8, LF, trailing-space
 removal per line and one final newline; private tier blocks, Medatrax fields and technical receipts
-are excluded from the coding fingerprint. The field fingerprint remains separate, and so does the
-fingerprint of the private worksheet's E/M element lines: an element line edited after the build
-refuses validation until the manifest is built again. The receipt carries neither.
+are excluded from the coding fingerprint. The field fingerprint remains separate, and so does a
+fingerprint of the whole private worksheet. Validation does not compare that one, so a
+provenance-only edit leaves the approval identity unchanged, but the E/M audit check-off refuses a
+private worksheet edited after the build until the edit is restored or the manifest is built again
+and approved afresh. The receipt carries neither.
 For a batch, pass this run's constants resolved in batch-shift step 6; the service date comes from the opener
 record. The manifest binds these constants, and the renderer prints them once at the top.
 A standalone `--single` build omits the three Review-sheet options.
