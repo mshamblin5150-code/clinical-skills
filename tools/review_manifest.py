@@ -122,12 +122,19 @@ def recorded_text(path: Path, recorded: bool) -> str:
         raise
 
 
-def _codes_or_none(text: str, *, private: bool) -> dict | None:
-    """``selected_codes``, or None where it refuses the worksheet (an unread line, not one E/M identity)."""
+def _codes_or_refusal(text: str, *, private: bool) -> tuple[dict | None, ValueError | None]:
+    """``selected_codes``, or None with the refusal where its grammar refuses the worksheet."""
     try:
-        return selected_codes(text, private=private)
-    except ValueError:
-        return None
+        return selected_codes(text, private=private), None
+    except ValueError as error:
+        return None, error
+
+
+def _disagreement(kind: str, refusal: ValueError | None) -> str:
+    """The message of a worksheet whose codes disagree, naming a grammar refusal as its cause."""
+    if refusal is not None:
+        return f"{kind} worksheet refused by the code grammar: {refusal}"
+    return f"{kind} worksheet selected codes disagree with manifest"
 
 
 def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[str, str, str, str, str]:
@@ -149,16 +156,18 @@ def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[
     if any(visible_worksheet(value).strip() != worksheet.strip() for value in embedded):
         raise (StaleRecord if recorded else ValueError)("embedded and selected visible worksheets disagree")
     expected = clean_codes(item["codes"])
-    if _codes_or_none(worksheet, private=False) != expected:
+    codes, refusal = _codes_or_refusal(worksheet, private=False)
+    if codes != expected:
         moved = recorded and code_hash != item["normalized_sha256"]
-        raise (StaleRecord if moved else ValueError)("visible worksheet selected codes disagree with manifest")
+        raise (StaleRecord if moved else ValueError)(_disagreement("visible", refusal)) from refusal
     private = recorded_text(resolve(run, item["private_worksheet_path"]), recorded)
-    if _codes_or_none(private, private=True) != expected:
+    codes, refusal = _codes_or_refusal(private, private=True)
+    if codes != expected:
         # A recorded fingerprint binds this worksheet to a build: a worksheet that changed after it,
         # or one it already binds because build wrote the record and then failed to write the
         # manifest, means the manifest is the stale record.
         moved = private_sha256 is not None
-        raise (StaleRecord if moved else ValueError)("private worksheet selected codes disagree with manifest")
+        raise (StaleRecord if moved else ValueError)(_disagreement("private", refusal)) from refusal
     return note, worksheet, private, code_hash, digest(fields.encode("utf-8"))
 
 

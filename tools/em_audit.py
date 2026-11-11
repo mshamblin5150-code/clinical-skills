@@ -156,9 +156,10 @@ DECLARED_LIMITS = (
     "record is not graded, so a note-path run whose opener record is lost reads the same way.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
     "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
-    "only the other code; with no ECG code billed, the limb's text is not graded. A billed code "
-    "sharing a clause (to a semicolon or a sentence's period) with \"not billed\" is read as said "
-    "not billed, whichever side the words stand on; a comma does not end a clause.",
+    "only the other code; with no ECG code billed, the limb's text is not graded. \"not billed\" "
+    "qualifies only the nearest ECG code before it in its clause (to a semicolon or a sentence's "
+    "period), or after a leading \"not billed:\"; a negation worded otherwise, or one a reader "
+    "would attach to a farther code, is not read.",
     "An E/M filled mark is read from the visible worksheet and the note across line wraps within "
     "its paragraph; an opener whose bracket never closes there is counted unread. A mark spelled "
     "otherwise than [SOURCE: filled - data: or risk: ...] is not an E/M mark and is not shown.",
@@ -657,9 +658,29 @@ def filled_marks(text: str) -> tuple[list[str], int]:
     return sorted(marks), unclosed
 
 
-NOT_BILLED = re.compile(r"\bnot[ \t]+(?:separately[ \t]+)?billed\b", re.IGNORECASE)
+NOT_BILLED = re.compile(r"\bnot[ \t]+(?:separately[ \t]+)?billed\b(?P<lead>[ \t]*:)?", re.IGNORECASE)
 # A clause of an EM-ECG line ends at a semicolon or at a sentence's period.
 CLAUSE_END = re.compile(r";|\.(?=\s|$)")
+ECG_TOKEN = re.compile(r"(?<![0-9A-Za-z])(?:" + "|".join(sorted(ECG_RULES)) + r")(?![0-9A-Za-z])")
+
+
+def negated_codes(line: str) -> set[str]:
+    """The ECG codes an EM-ECG line says are not billed, each negation qualifying one code.
+
+    "not billed" qualifies the nearest ECG code before it in its clause, so no other ECG code
+    stands between them; a leading "not billed:" qualifies the nearest one after it, or, with
+    none after, the nearest before. A negation with no ECG code beside it qualifies nothing.
+    """
+    negated: set[str] = set()
+    for clause in CLAUSE_END.split(line):
+        tokens = list(ECG_TOKEN.finditer(clause))
+        for negation in NOT_BILLED.finditer(clause):
+            before = [token for token in tokens if token.end() <= negation.start()]
+            after = [token for token in tokens if token.start() >= negation.end()]
+            chosen = (after[0] if negation.group("lead") and after else before[-1] if before else None)
+            if chosen is not None:
+                negated.add(chosen.group())
+    return negated
 
 
 def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
@@ -668,8 +689,7 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
     em-elements.md: where the worksheet bills 93000 or 93005, the line names that code, so with
     both billed it names both. With no ECG code billed, the limb is free text and is not graded;
     a block with no EM-ECG line is already incomplete. A code is named as a whole token, and a
-    billed code sharing a clause (to a semicolon or a sentence's period) with "not billed", before
-    or after it, is said not billed: a finding.
+    billed code a "not billed" qualifies (``negated_codes``) is said not billed: a finding.
     """
     codes = sorted(billed & ECG_RULES.keys())
     if not codes or not block_.ecg:
@@ -679,8 +699,8 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
     found = []
     for code in codes:
         token = re.compile(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])")
-        named = [clause for line in block_.ecg for clause in CLAUSE_END.split(line) if token.search(clause)]
-        if any(NOT_BILLED.search(clause) for clause in named):
+        named = [line for line in block_.ecg if token.search(line)]
+        if any(code in negated_codes(line) for line in named):
             found.append(f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed")
         elif not named:
             found.append(f"the worksheet bills {code}, but its EM-ECG line does not name it")

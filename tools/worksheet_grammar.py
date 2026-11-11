@@ -189,7 +189,9 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
 
     The entry line itself ends at ``entry.end()``.  Every complete physical line
     after that and before the detail must contain text, begin with indentation, and not end a
-    body (``ends_body``): the one body rule ``body_end`` reads too.
+    body (``ends_body``): the one body rule ``body_end`` reads too. An entry's details also end
+    where its element block opens (``ends_details``): a field after an EM- line or an E/M label
+    is no entry's provenance, as em-elements.md and the E/M audit check-off read it.
     """
 
     if detail.start() <= entry.end():
@@ -197,7 +199,7 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     between = text[entry.end() : detail.start()]
     lines = between.splitlines()
     intervening = lines[1:] if lines else ()
-    return all(indented_line(line) and not ends_body(line) for line in intervening)
+    return all(indented_line(line) and not ends_body(line) and not ends_details(line) for line in intervening)
 
 
 def paired_entry(
@@ -342,6 +344,16 @@ def ends_body(line: str) -> bool:
     graders draw one body.
     """
     return not line.strip() or bool(ENTRY.match(line)) or block_heading_line(line)
+
+
+def ends_details(line: str) -> bool:
+    """Whether ``line`` opens or continues an element block: an EM- candidate or an E/M label.
+
+    The body runs on through the block (``body_end``), but no line after it is the entry's
+    provenance: ``detail_belongs_to_entry`` pairs nothing past it, and the check-off's body walk
+    counts a line there unplaced.
+    """
+    return bool(EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line))
 
 
 def indented_pieces(line: str) -> bool:

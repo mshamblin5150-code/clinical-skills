@@ -2981,5 +2981,81 @@ class TwentySecondReviewFindings(ProseBind, RunFixture):
         self.assertNotIn('split("\\0")', Path(coding_freshness.__file__).read_text(encoding="utf-8"))
 
 
+class TwentyThirdReviewFindings(ProseBind, RunFixture):
+    """The twenty-third code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_t1_a_negation_qualifies_only_the_code_it_is_attached_to(self):
+        import worksheet_grammar
+        base = ELEMENTS.replace("  EM-ECG: not applicable\n", "")
+        both, one = frozenset({"93000", "93005"}), frozenset({"93005"})
+        cases = {"  EM-ECG: 93005 billed, 93000 not billed\n": (both, ["93000"]),
+                 "  EM-ECG: 93005 billed while the read is pending (93000 not billed)\n": (both, ["93000"]),
+                 "  EM-ECG: not billed: 93005\n": (one, ["93005"]),
+                 "  EM-ECG: 93005 tracing only, not billed\n": (one, ["93005"]),
+                 "  EM-ECG: 93005 is not billed; 93000 reading documented\n": (both, ["93005"]),
+                 "  EM-ECG: 93000 read and reported; 93005 traced here\n": (both, [])}
+        for line, (billed, expected) in cases.items():
+            with self.subTest(line=line):
+                found = em_audit.ecg_findings(worksheet_grammar.em_block(base + line), billed)
+                self.assertEqual([f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed"
+                                  for code in expected], found)
+
+    def element_field(self) -> str:
+        return ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99283 Emergency visit\n' + ELEMENTS
+                + "  SPECIFICITY: complete - written after the element block\n")
+
+    def test_t2_a_field_after_the_element_block_belongs_to_no_entry(self):
+        import specificity_scan
+        import worksheet_grammar
+        text = self.element_field()
+        entries = list(worksheet_grammar.ENTRY.finditer(text))
+        detail = list(worksheet_grammar.FIELD.finditer(text))[-1]
+        self.assertIsNone(worksheet_grammar.paired_entry(text, entries, detail))
+        flags, orphans = specificity_scan.read_flags_with_orphans(text)
+        self.assertEqual(([], 1), ([flag.code for flag in flags if flag.code], orphans))
+        private = em_audit.parse_private(text)
+        self.assertEqual(1, sum(len(section.unplaced) for section in private.sections))
+
+    def test_t2_the_pairings_of_every_committed_fixture_are_unchanged(self):
+        import worksheet_grammar
+        worksheets = committed_worksheets()
+        self.assertFalse(any(worksheet_grammar.EM_CANDIDATE.match(line)
+                             for text in worksheets.values() for line in text.split("\n")))
+        paired = sum(worksheet_grammar.paired_entry(text, list(worksheet_grammar.ENTRY.finditer(text)), detail)
+                     is not None for text in worksheets.values()
+                     for detail in worksheet_grammar.FIELD.finditer(text))
+        self.assertEqual(925, paired)  # measured before the twenty-third review's change
+
+    def test_t3_only_a_step_four_heading_ends_the_element_block(self):
+        import worksheet_grammar
+        lines = ELEMENTS.splitlines(keepends=True)
+        reasoning = PRIVATE.format(elements="".join(lines[:4]) + "  ### Reasoning\n" + "".join(lines[4:]))
+        elements = worksheet_grammar.worksheet_em_block(reasoning)
+        self.assertEqual((1, 0, "99283"), (elements.blocks, elements.outside, elements.block.level))
+        self.write_private(reasoning)
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("unread remainder 1", output)
+        doc = (ROOT / "skills" / "_shared" / "reference" / "em-elements.md").read_text(encoding="utf-8")
+        self.assertProseNotIn("A heading, indented or not, ends the block", doc)
+        self.assertProseIn("An icd10-cpt step 4 block heading, at the margin or indented, ends the block", doc)
+
+    def test_t4_build_names_the_grammar_defect_it_refuses(self):
+        for name, private in (("visible-worksheet-1.md", False), ("worksheets/note-1.md", True)):
+            with self.subTest(private=private):
+                path = self.run / name
+                original = path.read_text(encoding="utf-8")
+                path.write_text(original.replace("CPT 99283 Emergency visit",
+                                                 "CPT 99283 Emergency visit\nCPT 99284 Emergency visit"),
+                                encoding="utf-8")
+                try:
+                    with self.assertRaises(ValueError) as refused:
+                        review_manifest.build(self.run, self.run / "inputs.json", batch=True, constants=CONSTANTS)
+                    self.assertIn("worksheet needs exactly one final E/M identity", str(refused.exception))
+                    self.assertNotIn("disagree with manifest", str(refused.exception))
+                finally:
+                    path.write_text(original, encoding="utf-8")
+
+
 if __name__ == "__main__":
     unittest.main()
