@@ -65,8 +65,8 @@ def record_status(run: Path, note: int, value: str, evidence: str,
     openers = read_openers(run)
     if note not in [item["note"] for item in openers["encounters"]]:
         raise ValueError("status note is outside opener population")
-    item = dict(value=value, evidence=evidence, evidence_path=str(evidence_path.resolve()),
-                pointer=pointer, evidence_sha256=digest(evidence_path.read_bytes()))
+    item: dict[str, str | None] = dict(value=value, evidence=evidence, evidence_path=str(evidence_path.resolve()),
+                                       pointer=pointer, evidence_sha256=digest(evidence_path.read_bytes()))
     if evidence == "clinician-answer":
         item.update(clinician_reply=clinician_reply, source_path=openers["source"])
         # The fingerprinted evidence must actually retain the whole answer.
@@ -77,7 +77,9 @@ def record_status(run: Path, note: int, value: str, evidence: str,
         result = previous or {"schema": 1, "encounters": {}}
         result["encounters"][str(note)] = item
         return RecordUpdate((json.dumps(result, indent=2, ensure_ascii=False) + "\n").encode("utf-8"), item)
-    return update_tool_record(run / "encounter-status.json", decode_record, change)
+    recorded = update_tool_record(run / "encounter-status.json", decode_record, change)
+    assert isinstance(recorded, dict)  # change returns the recorded item as its result
+    return recorded
 
 
 def main(argv=None) -> int:

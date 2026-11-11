@@ -648,10 +648,10 @@ def _local_imports_before(
 
 
 def _ancestors(node: ast.AST, parents: dict[ast.AST, ast.AST]):
-    node = parents.get(node)
-    while node is not None:
-        yield node
-        node = parents.get(node)
+    current = parents.get(node)
+    while current is not None:
+        yield current
+        current = parents.get(current)
 
 
 def _nearest_function(

@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import sys
+from typing import Any
 import uuid
 
 import artifact_lock
@@ -222,10 +223,12 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
         raise ValueError("supplied opener readings are missing")
     if mode == "split":
         matches = list(NOTE_DELIMITER.finditer(text))
-        numbers = [int(re.search(r"\d+", m.group()).group()) for m in matches]
+        # NOTE_DELIMITER requires the note number, so every match carries its digits.
+        numbers = [int(digits.group()) for m in matches if (digits := re.search(r"\d+", m.group())) is not None]
         if not matches or numbers != list(range(1, len(matches) + 1)):
             raise ValueError("broken or absent numbering; supply hand cuts with a reason")
-        spans = [(m.start(), matches[i + 1].start() if i + 1 < len(matches) else len(text)) for i, m in enumerate(matches)]
+        spans: list[tuple[Any, Any]] = [  # hand cuts below are unvalidated JSON, checked after
+            (m.start(), matches[i + 1].start() if i + 1 < len(matches) else len(text)) for i, m in enumerate(matches)]
     elif mode == "single":
         if len(items) != 1:
             raise ValueError("single mode needs exactly one encounter")
@@ -328,7 +331,7 @@ def append_identity(run: Path, note: int, reference: str, target: Path, collisio
         text = raw.decode("utf-8")
         if reference.lower() in text.lower():
             raise ValueError("reference already exists in identity map")
-        collisions = set()
+        collisions: set[str] = set()
         for line in text.splitlines():
             if not line.lstrip().startswith("|"):
                 continue

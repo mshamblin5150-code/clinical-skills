@@ -263,7 +263,7 @@ def _join_field(parent: str, child: str) -> str:
 
 def _handwritten_json(text: str, kind: HandwrittenKind, prefix: str):
     parsed = json.loads(text, object_pairs_hook=lambda pairs: _JSONPairs(tuple(pairs)))
-    diagnostics = []
+    diagnostics: list[str] = []
     def damage(value, location):
         diagnostics.extend(f"{location}: U+{ord(character):04X}"
                            for _line, character in _handwritten_damage(value))
@@ -291,7 +291,7 @@ def _attachment_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
 
 
 def _context_json_bodies(text: str) -> tuple[tuple[str, str], ...]:
-    counts = {}
+    counts: dict[str, int] = {}
     bodies = []
     for line in text.split("\n"):
         matched = re.fullmatch(r"([A-Z][A-Z-]*):[ \t]*(.*)", line.strip(), re.IGNORECASE)
@@ -326,7 +326,7 @@ def check_handwritten_text(text: str, path: Path, kind: str | HandwrittenKind = 
     lines = text.split("\n")
     # A leading blank is padding, not the copied-body delimiter. Locate the
     # first metadata block before allowing the named exception in its body.
-    metadata_fields = {}
+    metadata_fields: dict[str, int] = {}
     for index, line in enumerate(lines):
         if match := re.match(r"(?i)^(AUTHOR|REPLIES|POST-URL)[ \t]*:", line):
             metadata_fields.setdefault(match[1].upper(), index)

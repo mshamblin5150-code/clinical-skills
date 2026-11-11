@@ -271,7 +271,7 @@ def decode_manifest(text: str) -> dict:
     date.fromisoformat(value["service_date"])
     if not isinstance(value.get("receipt_path"), str) or not value["receipt_path"]:
         raise ValueError("invalid receipt path")
-    findings = []
+    findings: list[str] = []
     coding_freshness.read_encounters(value, findings)
     if findings:
         raise ValueError("invalid manifest encounter population")
@@ -366,7 +366,9 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
     if kept and notices is not None:
         notices.append("the private worksheet fingerprint record did not decode; it is rebuilt from the "
                        f"worksheets, and its damaged bytes are kept beside it as {kept[0].name}")
-    return update_tool_record(run / MANIFEST, decode_manifest, change)
+    manifest = update_tool_record(run / MANIFEST, decode_manifest, change)
+    assert isinstance(manifest, dict)  # change returns the manifest value as its result
+    return manifest
 
 
 DAMAGED_SUFFIX = ".damaged"
@@ -473,7 +475,9 @@ def _validated(run: Path, *, batch: bool | None,
         raise StaleRecord(f"{error}, after the manifest") from error
     if manifest["service_date"] != openers["service_date"] or len(manifest["encounters"]) != len(openers["encounters"]):
         raise StaleRecord("opener population or service date changed")
-    notes, worksheets, encounters = [], [], []
+    notes: list[Path] = []
+    worksheets: list[Path] = []
+    encounters: list[ValidatedEncounter] = []
     for item, opener in zip(manifest["encounters"], openers["encounters"]):
         note, worksheet, private_text, code_hash, field_hash, read = _content(
             run, item, (fingerprints or {}).get(item["private_worksheet_path"]))
@@ -501,7 +505,7 @@ def _validated(run: Path, *, batch: bool | None,
         worksheets.extend((resolve(run, item["worksheet_path"]), private))
     receipt_path = resolve(run, manifest["receipt_path"])
     receipt = read_tool_record(receipt_path, decode_receipt)
-    findings = []
+    findings: list[str] = []
     population = coding_freshness.read_encounters(manifest, findings)
     if receipt is None:
         raise ValueError("freshness receipt is missing")

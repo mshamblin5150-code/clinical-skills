@@ -147,7 +147,9 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
                  "recorded_at": time.time()}
         return RecordUpdate(payload(dict(value, answers=[*value["answers"], entry])), (entry["id"], state))
 
-    return update_tool_record(run / RECORD, decode, change)
+    result = update_tool_record(run / RECORD, decode, change)
+    assert isinstance(result, tuple)  # every RecordUpdate change returns carries (id, reply check)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

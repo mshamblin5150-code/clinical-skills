@@ -130,6 +130,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from console_codec import require_python_floor, use_utf8
 from repo_root import ForeignCheckout, ensure_main_checkout
@@ -403,7 +404,15 @@ REFERENCE_HEADING = re.compile(r"references\b|reference\s*$", re.I)
 # manual, which Markdown cannot express because ``#### x`` owns its own line; it is
 # rendered as the indented bold paragraph the run-in form is otherwise identical to.
 BODY_HALF_POINTS = 24
-HEADING_LEVELS = {
+class HeadingSpec(TypedDict, total=False):
+    """One heading level's presentation; a key left out is that level's default."""
+
+    align: str
+    italic: bool
+    indent: int
+
+
+HEADING_LEVELS: dict[int, HeadingSpec] = {
     1: {"align": "center"},
     2: {},
     3: {"italic": True},
@@ -1207,7 +1216,7 @@ def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa",
     return "".join(out), decimal_lists
 
 
-def document_xml(markdown: str, body: str = None, layout: str = "apa") -> str:
+def document_xml(markdown: str, body: str | None = None, layout: str = "apa") -> str:
     from run_record_reader import require_outbound_text
     require_outbound_text(markdown)
     _require_layout(layout)

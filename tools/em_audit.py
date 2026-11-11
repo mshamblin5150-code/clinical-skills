@@ -308,9 +308,13 @@ def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = N
 
 
 class EmSection(NamedTuple):
-    """One E/M line the check-off's E/M section renders, from ``entry_walk``."""
+    """One E/M line the check-off's E/M section renders, from ``entry_walk``.
 
-    index: int
+    ``line`` is the E/M line's own physical line; a field named ``index`` would shadow
+    ``tuple.index``.
+    """
+
+    line: int
     tail: list[str]
     fields: dict[str, list[str]]
     unplaced: list[int]
@@ -318,7 +322,7 @@ class EmSection(NamedTuple):
 
     def rendered(self) -> set[int]:
         """The physical lines the E/M section shows: the line, its wrapped header, fields and EM- lines."""
-        return {self.index, *range(self.index + 1, self.end)} - set(self.unplaced)
+        return {self.line, *range(self.line + 1, self.end)} - set(self.unplaced)
 
 
 class PrivateWorksheet(NamedTuple):
@@ -456,7 +460,7 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
                  and index not in selected)
     # A line of an E/M section's body is that section's alone, rendered or counted unplaced there,
     # even inside another entry's body.
-    sectioned = set().union(*(range(section.index, section.end) for section in private.sections))
+    sectioned = set().union(*(range(section.line, section.end) for section in private.sections))
     codes = []
     for match, entry in zip(matches, private.entries):
         key = review_manifest.code_key(entry.system, entry.code)
@@ -490,7 +494,7 @@ def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
     out: list[str] = []
     for section in private.sections:
         tally.unread += len(section.unplaced)
-        out.append("- E/M line: " + " ".join([private.physical.lines[section.index].strip(), *section.tail]))
+        out.append("- E/M line: " + " ".join([private.physical.lines[section.line].strip(), *section.tail]))
         out += field_lines(section.fields, defaults=False)
     return out
 

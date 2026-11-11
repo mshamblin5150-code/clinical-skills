@@ -19,6 +19,7 @@ import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
+from typing import TypedDict
 from urllib.request import urlopen
 
 from console_codec import require_python_floor, use_utf8
@@ -108,6 +109,7 @@ def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, tu
     found: list[tuple[str, tuple[str, ...]]] = []
     seen: set[tuple[str, tuple[str, ...]]] = set()
     newer = relative
+    candidates: tuple[str, ...]
     for (commit, at), previous in zip(listed, older):
         if at is not None:
             newer, candidates = at, (at,)
@@ -148,6 +150,9 @@ def bound_sheet_version(path: Path, fingerprint: str) -> bytes | None:
                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except (OSError, ValueError, git_paths.GitPathError):
         return None
+    # Both streams were opened with PIPE, so neither is None.
+    stdin, stdout = batch.stdin, batch.stdout
+    assert stdin is not None and stdout is not None
     asked: set[tuple[str, str]] = set()
     try:
         for commit, candidates in commits:
@@ -155,16 +160,16 @@ def bound_sheet_version(path: Path, fingerprint: str) -> bytes | None:
                 if (commit, at) in asked:
                     continue  # a merge listed once per parent is asked once at each path
                 asked.add((commit, at))
-                batch.stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
-                batch.stdin.flush()
-                header = batch.stdout.readline().split()
+                stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
+                stdin.flush()
+                header = stdout.readline().split()
                 if not header:
                     return None
                 if len(header) != 3 or not header[2].isdigit():
                     continue  # "<object> missing" or "ambiguous": a header with no body
                 size = int(header[2])
-                version = batch.stdout.read(size)
-                batch.stdout.read(1)  # every object type carries its body and a trailing LF
+                version = stdout.read(size)
+                stdout.read(1)  # every object type carries its body and a trailing LF
                 if len(version) != size:
                     return None
                 if header[1] == b"blob" and sheet_sha256(version) == fingerprint:
@@ -174,10 +179,10 @@ def bound_sheet_version(path: Path, fingerprint: str) -> bytes | None:
         return None
     finally:
         try:
-            batch.stdin.close()
+            stdin.close()
         except OSError:
             pass
-        batch.stdout.close()
+        stdout.close()
         batch.wait()
 
 
@@ -278,7 +283,27 @@ def normalize_codes(value: object, label: str) -> list[str]:
     return sorted({item.strip().upper() for item in value if item.strip()})
 
 
-def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[dict[str, object]]:
+class EncounterCodes(TypedDict):
+    """One encounter's final codes as ``read_encounters`` normalizes them."""
+
+    icd10: list[str]
+    em: str
+    cpt: list[str]
+    hcpcs: list[str]
+
+
+class ReadEncounter(TypedDict):
+    """One manifest encounter as ``read_encounters`` returns it, every field cleaned."""
+
+    id: str
+    order: int
+    normalized_sha256: str
+    patient_status: dict[str, object]
+    setting: object
+    codes: EncounterCodes
+
+
+def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[ReadEncounter]:
     if manifest.get("schema") != 1:
         findings.append("batch manifest schema is unreadable")
     population = manifest.get("encounters")
@@ -286,7 +311,7 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
         findings.append("batch has no encounter population")
         return []
 
-    encounters: list[dict[str, object]] = []
+    encounters: list[ReadEncounter] = []
     for position, raw in enumerate(population, 1):
         if not isinstance(raw, dict):
             findings.append(f"encounter {position} is unreadable")
@@ -366,7 +391,7 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
     return encounters
 
 
-def validate_status_replies(run: Path, encounters: list[dict[str, object]], findings: list[str]) -> None:
+def validate_status_replies(run: Path, encounters: list[ReadEncounter], findings: list[str]) -> None:
     """Bind clinician-answer evidence to a whole reply after its source."""
     from approval_record import verify_clinician_reply
     for position, encounter in enumerate(encounters, 1):
@@ -412,7 +437,7 @@ def derived_cpt_boundary(source: dict[str, str | None]) -> date:
 
 def validate_procedures(
     connection: sqlite3.Connection,
-    encounters: list[dict[str, object]],
+    encounters: list[ReadEncounter],
     service_date: str,
     as_of: date,
     hcpcs_page: str,
@@ -510,7 +535,7 @@ def receipt_record(text: str) -> dict:
         raise ValueError("freshness receipt fields")
     date.fromisoformat(value["service_date"])
     date.fromisoformat(value["checked_as_of"])
-    findings = []
+    findings: list[str] = []
     encounters = read_encounters(value, findings)
     if (findings or encounters != value["encounters"]
             or any(type(item["order"]) is not int for item in encounters)):
@@ -563,6 +588,7 @@ def main(argv: list[str]) -> int:
         def change(previous):
             return _gate(args)
         status = update_tool_record(args.receipt, receipt_record, change)
+        assert isinstance(status, int)  # every RecordUpdate _gate returns carries the exit status
         if status == 0:
             print("coding-freshness: PASS")
         return status

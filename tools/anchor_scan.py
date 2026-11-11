@@ -564,14 +564,16 @@ def _database_descriptor(system: str, code: str) -> str | None:
     import procedure_codes_lookup
 
     with closing(procedure_codes_lookup.open_database()) as connection:
-        match = procedure_codes_lookup.describe(connection, code)
-        return match.description if match else None
+        procedure = procedure_codes_lookup.describe(connection, code)
+        return procedure.description if procedure else None
 
 
 def _rendered_descriptors(path: Path | None) -> dict[str, dict[str, str]]:
     if path is None:
         return {}
     payload = read_handwritten_record(path, "json").json
+    if not isinstance(payload, dict):
+        raise TypeError("rendered descriptor record is not a JSON object")  # indexing it raised TypeError too
     rows = payload["codes"]
     if not isinstance(rows, list):
         raise ValueError("rendered descriptor codes must be a list")
@@ -751,7 +753,10 @@ def _first_column_pointer(route: str) -> str:
     first = _index_route_catalog().get(route.split(" | ", 1)[0])
     if first is None or " > " in first[0] or first[0].lower() == "toxicity":
         return ""
-    referral = (first[2] or first[3]).lower()
+    either = first[2] or first[3]
+    # A main entry carrying neither see nor see-also fails here as it always has; the type says so.
+    assert either is not None, "the matched main entry carries no referral"
+    referral = either.lower()
     if "table of drugs and chemicals" not in referral:
         return ""
     if re.search(r"\bpoisoning\b", referral):
@@ -1804,6 +1809,8 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         writer = writer_record or path.parent.name == "agreement-self"
         check_keys = completion_checks.active("anchor_scan:unexpected-reader-keys")
         check_remarks = completion_checks.active("anchor_scan:reader-remarks")
+        if not isinstance(payload, dict):
+            raise TypeError("the agreement record is not a JSON object")  # indexing it raised TypeError too
         if check_keys:
             unexpected_keys += len(set(payload) - {"pairs"})
         supplied_pairs = payload["pairs"]

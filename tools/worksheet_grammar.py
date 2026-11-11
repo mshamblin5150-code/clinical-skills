@@ -574,7 +574,7 @@ def em_block(text: str) -> EmBlock | None:
             unread += 1
             element = element_of(loose.group("kind")) if loose else None
             refused.add(element or "")
-            if element in ITEM_KINDS:
+            if element in ITEM_KINDS and loose is not None:  # an element is only named from ``loose``
                 entry = loose.group("entry").strip(" \t*")
                 unread_items.append((element, entry if _EM_ENTRY.fullmatch(entry) else None))
             elif element is None:
@@ -588,11 +588,11 @@ def em_block(text: str) -> EmBlock | None:
                 and len(mdms) <= 1 and len(levels) <= 1 and len(free["ECG"]) <= 1)
     # A refused copy of the MDM, LEVEL or ECG line, or a second copy, leaves that line unknown: the
     # readable copy is not known to be the one the author meant, so nothing is graded against it.
-    mdm = mdms[0] if len(mdms) == 1 and "MDM" not in refused else None
+    block_mdm = mdms[0] if len(mdms) == 1 and "MDM" not in refused else None
     level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
     ecg = tuple(free["ECG"]) if len(free["ECG"]) == 1 and "ECG" not in refused else ()
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), ecg,
-                   mdm, level, unread + (0 if complete else 1), tuple(unread_items))
+                   block_mdm, level, unread + (0 if complete else 1), tuple(unread_items))
 
 
 @dataclass(frozen=True)
@@ -623,15 +623,15 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
         lines = anchored(physical_lines(text))
     elif "\n".join(lines.lines) != text:
         raise ValueError("the anchored lines are not this text split on LF")
-    lines, selected = list(lines.lines), lines.selected
-    candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
+    rows, selected = list(lines.lines), lines.selected
+    candidates = {index for index, line in enumerate(rows) if EM_CANDIDATE.match(line)}
     groups: list[range] = []
     for index in sorted(selected):
         if groups and index in groups[-1]:
             continue
-        end = element_body_end(lines, index, selected)
+        end = element_body_end(rows, index, selected)
         if end is not None:
             groups.append(range(index + 1, end))
     within = candidates & {follower for group in groups for follower in group}
-    block = em_block("\n".join(lines[index] for index in groups[0])) if groups else None
+    block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     return WorksheetElements(block, len(candidates - within), len(groups))

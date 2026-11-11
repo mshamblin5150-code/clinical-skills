@@ -38,6 +38,13 @@ def astuple_of(elements):
     return elements.block, elements.outside, elements.blocks
 
 
+def strict_block(text: str) -> grammar.EmBlock:
+    """``grammar.em_block`` of a text this test wrote with element lines in it, so a block is read."""
+    block = grammar.em_block(text)
+    assert block is not None, "the text carries element lines, so a block is read"
+    return block
+
+
 class TheStrictReader(unittest.TestCase):
     def test_the_reference_example_is_a_complete_block(self):
         text = REFERENCE.read_text(encoding="utf-8")
@@ -51,7 +58,7 @@ class TheStrictReader(unittest.TestCase):
         self.assertEqual({"PROBLEM", "DATA", "RISK"}, {item.kind for item in block.items})
 
     def test_every_refused_line_and_a_missing_required_line_are_unread(self):
-        self.assertEqual(0, grammar.em_block(BLOCK).unread)
+        self.assertEqual(0, strict_block(BLOCK).unread)
         for broken in (BLOCK.replace("| counted |", "| maybe |", 1),
                        BLOCK + "  EM-OPINION: something\n",
                        BLOCK.replace("mdm low", "mdm middling"),
@@ -59,11 +66,11 @@ class TheStrictReader(unittest.TestCase):
                        BLOCK.replace("  EM-LEVEL: 99213\n", ""),
                        BLOCK.replace("  EM-DATA: none | not counted | none | no test documented\n", "")):
             with self.subTest(broken=broken):
-                self.assertGreater(grammar.em_block(broken).unread, 0)
+                self.assertGreater(strict_block(broken).unread, 0)
 
     def test_two_of_three_is_the_middle_level(self):
-        block = grammar.em_block(BLOCK.replace("problems low; data straightforward; risk moderate",
-                                               "problems high; data straightforward; risk moderate"))
+        block = strict_block(BLOCK.replace("problems low; data straightforward; risk moderate",
+                                           "problems high; data straightforward; risk moderate"))
         self.assertEqual("moderate", block.two_of_three())
 
     def test_a_worksheet_without_the_block_stays_valid(self):
@@ -102,12 +109,12 @@ class TheStrictReader(unittest.TestCase):
     def test_t6_a_block_without_an_answer_or_an_ecg_line_is_incomplete(self):
         for missing in ("  EM-ANSWER: none\n", "  EM-ECG: not applicable\n"):
             with self.subTest(missing=missing):
-                self.assertEqual(1, grammar.em_block(BLOCK.replace(missing, "")).unread)
+                self.assertEqual(1, strict_block(BLOCK.replace(missing, "")).unread)
 
     def test_t1_a_refused_element_line_keeps_its_element_and_entry_id(self):
         refused = ('  EM-PROBLEM: definition-stable-chronic | not counted | "History" | history | only\n'
                    "  EM-RISK: unreadable entry id! | counted | none | x\n")
-        block = grammar.em_block(BLOCK + refused)
+        block = strict_block(BLOCK + refused)
         self.assertEqual(2, block.unread)
         self.assertEqual((("PROBLEM", "definition-stable-chronic"), ("RISK", None)), block.unread_items)
 
@@ -156,13 +163,13 @@ class TheStrictReader(unittest.TestCase):
 
     def test_x3_a_refused_element_line_without_a_colon_keeps_its_element_and_entry_id(self):
         line = '  EM-PROBLEM definition-stable-chronic | not counted | "History" | history only\n'
-        self.assertEqual((("PROBLEM", "definition-stable-chronic"),), grammar.em_block(BLOCK + line).unread_items)
+        self.assertEqual((("PROBLEM", "definition-stable-chronic"),), strict_block(BLOCK + line).unread_items)
 
     def test_x4_one_refused_required_line_counts_once(self):
         for old, new in (("| counted |", "| maybe |"), ("EM-LEVEL: 99213", "EM-LEVEL: not a code"),
                          ("EM-ANSWER: none", "EM-ANSWER: the second question")):
             with self.subTest(old=old):
-                self.assertEqual(1, grammar.em_block(BLOCK.replace(old, new, 1)).unread)
+                self.assertEqual(1, strict_block(BLOCK.replace(old, new, 1)).unread)
 
     def test_z2_a_lower_case_element_name_is_unread_and_fingerprinted(self):
         for spelling in ("EM-Problem", "em-problem", "- em-data"):
@@ -201,11 +208,11 @@ class TheStrictReader(unittest.TestCase):
         self.assertIn(0, grammar.selected_em_lines(text.splitlines()))
 
     def test_q1_a_lower_case_or_suffixed_element_line_counts_once_and_maps_to_its_element(self):
-        self.assertEqual(1, grammar.em_block(BLOCK.replace("  EM-DATA:", "  em-data:")).unread)
-        moved = grammar.em_block(BLOCK.replace("  EM-PROBLEM: definition-stable-chronic",
-                                               "  EM-PROBLEMS: definition-stable-chronic"))
+        self.assertEqual(1, strict_block(BLOCK.replace("  EM-DATA:", "  em-data:")).unread)
+        moved = strict_block(BLOCK.replace("  EM-PROBLEM: definition-stable-chronic",
+                                           "  EM-PROBLEMS: definition-stable-chronic"))
         self.assertEqual((1, (("PROBLEM", "definition-stable-chronic"),)), (moved.unread, moved.unread_items))
-        opinion = grammar.em_block(BLOCK + "  EM-OPINION: something\n")
+        opinion = strict_block(BLOCK + "  EM-OPINION: something\n")
         self.assertEqual({("PROBLEM", None), ("DATA", None), ("RISK", None)}, set(opinion.unread_items))
 
     def test_q4_only_the_anchor_and_its_element_lines_are_skipped_in_a_step_four_block(self):
@@ -241,7 +248,9 @@ class EveryWorksheetReaderToleratesTheBlock(unittest.TestCase):
 
     def test_the_block_at_the_end_and_before_the_differential(self):
         preserved = PRESERVED.read_text(encoding="utf-8")
-        differential = re.search(r"(?m)^--- DIFFERENTIAL", preserved).start()
+        heading = re.search(r"(?m)^--- DIFFERENTIAL", preserved)
+        assert heading is not None, "the preserved worksheet carries a differential"
+        differential = heading.start()
         placements = {
             "end": (preserved + "\n" + EM_LINE, preserved + "\n" + EM_LINE + BLOCK),
             "before the differential": (

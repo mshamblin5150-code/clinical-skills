@@ -47,8 +47,10 @@ import json
 import re
 import sqlite3
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import TypeVar
 from discussion_artifact import PostedReadingOutcome
 
 import run_grader
@@ -297,7 +299,11 @@ def read_flags(text: str) -> list[Flag]:
     return read_flags_with_orphans(text)[0]
 
 
-def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | WorksheetEntry]:
+# A flag or an entry: the walk returns the kind it is given.
+_Eligible = TypeVar("_Eligible", "Flag", WorksheetEntry)
+
+
+def for_entry_icd10(items: Sequence[Sequence[_Eligible]]) -> list[_Eligible]:
     """The one eligibility walk shared by the brief and its coverage gate."""
     return [
         item
@@ -307,7 +313,7 @@ def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | Wor
     ]
 
 
-def brief(per_worksheet: list[list[Flag | WorksheetEntry]], source: str) -> str:
+def brief(per_worksheet: Sequence[Sequence[_Eligible]], source: str) -> str:
     """A locator-only work order for a reader who cannot see the worksheets.
 
     A code is enough to open the committed release. Descriptors and flags are the
@@ -930,6 +936,7 @@ def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, st
     if skipped is not None:
         return False, skipped, 0
     import em_audit
+    assert submission is not None  # not_graded answers every run without a submission
     # The approval time and exemption are read from the run the gate grades, which is the parent
     # of a worksheets/ folder the grader was given.
     with completion_checks.graded_at(run_directory, submission):

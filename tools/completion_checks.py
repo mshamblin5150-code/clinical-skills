@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+from collections.abc import Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import replace, fields
@@ -30,9 +31,10 @@ SEEDS = ("discussion_post_scan", "discussion_reply_scan", "peer_critique_scan",
          "checks_ledger", "differential_scan", "filled_vitals_census",
          "course_assignment_scan", "deck_scan", "assignment_docx_scan")
 DECLARED_LIMITS = (__doc__,)
-MOMENTS = ContextVar("completion_check_moments", default={})
-ITEM_MOMENTS = ContextVar("completion_item_moments", default={})
-SKIPPED = ContextVar("completion_checks_not_graded", default=None)
+# Read-only to every reader, so a Mapping: a caller may set a narrower dict of known moments.
+MOMENTS: ContextVar[Mapping[str, datetime | None]] = ContextVar("completion_check_moments", default={})
+ITEM_MOMENTS: ContextVar[Mapping[str, datetime | None]] = ContextVar("completion_item_moments", default={})
+SKIPPED: ContextVar[set[str] | None] = ContextVar("completion_checks_not_graded", default=None)
 
 
 def derive(directory: Path = ROOT) -> dict[str, str]:
@@ -46,6 +48,7 @@ def derive(directory: Path = ROOT) -> dict[str, str]:
         seen.add(module)
         tree = ast.parse(path.read_text(encoding="utf-8"))
         literals = {}
+        node: ast.AST  # walked over the module body, then the whole tree
         for node in tree.body:
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
                 for target in node.targets:
@@ -145,8 +148,9 @@ def active(key: str, moment=None) -> bool:
     observed = instant(moment) if moment is not None else MOMENTS.get().get(compared_with)
     # Missing historical evidence grants no exemption.
     applies = observed is None or observed >= start
-    if not applies and SKIPPED.get() is not None:
-        SKIPPED.get().add(key)
+    skipped = SKIPPED.get()
+    if not applies and skipped is not None:
+        skipped.add(key)
     return applies
 
 
