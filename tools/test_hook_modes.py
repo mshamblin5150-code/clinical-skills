@@ -10,9 +10,10 @@ each hook, which is what a fresh clone checks out.
 
 from __future__ import annotations
 
-import subprocess
 import unittest
 from pathlib import Path
+
+import git_paths
 
 ROOT = Path(__file__).resolve().parent.parent
 HOOKS = "tools/hooks"
@@ -25,16 +26,10 @@ def tracked_hook_modes() -> dict[str, str]:
     This walks tracked files only: an untracked hook is not in the index, so a
     new hook is graded from the commit that adds it.
     """
-    result = subprocess.run(
-        ["git", "ls-files", "-s", "-z", "--", HOOKS],
-        cwd=ROOT, capture_output=True, check=True,
-    )
     modes: dict[str, str] = {}
-    for record in result.stdout.split(b"\0"):
-        if not record:
-            continue
-        meta, _, path = record.partition(b"\t")
-        modes[path.decode("utf-8", "surrogateescape")] = meta.split(b" ")[0].decode("ascii")
+    for record in git_paths.read_path_records(ROOT, "ls-files", "-s", "-z", "--", HOOKS):
+        meta, _, path = record.partition("\t")
+        modes[path] = meta.split(" ")[0]
     return modes
 
 
