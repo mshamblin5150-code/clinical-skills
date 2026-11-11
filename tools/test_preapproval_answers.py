@@ -89,6 +89,12 @@ class AnswersRecord(unittest.TestCase):
         self.main("--note", 1, "--question", QUESTION, "--reply", REPLY)
         self.assertEqual(before, self.path.read_bytes())
 
+    def test_r7_levels_in_another_order_are_the_same_answer(self):
+        preapproval_answers.record(self.run, 1, QUESTION, ["99203", "99204"], REPLY)
+        self.main("--note", 1, "--question", QUESTION, "--level", "99204", "--level", "99203", "--reply", REPLY)
+        entries = preapproval_answers.read(self.run)["answers"]
+        self.assertEqual([("note-1.q1", "verified")], [(entry["id"], entry["verification"]) for entry in entries])
+
     def test_declared_limits_are_named_by_the_reference_and_not_copied(self):
         self.assertEqual((), bind(preapproval_answers.DECLARED_LIMITS, REFERENCE.read_text(encoding="utf-8"),
                                   mode=NAMING))

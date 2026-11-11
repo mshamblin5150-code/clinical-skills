@@ -12,11 +12,12 @@ The check-off is derived from the records the coding run wrote, so the two canno
 manifest or receipt that approval would refuse is refused here too. Output is counts only; the
 written check-offs carry patient information.
 
-Exit 0 when every selected note rendered with no finding; 1 for a finding: an element block
-that contradicts itself or the selected code, an unknown CPT entry id, an answer id the record
-lacks, a re-derivation that differs element by element, or a damaged handwritten record; 2 when
-the run could not be read, a note number is unknown, a Word copy was refused, or a candidate
-went unread (``unread remainder``). A finding outranks an unread remainder.
+Exit 0 when every selected note rendered with no finding; 1 for a finding: a note without an
+element block or a placed re-derivation (ADR 0445), an element block that contradicts itself or
+the selected code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
+differs element by element, or a damaged handwritten record; 2 when the run could not be read, a
+note number is unknown, a check-off or Word copy was refused, or a candidate went unread
+(``unread remainder``). A finding outranks an unread remainder.
 """
 from __future__ import annotations
 
@@ -32,10 +33,11 @@ import review_manifest
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import atomic_write
 from run_grader import format_unread_remainder
-from run_record_reader import (DamagedRecord, UnreadableRecord, damaged_record_result, fault_report,
-                               read_handwritten_record, read_tool_record)
+from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, damaged_record_result,
+                               fault_report, read_handwritten_record, read_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, ENTRY, FIELD, REFUSAL_HEADING, UNDOCUMENTED_HEADING, EmBlock,
-                               block_text, em_block, entry_region, paired_entry, worksheet_em_block)
+                               block_text, em_block, entry_region, paired_entry, read_entries,
+                               worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -132,8 +134,6 @@ def for_entry_codes(private: str) -> list[tuple[str, str, str, str, dict[str, li
     The region, the entries and the for-entry split are the readers ``review_manifest.selected_codes``
     uses; each field line is paired to its entry by ``worksheet_grammar.paired_entry``.
     """
-    # specificity_scan imports this module at load time, so its reader is imported here.
-    from specificity_scan import read_entries
     region = entry_region(private)
     matches = list(ENTRY.finditer(region))
     fields: dict[int, dict[str, list[str]]] = {}
@@ -148,11 +148,19 @@ def for_entry_codes(private: str) -> list[tuple[str, str, str, str, dict[str, li
             for entry in read_entries(region) if entry.for_entry]
 
 
-def quoted(text: str | None, empty: str) -> list[str]:
-    """Copied text as quotation lines, which the Markdown sheet and the Word renderer both read."""
+def quoted(text: str | None, empty: str = "", *, paragraphs: bool = False) -> list[str]:
+    """Copied text as quotation lines, which the Markdown sheet and the Word renderer both read.
+
+    Every line is quoted, so a line opening with a heading, bullet or quotation mark stays inside
+    the quotation. ``paragraphs`` keeps a blank line as a paragraph break (a verbatim value);
+    otherwise blank lines are dropped (a copied worksheet block).
+    """
     if text is None or not text.strip():
         return [empty]
-    return ["> " + line.rstrip() for line in text.splitlines() if line.strip()]
+    lines = text.strip("\n").splitlines()
+    if paragraphs:
+        return ["> " + line.rstrip() if line.strip() else "" for line in lines]
+    return ["> " + line.rstrip() for line in lines if line.strip()]
 
 
 def sheet_ids(receipt: dict) -> set[str] | None:
@@ -179,7 +187,7 @@ def item_lines(block_: EmBlock) -> list[str]:
     return lines
 
 
-def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, answer_ids: set[str] | None) -> list[str]:
+def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None) -> list[str]:
     """What an element block states against itself, the selected code and its records."""
     found = []
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
@@ -191,11 +199,11 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, answer_
         found += [f"entry id {item.entry} is not in the CPT MDM sheet"
                   for item in block_.items if item.entry != "none" and item.entry not in ids]
     named = [answer for answer in block_.answers if answer != "none"]
-    if named and answer_ids is None:
+    if named and note_answers is None:
         found.append("the block names a pre-approval answer, but the run has no readable answers record")
     elif named:
-        found += [f"answer {answer} is not in the pre-approval answers record"
-                  for answer in named if answer not in answer_ids]
+        found += [f"answer {answer} is not a pre-approval answer of this note"
+                  for answer in named if answer not in note_answers]
     return found
 
 
@@ -220,16 +228,12 @@ def differences(worksheet: EmBlock | None, rederived: EmBlock, selected: str) ->
     return found
 
 
-def quoted_value(text: str) -> list[str]:
-    """A verbatim value of any length as one quotation; a blank line inside it stays a paragraph break."""
-    return ["> " + line.rstrip() if line.strip() else "" for line in text.strip("\n").splitlines()]
-
-
 def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict, tally: Tally) -> list[str]:
+    """Every recorded question and reply of the note, verbatim; each unverified one is unread coverage."""
     lines = []
     status = item["patient_status"]
     if item["setting"] == "office" and status.get("evidence") == "clinician-answer" and status.get("clinician_reply"):
-        lines += ["Patient status question. Reply:", "", *quoted_value(status["clinician_reply"]), ""]
+        lines += ["Patient status question. Reply:", "", *quoted(status["clinician_reply"], paragraphs=True), ""]
     if unreadable:
         return lines + ["The pre-approval answers record could not be read; its entries are not shown."]
     if answers is None:
@@ -240,11 +244,16 @@ def answer_lines(answers: dict | None, unreadable: bool, order: int, item: dict,
     for entry in entries:
         tally.answers_shown += 1
         levels = ", ".join(entry["levels"]) or "none named"
-        state = ("verified as a whole clinician message" if entry["verification"] == "verified"
-                 else "not verified: the transcript was unreadable when it was recorded")
+        if entry["verification"] == "verified":
+            state = "verified as a whole clinician message"
+        else:
+            tally.unread += 1
+            state = ("not verified: the transcript was unreadable when it was recorded, so this coverage "
+                     "is incomplete")
         identifier = entry["id"]
         lines += [f"- Question {identifier}; levels named: {levels}; reply check: {state}", "",
-                  *quoted_value(entry["question"]), "", "Reply:", "", *quoted_value(entry["clinician_reply"]), ""]
+                  *quoted(entry["question"], paragraphs=True), "", "Reply:", "",
+                  *quoted(entry["clinician_reply"], paragraphs=True), ""]
     return lines
 
 
@@ -325,7 +334,6 @@ class Context:
             tally.unread += 1
         self.answer_states = ({} if self.answers is None
                               else {entry["id"]: entry["verification"] for entry in self.answers["answers"]})
-        self.answer_ids = None if self.answers is None else set(self.answer_states)
 
 
 def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict, context: Context,
@@ -361,10 +369,11 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
                   "in the unread remainder; the lines read follow."]
     lines += ["", "Element block from the private worksheet:", "", *item_lines(block_)]
     unverified = [answer for answer in block_.answers if context.answer_states.get(answer) == "unreadable"]
-    tally.unread += len(unverified)
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
-              "coverage is incomplete" for answer in unverified]
-    found = block_findings(block_, selected, context.ids, context.answer_ids)
+              "coverage is incomplete (counted with the answers below)" for answer in unverified]
+    note_answers = (None if context.answers is None
+                    else {entry["id"] for entry in preapproval_answers.entries_for(context.answers, item["order"])})
+    found = block_findings(block_, selected, context.ids, note_answers)
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
     if context.ids is None:
@@ -407,6 +416,14 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     return "\n".join(out)
 
 
+class UnknownNote(ValueError):
+    """A --note number names no encounter of the run."""
+
+
+class WordTargetRefused(ValueError):
+    """A Word copy aimed inside a checkout but outside its output/ tree."""
+
+
 def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[tuple[str, str]]]:
     """Every selected check-off as (note stem, Markdown text), rendered from the validated read itself."""
     run = run.resolve()
@@ -414,7 +431,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[tuple[str, str
     manifest, receipt = validated.manifest, validated.receipt
     orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
-        raise ValueError("unknown note number")
+        raise UnknownNote("unknown note number")
     tally = Tally()
     context = Context(run, receipt, tally)
     sheets = []
@@ -434,10 +451,20 @@ def write_markdown(run: Path, sheets: list[tuple[str, str]]) -> int:
     return len(sheets)
 
 
+def word_folder(run: Path, output_dir: Path | None) -> Path:
+    """The Word destination: under the main checkout output/ tree, or outside every checkout."""
+    output = repo_root.output_root().resolve()
+    folder = (output / WORD_DIRECTORY / run.resolve().name if output_dir is None
+              else output_dir.expanduser().resolve())
+    if repo_root.enclosing_checkout(folder) is not None and not folder.is_relative_to(output):
+        raise WordTargetRefused(str(folder))
+    return folder
+
+
 def export_word(run: Path, sheets: list[tuple[str, str]], output_dir: Path | None, force: bool) -> int:
     """Render the same check-off text to Word through the one shared renderer, only when asked."""
     from docx_write import write_docx
-    folder = output_dir if output_dir is not None else repo_root.output_root() / WORD_DIRECTORY / run.resolve().name
+    folder = word_folder(run, output_dir)
     for stem, text in sheets:
         write_docx(text, folder / (stem + ".docx"), force=force, bold_headings=True, layout="plain")
     return len(sheets)
@@ -462,7 +489,8 @@ def report(tally: Tally, total: int, selected: int, written: str) -> str:
 
 
 def status_of(tally: Tally) -> int:
-    if tally.block_findings or tally.differ or tally.damaged:
+    """The completion gate classes: a note missing its block or re-derivation is a finding (ADR 0445)."""
+    if tally.block_findings or tally.differ or tally.damaged or tally.blocks_absent or tally.absent:
         return 1
     return 2 if tally.unread else 0
 
@@ -516,35 +544,50 @@ def main(argv: list[str] | None = None) -> int:
                         help="one-based note order; repeat for several, omit for every note")
     parser.add_argument("--write", action="store_true", help="write the Markdown check-offs into the run")
     parser.add_argument("--docx", action="store_true", help="also render the check-offs to Word")
-    parser.add_argument("--output-dir", type=Path, help="Word destination; default output/em-audit/<run name>/")
+    parser.add_argument("--output-dir", type=Path,
+                        help="Word destination under the main checkout output/ or outside every checkout")
     parser.add_argument("--force", action="store_true", help="replace a Word copy docx_write would refuse")
     args = parser.parse_args(argv)
     from docx_write import RefusedToOverwrite
     try:
         tally, total, sheets = render(args.run, args.note)
-        written = []
-        if args.write:
-            written.append(f"check-offs written {write_markdown(args.run, sheets)}")
-        if args.docx:
-            written.append(f"Word copies written {export_word(args.run, sheets, args.output_dir, args.force)}")
+    except UnknownNote:
+        print("em-audit: refused - a --note number is not an encounter of this run")
+        return 2
     except UnreadableRecord as error:
         print(fault_report(error, check="em-audit"))
         return 2
     except DamagedRecord as error:
         print(damaged_record_result(error, check="em-audit", force=True)[1])
         return 1
-    except RefusedToOverwrite as error:
-        print(f"em-audit: Word copy refused - {error}")
-        return 2
-    except repo_root.ForeignCheckout:
-        print("em-audit: Word copy refused - finished documents go to the output folder of the main checkout")
-        return 2
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
         print("em-audit: refused - missing, invalid, or stale coding records")
         return 2
+    written, refusal = [], None
+    if args.write:
+        try:
+            written.append(f"check-offs written {write_markdown(args.run, sheets)}")
+        except (OSError, ValueError):
+            refusal = "check-offs refused - they could not be written into the private run"
+    if args.docx and refusal is None:
+        try:
+            written.append(f"Word copies written {export_word(args.run, sheets, args.output_dir, args.force)}")
+        except RefusedToOverwrite as error:
+            refusal = f"Word copy refused - {error}"
+        except (WordTargetRefused, repo_root.ForeignCheckout):
+            refusal = ("Word copy refused - a Word copy goes under the output folder of the main checkout "
+                       "or outside every checkout")
+        except OutboundTextError:
+            refusal = "Word copy refused - the Word renderer refuses a character in the check-off text"
+        except OSError:
+            refusal = "Word copy refused - the file could not be written"
     selected = len(set(args.note)) if args.note else total
     print(report(tally, total, selected, "; ".join(written) or "nothing written (pass --write or --docx)"))
-    return status_of(tally)
+    status = status_of(tally)
+    if refusal is not None:
+        print("em-audit: " + refusal)
+        return 1 if status == 1 else 2
+    return status
 
 
 if __name__ == "__main__":

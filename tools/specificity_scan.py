@@ -67,6 +67,8 @@ from worksheet_grammar import (
     field_candidates,
     paired_entry,
     STEP_FOUR_START,
+    WorksheetEntry,
+    read_entries,
     heading_counts,
 )
 
@@ -177,17 +179,6 @@ class Flag:
 
 
 @dataclass(frozen=True)
-class WorksheetEntry:
-    """One code entry, including entries whose required specificity line is absent."""
-
-    start: int
-    system: str
-    code: str
-    descriptor: str
-    for_entry: bool
-
-
-@dataclass(frozen=True)
 class Finding(run_grader.Finding):
     """One flag raised as a C5 failure or an advisory."""
 
@@ -262,22 +253,6 @@ def _keyword(value: str) -> tuple[str, str]:
         if lowered.startswith(keyword):
             return keyword, stripped[len(keyword) :]
     return "", stripped
-
-
-def read_entries(text: str) -> list[WorksheetEntry]:
-    """Every code entry, whether or not its required ``SPECIFICITY`` line exists."""
-    found = list(ENTRY.finditer(text))
-
-    return [
-        WorksheetEntry(
-            start=match.start(),
-            system=match.group("system"),
-            code=match.group("code"),
-            descriptor=match.group("descriptor"),
-            for_entry=entry_is_for_entry(text, found, index),
-        )
-        for index, match in enumerate(found)
-    ]
 
 
 def read_flags_with_orphans(text: str) -> tuple[list[Flag], int]:

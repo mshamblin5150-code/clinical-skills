@@ -7,6 +7,7 @@ import artifact_lock_test_support
 import ast
 import contextlib
 import io
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -16,6 +17,7 @@ import unittest
 from unittest import mock
 
 import approval_record
+from run_record_reader import OutboundTextError
 import em_audit
 import preapproval_answers
 import repo_root
@@ -88,6 +90,8 @@ class RunFixture(unittest.TestCase):
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
             preapproval_answers.record(self.run, 1, QUESTION, [], REPLY)
         self.sheet = self.run / em_audit.OUTPUT_DIRECTORY / "note-1.md"
+        self.rederivation = self.run / em_audit.OUTPUT_DIRECTORY / em_audit.REDERIVATION_DIRECTORY / "note-1.md"
+        self.record(ELEMENTS)
 
     def invoke(self, *args):
         command = [sys.executable, str(Path(__file__).with_name("em_audit.py")), str(self.run), *map(str, args)]
@@ -120,7 +124,7 @@ class CheckOffCommand(RunFixture):
                      "element blocks: present 1, absent 0; findings 0",
                      "E/M filled marks 1",
                      "pre-approval answers shown 1",
-                     "re-derivations: agree 0; differ 0; damaged 0; absent 1",
+                     "re-derivations: agree 1; differ 0; damaged 0; absent 0",
                      "element differences 0",
                      "nothing written (pass --write or --docx)",
                      "unread remainder 0"):
@@ -148,7 +152,7 @@ class CheckOffCommand(RunFixture):
                          "- Level: 99283", "- Answer relied on: note-1.q1", "- Rule applied: ADR 0308 ruling 1",
                          "- Question note-1.q1; levels named: none named; reply check: verified as a whole clinician message",
                          "> " + QUESTION, "> " + REPLY,
-                         "- Setting: emergency department", "No re-derivation record is placed for this note.",
+                         "- Setting: emergency department", "the re-derivation agrees with the worksheet.",
                          "Clinician signature:", "- Entry ids: not checked"):
             self.assertIn(expected, text)
         self.assertNotIn("The visible Coding worksheet", text)
@@ -216,7 +220,7 @@ class CheckOffCommand(RunFixture):
             "note-1.q1", "note-1.q2")), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-        self.assertIn("answer note-1.q2 is not in the pre-approval answers record", self.sheet.read_text(encoding="utf-8"))
+        self.assertIn("answer note-1.q2 is not a pre-approval answer of this note", self.sheet.read_text(encoding="utf-8"))
 
     def test_stale_records_refuse_and_write_nothing(self):
         note = self.run / "note-1.md"
@@ -245,6 +249,7 @@ class CheckOffCommand(RunFixture):
         self.assertEqual(0, forced.returncode, forced.stdout + forced.stderr)
 
     def test_completion_requires_a_re_derivation_and_a_current_check_off(self):
+        self.rederivation.unlink()
         finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertTrue(finding, report)
         self.assertIn("re-derivations absent 1", report)
@@ -269,11 +274,11 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
 
     def test_default_prints_counts_only_and_writes_nothing(self):
         result = self.invoke()
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("element blocks: present 0, absent 1; findings 0", result.stdout)
 
     def test_written_check_off_renders_every_recorded_decision_in_template_order(self):
-        self.assertEqual(0, self.invoke("--write").returncode)
+        self.assertEqual(1, self.invoke("--write").returncode)
         text = self.sheet.read_text(encoding="utf-8")
         self.assertEqual(list(em_audit.SECTIONS), headings(text))
         for expected in ("The private worksheet has no element block", "The visible Coding worksheet, as approved:",
@@ -283,8 +288,19 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
     def test_a_matching_re_derivation_agrees_and_each_differing_element_is_listed(self):
         self.record(ELEMENTS)
         result = self.invoke("--write")
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("level only, because the worksheet has no element block", self.sheet.read_text(encoding="utf-8"))
+
+    def test_an_incomplete_re_derivation_is_unread_rather_than_agreeing(self):
+        self.record(ELEMENTS.replace("  EM-LEVEL: 99283" + chr(10), ""))
+        result = self.invoke()
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+
+    def test_word_export_is_on_demand_and_keeps_the_overwrite_refusal(self):
+        result = self.invoke("--docx", "--output-dir", self.root / "export")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertTrue((self.root / "export" / "note-1.docx").is_file())
 
     def test_a_block_that_contradicts_itself_is_a_finding(self):
         pass
@@ -297,12 +313,12 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
 
     def test_the_answers_record_absent_or_malformed_is_said_on_the_check_off(self):
         (self.run / preapproval_answers.RECORD).unlink()
-        self.assertEqual(0, self.invoke("--write").returncode)
+        self.assertEqual(1, self.invoke("--write").returncode)
         self.assertIn("No pre-approval answers record exists for this run.", self.sheet.read_text(encoding="utf-8"))
 
     def test_completion_requires_a_re_derivation_and_a_current_check_off(self):
         self.record(ELEMENTS)
-        self.assertEqual(0, self.invoke("--write").returncode)
+        self.assertEqual(1, self.invoke("--write").returncode)
         finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertTrue(finding)
         self.assertIn("element blocks absent 1", report)
@@ -411,6 +427,93 @@ class ReviewFindings(RunFixture):
         self.assertIn("em_audit", top)
         self.assertEqual([], nested)
         self.assertEqual(1, source.count("source.directory.parent if source.directory.name == \"worksheets\""))
+
+
+class SecondReviewFindings(RunFixture):
+    """The second code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def with_answer_entries(self, *entries: dict) -> None:
+        path = self.run / preapproval_answers.RECORD
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["answers"].extend(entries)
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    def fake_checkout(self) -> Path:
+        checkout = self.root / "main-checkout"
+        (checkout / ".git").mkdir(parents=True)
+        return checkout
+
+    def test_r1_a_note_without_a_re_derivation_or_an_element_block_is_not_complete(self):
+        self.rederivation.unlink()
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 1", result.stdout)
+        self.record(ELEMENTS)
+        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=""), encoding="utf-8")
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("element blocks: present 0, absent 1", result.stdout)
+
+    def test_r2_an_answer_id_from_another_note_is_a_finding(self):
+        self.with_answer_entries({"id": "note-2.q1", "note": 2, "question": QUESTION, "levels": [],
+                                  "clinician_reply": REPLY, "verification": "verified",
+                                  "reply_matched_at": 4102444800.0, "recorded_at": 4102444800.0})
+        moved = ELEMENTS.replace("note-1.q1", "note-2.q1")
+        (self.run / "worksheets/note-1.md").write_text(PRIVATE.format(elements=moved), encoding="utf-8")
+        self.record(moved)
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("- FINDING: answer note-2.q1 is not a pre-approval answer of this note",
+                      self.sheet.read_text(encoding="utf-8"))
+
+    def test_r3_every_unreadable_answer_of_the_note_is_incomplete_coverage(self):
+        self.assertEqual("unreadable", preapproval_answers.record(self.run, 1, "An uncited second question?", [], REPLY)[1])
+        self.record(ELEMENTS)
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 1", result.stdout)
+
+    def test_r4_a_word_copy_inside_the_main_checkout_goes_only_under_output(self):
+        checkout = self.fake_checkout()
+        self.record(ELEMENTS)
+        with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
+            status, output = self.in_process("--docx", "--output-dir", checkout / "reference" / "audit")
+            self.assertEqual(2, status, output)
+            self.assertIn("Word copy refused", output)
+            self.assertEqual([], list(checkout.rglob("*.docx")))
+            status, output = self.in_process("--docx", "--output-dir", checkout / "output" / "audit")
+            self.assertEqual(0, status, output)
+            self.assertTrue((checkout / "output" / "audit" / "note-1.docx").is_file())
+
+    def test_r5_an_unknown_note_and_a_word_render_failure_each_say_what_happened(self):
+        unknown = self.invoke("--note", 2)
+        self.assertEqual(2, unknown.returncode)
+        self.assertIn("is not an encounter of this run", unknown.stdout)
+        self.assertNotIn("stale", unknown.stdout)
+        self.record(ELEMENTS)
+        with mock.patch("docx_write.write_docx", side_effect=OutboundTextError("line 3: U+0085")):
+            status, output = self.in_process("--write", "--docx", "--output-dir", self.root / "export")
+        self.assertEqual(2, status, output)
+        self.assertIn("check-offs written 1", output)
+        self.assertIn("Word copy refused", output)
+        self.assertNotIn("stale", output)
+        self.assertTrue(self.sheet.exists())
+
+    def test_r8_manifest_for_reads_either_mode_when_asked(self):
+        self.assertTrue(review_manifest.manifest_for(self.run, batch=None)["batch"])
+
+    def test_r9_and_r10_em_audit_imports_its_readers_eagerly_and_quotes_with_one_helper(self):
+        import specificity_scan
+        import worksheet_grammar
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        nested = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))
+                  and node not in tree.body and not any(
+                      isinstance(parent, ast.If) and node in ast.walk(parent) for parent in tree.body)]
+        self.assertEqual([], [ast.unparse(node) for node in nested if "docx_write" not in ast.unparse(node)
+                              and "completion_checks" not in ast.unparse(node)])
+        self.assertIs(worksheet_grammar.read_entries, specificity_scan.read_entries)
+        defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+        self.assertNotIn("quoted_value", defined)
 
 
 if __name__ == "__main__":

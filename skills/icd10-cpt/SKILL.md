@@ -1013,8 +1013,9 @@ encounter's account-backed patient status must all pass. The rendered worksheet 
 
 On the note path, every coded note also needs its E/M audit check-off. After the freshness gate
 passes, follow [em-audit](../em-audit/SKILL.md) steps 2 and 3: a blind re-derivation for every note,
-then `python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt. It
-exits 0, or exits 1 with every difference shown to the clinician before approval. The terminal
+then `python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt. Its
+report shows no absent element block or re-derivation, and it exits 0, or exits 1 only for
+differences and findings shown to the clinician before approval. The terminal
 command below grades the result as `the E/M audit check-offs`.
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.

@@ -128,6 +128,32 @@ def entry_is_for_entry(
     return NOT_FOR_ENTRY.search(header) is None
 
 
+@dataclass(frozen=True)
+class WorksheetEntry:
+    """One code entry, including entries whose required specificity line is absent."""
+
+    start: int
+    system: str
+    code: str
+    descriptor: str
+    for_entry: bool
+
+
+def read_entries(text: str) -> list[WorksheetEntry]:
+    """Every code entry and its for-entry classification; specificity_scan re-exports this name."""
+    found = list(ENTRY.finditer(text))
+    return [
+        WorksheetEntry(
+            start=match.start(),
+            system=match.group("system"),
+            code=match.group("code"),
+            descriptor=match.group("descriptor"),
+            for_entry=entry_is_for_entry(text, found, index),
+        )
+        for index, match in enumerate(found)
+    ]
+
+
 def differential_prose(text: str) -> tuple[str, ...]:
     """Retain clinical prose in the differential region, including legacy lists.
 
@@ -297,29 +323,32 @@ class WorksheetElements:
 
 
 def worksheet_em_block(text: str, em_codes: frozenset[str]) -> WorksheetElements:
-    """Read the element block under whichever E/M line carries it.
+    """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
     An E/M line is either anchor the code reader accepts: an ``EM_CODE_LABEL`` line, or an
-    ``ENTRY`` whose CPT code is in ``em_codes``. ``blocks`` counts anchors carrying EM- lines; when
-    it exceeds one the first block is returned and the caller reports the rest. EM- candidates under
-    no anchor are ``outside``. A worksheet written before the block existed reads ``(None, 0, 0)``.
+    ``ENTRY`` whose CPT code is in ``em_codes``. An anchor nested in another anchor body adds no
+    block of its own. ``blocks`` counts the distinct blocks; when it exceeds one the first is
+    returned and the caller reports the rest. EM- candidates under no anchor are ``outside``. A
+    worksheet written before the block existed reads ``(None, 0, 0)``.
     """
     lines = text.splitlines()
-    groups: list[list[str]] = []
+    candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
+    claimed: set[int] = set()
+    groups: list[list[int]] = []
     for index, line in enumerate(lines):
         entry = ENTRY.match(line)
         anchored = EM_CODE_LABEL.match(line) or (
             entry is not None and entry.group("system").upper() == "CPT" and entry.group("code").upper() in em_codes)
-        if not anchored:
+        if not anchored or index in claimed:
             continue
-        group = []
-        for follower in lines[index + 1:]:
-            if not follower.strip() or follower[0] not in " \t":
+        body = []
+        for follower in range(index + 1, len(lines)):
+            if not lines[follower].strip() or lines[follower][0] not in " \t":
                 break
-            group.append(follower)
-        if any(EM_CANDIDATE.match(line) for line in group):
-            groups.append(group)
-    total = sum(1 for line in lines if EM_CANDIDATE.match(line))
-    within = sum(1 for group in groups for line in group if EM_CANDIDATE.match(line))
-    block = em_block("\n".join(groups[0])) if groups else None
-    return WorksheetElements(block, total - within, len(groups))
+            body.append(follower)
+        claimed.update(body)
+        if candidates.intersection(body):
+            groups.append(body)
+    within = candidates & claimed
+    block = em_block("\n".join(lines[index] for index in groups[0])) if groups else None
+    return WorksheetElements(block, len(candidates - within), len(groups))

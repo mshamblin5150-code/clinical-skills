@@ -25,5 +25,5 @@ selects the lower one.
 
 One element block per note, in the em-elements.md line format, at
 `<run>/em-audit/rederivation/<note stem>.md`. The reader stages it; the orchestrator places it.
-The re-derivation is complete when every note in the run has a placed record that
-`python tools/em_audit.py <run>` reads without an unread remainder.
+The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0` among the
+re-derivations and `unread remainder 0`.

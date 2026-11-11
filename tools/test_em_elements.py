@@ -89,6 +89,11 @@ class TheStrictReader(unittest.TestCase):
         _, _, blocks = astuple_of(grammar.worksheet_em_block(entry + BLOCK + "\n" + EM_LINE + BLOCK, EM_CODES))
         self.assertEqual(2, blocks)
 
+    def test_r6_a_nested_em_line_inside_a_cpt_entry_counts_each_element_line_once(self):
+        text = "CPT  99213  Office visit, established patient\n  E/M: 99213 low MDM\n" + BLOCK
+        block, outside, blocks = astuple_of(grammar.worksheet_em_block(text, EM_CODES))
+        self.assertEqual((0, 1, 0), (outside, blocks, block.unread))
+
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
         self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING))

@@ -140,8 +140,7 @@ def selected_codes(text: str, *, private: bool) -> dict:
     and reconciliation regions do not add final selections; E/M remains an
     explicit code label or a shared-parsed CPT entry from the E/M families.
     """
-    from specificity_scan import read_entries
-    from worksheet_grammar import EM_CODE_LABEL, ENTRY_CANDIDATE, entry_region
+    from worksheet_grammar import EM_CODE_LABEL, ENTRY_CANDIDATE, entry_region, read_entries
     em = {match.group("code") for match in EM_CODE_LABEL.finditer(text)}
     if private:
         entry_text = entry_region(text)
@@ -192,9 +191,10 @@ def decode_manifest(text: str) -> dict:
     return value
 
 
-def manifest_for(run: Path, *, batch: bool) -> dict:
+def manifest_for(run: Path, *, batch: bool | None) -> dict:
+    """The manifest in the clinical mode asked for; ``batch=None`` accepts the mode it records."""
     value = read_tool_record(run / MANIFEST, decode_manifest)
-    if value is None or value["batch"] != batch:
+    if value is None or (batch is not None and value["batch"] != batch):
         raise ValueError("missing manifest or wrong clinical mode")
     return value
 
@@ -285,9 +285,7 @@ class ValidatedRun:
 def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]:
     """Validate once; ``batch=None`` takes the mode the manifest records."""
     run = run.resolve()
-    manifest = read_tool_record(run / MANIFEST, decode_manifest)
-    if manifest is None or (batch is not None and manifest["batch"] != batch):
-        raise ValueError("missing manifest or wrong clinical mode")
+    manifest = manifest_for(run, batch=batch)
     openers = read_openers(run)
     if manifest["service_date"] != openers["service_date"] or len(manifest["encounters"]) != len(openers["encounters"]):
         raise ValueError("opener population or service date changed")

@@ -47,9 +47,10 @@ Done when every note in the run has a placed re-derivation record.
 python tools/em_audit.py <run> --write
 ```
 
-Done when it exits 0, or exits 1 and the clinician has seen every `DIFFERS` and `FINDING` line with
-its note number before approval. Each difference is his to rule on through icd10-cpt, and the
-check-off keeps it as found. On exit 2, repair what the `unread remainder` counts and render again.
+Done when the report shows `absent 0` for both element blocks and re-derivations and it exits 0,
+or exits 1 only for `DIFFERS` and `FINDING` lines the clinician has seen with their note numbers
+before approval. Each difference is his to rule on through icd10-cpt, and the check-off keeps it as
+found. On exit 2, repair what the `unread remainder` counts and render again.
 
 ## 4. Hand over
 

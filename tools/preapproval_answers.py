@@ -102,7 +102,8 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
     def change(previous: dict | None) -> RecordUpdate:
         value = previous or {"schema": 1, "producer": PRODUCER, "answers": []}
         for index, entry in enumerate(value["answers"]):
-            if (entry["note"], entry["question"], entry["clinician_reply"], entry["levels"]) != (note, question, reply, levels):
+            same = (entry["note"], entry["question"], entry["clinician_reply"], set(entry["levels"]))
+            if same != (note, question, reply, set(levels)):
                 continue
             if entry["verification"] == "verified" or state != "verified":
                 return RecordUpdate(None, (entry["id"], entry["verification"]))
