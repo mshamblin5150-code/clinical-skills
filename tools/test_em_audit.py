@@ -1201,7 +1201,8 @@ class EighthReviewFindings(ProseBind, RunFixture):
         tree = ast.parse(Path(worksheet_grammar.__file__).read_text(encoding="utf-8"))
         imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
         imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
-        self.assertEqual({"__future__", "re", "dataclasses", "cpt_identity"}, imported)
+        # Twenty-seventh review: bisect numbers lines by their starts, standard library only.
+        self.assertEqual({"__future__", "bisect", "re", "dataclasses", "cpt_identity"}, imported)
 
     def test_z9_and_z10_the_element_block_walk_does_not_copy_and_the_stops_share_one_class(self):
         import worksheet_grammar
@@ -2047,18 +2048,21 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
         self.assertTrue(any("quotes no note text" in finding for finding in found), found)
         self.assertEqual([], em_audit.block_findings(self.block(ELEMENTS), "99283", None, {"note-1.q1"}))
 
-    def test_i5_a_field_after_an_element_block_is_unread_not_provenance(self):
+    def test_i5_a_field_after_an_element_block_is_the_entry_s_own(self):
+        # Twenty-seventh review: either order pairs, so a field written after the block is the
+        # entry's provenance, rendered and never unread; prose after the block stays unread.
         late = '  ANCHOR: "Late field after the block."\n'
         self.write_private(PRIVATE.format(elements=ELEMENTS + late))
         result = self.invoke("--write")
-        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-        self.assertIn("unread remainder 1", result.stdout)
-        self.assertNotIn("Late field after the block", self.sheet.read_text(encoding="utf-8"))
-        # The same holds under a code entry carrying stray element lines.
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("unread remainder 0", result.stdout)
+        self.assertIn("Late field after the block", self.sheet.read_text(encoding="utf-8"))
         import worksheet_grammar
         lines = worksheet_grammar.physical_lines('ICD-10-CM R05.9 Cough\n  EM-LEVEL: 99283\n' + late)
         tail, fields, unplaced, _ = em_audit.entry_walk(lines, 0)
-        self.assertEqual(({}, 1), (fields, len(unplaced)))
+        self.assertEqual(({"ANCHOR": ['"Late field after the block."']}, 0), (fields, len(unplaced)))
+        lines = worksheet_grammar.physical_lines('ICD-10-CM R05.9 Cough\n  EM-LEVEL: 99283\n  stray prose\n')
+        self.assertEqual(1, len(em_audit.entry_walk(lines, 0)[2]))
 
     def test_i6_no_process_lifetime_cache_of_the_sheet(self):
         import coding_freshness
@@ -2908,14 +2912,17 @@ class TwentySecondReviewFindings(ProseBind, RunFixture):
         fingerprints = review_manifest.private_fingerprints(self.run)
         with self.assertRaises(review_manifest.StaleRecord):
             review_manifest.validated_population(self.run, fingerprints)
-        # The visible worksheet restored to the manifest's codes: only the private worksheet, which
-        # the newer fingerprint record binds, disagrees, and the manifest is still the stale one.
+        # The visible worksheet restored to the manifest's codes: only the private worksheet
+        # disagrees, and it matches the fingerprint the failed build recorded, so nothing the run
+        # records changed after the manifest. Twenty-seventh review: the manifest never matched
+        # this worksheet, so it is refused and rebuilt, incomplete rather than a finding.
         visible = self.run / "visible-worksheet-1.md"
         visible.write_text(VISIBLE, encoding="utf-8")
-        with self.assertRaises(review_manifest.StaleRecord):
+        with self.assertRaises(ValueError) as refused:
             review_manifest.validated_population(self.run, fingerprints)
+        self.assertNotIsInstance(refused.exception, review_manifest.StaleRecord)
         finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
-        self.assertEqual((True, 0), (finding, unread), report)
+        self.assertEqual((False, 1), (finding, unread), report)
 
     def test_s4_a_wrapped_filled_mark_is_read_and_an_unclosed_one_is_unread(self):
         self.assertEqual((["[SOURCE: filled - data: chest radiograph]"], 0), em_audit.filled_marks(
@@ -3015,17 +3022,19 @@ class TwentyThirdReviewFindings(ProseBind, RunFixture):
         return ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99283 Emergency visit\n' + ELEMENTS
                 + "  SPECIFICITY: complete - written after the element block\n")
 
-    def test_t2_a_field_after_the_element_block_belongs_to_no_entry(self):
+    def test_t2_a_field_after_the_element_block_belongs_to_its_entry(self):
+        # Twenty-seventh review: the contract puts an entry's fields before its block, and a field
+        # written after it in the same body still pairs with the entry in both readers.
         import specificity_scan
         import worksheet_grammar
         text = self.element_field()
         entries = list(worksheet_grammar.ENTRY.finditer(text))
         detail = list(worksheet_grammar.FIELD.finditer(text))[-1]
-        self.assertIsNone(worksheet_grammar.paired_entry(text, entries, detail))
+        self.assertEqual("99283", worksheet_grammar.paired_entry(text, entries, detail).group("code"))
         flags, orphans = specificity_scan.read_flags_with_orphans(text)
-        self.assertEqual(([], 1), ([flag.code for flag in flags if flag.code], orphans))
+        self.assertEqual((["99283"], 0), ([flag.code for flag in flags if flag.code], orphans))
         private = em_audit.parse_private(text)
-        self.assertEqual(1, sum(len(section.unplaced) for section in private.sections))
+        self.assertEqual(0, sum(len(section.unplaced) for section in private.sections))
 
     def test_t2_the_pairings_of_every_committed_fixture_are_unchanged(self):
         import worksheet_grammar
@@ -3258,8 +3267,9 @@ class TwentyFifthReviewFindings(ProseBind, RunFixture):
     def test_x4_status_evidence_and_a_recorded_file_replaced_by_folders_are_stale(self):
         import encounter_openers
         import encounter_status
-        self.assertIs(encounter_openers.no_longer_a_file, encounter_status.no_longer_a_file)
-        self.assertIs(encounter_openers.no_longer_a_file, review_manifest.no_longer_a_file)
+        # Twenty-seventh review: both read through the one read-or-classify helper.
+        self.assertIs(encounter_openers.read_or_changed, encounter_status.read_or_changed)
+        self.assertIs(encounter_openers.read_or_changed, review_manifest.read_or_changed)
         note = self.run / "note-1.md"
         original = note.read_bytes()
         note.unlink()
@@ -3445,6 +3455,108 @@ class TwentySixthReviewFindings(ProseBind, RunFixture):
         self.assertEqual(1, sum(call.args[0] == private for call in counted["entry_region"].call_args_list))
         self.assertEqual(1, sum(call.args[0] == region for call in counted["read_entries"].call_args_list))
         self.assertEqual(1, sum(call.args[0] == private for call in counted["physical_lines"].call_args_list))
+
+
+class TwentySeventhReviewFindings(ProseBind, RunFixture):
+    """The twenty-seventh code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    FIELDS = ('  ANCHOR: "Cough."\n  SPECIFICITY: complete - the synthetic encounter documents no further axis\n'
+              "  CONFIDENCE: verified against CPT 2026\n")
+
+    def ordered(self, fields_first: bool) -> str:
+        body = self.FIELDS + ELEMENTS if fields_first else ELEMENTS + self.FIELDS
+        return PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n", "CPT 99283 Emergency visit\n" + body)
+
+    def test_z2_the_entry_fields_pair_before_or_after_its_block(self):
+        import specificity_scan
+        for fields_first in (True, False):
+            with self.subTest(fields_first=fields_first):
+                self.write_private(self.ordered(fields_first))
+                status, output = self.in_process()
+                self.assertIn("unread remainder 0", output)
+                self.assertEqual(0, status, output)
+                self.assertEqual(0, specificity_scan.main([str(self.run / "worksheets")]))
+
+    def test_z2_a_label_inside_the_e_m_entry_keeps_the_fields_after_the_block_the_entry_s(self):
+        text = PRIVATE.format(elements="").replace(
+            "CPT 99283 Emergency visit\n",
+            "CPT 99283 Emergency visit\n  E/M: 99283 low complexity\n" + ELEMENTS + self.FIELDS)
+        self.write_private(text)
+        status, output = self.in_process()
+        self.assertIn("unread remainder 0", output)
+        self.assertEqual(0, status, output)
+
+    def test_z2_a_field_after_the_block_across_a_blank_line_belongs_to_nothing(self):
+        import specificity_scan
+        text = self.ordered(False).replace(ELEMENTS + "  ANCHOR:", ELEMENTS + "\n  ANCHOR:")
+        self.write_private(text)
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertNotIn("unread remainder 0", output)
+        self.assertEqual(1, specificity_scan.read_flags_with_orphans(text)[1])
+
+    def test_z2_the_reference_puts_the_fields_before_the_block(self):
+        doc = (ROOT / "skills" / "_shared" / "reference" / "em-elements.md").read_text(encoding="utf-8")
+        self.assertProseIn("after the entry's own fields", doc)
+        self.assertProseNotIn("A field line written after the block under the same E/M line is unread", doc)
+        example = doc.split("Synthetic example", 1)[1].split("```text", 1)[1].split("```", 1)[0]
+        lines = example.strip("\n").split("\n")
+        self.assertEqual(["ANCHOR", "SPECIFICITY", "CONFIDENCE"],
+                         [line.split(":", 1)[0].strip() for line in lines[1:4]])
+        step = (ROOT / "skills" / "icd10-cpt" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertProseIn("after the line's own ANCHOR, SOURCE, SPECIFICITY and CONFIDENCE fields", step)
+
+    def test_z1_an_e_m_label_ends_the_header_above_it_and_its_own_marker_rejects_it(self):
+        entries = 'ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\n'
+        label = "E/M: 99284 emergency department visit, moderate MDM NOT FOR ENTRY\n"
+        cases = {"after the E/M entry": entries + "CPT 99283 Emergency visit\n" + label,
+                 "after a diagnosis": "CPT 99283 Emergency visit\n" + entries.replace('  ANCHOR: "Cough."\n', "") + label}
+        for name, private in cases.items():
+            with self.subTest(case=name):
+                codes = review_manifest.selected_codes(private, private=True)
+                self.assertEqual(("99283", ["R05.9"]), (codes["em"], codes["icd10"]))
+
+    def test_z4_a_disagreement_is_stale_only_when_the_worksheet_moved_from_its_fingerprint(self):
+        private = self.run / "worksheets/note-1.md"
+        recorded = review_manifest.private_fingerprints(self.run)
+        edited = private.read_text(encoding="utf-8").replace("CPT 99283 Emergency visit", "CPT 99284 Emergency visit")
+        private.write_text(edited, encoding="utf-8")
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run, recorded)
+        matching = dict(recorded, **{str(private.resolve()): review_manifest.private_worksheet_sha256(edited)})
+        with self.assertRaises(ValueError) as refused:
+            review_manifest.validated_population(self.run, matching)
+        self.assertNotIsInstance(refused.exception, review_manifest.StaleRecord)
+
+    def test_z5_cleanups(self):
+        import encounter_openers
+        import encounter_status
+        import worksheet_grammar
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        self.assertNotIn("re.compile", ast.unparse(functions["ecg_findings"]))
+        self.assertIn("ECG_TOKEN", ast.unparse(functions["ecg_findings"]))
+        for module, name in ((encounter_openers, "bound_bytes"), (encounter_status, "status_for"),
+                             (review_manifest, "recorded_text")):
+            source = ast.unparse(next(node for node in ast.parse(Path(module.__file__).read_text(encoding="utf-8")).body
+                                      if isinstance(node, ast.FunctionDef) and node.name == name))
+            self.assertIn("read_or_changed", source, name)
+            self.assertNotIn("no_longer_a_file", source, name)
+        counted = '.count("' + chr(92) + 'n"'
+        for module, names in ((worksheet_grammar, ("selected_em",)), (em_audit, ("parse_private", "for_entry_codes"))):
+            module_tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+            for name in names:
+                source = ast.unparse(next(node for node in module_tree.body
+                                          if isinstance(node, ast.FunctionDef) and node.name == name))
+                self.assertNotIn("count('" + chr(92) + "n', 0", source, name)
+        self.assertTrue(counted)
+        validated = review_manifest.validated_population(self.run)  # validation's own reads are not counted
+        with mock.patch.object(review_manifest, "validated_population", return_value=validated), \
+                mock.patch.object(review_manifest, "clean_codes", wraps=review_manifest.clean_codes) as clean, \
+                mock.patch.object(em_audit, "level_code_findings", wraps=em_audit.level_code_findings) as levels:
+            em_audit.render(self.run, [])
+        self.assertEqual(1, clean.call_count)
+        self.assertEqual(2, levels.call_count)  # the worksheet block once, the re-derivation once
 
 
 if __name__ == "__main__":

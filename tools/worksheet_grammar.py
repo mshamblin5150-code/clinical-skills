@@ -6,6 +6,7 @@ used by graders that attribute an indented detail line to a code entry.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 import re
 from dataclasses import dataclass
 from cpt_identity import CPT_CODE, EM_CODES
@@ -117,7 +118,8 @@ def entry_is_for_entry(
 ) -> bool:
     """Whether one entry header lacks a line ending in ``NOT FOR ENTRY``.
 
-    A field, an E/M element line or the next entry closes the header. This retains
+    A field, an E/M element line, an ``E/M:`` label line or the next entry closes the header, so
+    a label's own NOT FOR ENTRY never rejects the entry above it. This retains
     readable historical worksheets whose official descriptor wrapped before the
     line-scoped marker; an element line's free text is never read as the marker.
     EM- lines exist only in worksheets written with the element block, which put NOT
@@ -126,7 +128,8 @@ def entry_is_for_entry(
 
     start = entries[index].start()
     end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
-    closers = [match.start() for pattern in (FIELD, EM_LINE_START) if (match := pattern.search(text, start, end))]
+    closers = [match.start() for pattern in (FIELD, EM_LINE_START, EM_LABEL_START)
+               if (match := pattern.search(text, start, end))]
     header = text[start : min(closers) if closers else end]
     return NOT_FOR_ENTRY.search(header) is None
 
@@ -189,9 +192,9 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
 
     The entry line itself ends at ``entry.end()``.  Every complete physical line
     after that and before the detail must contain text, begin with indentation, and not end a
-    body (``ends_body``): the one body rule ``body_end`` reads too. An entry's details also end
-    where its element block opens (``ends_details``): a field after an EM- line or an E/M label
-    is no entry's provenance, as em-elements.md and the E/M audit check-off read it.
+    body (``ends_body``): the one body rule ``body_end`` reads too. An element block in the body
+    ends nothing: em-elements.md puts an entry's fields before its block, and a field written
+    after the block is still the entry's, as the E/M audit check-off reads it.
     """
 
     if detail.start() <= entry.end():
@@ -199,7 +202,7 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     between = text[entry.end() : detail.start()]
     lines = between.splitlines()
     intervening = lines[1:] if lines else ()
-    return all(indented_line(line) and not ends_body(line) and not ends_details(line) for line in intervening)
+    return all(indented_line(line) and not ends_body(line) for line in intervening)
 
 
 def paired_entry(
@@ -223,6 +226,8 @@ MDM_LEVELS = ("straightforward", "low", "moderate", "high")
 # as selected_em reads it when it selects the final code.
 EM_LABEL = r"^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:"
 EM_CODE_LABEL = re.compile(rf"(?mi){EM_LABEL}[ \t]*(?P<code>\d{{5}})\b")
+# Where an E/M label line opens; it closes the header of the entry above it (``entry_is_for_entry``).
+EM_LABEL_START = re.compile(rf"(?mi){EM_LABEL}")
 
 
 def entry_region(text: str) -> str:
@@ -259,8 +264,9 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
     ``entries`` are ``read_entries`` of ``region``, whose lines are ``text``'s, so each line is
     numbered over ``text`` split on LF. An entry marked ``NOT FOR ENTRY``, an entry outside
     ``region``, and a label inside the body (``body_end``) of an E/M entry marked ``NOT FOR ENTRY``
-    are never selected: a rejected level is never the final one. A label inside the body of a
-    rejected diagnosis or procedure is selected as anywhere else. Rejected entries are found in
+    are never selected: a rejected level is never the final one, and neither is a label whose own
+    line is marked ``NOT FOR ENTRY``. A label inside the body of a rejected diagnosis or procedure
+    is selected as anywhere else. Rejected entries are found in
     ``entry_reading`` of the worksheet's mode, so a visible ``CPT: 99285 ... NOT FOR ENTRY`` rejects
     a label beneath it as its private copy does. ``lines`` is ``physical_lines(text)`` for the
     private mode, passed by a caller that already split it; the visible mode splits its own
@@ -270,19 +276,40 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
         raise ValueError("lines is the private worksheet's split; the visible mode splits its own reading")
     reading = entry_reading(text, private=private)
     lines = physical_lines(reading) if lines is None else lines
+    # ``region`` is a prefix of ``reading``, which keeps every line break of ``text``.
+    reading_starts, text_starts = line_starts(reading), line_starts(text)
     every = list(ENTRY.finditer(reading))
     rejected: set[int] = set()
     for index, match in enumerate(every):
         # Only a rejected level rejects a label inside it; a rejected diagnosis rejects no level.
         if not entry_is_for_entry(reading, every, index) and em_identity(match.group("system"), match.group("code")):
-            start = reading.count("\n", 0, match.start())
+            start = line_of(reading_starts, match.start())
             rejected.update(range(start + 1, body_end(lines, start)))
-    found = {(line, match.group("code")) for match in EM_CODE_LABEL.finditer(text)
-             if em_identity("CPT", match.group("code"))
-             and (line := text.count("\n", 0, match.start())) not in rejected}
-    found |= {(region.count("\n", 0, entry.start), entry.code.upper()) for entry in entries
+    found = set()
+    for match in EM_CODE_LABEL.finditer(text):
+        line = line_of(text_starts, match.start())
+        # A label whose own line is marked NOT FOR ENTRY is a rejected level too.
+        own = text[match.start():text_starts[line + 1] if line + 1 < len(text_starts) else len(text)]
+        if em_identity("CPT", match.group("code")) and line not in rejected and not NOT_FOR_ENTRY.search(own):
+            found.add((line, match.group("code")))
+    found |= {(line_of(reading_starts, entry.start), entry.code.upper()) for entry in entries
               if entry.for_entry and em_identity(entry.system, entry.code)}
     return tuple(sorted(found))
+
+
+def line_starts(text: str) -> list[int]:
+    """The offset where each line of ``text`` split on LF starts, for ``line_of``."""
+    starts = [0]
+    position = text.find("\n")
+    while position >= 0:
+        starts.append(position + 1)
+        position = text.find("\n", position + 1)
+    return starts
+
+
+def line_of(starts: list[int], offset: int) -> int:
+    """The LF line holding ``offset``: one bisect over ``line_starts`` instead of a count per match."""
+    return bisect_right(starts, offset) - 1
 
 
 def selected_em_lines(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> frozenset[int]:
@@ -353,16 +380,6 @@ def ends_body(line: str) -> bool:
     graders draw one body.
     """
     return not line.strip() or bool(ENTRY.match(line)) or block_heading_line(line)
-
-
-def ends_details(line: str) -> bool:
-    """Whether ``line`` opens or continues an element block: an EM- candidate or an E/M label.
-
-    The body runs on through the block (``body_end``), but no line after it is the entry's
-    provenance: ``detail_belongs_to_entry`` pairs nothing past it, and the check-off's body walk
-    counts a line there unplaced.
-    """
-    return bool(EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line))
 
 
 def indented_pieces(line: str) -> bool:

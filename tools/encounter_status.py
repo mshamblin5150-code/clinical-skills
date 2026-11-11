@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import digest, no_longer_a_file, private_target, read_openers
+from encounter_openers import digest, private_target, read_openers, read_or_changed
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report,
                                object_record, read_tool_record, update_tool_record)
 
@@ -51,12 +51,9 @@ def status_for(run: Path, note: int) -> dict:
     if item is None:
         raise StatusMissing("office encounter has no recorded patient status")
     evidence = Path(item["evidence_path"])
-    try:
-        evidence_bytes = evidence.read_bytes()
-    except OSError as error:
-        if no_longer_a_file(evidence):
-            raise EvidenceChanged("patient-status evidence is no longer a file where it was recorded") from error
-        raise
+    evidence_bytes = read_or_changed(
+        evidence, Path.read_bytes,
+        lambda: EvidenceChanged("patient-status evidence is no longer a file where it was recorded"))
     if digest(evidence_bytes) != item["evidence_sha256"]:
         raise EvidenceChanged("patient-status evidence changed")
     return dict(item)

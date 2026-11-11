@@ -58,7 +58,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
                                EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
-                               step_four_lines, worksheet_em_block)
+                               line_of, line_starts, step_four_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -129,7 +129,10 @@ DECLARED_LIMITS = (
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line "
     "owns, such as one after a blank line, an E/M label no rule selects with every field under "
-    "it, and any line after an element block, are counted unread. Indented prose no entry owns, "
+    "it, and any line after an element block other than a field of its entry, are counted unread; "
+    "a field after the block in the same body is the entry's own, in the graders as in the check-off. "
+    "A field under an E/M label written inside another entry's lines is the label's in the check-off "
+    "and that entry's in the graders, which read no E/M label. Indented prose no entry owns, "
     "such as a wrapped list item before the entries or the wrapped value of an orphaned field, "
     "is not a detail line and is not counted, so an orphaned field written without a field name "
     "is not seen. A code marked NOT FOR ENTRY in the region is rendered, marked, with its fields. A "
@@ -260,8 +263,13 @@ def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = N
     read by too: indented lines, and a field line while every body line before it is indented text,
     as ``detail_belongs_to_entry`` pairs a detail. A line continues the field above it, or the
     header before the first field. Element lines and an indented E/M label belong to the element
-    block, and any line after them, a field line included, is unplaced. With ``selected`` given, an
-    E/M label that is not a selected E/M line is unplaced itself, since nothing renders it.
+    block; a field line after the block is still the entry's own field (em-elements.md puts the
+    fields first, and either order pairs), and any other line after the block is unplaced. With
+    ``selected`` given, an E/M label that is not a selected E/M line is unplaced itself, and so is
+    every line under it but its EM- lines, which ``worksheet_em_block`` counts; a selected label
+    inside a plain entry's body owns every line under it as its own section, so this walk leaves
+    them unplaced and the caller excludes them as sectioned, while inside an E/M line's body it is
+    part of that line's block.
     """
     tail: list[str] = []
     fields: dict[str, list[str]] = {}
@@ -272,11 +280,18 @@ def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = N
         field = FIELD.match(line)
         if EM_CODE_LABEL.match(line) and selected is not None and position not in selected:
             unplaced.append(position)
-            state = "element"
+            state = "rejected"
+        elif EM_CODE_LABEL.match(line) and selected is not None and index not in selected:
+            # A selected label inside a plain entry's body owns the lines under it, its own section;
+            # inside an E/M line's body it is part of that line's block.
+            state = "label"
+        elif state in ("rejected", "label"):
+            if not EM_CANDIDATE.match(line):
+                unplaced.append(position)  # under another label: nothing here, or that label's section
         elif EM_CANDIDATE.match(line) or EM_CODE_LABEL.match(line):
             state = "element"
-        elif state == "element":
-            unplaced.append(position)  # after an element block nothing is provenance, a field line included
+        elif state == "element" and not field:
+            unplaced.append(position)  # after an element block only a field is the entry's provenance
         elif field:
             state = field.group("field").upper()
             fields.setdefault(state, []).append(line[field.end():].strip())
@@ -326,6 +341,7 @@ class PrivateWorksheet(NamedTuple):
     owners: tuple[int, ...]
     walks: dict[int, tuple[list[str], dict[str, list[str]], list[int], int]]
     sections: tuple[EmSection, ...]
+    region_starts: tuple[int, ...] = ()  # line_starts of ``region``
 
 
 def parse_private(text: str, read: review_manifest.PrivateRead | None = None) -> PrivateWorksheet:
@@ -343,6 +359,7 @@ def parse_private(text: str, read: review_manifest.PrivateRead | None = None) ->
         read = review_manifest.read_private(text)
     lines, region, entries = list(read.lines), read.region, read.entries
     matches = list(ENTRY.finditer(region))
+    region_starts = line_starts(region)
     starts, position = [], 0
     for line in lines:
         starts.append(position)
@@ -351,7 +368,7 @@ def parse_private(text: str, read: review_manifest.PrivateRead | None = None) ->
     region_lines = region.count("\n") if len(region) < len(text) else len(lines)
     physical = anchored(lines, selected=read.selected)
     # Each entry and each selected E/M line of the region owns a body; an unselected label owns none.
-    owners = sorted({region.count("\n", 0, match.start()) for match in matches}
+    owners = sorted({line_of(region_starts, match.start()) for match in matches}
                     | {index for index in physical.selected if index < region_lines})
     in_region = lines[:region_lines]
     walks = {index: entry_walk(in_region, index, physical.selected) for index in owners}
@@ -368,7 +385,7 @@ def parse_private(text: str, read: review_manifest.PrivateRead | None = None) ->
         claimed.update(range(index + 1, section.end))
         sections.append(section)
     return PrivateWorksheet(text, physical, tuple(text.splitlines()), tuple(starts), region, matches, entries,
-                            region_lines, tuple(owners), walks, tuple(sections))
+                            region_lines, tuple(owners), walks, tuple(sections), tuple(region_starts))
 
 
 # How the check-off quotes each block: with the terminator and line splitting of the grader that
@@ -441,7 +458,7 @@ def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str
         key = review_manifest.code_key(entry.system, entry.code)
         if entry.for_entry and key == "em":
             continue  # a selected E/M line, read by em_entry_lines
-        tail, fields, unplaced, _ = private.walks[region.count("\n", 0, match.start())]
+        tail, fields, unplaced, _ = private.walks[line_of(list(private.region_starts), match.start())]
         unread += len(set(unplaced) - sectioned)
         codes.append((key, entry.system.upper(), entry.code.upper(),
                       " ".join([entry.descriptor.strip(), *tail]), fields, entry.for_entry))
@@ -590,7 +607,7 @@ def time_based(block_: EmBlock) -> bool:
     return any(TIME_BASIS in rule.lower() for rule in block_.rules)
 
 
-def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
+def level_unread(block_: EmBlock, levels: MdmLevels | None, level_codes: list[str] | None = None) -> bool:
     """Whether the block's level against its MDM went unchecked for want of a readable descriptor.
 
     Only a code of the E/M families can be unread; a level naming any other code, or one the
@@ -598,7 +615,7 @@ def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
     """
     if levels is None or not levels.readable or block_.level is None or time_based(block_):
         return False
-    if level_code_findings(block_, levels):
+    if level_codes if level_codes is not None else level_code_findings(block_, levels):
         return False
     return block_.level not in levels.levels and block_.level not in levels.unleveled
 
@@ -614,7 +631,8 @@ def level_code_findings(block_: EmBlock, levels: MdmLevels | None) -> list[str]:
     return []
 
 
-def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None) -> list[str]:
+def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None,
+                          level_codes: list[str] | None = None) -> list[str]:
     """What an element block states against itself: the only checks a blind re-derivation takes.
 
     Counted items name an entry id and quote note text, ``none`` reads only ``none | not counted |
@@ -625,7 +643,8 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
     with the worksheet's decisions, so a blind reader who reaches another level shows only as a
     difference.
     """
-    found = level_code_findings(block_, levels)
+    # ``level_codes`` is ``level_code_findings`` of this block, from a caller that already read it.
+    found = list(level_codes if level_codes is not None else level_code_findings(block_, levels))
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
@@ -646,7 +665,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
 
 def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
                    *, answers_unread: bool = False, billed: frozenset[str] = frozenset(),
-                   levels: MdmLevels | None = None) -> list[str]:
+                   levels: MdmLevels | None = None, level_codes: list[str] | None = None) -> list[str]:
     """What the worksheet's element block states against itself and against the worksheet's decisions.
 
     ``rederivation_findings``, then the level against the selected code, the answer ids against the
@@ -654,7 +673,7 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
     leaves the answer ids ungraded: an unreadable answers record is incomplete coverage, not a
     record shown to lack them.
     """
-    found = rederivation_findings(block_, ids, levels)
+    found = rederivation_findings(block_, ids, levels, level_codes)
     if block_.level is not None and block_.level != selected:
         found.append(f"the block level {block_.level} differs from the selected code {selected}")
     named = [answer for answer in block_.answers if answer != "none"]
@@ -733,8 +752,7 @@ def ecg_findings(block_: EmBlock, billed: frozenset[str]) -> list[str]:
         return [f"the worksheet bills {', '.join(codes)}, but its EM-ECG line says not applicable"]
     found = []
     for code in codes:
-        token = re.compile(rf"(?<![0-9A-Za-z]){code}(?![0-9A-Za-z])")
-        named = [line for line in block_.ecg if token.search(line)]
+        named = [line for line in block_.ecg if code in {token.group() for token in ECG_TOKEN.finditer(line)}]
         if any(code in negated_codes(line) for line in named):
             found.append(f"the worksheet bills {code}, but its EM-ECG line says {code} is not billed")
         elif not named:
@@ -829,8 +847,9 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     lines = item_lines(rederived)
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
-    flaws = rederivation_findings(rederived, context.ids, context.levels)
-    if level_unread(rederived, context.levels):
+    level_codes = level_code_findings(rederived, context.levels)
+    flaws = rederivation_findings(rederived, context.ids, context.levels, level_codes)
+    if level_unread(rederived, context.levels, level_codes):
         tally.unread += 1
         lines += ["", f"- MDM level of {rederived.level} not checked: its CPT 2026 descriptor could not be read "
                   "for the service date; counted in the unread remainder"]
@@ -924,9 +943,8 @@ def note_answer_ids(context: Context, order: int) -> set[str] | None:
 
 
 def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, receipt: dict, context: Context,
-             tally: Tally, fingerprinted: bool) -> tuple[list[str], EmBlock | None]:
-    # The manifest codes as approval reads them: stripped and upper-cased, so " 93005 " is 93005.
-    codes = review_manifest.clean_codes(item["codes"])
+             tally: Tally, fingerprinted: bool, codes: dict) -> tuple[list[str], EmBlock | None]:
+    # ``codes`` are the manifest codes as approval reads them (clean_codes): " 93005 " is 93005.
     selected = codes["em"]
     cpt_source = receipt["sources"]["cpt"]
     mdm_name, mdm_digest = cpt_source["mdm_sheet_filename"], cpt_source["mdm_sheet_sha256"]
@@ -979,9 +997,10 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
                   if answer in (note_answers or ()) and context.answer_states.get(answer) == "unreadable"]
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
+    level_codes = level_code_findings(block_, context.levels)
     found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
-                           billed=frozenset(cpt), levels=context.levels)
-    if level_unread(block_, context.levels):
+                           billed=frozenset(cpt), levels=context.levels, level_codes=level_codes)
+    if level_unread(block_, context.levels, level_codes):
         tally.unread += 1
         lines.append(f"- MDM level of {block_.level} not checked: its CPT 2026 descriptor could not be read "
                      "for the service date; counted in the unread remainder")
@@ -1028,11 +1047,12 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         shown = [EM_ONLY_BLOCK] if text == EM_ONLY_BLOCK else quoted(text, "None recorded in the worksheet.")
         out += ["## " + SECTIONS[index], "", *shown, ""]
-    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted)
+    # The manifest codes as approval reads them, cleaned once for the note.
+    codes = review_manifest.clean_codes(item["codes"])
+    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted, codes)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, tally), ""]
-    selected = review_manifest.clean_codes(item["codes"])["em"]
-    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, selected, worksheet_block, tally, context), ""]
+    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, codes["em"], worksheet_block, tally, context), ""]
     out += ["## " + SECTIONS[8], "", *ATTESTATION, ""]
     return "\n".join(out)
 

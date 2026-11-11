@@ -933,7 +933,8 @@ required reading for both data and risk, with no new gate claim. The freshness m
 remains the code alone; provenance is carried by the rendered E/M line.
 
 **The element block and the pre-approval answers record.** Under the private worksheet's E/M
-line, write the element block defined in
+line, after the line's own ANCHOR, SOURCE, SPECIFICITY and CONFIDENCE fields, write the element
+block defined in
 [em-elements.md](../_shared/reference/em-elements.md): every problem, data item and risk this step
 weighed, counted or not, with its CPT MDM sheet entry id and verbatim note text, then the rules,
 answers, ECG limb, MDM line and selected level. Record every question this step puts before

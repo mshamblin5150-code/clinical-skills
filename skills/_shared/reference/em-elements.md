@@ -8,10 +8,12 @@ the [em-audit](../../em-audit/SKILL.md) re-derivation writes an element block of
 
 ## The element block
 
-In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces directly
-under either E/M line the code reader accepts (an `E/M:` label line naming an office or
-emergency department E/M code, or an E/M-family `CPT` entry for entry, each at the margin or
-indented), one element per physical line, with no blank line inside the block. A label written
+In the private worksheet `worksheets/<note stem>.md`, write one block, indented two spaces, under
+either E/M line the code reader accepts (an `E/M:` label line naming an office or emergency
+department E/M code, or an E/M-family `CPT` entry for entry, each at the margin or indented),
+after the entry's own fields: the line, its `ANCHOR`, its `SOURCE` if any, `SPECIFICITY` and
+`CONFIDENCE`, then the EM- lines, one element per physical line, with no blank line inside the
+block. A label written
 inside that entry's own indented lines belongs to the same block. An icd10-cpt step 4 block
 heading, at the margin or indented, ends the block; any other line inside it, a heading-shaped one
 included, is counted unread. An E/M entry marked `NOT FOR ENTRY` is a rejected level, and so is a label written
@@ -50,13 +52,19 @@ counted unread:
 - The manifest build records a fingerprint of the whole private worksheet in its own file beside
   the manifest; after editing the worksheet, build again, or the E/M audit check-off refuses. An
   edit that changes no selected code leaves the manifest byte-identical.
-- A counted line names a real entry id and quotes note text. A field line written after the
-  block under the same E/M line is unread, never that line's provenance.
+- A counted line names a real entry id and quotes note text. A field written after the block in
+  the same indented body is still the line's own field, so either order reads; a field separated
+  from it by a blank line, or under another entry, is not this line's: it belongs to nothing and is
+  unread, or to that other entry. An `E/M:` label line ends the header of the entry above it, and a
+  label whose own line ends in `NOT FOR ENTRY` is a rejected level.
 
 Synthetic example, an established office patient:
 
 ```text
-E/M: 99213 Office or other outpatient visit, established patient, low MDM
+CPT 99213 Office or other outpatient visit, established patient, low MDM
+  ANCHOR: "Diabetes stable, continue metformin"
+  SPECIFICITY: complete - an established office visit at low MDM; nothing further qualifies the code
+  CONFIDENCE: verified against CPT 2026
   EM-PROBLEM: definition-stable-chronic | counted | "Diabetes stable, continue metformin" | evaluated and continued
   EM-PROBLEM: definition-stable-chronic | not counted | "History of hypertension" | no evaluation or treatment documented; answer note-1.q1
   EM-DATA: none | not counted | none | no test documented

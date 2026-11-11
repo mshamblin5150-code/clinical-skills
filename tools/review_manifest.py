@@ -16,8 +16,8 @@ import re
 
 import coding_freshness
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import (OpenerChanged, OpenerRecordMissing, digest, no_longer_a_file, private_target,
-                               read_openers)
+from encounter_openers import (OpenerChanged, OpenerRecordMissing, digest, private_target, read_openers,
+                               read_or_changed)
 from encounter_status import EvidenceChanged, StatusMissing, status_for
 from worksheet_grammar import (ENTRY_CANDIDATE, WorksheetEntry, em_identity, entry_reading, entry_region,
                                physical_lines, read_entries, selected_em)
@@ -116,12 +116,10 @@ def read_text(path: Path) -> str:
 
 def recorded_text(path: Path, recorded: bool) -> str:
     """``read_text`` of a file a recorded manifest item names; no longer a file there is a change after it."""
-    try:
+    if not recorded:
         return read_text(path)
-    except OSError as error:
-        if recorded and no_longer_a_file(path):
-            raise StaleRecord(f"{path.name} is no longer a file where the manifest recorded it") from error
-        raise
+    return read_or_changed(path, read_text,
+                           lambda: StaleRecord(f"{path.name} is no longer a file where the manifest recorded it"))
 
 
 def _codes_or_refusal(text: str, *, private: bool,
@@ -169,10 +167,10 @@ def _content(run: Path, item: dict,
     read = read_private(private)
     codes, refusal = _codes_or_refusal(private, private=True, read=read)
     if codes != expected:
-        # A recorded fingerprint binds this worksheet to a build: a worksheet that changed after it,
-        # or one it already binds because build wrote the record and then failed to write the
-        # manifest, means the manifest is the stale record.
-        moved = private_sha256 is not None
+        # Stale only where the worksheet moved from its recorded fingerprint. One that still matches
+        # it changed nothing the run records, so the manifest never matched it (a build that wrote
+        # the record and then failed to write the manifest): refused, and rebuilt.
+        moved = private_sha256 is not None and private_sha256 != private_worksheet_sha256(private)
         raise (StaleRecord if moved else ValueError)(_disagreement("private", refusal)) from refusal
     return note, worksheet, private, code_hash, digest(fields.encode("utf-8")), read
 

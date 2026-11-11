@@ -151,14 +151,21 @@ def no_longer_a_file(path: Path) -> bool:
         return False
 
 
-def bound_bytes(path: Path, name: str) -> bytes:
-    """The bytes of a file the opener record bound; gone as a file is a change, other errors stay unreadable."""
+def read_or_changed(path: Path, read, changed):
+    """``read(path)``; where the path is no longer a file (``no_longer_a_file``) raise ``changed()``
+    instead, so a record's file that is gone reads as a change; any other error stays unreadable."""
     try:
-        return path.read_bytes()
+        return read(path)
     except OSError as error:
         if no_longer_a_file(path):
-            raise OpenerChanged(f"{name} is no longer a file where opener reading found it") from error
+            raise changed() from error
         raise
+
+
+def bound_bytes(path: Path, name: str) -> bytes:
+    """The bytes of a file the opener record bound; gone as a file is a change, other errors stay unreadable."""
+    return read_or_changed(path, Path.read_bytes,
+                           lambda: OpenerChanged(f"{name} is no longer a file where opener reading found it"))
 
 
 def read_openers(run: Path) -> dict:
