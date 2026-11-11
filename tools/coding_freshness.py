@@ -74,23 +74,38 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     """The committed version of the sheet at ``path`` whose fingerprint is ``digest``.
 
     The path's history is walked newest first, each version hashed by ``sheet_sha256``, so a
-    receipt keeps reading the sheet it bound after later commits change it. None when no version
-    matches, the path is outside this checkout, or git cannot be run.
+    receipt keeps reading the sheet it bound after later commits change it. Two git processes
+    read it: ``git log -z`` lists the commits, and one ``git cat-file --batch`` returns every
+    version. None when no version matches, the path is outside this checkout, or git cannot be run.
     """
     try:
         relative = path.relative_to(ROOT).as_posix()
-        log = subprocess.run(["git", "log", "--format=%H", "--", relative], cwd=ROOT, capture_output=True)
+        log = subprocess.run(["git", "log", "-z", "--format=%H", "--", relative], cwd=ROOT, capture_output=True)
+        if log.returncode:
+            return None
+        commits = [commit for commit in log.stdout.decode("ascii", errors="replace").split("\0") if commit.strip()]
+        if not commits:
+            return None
+        request = "".join(f"{commit.strip()}:{relative}\n" for commit in commits).encode("utf-8")
+        batch = subprocess.run(["git", "cat-file", "--batch"], cwd=ROOT, input=request, capture_output=True)
     except (OSError, ValueError):
         return None
-    if log.returncode:
+    if batch.returncode:
         return None
-    for commit in log.stdout.decode("ascii", errors="replace").split():
-        try:
-            version = subprocess.run(["git", "show", f"{commit}:{relative}"], cwd=ROOT, capture_output=True)
-        except OSError:
+    output, position = batch.stdout, 0
+    for _ in commits:
+        end = output.find(b"\n", position)
+        if end < 0:
             return None
-        if version.returncode == 0 and sheet_sha256(version.stdout) == digest:
-            return version.stdout
+        header = output[position:end].split()
+        position = end + 1
+        if len(header) != 3 or header[1] != b"blob" or not header[2].isdigit():
+            continue  # "<object> missing", or not a file at that commit
+        size = int(header[2])
+        version = output[position:position + size]
+        position += size + 1
+        if sheet_sha256(version) == digest:
+            return version
     return None
 
 

@@ -36,7 +36,12 @@ its missing element blocks and re-derivations as not graded.
 
 Done when it prints `notes in run` and exits 0 or 1. Exit 2 with `refused` means the manifest or
 receipt is missing or stale, or a private worksheet changed after the manifest recorded it;
-icd10-cpt rebuilds them, then repeat this step.
+icd10-cpt rebuilds them, then repeat this step. Exit 2 with a nonzero `unread remainder` means a
+record or line could not be read: run it again with `--write`, read the check-off, which names
+each one, repair what it names and repeat this step. One unread cause has no repair: a manifest that predates the private worksheet
+fingerprint counts one unread member per note. Keep the manifest as it stands: an approval binds
+the manifest it was given, and a rebuild would leave that approval binding a manifest the run no
+longer holds. Tell the clinician that count; when it is the only unread cause, this step is done.
 
 ## 2. Re-derive every note
 
@@ -55,7 +60,8 @@ and it exits 0, or exits 1 only for `DIFFERS` lines the clinician has seen with 
 before approval. Each difference is his to rule on through icd10-cpt, and the check-off keeps it as
 found. A `FINDING` is a defect in the coding record, not a ruling for him: correct the element
 block through icd10-cpt, rebuild the manifest and render again before approval. On exit 2, repair
-what the `unread remainder` counts and render again.
+what the `unread remainder` counts as step 1 directs and render again; when its only members are
+the fingerprint count step 1 keeps, this step is done on that exit.
 
 ## 4. Hand over
 

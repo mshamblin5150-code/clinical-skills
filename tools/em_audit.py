@@ -48,9 +48,9 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
-                               UNDOCUMENTED_HEADING, EmBlock, block_text, detail_belongs_to_entry, em_block,
-                               entry_region, indented_line, opens_element_block, paired_entry, physical_lines,
-                               read_entries, selected_em_lines, worksheet_em_block)
+                               UNDOCUMENTED_HEADING, EmBlock, WorksheetEntry, block_text, detail_belongs_to_entry,
+                               element_body_end, em_block, entry_region, indented_line, paired_entry,
+                               physical_lines, read_entries, selected_em_lines, worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -93,7 +93,9 @@ DECLARED_LIMITS = (
     "undocumented block, which no grader reads, takes refusal_scan's. A selected E/M line whose "
     "indented body holds an element line is skipped with the element lines of that body; its other "
     "lines, and any other line, an E/M entry marked NOT FOR ENTRY included, stay the block's text "
-    "as the grader reads them.",
+    "as the grader reads them. The graders keep their own readers and read the skipped lines as "
+    "block text too, which is measured to grade nothing on the placement em-elements.md defines; "
+    "another placement is not measured.",
     "Element candidates are any upper-case EM- name and the eight element names in any case and "
     "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
@@ -109,7 +111,10 @@ DECLARED_LIMITS = (
     "The private worksheet is bound to the approved records only through the manifest's whole-file "
     "fingerprint, which the check-off compares and approval validation does not; a changed file "
     "refuses the check-off. A manifest without it is counted unread on each check-off, or not "
-    "graded for a run whose approval predates the em_audit start. At submission, a run "
+    "graded for a run whose approval predates the em_audit start; it has no repair, since a "
+    "rebuilt manifest is not the one an existing approval binds. At submission, a changed private "
+    "worksheet, a stale manifest or receipt, or a bound sheet version the parser refuses is a "
+    "finding, and a missing or unreadable record is incomplete. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
     "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
     "record is not graded, so a note-path run whose opener record is lost reads the same way.",
@@ -230,7 +235,43 @@ def entry_details(lines: list[str], index: int) -> tuple[list[str], dict[str, li
     return tail, fields, unplaced, end
 
 
-def for_entry_codes(private: str) -> tuple[list[tuple[str, str, str, str, dict[str, list[str]]]], int]:
+class PrivateWorksheet(NamedTuple):
+    """One private worksheet, parsed once for its check-off.
+
+    ``lines`` splits on LF alone (``physical_lines``) and ``split`` as the graders split
+    (``str.splitlines``); ``region`` is the for-entry region with its ``ENTRY`` matches and
+    ``read_entries``, and ``region_lines`` the number of ``lines`` inside it. ``anchors`` are the
+    selected E/M lines numbered over ``lines`` and ``quoted_anchors`` the same lines numbered over
+    ``split``. The handwritten reader turns every CR into LF, so ``lines`` joined by LF is ``text``.
+    """
+
+    text: str
+    lines: list[str]
+    split: list[str]
+    region: str
+    matches: list[re.Match[str]]
+    entries: list[WorksheetEntry]
+    region_lines: int
+    anchors: frozenset[int]
+    quoted_anchors: frozenset[int]
+
+
+def parse_private(text: str) -> PrivateWorksheet:
+    lines = physical_lines(text)
+    region = entry_region(text)
+    matches, entries = list(ENTRY.finditer(region)), read_entries(region)
+    anchors = selected_em_lines(lines, (region, matches, entries))
+    # Where each LF line starts among the splitlines lines: a line holding another separator splits there.
+    starts, position = [], 0
+    for line in lines:
+        starts.append(position)
+        position += len((line + "\n").splitlines())
+    return PrivateWorksheet(text, lines, text.splitlines(), region, matches, entries,
+                            region.count("\n") if len(region) < len(text) else len(lines),
+                            anchors, frozenset(starts[index] for index in anchors))
+
+
+def for_entry_codes(private: PrivateWorksheet) -> tuple[list[tuple[str, str, str, str, dict[str, list[str]]]], int]:
     """Each non-E/M for-entry code as the manifest validation reads it, and the detail lines left unread.
 
     A code is (key, system, code, descriptor, fields), each value joined across its wrapped lines.
@@ -238,13 +279,12 @@ def for_entry_codes(private: str) -> tuple[list[tuple[str, str, str, str, dict[s
     uses. A field line ``worksheet_grammar.paired_entry`` gives no entry or E/M label, or an indented
     line no field owns, is counted unread rather than dropped; E/M lines are read by ``em_entry_lines``.
     """
-    region = entry_region(private)
-    matches = list(ENTRY.finditer(region))
+    region, matches = private.region, private.matches
     owners = sorted(matches + list(EM_CODE_LABEL.finditer(region)), key=lambda match: match.start())
     unread = sum(paired_entry(region, owners, field) is None for field in FIELD.finditer(region))
-    lines = physical_lines(region)
+    lines = private.lines[:private.region_lines]
     codes = []
-    for match, entry in zip(matches, read_entries(region)):
+    for match, entry in zip(matches, private.entries):
         key = review_manifest.code_key(entry.system, entry.code)
         if not entry.for_entry or key == "em":
             continue
@@ -267,21 +307,19 @@ def field_lines(fields: dict[str, list[str]], *, defaults: bool) -> list[str]:
     return out
 
 
-def em_entry_lines(private: str, tally: Tally, selected: frozenset[int]) -> list[str]:
+def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
     """Every E/M line of the private worksheet with its wrapped header and provenance fields.
 
     An E/M line is one in the for-entry region, or one after it that opens its element block; an
     entry written inside an icd10-cpt step 4 block is that block's text, never an E/M line.
     """
-    lines = physical_lines(private)
-    region = entry_region(private)
-    region_lines = region.count("\n") if len(region) < len(private) else len(lines)
+    lines, selected = private.lines, private.anchors
     out: list[str] = []
     claimed: set[int] = set()
     for index, line in enumerate(lines):
         if index in claimed or index not in selected:
             continue
-        if index >= region_lines and not opens_element_block(lines, index, selected):
+        if index >= private.region_lines and element_body_end(lines, index, selected) is None:
             continue
         tail, fields, unplaced, end = entry_details(lines, index)
         claimed.update(range(index + 1, end))
@@ -512,7 +550,7 @@ def status_text(item: dict) -> str:
     return f"{value}; evidence: {evidence}" + (f"; pointer: {pointer}" if pointer else "")
 
 
-def code_lines(private: str, tally: Tally) -> list[str]:
+def code_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
     out: list[str] = []
     codes, unread = for_entry_codes(private)
     tally.unread += unread
@@ -547,29 +585,33 @@ class Context:
                               else {entry["id"]: entry["verification"] for entry in self.answers["answers"]})
 
 
-def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict, context: Context,
-             tally: Tally, anchors: frozenset[int]) -> tuple[list[str], EmBlock | None]:
-    selected = item["codes"]["em"].strip().upper()
+def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, receipt: dict, context: Context,
+             tally: Tally) -> tuple[list[str], EmBlock | None]:
+    # The manifest codes as approval reads them: stripped and upper-cased, so " 93005 " is 93005.
+    codes = review_manifest.clean_codes(item["codes"])
+    selected = codes["em"]
     cpt_source = receipt["sources"]["cpt"]
     mdm_name, mdm_digest = cpt_source["mdm_sheet_filename"], cpt_source["mdm_sheet_sha256"]
     marks = sorted(set(FILLED_MARK.findall(worksheet + "\n" + note)))
     tally.marks += len(marks)
     tally.systems["em"] += 1
-    cpt = set(item["codes"].get("cpt", []))
+    cpt = set(codes["cpt"])
     ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none"),
-             *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally, anchors)]
+             *["- ECG code: " + line for line in ecg], *em_entry_lines(private, tally)]
     if "private_worksheet_sha256" not in item:
         if tally.predates:
             lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
                          "not graded, because the run's approval predates the E/M audit check.")
         else:
+            # A rebuilt manifest would no longer be the one an existing approval binds, so the
+            # missing fingerprint is reported as unread coverage and never repaired by a rebuild.
             tally.unread += 1
             lines.append("- Private worksheet: not bound to the manifest, which predates its fingerprint; "
-                         "an edit after the manifest is not detected. Rebuild the manifest. Counted in the "
-                         "unread remainder.")
-    elements = worksheet_em_block(private, anchors)
+                         "an edit after the manifest is not detected, so this note is counted in the unread "
+                         "remainder. An approval binding this manifest stays valid only while it is kept.")
+    elements = worksheet_em_block(private.text, private.anchors, private.lines)
     block_ = elements.block
     tally.unread += elements.outside
     if block_ is None:
@@ -614,7 +656,8 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
 
 
 def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, worksheet: str,
-          private: str, context: Context, tally: Tally) -> str:
+          private_text: str, context: Context, tally: Tally) -> str:
+    private = parse_private(private_text)
     stem = Path(item["note_path"]).stem
     identifier, order, total = item["id"], item["order"], len(manifest["encounters"])
     setting = "office" if item["setting"] == "office" else "emergency department"
@@ -630,21 +673,17 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
             f"- Rendered from {review_manifest.MANIFEST}, worksheets/{stem}.md and {visible_name}",
             "- Coding content fingerprint: " + item["normalized_sha256"], ""]
     out += ["## " + SECTIONS[1], "", *code_lines(private, tally), ""]
-    # The selected E/M lines, read once for each line-splitting rule: the graders' for the quoted
-    # blocks, and LF-only for the element block and the E/M section.
-    quoted_anchors = selected_em_lines(private.splitlines())
-    anchors = selected_em_lines(physical_lines(private))
     blocks = ((BLOCK_HEADING, "filled"), (REFUSAL_HEADING, "refusal"), (UNDOCUMENTED_HEADING, "undocumented"))
     for index, (heading, kind) in enumerate(blocks, start=2):
-        # Each block is quoted with its grader's terminator and line splitting, so it is the text graded.
-        text = block_text(private, heading, kind, quoted_anchors)
+        # Each block is quoted with its grader's terminator and line splitting, less the E/M section.
+        text = block_text(private.text, heading, kind, private.quoted_anchors, private.split)
         attribute = kind + "_blocks"
         setattr(tally, attribute, getattr(tally, attribute) + (text is not None))
         out += ["## " + SECTIONS[index], "", *quoted(text, "None recorded in the worksheet."), ""]
-    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, anchors)
+    lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, item, tally), ""]
-    selected = item["codes"]["em"].strip().upper()
+    selected = review_manifest.clean_codes(item["codes"])["em"]
     out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, selected, worksheet_block, tally), ""]
     out += ["## " + SECTIONS[8], "", *ATTESTATION, ""]
     return "\n".join(out)
@@ -831,6 +870,16 @@ def selects_em_level(run: Path) -> bool:
     return False
 
 
+# The records whose absence marks a direct consultation: specificity_scan reads the same names
+# before importing this module, and test_em_audit binds the two.
+RUN_RECORDS = (review_manifest.MANIFEST, NOTE_PATH_MARKER)
+STALE_FINDINGS = {
+    review_manifest.StaleRecord: "the manifest or its freshness receipt is stale against the run",
+    PrivateWorksheetMoved: "a private worksheet changed after the manifest recorded it",
+    SheetMoved: "the CPT MDM sheet version the receipt bound does not parse",
+}
+
+
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     """Grade every note of a coded run at its terminal submission: finding, report, unread.
 
@@ -838,17 +887,17 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
     to a fresh render. Differences from the re-derivation are counted, not failed: icd10-cpt
     shows each one to the clinician before approval.
     """
+    if submission is None:
+        return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied", 0
+    run = run.resolve()
+    if not any((run / name).exists() for name in RUN_RECORDS):
+        return False, (f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no encounter "
+                       "opener record, so it is a direct consultation rather than the note path"), 0
     import completion_checks
     frozen = completion_checks.exemption(run, submission, "em_audit", EXPECTED_ROW)
     if frozen is not None:
         return False, frozen, 0
-    if submission is None:
-        return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied", 0
-    run = run.resolve()
     if not (run / review_manifest.MANIFEST).exists():
-        if not (run / NOTE_PATH_MARKER).exists():
-            return False, (f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no encounter "
-                           "opener record, so it is a direct consultation rather than the note path"), 0
         if selects_em_level(run):
             return False, (f"{EXPECTED_ROW}: incomplete - a worksheet selects an E/M level, but the run has "
                            "no coding manifest to render its check-offs from"), 1
@@ -860,8 +909,11 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
         return False, f"{EXPECTED_ROW}: incomplete - a coding record is unreadable", 0 if collecting_errors() else 1
     except DamagedRecord:
         return True, f"{EXPECTED_ROW}: finding - a coding record carries content damage", 0
+    except (review_manifest.StaleRecord, PrivateWorksheetMoved, SheetMoved) as error:
+        # A record that read but no longer matches the run is a defect of the run, not unread coverage.
+        return True, f"{EXPECTED_ROW}: finding - {STALE_FINDINGS[type(error)]}", 0
     except (OSError, UnicodeError, ValueError, KeyError, TypeError):
-        return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or stale", 1
+        return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or cannot be read", 1
     stale = unreadable = 0
     # A fresh render that left something unread is not the check-off a complete read would write, so
     # a difference from it is incomplete coverage, never a stale check-off.
@@ -880,7 +932,9 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str, int]:
               + ("" if compared else "; check-offs not compared, the fresh render left a record unread"))
     if has_finding(tally, differences=False, stale=stale):
         return True, f"{EXPECTED_ROW}: finding - {counts}", unread
-    return False, f"{EXPECTED_ROW}: " + ("incomplete - " if unread else "clean - ") + counts, unread
+    # A capturing command counts a fault itself, so unread can be zero while the render was partial.
+    partial = unread or tally.faults or unreadable
+    return False, f"{EXPECTED_ROW}: " + ("incomplete - " if partial else "clean - ") + counts, unread
 
 
 WORD_REFUSALS = {

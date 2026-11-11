@@ -175,12 +175,16 @@ class TheStrictReader(unittest.TestCase):
         self.assertIn(0, grammar.selected_em_lines(["CPT 99284 Emergency visit", "", "  reasoning"]))
 
     def test_z4_an_element_block_inside_a_step_four_block_is_skipped_not_an_end(self):
+        # Eleventh review: the graders read the E/M section as block text, as main read it; only the
+        # check-off quotation leaves it out, and neither treats it as the end of the block.
         import anchor_scan
         import refusal_scan
         filled = "---CODED, ANCHOR WAS FILLED---\n" + EM_LINE + BLOCK + "Z68.36\n"
-        self.assertEqual((["Z68.36"], True), anchor_scan._block_lines(filled))
+        self.assertEqual(([*(EM_LINE + BLOCK).splitlines(), "Z68.36"], True), anchor_scan._block_lines(filled))
+        self.assertEqual("Z68.36", grammar.block_text(filled, grammar.BLOCK_HEADING, "filled"))
         refused = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK + "more\n"
-        self.assertEqual((["refused", "more"], True), refusal_scan._block_lines(refused.splitlines()))
+        self.assertEqual((["refused", *(EM_LINE + BLOCK).splitlines(), "more"], True),
+                         refusal_scan._block_lines(refused.splitlines()))
         self.assertEqual("refused\nmore", grammar.block_text(refused, grammar.REFUSAL_HEADING, "refusal"))
 
     def test_n2_for_entry_is_read_by_the_manifest_rule_over_the_entry_region(self):
@@ -201,8 +205,7 @@ class TheStrictReader(unittest.TestCase):
         import refusal_scan
         text = ("---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + "  a note the grader reads\n"
                 + BLOCK + "more\n")
-        self.assertEqual((["refused", "  a note the grader reads", "more"], True),
-                         refusal_scan._block_lines(text.splitlines()))
+        self.assertEqual((text.splitlines()[1:], True), refusal_scan._block_lines(text.splitlines()))
         self.assertEqual("refused\n  a note the grader reads\nmore",
                          grammar.block_text(text, grammar.REFUSAL_HEADING, "refusal"))
 

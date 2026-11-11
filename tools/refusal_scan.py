@@ -28,7 +28,7 @@ import run_grader
 import icd10_lookup
 from run_grader import EvidenceDisposition
 from worksheet_grammar import (
-    ANY_HEADING, CODE, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts, step_four_block,
+    ANY_HEADING, CODE, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts,
 )
 
 
@@ -161,12 +161,16 @@ class Scan:
 
 
 def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
-    """The refusal block's lines, to ``ANY_HEADING`` from the first heading.
+    start = next((i for i, line in enumerate(lines) if REFUSAL_HEADING.search(line)), None)
+    if start is None:
+        return [], False
 
-    The shared icd10-cpt step 4 reader em_audit's check-off quotes from; it adds only the end at a
-    selected E/M line that opens its element block.
-    """
-    return step_four_block(lines, REFUSAL_HEADING, ANY_HEADING)
+    block: list[str] = []
+    for line in lines[start + 1 :]:
+        if ANY_HEADING.match(line):
+            break
+        block.append(line)
+    return block, True
 
 
 def _entry_sets(lines: list[str]) -> tuple[set[str], set[str]]:

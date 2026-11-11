@@ -282,6 +282,14 @@ def decode_receipt(text: str) -> dict:
     return coding_freshness.receipt_record(text)
 
 
+class StaleRecord(ValueError):
+    """The manifest or its freshness receipt no longer matches the run it was built from.
+
+    A reader can tell a stale record, which is a defect of the run, from one that is missing or
+    cannot be read, which leaves coverage incomplete; every other caller reads a ``ValueError``.
+    """
+
+
 @dataclass(frozen=True)
 class ValidatedEncounter:
     item: dict
@@ -305,17 +313,17 @@ def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]
     manifest = manifest_for(run, batch=batch)
     openers = read_openers(run)
     if manifest["service_date"] != openers["service_date"] or len(manifest["encounters"]) != len(openers["encounters"]):
-        raise ValueError("opener population or service date changed")
+        raise StaleRecord("opener population or service date changed")
     notes, worksheets, encounters = [], [], []
     for item, opener in zip(manifest["encounters"], openers["encounters"]):
         note, worksheet, private_text, code_hash, field_hash = _content(run, item)
         encounters.append(ValidatedEncounter(item, note, worksheet, private_text))
         if code_hash != item["normalized_sha256"] or field_hash != item["field_block_sha256"]:
-            raise ValueError("manifest is stale against current notes or worksheets")
+            raise StaleRecord("manifest is stale against current notes or worksheets")
         if item["opener"] != {key: opener[key] for key in ("name", "age", "sex")}:
-            raise ValueError("opener details changed")
+            raise StaleRecord("opener details changed")
         if item["setting"] == "office" and item["patient_status"] != status_for(run, item["order"]):
-            raise ValueError("patient status changed")
+            raise StaleRecord("patient status changed")
         notes.append(resolve(run, item["note_path"]))
         private = run / "worksheets" / (notes[-1].stem + ".md")
         if resolve(run, item["private_worksheet_path"]) != private:
@@ -325,9 +333,10 @@ def _validated(run: Path, *, batch: bool | None) -> tuple[Binding, ValidatedRun]
     receipt = read_tool_record(receipt_path, decode_receipt)
     findings = []
     population = coding_freshness.read_encounters(manifest, findings)
-    if (receipt is None or receipt["service_date"] != manifest["service_date"]
-            or receipt["encounters"] != population or findings):
-        raise ValueError("freshness receipt is missing or stale")
+    if receipt is None:
+        raise ValueError("freshness receipt is missing")
+    if receipt["service_date"] != manifest["service_date"] or receipt["encounters"] != population or findings:
+        raise StaleRecord("freshness receipt is stale")
     sources = (run / MANIFEST, receipt_path)
     binding = Binding(sources, tuple(notes), tuple(worksheets), (*notes, *worksheets, *sources))
     return binding, ValidatedRun(manifest, receipt, tuple(encounters))

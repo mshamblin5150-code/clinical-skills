@@ -225,7 +225,8 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def selected_em_lines(lines: list[str]) -> frozenset[int]:
+def selected_em_lines(lines: list[str], read: tuple[str, list[re.Match[str]], list[WorksheetEntry]] | None = None
+                      ) -> frozenset[int]:
     """The indexes of the selected E/M lines, read in one pass over the worksheet.
 
     A selected E/M line sits at the margin, the placement em-elements.md defines, and is the
@@ -233,10 +234,15 @@ def selected_em_lines(lines: list[str]) -> frozenset[int]:
     an E/M-family ``CPT`` entry of the for-entry region that ``read_entries`` marks for entry. An
     indented anchor, an entry marked ``NOT FOR ENTRY`` and a ``CPT`` entry outside that region are
     never the line an element block, a block skip or the check-off's E/M section is anchored to.
+    ``read`` is the ``entry_region`` of these lines joined by LF, with its ``ENTRY`` matches and
+    its ``read_entries``, passed by a caller that already parsed them.
     """
     selected = {index for index, line in enumerate(lines) if line[:1].strip() and EM_CODE_LABEL.match(line)}
-    region = entry_region("\n".join(lines))
-    for match, entry in zip(ENTRY.finditer(region), read_entries(region)):
+    if read is None:
+        region = entry_region("\n".join(lines))
+        read = region, list(ENTRY.finditer(region)), read_entries(region)
+    region, matches, entries = read
+    for match, entry in zip(matches, entries):
         if (entry.for_entry and entry.system.upper() == "CPT" and entry.code.upper() in EM_CODES
                 and match.group(0)[:1].strip()):
             selected.add(region.count("\n", 0, match.start()))
@@ -254,16 +260,6 @@ def physical_lines(text: str) -> list[str]:
 
 # The line anchor_scan ends its icd10-cpt step 4 block at; refusal_scan ends its own at ANY_HEADING.
 OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
-
-
-def opens_element_block(lines: list[str], index: int, selected: frozenset[int]) -> bool:
-    """Whether the margin line at ``index`` is a selected E/M line whose indented body holds an EM- line.
-
-    em-elements.md places the element block indented directly under an E/M line, so an entry
-    written inside an icd10-cpt step 4 block with no element line beneath it never qualifies, and
-    neither does a margin code that is not a selected E/M line.
-    """
-    return element_body_end(lines, index, selected) is not None
 
 
 def indented_line(line: str) -> bool:
@@ -292,15 +288,17 @@ def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> 
 
 def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
                     every: bool = False, selected: frozenset[int] | None = None) -> tuple[list[str], bool]:
-    """The lines under an icd10-cpt step 4 heading, and whether the heading was found.
+    """The lines the check-off quotes under an icd10-cpt step 4 heading, and whether it was found.
 
-    The caller supplies the lines, split as it splits them, and the terminator it grades by:
+    The caller supplies the lines, split as the grader splits them, and the grader's terminator:
     refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING``
-    under ``every`` heading. The one shared addition is the E/M section: inside a block, a selected
-    E/M line that opens its element block is skipped with the EM- lines of its body, and every
-    other line of that body is read as the grader reads it, so nothing else is dropped. A worksheet
-    without an element block never has one. ``selected`` is ``selected_em_lines`` of these lines,
-    computed here unless the caller already holds it.
+    under ``every`` heading. The one difference from the grader is the E/M section: inside a
+    block, a selected E/M line that opens its element block is skipped with the EM- lines of its
+    body, and every other line of that body is kept as the grader reads it. The graders keep their
+    own readers and read the E/M section as block text, which grades nothing in either of them on
+    the placement em-elements.md defines (measured in test_em_audit). A worksheet without an
+    element block quotes exactly the grader's lines. ``selected`` is ``selected_em_lines`` of
+    these lines, computed here unless the caller already holds it.
     """
     collected: list[str] = []
     found = inside = False
@@ -334,13 +332,16 @@ BLOCK_READERS = {
 }
 
 
-def block_text(text: str, heading: re.Pattern[str], kind: str, selected: frozenset[int] | None = None) -> str | None:
-    """One icd10-cpt step 4 block as its grader reads it (``BLOCK_READERS``); None when the heading is absent.
+def block_text(text: str, heading: re.Pattern[str], kind: str, selected: frozenset[int] | None = None,
+               lines: list[str] | None = None) -> str | None:
+    """One icd10-cpt step 4 block as ``step_four_block`` quotes it (``BLOCK_READERS``); None without its heading.
 
-    ``selected`` is ``selected_em_lines(text.splitlines())``, passed by a caller quoting several blocks.
+    ``lines`` is ``text.splitlines()`` and ``selected`` its ``selected_em_lines``, both passed by a
+    caller quoting several blocks of one worksheet.
     """
     end, every = BLOCK_READERS[kind]
-    collected, found = step_four_block(text.splitlines(), heading, end, every=every, selected=selected)
+    lines = text.splitlines() if lines is None else lines
+    collected, found = step_four_block(lines, heading, end, every=every, selected=selected)
     return "\n".join(collected).strip("\n") if found else None
 
 # Every line that tries to be an element line: any upper-case EM- name, and the eight element
@@ -466,7 +467,8 @@ class WorksheetElements:
     blocks: int
 
 
-def worksheet_em_block(text: str, selected: frozenset[int] | None = None) -> WorksheetElements:
+def worksheet_em_block(text: str, selected: frozenset[int] | None = None,
+                       lines: list[str] | None = None) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
     An E/M line is one of ``selected_em_lines``: a margin ``EM_CODE_LABEL`` line, or a margin
@@ -474,10 +476,10 @@ def worksheet_em_block(text: str, selected: frozenset[int] | None = None) -> Wor
     entry are outside. A block is ``element_body_end``'s body under such a line. ``blocks`` counts
     the distinct blocks; when it exceeds one the first is returned and the caller reports the rest.
     EM- candidates under no anchor are ``outside``. A worksheet written before the block existed
-    reads ``(None, 0, 0)``. ``selected`` is ``selected_em_lines`` of the physical lines, computed
-    here unless the caller already holds it.
+    reads ``(None, 0, 0)``. ``lines`` is ``physical_lines(text)`` and ``selected`` its
+    ``selected_em_lines``, each computed here unless the caller already holds it.
     """
-    lines = physical_lines(text)
+    lines = physical_lines(text) if lines is None else lines
     candidates = {index for index, line in enumerate(lines) if EM_CANDIDATE.match(line)}
     selected = selected_em_lines(lines) if selected is None else selected
     groups: list[range] = []

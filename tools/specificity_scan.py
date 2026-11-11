@@ -903,14 +903,12 @@ def _grade(
         parsed.value("--submission"),
         tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
     )
-    # ADR 0445: every coded note needs a blind re-derivation and a current check-off. Imported here so
-    # a specificity_scan import does not load the approval and manifest stack the gate reads.
-    import em_audit
-    em_failed, em_report, em_unread = em_audit.completion_gate(run_directory, parsed.value("--submission"))
+    # ADR 0445: every coded note needs a blind re-derivation and a current check-off.
+    em_failed, em_report, em_unread = em_audit_gate(run_directory, parsed.value("--submission"))
     if em_unread:
         scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
         coverage_failed = True
-        diagnostics.append(f"unread E/M audit check-off members {em_unread} ({em_audit.EXPECTED_ROW})")
+        diagnostics.append(f"unread E/M audit check-off members {em_unread} ({EM_AUDIT_ROW})")
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
@@ -919,6 +917,28 @@ def _grade(
         diagnostics=tuple(diagnostics),
         reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report, em_report),
     )
+
+
+# em_audit.EXPECTED_ROW and em_audit.RUN_RECORDS, held here so a run em_audit does not grade
+# never loads it; test_em_audit binds both and the two not-graded rows.
+EM_AUDIT_ROW = "the E/M audit check-offs"
+EM_AUDIT_RUN_RECORDS = ("batch-codes.json", "openers.json")
+
+
+def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, str, int]:
+    """``em_audit.completion_gate``, importing em_audit only for a run it grades.
+
+    Without ``--submission``, or for a run with neither a coding manifest nor an encounter opener
+    record (a direct consultation), the row is not graded and the approval and manifest stack the
+    gate reads is never loaded.
+    """
+    if submission is None:
+        return False, f"{EM_AUDIT_ROW}: {NOT_GRADED} - --submission was not supplied", 0
+    if not any((run_directory.resolve() / name).exists() for name in EM_AUDIT_RUN_RECORDS):
+        return False, (f"{EM_AUDIT_ROW}: {NOT_GRADED} - the run has no coding manifest and no encounter "
+                       "opener record, so it is a direct consultation rather than the note path"), 0
+    import em_audit
+    return em_audit.completion_gate(run_directory, submission)
 
 
 GRADER = run_grader.Grader(
