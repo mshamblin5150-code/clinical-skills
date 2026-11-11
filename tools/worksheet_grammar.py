@@ -502,7 +502,8 @@ def em_block(text: str) -> EmBlock | None:
     A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM
     and one LEVEL line, adds one to ``unread``: an incomplete block is not a clean one. A refused
     PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
-    ``unread_items``, so a comparison can leave its counterpart out.
+    ``unread_items``, so a comparison can leave its counterpart out. A refused MDM or LEVEL line
+    leaves the block's MDM or level unknown (None), even beside a readable copy.
     """
     lines = [line for line in physical_lines(text) if EM_CANDIDATE.match(line)]
     if not lines:
@@ -546,9 +547,12 @@ def em_block(text: str) -> EmBlock | None:
     present |= {"LEVEL"} if levels else set()
     complete = (present >= {*ITEM_KINDS, "ANSWER", "ECG", "MDM", "LEVEL"}
                 and len(mdms) <= 1 and len(levels) <= 1)
+    # A refused copy of the MDM or LEVEL line leaves that line unknown: the readable copy is not
+    # known to be the one the author meant, so nothing is graded against it.
+    mdm = mdms[0] if len(mdms) == 1 and "MDM" not in refused else None
+    level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), tuple(free["ECG"]),
-                   mdms[0] if len(mdms) == 1 else None, levels[0] if len(levels) == 1 else None,
-                   unread + (0 if complete else 1), tuple(unread_items))
+                   mdm, level, unread + (0 if complete else 1), tuple(unread_items))
 
 
 @dataclass(frozen=True)

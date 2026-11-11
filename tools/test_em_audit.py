@@ -2284,11 +2284,13 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
 
     def test_m_a_a_missing_descriptor_is_unread_never_guessed(self):
         import procedure_codes_lookup
-        real = procedure_codes_lookup.describe
+        real = procedure_codes_lookup.valid_on
 
-        def describe(connection, code, kind="code"):
-            return None if code == "99283" else real(connection, code, kind)
-        with mock.patch.object(procedure_codes_lookup, "describe", side_effect=describe):
+        # Twenty-fifth review: a code with no entry at all is a finding, so the unread descriptor
+        # here is an E/M code whose descriptor is not valid on the service date.
+        def valid_on(entry, on):
+            return False if entry.code == "99283" else real(entry, on)
+        with mock.patch.object(procedure_codes_lookup, "valid_on", side_effect=valid_on):
             status, output = self.in_process("--write")
         self.assertEqual(2, status, output)
         self.assertIn("unread remainder 2", output)  # the worksheet block and the re-derivation
@@ -2343,9 +2345,9 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
         moved = dict(fingerprints, **{other_path: "0" * 64})
         with mock.patch.object(review_manifest, "validated_population", return_value=wider), \
                 mock.patch.object(review_manifest, "private_fingerprints", return_value=moved):
-            em_audit.render(self.run, [1])
-            with self.assertRaises(em_audit.PrivateWorksheetMoved):
-                em_audit.render(self.run, [])
+            self.assertEqual([], em_audit.render(self.run, [1])[0].moved)
+            # Twenty-fifth review: the moved note is refused by itself; the render goes on.
+            self.assertEqual([2], em_audit.render(self.run, [])[0].moved)
 
     def test_m_b5_a_damaged_worksheet_without_a_manifest_is_incomplete_records(self):
         # Twenty-fourth review: without a manifest no worksheet is read; the run is incomplete.
@@ -3185,6 +3187,162 @@ class TwentyFourthReviewFindings(ProseBind, RunFixture):
         import coding_freshness
         import encounter_openers
         self.assertIs(encounter_openers.digest, coding_freshness.sheet_sha256)
+
+
+class TwentyFifthReviewFindings(ProseBind, RunFixture):
+    """The twenty-fifth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_x1_both_invocations_read_the_approval_of_the_run_the_gate_grades(self):
+        import completion_checks
+        import specificity_scan
+        self.write_private(PRIVATE.format(elements=""))
+        run = self.run.resolve()
+
+        def moment(source, key):
+            # The approval is the run's: a worksheets/ folder carries none of its own.
+            return 1_700_000_000.0 if Path(source).resolve() == run else None
+        for source in (run / "worksheets", run):
+            with self.subTest(source=source.name):
+                captured = io.StringIO()
+                with mock.patch.object(completion_checks, "approval_moment", side_effect=moment), \
+                        contextlib.redirect_stdout(captured):
+                    specificity_scan.main([str(source), "--submission", "shift-synthetic"])
+                rows = [line for line in captured.getvalue().splitlines() if line.startswith(em_audit.EXPECTED_ROW)]
+                self.assertEqual([f"{em_audit.EXPECTED_ROW}: not graded - approval predates the check"], rows)
+
+    def test_x2_a_level_that_is_no_e_m_code_is_a_finding_and_an_unread_descriptor_stays_unread(self):
+        import worksheet_grammar
+        levels = em_audit.MdmLevels(True, {"99283": "low"}, frozenset(), frozenset({"99210"}))
+        for level, finding in (("93000", "EM-LEVEL 93000 is not an E/M code"),
+                               ("99210", "EM-LEVEL 99210 is not a CPT 2026 E/M code")):
+            with self.subTest(level=level):
+                block = worksheet_grammar.em_block(ELEMENTS.replace("EM-LEVEL: 99283", f"EM-LEVEL: {level}"))
+                self.assertIn(finding, em_audit.rederivation_findings(block, None, levels))
+                self.assertFalse(em_audit.level_unread(block, levels))
+                self.assertIn(finding, em_audit.block_findings(block, "99283", None, None, levels=levels))
+        block = worksheet_grammar.em_block(ELEMENTS.replace("EM-LEVEL: 99283", "EM-LEVEL: 99284"))
+        self.assertTrue(em_audit.level_unread(block, levels))
+        self.assertFalse([line for line in em_audit.rederivation_findings(block, None, levels) if "EM-LEVEL" in line])
+
+    def test_x3_a_file_replaced_by_a_folder_is_a_change_whatever_error_the_read_raises(self):
+        import pathlib
+        encounter = self.run / "encounters" / "encounter-1.txt"
+        real = pathlib.Path.read_bytes
+
+        def windows_like(self_path):
+            if self_path.is_dir():
+                raise PermissionError(13, "Permission denied", str(self_path))
+            return real(self_path)
+        encounter.unlink()
+        encounter.mkdir()
+        with mock.patch.object(pathlib.Path, "read_bytes", windows_like):
+            with self.assertRaises(review_manifest.StaleRecord):
+                review_manifest.validated_population(self.run)
+        encounter.rmdir()
+        encounter.write_text("Note 1 Example Person\n40 female\n", encoding="utf-8")
+
+        def denied(self_path):
+            if self_path.name == "encounter-1.txt":
+                raise PermissionError(13, "Permission denied", str(self_path))
+            return real(self_path)
+        with mock.patch.object(pathlib.Path, "read_bytes", denied):
+            with self.assertRaises(PermissionError):
+                review_manifest.validated_population(self.run)
+
+    def test_x4_status_evidence_and_a_recorded_file_replaced_by_folders_are_stale(self):
+        import encounter_openers
+        import encounter_status
+        self.assertIs(encounter_openers.no_longer_a_file, encounter_status.no_longer_a_file)
+        self.assertIs(encounter_openers.no_longer_a_file, review_manifest.no_longer_a_file)
+        note = self.run / "note-1.md"
+        original = note.read_bytes()
+        note.unlink()
+        note.mkdir()
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run)
+        note.rmdir()
+        note.write_bytes(original)
+        run = FourteenthReviewFindings.office_run(self)
+        status = json.loads((run / "encounter-status.json").read_text(encoding="utf-8"))["encounters"]["1"]
+        evidence = Path(status["evidence_path"])
+        evidence.unlink()
+        evidence.mkdir()
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(run)
+
+    def test_x5_a_refused_copy_of_the_level_or_mdm_line_leaves_it_unknown(self):
+        import worksheet_grammar
+        for line in ("  EM-LEVEL: 9928\n", "  EM-MDM: problems low; data low\n"):
+            with self.subTest(line=line):
+                block = worksheet_grammar.em_block(ELEMENTS.replace("  EM-LEVEL: 99283\n", "  EM-LEVEL: 99283\n" + line)
+                                                   .replace("EM-MDM: problems low; data straightforward; risk low; mdm low",
+                                                            "EM-MDM: problems low; data straightforward; risk low; mdm high"))
+                self.assertEqual(1, block.unread)
+                kind = "LEVEL" if "LEVEL" in line else "MDM"
+                self.assertIsNone(block.level if kind == "LEVEL" else block.mdm)
+                found = em_audit.block_findings(block, "99284", None, None)
+                self.assertFalse([f for f in found if ("level" in f and kind == "LEVEL") or ("MDM line" in f and kind == "MDM")],
+                                 found)
+
+    def two_note_run(self):
+        validated = review_manifest.validated_population(self.run)
+        fingerprints = review_manifest.private_fingerprints(self.run)
+        first = validated.encounters[0]
+        other_path = str(self.run / "worksheets" / "note-2.md")
+        other = review_manifest.ValidatedEncounter(dict(first.item, order=2, id="note-2",
+                                                        private_worksheet_path=other_path,
+                                                        note_path=str(self.run / "note-2.md")),
+                                                   first.note, first.worksheet, first.private)
+        wider = review_manifest.ValidatedRun(validated.manifest, validated.receipt, (first, other))
+        moved = dict(fingerprints, **{other_path: "0" * 64})
+        return (mock.patch.object(review_manifest, "validated_population", return_value=wider),
+                mock.patch.object(review_manifest, "private_fingerprints", return_value=moved))
+
+    def test_x6_one_moved_worksheet_refuses_only_its_own_check_off(self):
+        population, fingerprints = self.two_note_run()
+        with population, fingerprints:
+            tally, total, sheets = em_audit.render(self.run, [])
+            status, output = self.in_process("--write")
+            finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual(([2], [1], 2), (tally.moved, [sheet_.order for sheet_ in sheets], total))
+        self.assertEqual(1, status, output)
+        self.assertIn("check-offs written 1", output)
+        self.assertIn("the private worksheet of note 2 changed after the manifest", output)
+        self.assertTrue(self.sheet.exists())
+        self.assertFalse((self.run / em_audit.OUTPUT_DIRECTORY / "note-2.md").exists())
+        self.assertTrue(finding, report)
+        self.assertIn("private worksheets changed after their fingerprint 1 (note 2)", report)
+
+    def test_x7_a_merge_listed_once_per_parent_is_asked_once(self):
+        import coding_freshness
+        merge, older = "a" * 40, "b" * 40
+        relative, former = "reference/cpt-em-mdm-2026.md", "reference/former-sheet.md"
+        requests: list[str] = []
+        answers = {commit: f"{commit} missing\n".encode() for commit in (merge, older)}
+
+        def run(command, **_):
+            if command[1] == "show":
+                return subprocess.CompletedProcess(command, 0, b"head\n", b"")
+            # The merge listed with its path for one parent and without one for the other.
+            return subprocess.CompletedProcess(command, 0, f"{merge}\0\n{relative}\0{merge}\0"
+                                                f"{older}\0\n{former}\0".encode(), b"")
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run), \
+                mock.patch.object(coding_freshness.subprocess, "Popen", side_effect=lambda *a, **k: FakeBatch(answers, requests)):
+            self.assertIsNone(coding_freshness.bound_sheet_version(ROOT / relative, "0" * 64))
+        self.assertEqual([f"{merge}:{relative}", f"{merge}:{former}", f"{older}:{former}"], requests)
+
+    def test_x8_one_digest_names_the_word_folder(self):
+        source = ast.unparse(next(node for node in ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8")).body
+                                  if isinstance(node, ast.FunctionDef) and node.name == "word_folder"))
+        self.assertNotIn("hashlib", source)
+        self.assertIn("digest(", source)
+
+    def test_x9_answer_levels_are_stored_as_the_set_they_are_compared_as(self):
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            identifier, _ = preapproval_answers.record(self.run, 1, "A synthetic question naming levels?",
+                                                       ["99284", "99283", "99284"], REPLY)
+        entry = next(entry for entry in preapproval_answers.read(self.run)["answers"] if entry["id"] == identifier)
+        self.assertEqual(["99283", "99284"], entry["levels"])
 
 
 if __name__ == "__main__":

@@ -2830,7 +2830,7 @@ sheet ids, read by `cpt_mdm_sheet.read_entries` from the committed sheet version
 fingerprints, the pre-approval answers record, and the MDM level each code's verified CPT 2026
 descriptor names in `reference/procedure-codes-2026.sqlite`; a worksheet without a block shows its visible
 worksheet instead. The manifest build records a fingerprint of the whole private worksheet in its own
-record beside the manifest, so approval never binds it, and the check-off refuses on a change. A re-derivation record is compared element by element. `--write` writes each
+record beside the manifest, so approval never binds it, and a change refuses that note's check-off. A re-derivation record is compared element by element. `--write` writes each
 check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`
 renders the same text through `docx_write.write_docx` only into the main checkout `output/`, keeping its
 overwrite refusal and setting the copied text literally (`literal=True`). The default output is

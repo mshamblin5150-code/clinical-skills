@@ -213,6 +213,20 @@ def grading(run: Path, submission: str | None):
         SKIPPED.reset(skipped)
 
 
+@contextmanager
+def graded_at(run: Path, submission: str | None):
+    """``grading`` for a gate whose run is not the folder its grader was given.
+
+    A grader given a run's ``worksheets/`` folder read no approval there; the gate grading the run
+    itself reads the approval of that run. The checks it skips still reach the grader's report.
+    """
+    outer = SKIPPED.get()
+    with grading(run, submission):
+        if outer is not None:
+            SKIPPED.set(outer)
+        yield
+
+
 def filter_findings(module: str, findings, *, moment=None, ledger_date=None):
     selected = []
     for finding in findings:

@@ -137,12 +137,28 @@ class OpenerChanged(ValueError):
     """A file the opener record bound changed, or went missing, since the opener reading."""
 
 
+def no_longer_a_file(path: Path) -> bool:
+    """Whether a file a record bound is no longer a regular file at its path.
+
+    Missing, replaced by a folder or another non-file, or under a parent that is no longer a
+    folder: the record's file is gone, whatever error the read raised (Windows raises a permission
+    error for a folder). A path that cannot even be examined is not called replaced, so a genuine
+    permission error on a regular file stays an unreadable record.
+    """
+    try:
+        return not path.is_file()
+    except OSError:
+        return False
+
+
 def bound_bytes(path: Path, name: str) -> bytes:
     """The bytes of a file the opener record bound; gone as a file is a change, other errors stay unreadable."""
     try:
         return path.read_bytes()
-    except (FileNotFoundError, NotADirectoryError, IsADirectoryError) as error:
-        raise OpenerChanged(f"{name} is no longer a file where opener reading found it") from error
+    except OSError as error:
+        if no_longer_a_file(path):
+            raise OpenerChanged(f"{name} is no longer a file where opener reading found it") from error
+        raise
 
 
 def read_openers(run: Path) -> dict:

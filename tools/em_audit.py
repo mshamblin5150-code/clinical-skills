@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-import hashlib
 from contextlib import nullcontext
 from pathlib import Path
 import re
@@ -51,14 +50,14 @@ import preapproval_answers
 import repo_root
 import review_manifest
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import private_target
+from encounter_openers import digest, private_target
 from run_grader import format_unread_remainder
 from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, UnreadableRecord,
                                collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
-                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block,
+                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
                                entry_region, physical_lines, read_entries,
                                step_four_lines, worksheet_em_block)
 
@@ -76,9 +75,11 @@ DECLARED_LIMITS = (
     "note text, entry ids known to the CPT MDM sheet the receipt names, an MDM line whose level is "
     "the middle of its three elements, and a LEVEL whose CPT 2026 descriptor names that MDM level, "
     "read through procedure_codes_lookup from the verified descriptors in "
-    "reference/procedure-codes-2026.sqlite for the service date (an unverified database or a code "
-    "with no descriptor on that date leaves it unread; a code whose descriptor names no MDM level, "
-    "or a block whose EM-RULE declares the level selected by total time, is not held to it); the "
+    "reference/procedure-codes-2026.sqlite for the service date (an unverified database or an E/M "
+    "code with no descriptor valid on that date leaves it unread; a LEVEL outside the E/M families, "
+    "or one the verified database carries no entry for, is a finding; a code whose descriptor "
+    "names no MDM level, or a block whose EM-RULE declares the level selected by total time, is not "
+    "held to it; a refused copy of the MDM or LEVEL line leaves that line ungraded); the "
     "worksheet block is also "
     "checked for a LEVEL equal to the selected code, answer ids present in the pre-approval answers "
     "record, the billed ECG codes, and one block per worksheet. A re-derivation takes only the "
@@ -142,7 +143,8 @@ DECLARED_LIMITS = (
     "and are counted unread as outside lines.",
     "The private worksheet is bound only through its whole-file fingerprint, which "
     "review_manifest.build records beside the manifest and never in it; the check-off compares it "
-    "and approval validation does not, and a changed file refuses the check-off. A run with no "
+    "and approval validation does not, and a changed file refuses its own note's check-off, a "
+    "finding named by note number, while the other notes render. A run with no "
     "recorded fingerprint is counted unread on each check-off, or not graded for a run whose "
     "approval predates the em_audit start; building again records it. At submission, a changed private "
     "worksheet or a stale manifest or receipt is a finding of the run, and so is a record the "
@@ -244,6 +246,8 @@ class Tally:
         self.faults = 0
         # Why records outside any one note went unread; any reason stops every check-off comparison.
         self.run_wide: list[str] = []
+        # Notes whose private worksheet differs from its recorded fingerprint: refused, a finding.
+        self.moved: list[int] = []
         self.blocks_predating = self.absent_predating = 0
 
 
@@ -532,13 +536,16 @@ class MdmLevels(NamedTuple):
 
     ``readable`` is False when the committed procedure-code database cannot be opened or its CPT
     descriptors are not ``verified``. ``levels`` holds each code whose descriptor names one level,
-    ``unleveled`` each code whose descriptor names none (99211, 99281). Any other E/M code had no
-    readable descriptor on the service date, and its level is unread, never guessed.
+    ``unleveled`` each code whose descriptor names none (99211, 99281), and ``absent`` each code of
+    the E/M families the verified database carries no entry for at all (99210): no CPT 2026 code.
+    Any other E/M code had no readable descriptor on the service date, and its level is unread,
+    never guessed.
     """
 
     readable: bool
     levels: dict[str, str]
     unleveled: frozenset[str]
+    absent: frozenset[str] = frozenset()
 
 
 def mdm_levels(service_date: str) -> MdmLevels:
@@ -553,17 +560,21 @@ def mdm_levels(service_date: str) -> MdmLevels:
             return unreadable
         levels: dict[str, str] = {}
         unleveled: set[str] = set()
+        absent: set[str] = set()
         # Each E/M code is looked up by itself (cpt_identity.EM_CODES), valid on the service date.
         for code in sorted(EM_CODES):
             entry = procedure_codes_lookup.describe(connection, code)
-            if entry is None or not procedure_codes_lookup.valid_on(entry, service_date):
+            if entry is None:
+                absent.add(code)  # no CPT 2026 code at all: a level naming it is a finding
+                continue
+            if not procedure_codes_lookup.valid_on(entry, service_date):
                 continue  # no descriptor on the service date: unread if a block uses it
             named = {match.group(1).lower() for match in MDM_PHRASE.finditer(entry.description)}
             if len(named) == 1:
                 levels[code] = named.pop()
             elif not named:
                 unleveled.add(code)
-        return MdmLevels(True, levels, frozenset(unleveled))
+        return MdmLevels(True, levels, frozenset(unleveled), frozenset(absent))
     except sqlite3.Error:
         return unreadable
     finally:
@@ -576,10 +587,27 @@ def time_based(block_: EmBlock) -> bool:
 
 
 def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
-    """Whether the block's level against its MDM went unchecked for want of a readable descriptor."""
+    """Whether the block's level against its MDM went unchecked for want of a readable descriptor.
+
+    Only a code of the E/M families can be unread; a level naming any other code, or one the
+    verified database carries no entry for, is a finding (``level_code_findings``).
+    """
     if levels is None or not levels.readable or block_.level is None or time_based(block_):
         return False
+    if level_code_findings(block_, levels):
+        return False
     return block_.level not in levels.levels and block_.level not in levels.unleveled
+
+
+def level_code_findings(block_: EmBlock, levels: MdmLevels | None) -> list[str]:
+    """Where the block's EM-LEVEL names no E/M code: outside the E/M families, or no CPT 2026 code."""
+    if block_.level is None:
+        return []
+    if not em_identity("CPT", block_.level):
+        return [f"EM-LEVEL {block_.level} is not an E/M code"]
+    if levels is not None and block_.level in levels.absent:
+        return [f"EM-LEVEL {block_.level} is not a CPT 2026 E/M code"]
+    return []
 
 
 def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLevels | None = None) -> list[str]:
@@ -593,7 +621,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
     with the worksheet's decisions, so a blind reader who reaches another level shows only as a
     difference.
     """
-    found = []
+    found = level_code_findings(block_, levels)
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
@@ -1009,10 +1037,6 @@ class Sheet(NamedTuple):
     unread: int = 0  # what this note's own render left unread or faulted, run-wide records apart
 
 
-class PrivateWorksheetMoved(ValueError):
-    """A private worksheet differs from the fingerprint ``review_manifest.build`` recorded for it."""
-
-
 class UnknownNote(ValueError):
     """A --note number names no encounter of the run."""
 
@@ -1043,14 +1067,14 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
         raise UnknownNote("unknown note number")
-    moved = [encounter.item["order"] for encounter in validated.encounters
-             if (not notes or encounter.item["order"] in notes)
-             and encounter.item["private_worksheet_path"] in fingerprints
-             and fingerprints[encounter.item["private_worksheet_path"]]
-             != review_manifest.private_worksheet_sha256(encounter.private)]
-    if moved:
-        raise PrivateWorksheetMoved(f"private worksheet of note {moved[0]} changed after its fingerprint")
     tally = Tally()
+    # A private worksheet that differs from its recorded fingerprint refuses only its own note's
+    # check-off, a finding named by note number; the other notes render.
+    tally.moved = [encounter.item["order"] for encounter in validated.encounters
+                   if (not notes or encounter.item["order"] in notes)
+                   and encounter.item["private_worksheet_path"] in fingerprints
+                   and fingerprints[encounter.item["private_worksheet_path"]]
+                   != review_manifest.private_worksheet_sha256(encounter.private)]
     import completion_checks
     # Reached only on the command's --submission path: the gate returns its exemption for a
     # pre-start run before it renders, so inside the gate predates is always False. START_KEY is
@@ -1060,7 +1084,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     sheets = []
     for encounter in validated.encounters:
         item = encounter.item
-        if notes and item["order"] not in notes:
+        if (notes and item["order"] not in notes) or item["order"] in tally.moved:
             continue
         before = tally.unread + tally.faults
         text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
@@ -1118,7 +1142,7 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
     """
     try:
         resolved = run.resolve()
-        tag = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:10]
+        tag = digest(str(resolved).encode("utf-8"))[:10]
         folder = (repo_root.output_root() / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
                   else output_dir.expanduser())
         if not folder.is_absolute():
@@ -1167,6 +1191,7 @@ def report(tally: Tally, total: int, selected: int, written: str) -> str:
         f"re-derivations: agree {tally.agree}; differ {tally.differ}; damaged {tally.damaged}; absent {tally.absent}; "
         f"findings {tally.rederivation_findings}",
         f"element differences {tally.differences}",
+        f"private worksheets changed after their fingerprint {len(tally.moved)}",
         *([f"not graded, approval predates the check: element blocks {tally.blocks_predating}, "
            f"re-derivations {tally.absent_predating}"] if tally.predates else []),
         written,
@@ -1184,7 +1209,7 @@ def has_finding(tally: Tally, *, differences: bool, stale: int) -> bool:
     reads.
     """
     return bool(tally.block_findings or tally.rederivation_findings or tally.damaged or tally.blocks_absent
-                or tally.absent or stale
+                or tally.absent or tally.moved or stale
                 or (differences and tally.differ))
 
 
@@ -1198,11 +1223,10 @@ def status_of(tally: Tally) -> int:
 EXPECTED_ROW = em_audit_scope.ROW
 
 
-STALE_FINDINGS = {
-    review_manifest.StaleRecord: ("the manifest or its freshness receipt is stale against the run: a record "
-                                  "it was built from changed or went missing after it"),
-    PrivateWorksheetMoved: "a private worksheet changed after its fingerprint was recorded",
-}
+STALE_FINDING = ("the manifest or its freshness receipt is stale against the run: a record it was built "
+                 "from changed or went missing after it")
+MOVED_REMEDY = ("restore it, or build the manifest again, which records the new fingerprint and leaves the "
+                "approved manifest unchanged when only provenance moved")
 
 
 def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
@@ -1232,9 +1256,9 @@ def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
         return False, (f"{EXPECTED_ROW}: incomplete - the committed CPT MDM sheet version the receipt "
                        "fingerprinted does not parse with the current sheet reader, a tool defect for a "
                        "maintainer"), 1
-    except (review_manifest.StaleRecord, PrivateWorksheetMoved) as error:
+    except review_manifest.StaleRecord:
         # A record that read but no longer matches the run is a defect of the run, not unread coverage.
-        return True, f"{EXPECTED_ROW}: finding - {STALE_FINDINGS[type(error)]}", 0
+        return True, f"{EXPECTED_ROW}: finding - {STALE_FINDING}", 0
     except RecordsRefused:
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or cannot be read", 1
     except Exception as error:  # noqa: BLE001 - anything not raised deliberately is the tool's own defect
@@ -1262,7 +1286,9 @@ def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
     counts = (f"{total} note(s); element blocks absent {tally.blocks_absent}; block findings "
               f"{tally.block_findings}; re-derivations absent {tally.absent}, damaged {tally.damaged}, findings "
               f"{tally.rederivation_findings}, "
-              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}")
+              f"differing {tally.differ}; check-offs missing or stale {stale}, unreadable {unreadable}"
+              + (f"; private worksheets changed after their fingerprint {len(tally.moved)} "
+                 f"({', '.join(f'note {order}' for order in tally.moved)}), {MOVED_REMEDY}" if tally.moved else ""))
     if uncompared:
         counts += (f"; check-offs not compared {uncompared}, because "
                    + ("; ".join(reasons) if reasons else "their notes' fresh render left a record unread"))
@@ -1310,11 +1336,6 @@ def main(argv: list[str] | None = None) -> int:
     except UnknownNote:
         print("em-audit: refused - a --note number is not an encounter of this run")
         return 2
-    except PrivateWorksheetMoved:
-        print("em-audit: finding - a private worksheet changed after the manifest recorded its fingerprint; "
-              "restore it, or build the manifest again, which records the new fingerprint and leaves the "
-              "approved manifest unchanged when only provenance moved")
-        return 1
     except review_manifest.StaleRecord:
         print("em-audit: finding - a coding record changed or went missing after the manifest (a note, "
               "worksheet, opener, patient status or receipt); restore it, or rebuild the manifest and run "
@@ -1363,6 +1384,9 @@ def main(argv: list[str] | None = None) -> int:
             refusal = f"Word copy refused at note {stopped.order} - {reason}"
     selected = len(set(args.note)) if args.note else total
     print(report(tally, total, selected, "; ".join(written) or "nothing written (pass --write or --docx)"))
+    for order in tally.moved:
+        print(f"em-audit: finding - the private worksheet of note {order} changed after the manifest recorded "
+              f"its fingerprint, so its check-off is refused; {MOVED_REMEDY}")
     status = status_of(tally)
     if refusal is not None:
         print("em-audit: " + refusal)

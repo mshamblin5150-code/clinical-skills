@@ -139,9 +139,13 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except (OSError, ValueError, git_paths.GitPathError):
         return None
+    asked: set[tuple[str, str]] = set()
     try:
         for commit, candidates in commits:
             for at in candidates:
+                if (commit, at) in asked:
+                    continue  # a merge listed once per parent is asked once at each path
+                asked.add((commit, at))
                 batch.stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
                 batch.stdin.flush()
                 header = batch.stdout.readline().split()

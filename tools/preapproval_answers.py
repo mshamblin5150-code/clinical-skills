@@ -134,7 +134,7 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
             answers = [*value["answers"][:index], upgraded, *value["answers"][index + 1:]]
             return RecordUpdate(payload(dict(value, answers=answers)), (entry["id"], "verified"))
         number = 1 + len(entries_for(value, note))
-        entry = {"id": f"note-{note}.q{number}", "note": note, "question": question, "levels": levels,
+        entry = {"id": f"note-{note}.q{number}", "note": note, "question": question, "levels": sorted(set(levels)),
                  "clinician_reply": reply, "verification": state,
                  "reply_matched_at": verification.matched_at if state == "verified" else None,
                  "recorded_at": time.time()}

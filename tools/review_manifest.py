@@ -16,7 +16,8 @@ import re
 
 import coding_freshness
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import OpenerChanged, OpenerRecordMissing, digest, private_target, read_openers
+from encounter_openers import (OpenerChanged, OpenerRecordMissing, digest, no_longer_a_file, private_target,
+                               read_openers)
 from encounter_status import EvidenceChanged, StatusMissing, status_for
 from worksheet_grammar import ENTRY_CANDIDATE, em_identity, entry_reading, entry_region, read_entries, selected_em
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
@@ -113,12 +114,12 @@ def read_text(path: Path) -> str:
 
 
 def recorded_text(path: Path, recorded: bool) -> str:
-    """``read_text`` of a file a recorded manifest item names, whose absence is a change after it."""
+    """``read_text`` of a file a recorded manifest item names; no longer a file there is a change after it."""
     try:
         return read_text(path)
-    except FileNotFoundError as error:
-        if recorded:
-            raise StaleRecord(f"{path.name} went missing after the manifest recorded it") from error
+    except OSError as error:
+        if recorded and no_longer_a_file(path):
+            raise StaleRecord(f"{path.name} is no longer a file where the manifest recorded it") from error
         raise
 
 
