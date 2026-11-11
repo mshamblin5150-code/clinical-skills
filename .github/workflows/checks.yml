@@ -222,7 +222,7 @@ jobs:
   canary:
     needs: metadata
     if: always() && !cancelled() && needs.metadata.outputs.full_code != 'false'
-    name: ${{ needs.metadata.outputs.full_code == 'false' && 'canary not requested (metadata edit)' || 'newer Python 3.14 canary (may fail before the maintainer upgrades)' }}
+    name: ${{ needs.metadata.outputs.full_code == 'false' && 'canary not requested (metadata edit)' || 'newer Python 3.15 canary (may fail before the maintainer upgrades)' }}
     runs-on: windows-latest
 
     steps:
@@ -232,7 +232,7 @@ jobs:
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
           check-latest: true
 
       - name: Pinned and installed releases
@@ -243,7 +243,7 @@ jobs:
             'A failure here can mean a newer Python breaks code before the maintainer upgrades. A red canary does not hold a merge.') |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
-      - name: Test suite on newest Python 3.14
+      - name: Test suite on newest Python 3.15
         env:
           CI_DIAGNOSTIC_RECEIPT: ${{ runner.temp }}/ci-canary.json
         run: python tools/suite.py

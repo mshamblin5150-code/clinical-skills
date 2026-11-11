@@ -43,7 +43,7 @@ THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
 
 RUNNER = "windows-latest"
 PIN_PATH = ".github/maintainer-python-version"
-CANARY_NAME = "newer Python 3.14 canary (may fail before the maintainer upgrades)"
+CANARY_NAME = "newer Python 3.15 canary (may fail before the maintainer upgrades)"
 FLOOR_VERSION = ".".join(str(part) for part in python_floor.CONSUMER_FLOOR)
 
 
@@ -231,7 +231,7 @@ class TheJobMatchesWhatIsWrittenDown(unittest.TestCase):
         text = job_text(workflow_text(), "canary")
         self.assertIn(f"|| '{CANARY_NAME}'", text)
         self.assertIn(f"runs-on: {RUNNER}", text)
-        self.assertIn("python-version: '3.14'", text)
+        self.assertIn("python-version: '3.15'", text)
         self.assertIn(SUITE_COMMAND, text)
         self.assertIn(PIN_PATH, text)
         self.assertIn("GITHUB_STEP_SUMMARY", text)
