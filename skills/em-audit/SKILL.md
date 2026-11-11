@@ -38,9 +38,9 @@ Done when it prints `notes in run` and exits 0 or 1. Exit 1 naming a record that
 missing after the manifest (a note, worksheet, opener, patient status, receipt, or a private
 worksheet against its recorded fingerprint) is a finding: restore the record, or have icd10-cpt rebuild the manifest and
 run coding_freshness again, then repeat this step. Exit 2 with `refused` means the manifest or
-receipt is missing, or a record cannot be read; icd10-cpt rebuilds them, then repeat this step. A refusal naming the CPT MDM sheet version is a
-tool defect: report it to a maintainer and tell the clinician the check-offs cannot be rendered
-until it is fixed. Exit 2 with a nonzero `unread remainder` means an input could not be read:
+receipt is missing, or a record cannot be read; icd10-cpt rebuilds them, then repeat this step. A refusal naming the CPT MDM sheet version, or one naming a
+tool defect and its exception type, is a tool defect: the records need no repair; report it to a
+maintainer and tell the clinician the check-offs cannot be rendered until it is fixed. Exit 2 with a nonzero `unread remainder` means an input could not be read:
 repair it as step 3 says, then repeat this step. Where no private worksheet fingerprint is
 recorded, building the manifest again records it in its own file beside the manifest and leaves an
 unchanged manifest byte-identical, so the approval holds. A run approved before this check started

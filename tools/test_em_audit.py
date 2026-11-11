@@ -731,11 +731,13 @@ class FourthReviewFindings(RunFixture):
         self.assertEqual((False, 1), (finding, unread), report)
         self.assertIn("incomplete", report)
         self.assertIn("not graded", em_audit_gate(self.run, None)[1])
+        # Twenty-fourth review: scope is em_audit_scope's alone, so a note-path run without a manifest
+        # is incomplete whatever its worksheets select.
         (self.run / "worksheets/note-1.md").write_text("ICD-10-CM R05.9 Cough\n  ANCHOR: \"Cough.\"\n",
                                                        encoding="utf-8")
         finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
-        self.assertEqual((False, 0), (finding, unread), report)
-        self.assertIn("not graded", report)
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("incomplete", report)
 
     def test_u8_the_command_and_the_gate_share_one_finding_predicate(self):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
@@ -1301,13 +1303,13 @@ class TenthReviewFindings(RunFixture):
         import coding_freshness
         import worksheet_grammar
         name_the_committed_sheet(self.run)
+        # Twenty-fourth review: em_audit no longer reads selected lines itself (selects_em_level is gone).
         with mock.patch.object(worksheet_grammar, "selected_em_lines", wraps=worksheet_grammar.selected_em_lines) as inner, \
-                mock.patch.object(em_audit, "selected_em_lines", wraps=em_audit.selected_em_lines) as outer, \
                 mock.patch.object(coding_freshness, "bound_sheet_version",
                                   wraps=coding_freshness.bound_sheet_version) as sheet:
             em_audit.render(self.run, [])
             em_audit.render(self.run, [])
-        self.assertLessEqual(inner.call_count + outer.call_count, 4)
+        self.assertLessEqual(inner.call_count, 4)
         self.assertEqual(2, sheet.call_count)  # fourteenth review: once per render, no process cache
 
     def test_q6_one_body_rule_and_no_em_codes_parameter(self):
@@ -2345,12 +2347,13 @@ class SeventeenthReviewFindings(ProseBind, RunFixture):
             with self.assertRaises(em_audit.PrivateWorksheetMoved):
                 em_audit.render(self.run, [])
 
-    def test_m_b5_a_damaged_worksheet_without_a_manifest_is_a_content_damage_finding(self):
+    def test_m_b5_a_damaged_worksheet_without_a_manifest_is_incomplete_records(self):
+        # Twenty-fourth review: without a manifest no worksheet is read; the run is incomplete.
         (self.run / review_manifest.MANIFEST).unlink()
         (self.run / "worksheets/note-1.md").write_text("ICD-10-CM R05.9 Cough" + chr(1) + "\n", encoding="utf-8")
         finding, report, unread = self.gate()
-        self.assertEqual((True, 0), (finding, unread), report)
-        self.assertIn("content damage", report)
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("the coding records are missing or cannot be read", report)
 
     def test_m_b6_the_header_rule_is_said_where_it_lives_and_no_fixture_moves(self):
         import worksheet_grammar
@@ -2476,7 +2479,7 @@ class EighteenthReviewFindings(ProseBind, RunFixture):
         checkout = self.root / "main-checkout"
         (checkout / ".git").mkdir(parents=True)
         with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
-            with self.assertRaises(repo_root.ForeignCheckout):
+            with self.assertRaises(repo_root.OutsideOutput):
                 repo_root.ensure_main_checkout(checkout / "reference" / "audit", under_output=True)
             self.assertEqual((checkout / "output" / "audit").resolve(),
                              repo_root.ensure_main_checkout(checkout / "output" / "audit", under_output=True))
@@ -2581,7 +2584,7 @@ class TwentiethReviewFindings(ProseBind, RunFixture):
         checkout = self.fake_checkout()
         outside = self.root / "elsewhere"
         with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
-            with self.assertRaises(repo_root.ForeignCheckout):
+            with self.assertRaises(repo_root.OutsideOutput):
                 repo_root.ensure_main_checkout(outside / "audit", under_output=True)
             # The default rule is unchanged: an explicit export outside every checkout stays allowed.
             self.assertEqual((outside / "audit").resolve(), repo_root.ensure_main_checkout(outside / "audit"))
@@ -3055,6 +3058,133 @@ class TwentyThirdReviewFindings(ProseBind, RunFixture):
                     self.assertNotIn("disagree with manifest", str(refused.exception))
                 finally:
                     path.write_text(original, encoding="utf-8")
+
+
+def merged_sheet_repository(root: Path) -> bytes:
+    """A throwaway repository: a sheet changed on two branches, merged with a resolution of its own,
+    then renamed and changed again; returns the merge's version of the sheet."""
+    def git(*args, check=True):
+        subprocess.run(["git", "-c", "user.email=synthetic@example.invalid", "-c", "user.name=synthetic",
+                        "-c", "commit.gpgsign=false", *args], cwd=root, check=check, capture_output=True)
+    body = "".join(f"synthetic sheet line {number}\n" for number in range(20))
+    sheet = root / "reference" / "old-sheet.md"
+    sheet.parent.mkdir(parents=True)
+    git("init", "-q", "-b", "main")
+    sheet.write_text(body + "base\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    git("checkout", "-qb", "side")
+    sheet.write_text(body + "side\n", encoding="utf-8")
+    git("commit", "-qam", "side")
+    git("checkout", "-q", "main")
+    sheet.write_text(body + "main\n", encoding="utf-8")
+    git("commit", "-qam", "main")
+    git("merge", "-q", "side", check=False)
+    merged = (body + "resolved in the merge\n").encode("utf-8")
+    sheet.write_bytes(merged)
+    git("add", "-A")
+    git("commit", "-qm", "merge")
+    git("mv", "reference/old-sheet.md", "reference/new-sheet.md")
+    (root / "reference" / "new-sheet.md").write_text(body + "renamed\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "rename")
+    (root / "reference" / "new-sheet.md").write_text(body + "latest\n", encoding="utf-8")
+    git("commit", "-qam", "latest")
+    return merged
+
+
+class TwentyFourthReviewFindings(ProseBind, RunFixture):
+    """The twenty-fourth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_w1_a_label_under_a_rejected_diagnosis_stays_the_final_level(self):
+        private = ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nICD-10-CM I10 Essential hypertension NOT FOR ENTRY\n'
+                   "  E/M: 99283 emergency department visit, low MDM\n")
+        visible = ("ICD-10-CM: R05.9 Cough\nICD-10-CM: I10 Essential hypertension NOT FOR ENTRY\n"
+                   "  E/M: 99283 emergency department visit, low MDM\n")
+        self.assertEqual("99283", review_manifest.selected_codes(private, private=True)["em"])
+        self.assertEqual("99283", review_manifest.selected_codes(visible, private=False)["em"])
+        rejected = ('ICD-10-CM R05.9 Cough\n  ANCHOR: "Cough."\nCPT 99285 Emergency visit, high MDM NOT FOR ENTRY\n'
+                    "  E/M: 99285 rejected level\nCPT 99283 Emergency visit\n")
+        self.assertEqual("99283", review_manifest.selected_codes(rejected, private=True)["em"])
+
+    def test_w2_a_sheet_version_resolved_in_a_merge_before_a_rename_is_found(self):
+        import coding_freshness
+        repository = self.root / "repository"
+        repository.mkdir()
+        merged = merged_sheet_repository(repository)
+        with mock.patch.object(coding_freshness, "ROOT", repository):
+            self.assertEqual(merged, coding_freshness.bound_sheet_version(
+                repository / "reference" / "new-sheet.md", coding_freshness.sheet_sha256(merged)))
+
+    def test_w2_a_commit_listed_without_a_path_is_asked_at_both_neighboring_paths(self):
+        import coding_freshness
+        records = ("c3", "\nreference/new.md", "c2", "c1", "\nreference/old.md")
+        self.assertEqual([("c3", ("reference/new.md",)), ("c2", ("reference/new.md", "reference/old.md")),
+                          ("c1", ("reference/old.md",))],
+                         coding_freshness.history_paths(records, "reference/new.md"))
+
+    def test_w3_a_tool_defect_is_named_as_one_and_not_sent_to_record_repair(self):
+        with mock.patch.object(em_audit, "parse_private", side_effect=KeyError("synthetic")):
+            status, output = self.in_process()
+            finding, report, unread = em_audit_gate(self.run, "shift-synthetic")
+        self.assertEqual(2, status, output)
+        self.assertIn("tool defect (KeyError)", output)
+        self.assertNotIn("missing, invalid, or stale", output)
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("tool defect (KeyError)", report)
+        self.assertIn("maintainer", report)
+        self.assertNotIn("missing or cannot be read", report)
+        (self.run / review_manifest.RECEIPT).unlink()
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("missing, invalid, or stale coding records", output)
+
+    def test_w4_the_region_is_sliced_once_and_the_marks_read_in_place(self):
+        tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        comprehensions = [node for node in ast.walk(functions["parse_private"])
+                          if isinstance(node, (ast.DictComp, ast.ListComp, ast.SetComp))]
+        self.assertEqual([], [ast.unparse(node) for comprehension in comprehensions
+                              for node in ast.walk(comprehension) if isinstance(node, ast.Slice)])
+        self.assertEqual([], [ast.unparse(node) for node in ast.walk(functions["filled_marks"])
+                              if isinstance(node, ast.Slice) and node.upper is None])
+        self.assertEqual((["[SOURCE: filled - data: chest radiograph]"], 1), em_audit.filled_marks(
+            "[SOURCE: filled -\n  data: chest radiograph] then [SOURCE: filled - risk: never closed\n\n]"))
+
+    def test_w5_a_direct_gate_call_without_a_manifest_is_incomplete(self):
+        (self.run / review_manifest.MANIFEST).unlink()
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+        self.assertIn("the coding records are missing or cannot be read", report)
+        source = ast.unparse(next(node for node in ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8")).body
+                                  if isinstance(node, ast.FunctionDef) and node.name == "completion_gate"))
+        self.assertNotIn("MANIFEST", source)
+        self.assertFalse(hasattr(em_audit, "selects_em_level"))
+
+    def test_w6_a_target_outside_output_is_refused_as_outside_output(self):
+        checkout = self.fake_checkout()
+        with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
+            for target in (checkout / "scratch" / "audit", self.root / "elsewhere" / "audit"):
+                with self.subTest(target=target):
+                    with self.assertRaises(repo_root.OutsideOutput) as refused:
+                        repo_root.ensure_main_checkout(target, under_output=True)
+                    self.assertNotIsInstance(refused.exception, repo_root.ForeignCheckout)
+                    self.assertNotIn("foreign checkout", str(refused.exception))
+                    self.assertIn("output", str(refused.exception))
+                    with self.assertRaises(em_audit.WordTargetRefused):
+                        em_audit.word_folder(self.run, target)
+
+    def test_w7_an_encounter_file_turned_into_a_folder_is_a_change_after_the_manifest(self):
+        encounter = self.run / "encounters" / "encounter-1.txt"
+        encounter.unlink()
+        encounter.mkdir()
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(self.run)
+
+    def test_w8_one_fingerprint_rule(self):
+        import coding_freshness
+        import encounter_openers
+        self.assertIs(encounter_openers.digest, coding_freshness.sheet_sha256)
 
 
 if __name__ == "__main__":

@@ -311,6 +311,22 @@ def ensure_outside_checkout(
     return target
 
 
+class OutsideOutput(ValueError):
+    """A patient-information artifact was aimed outside the main checkout's ``output/`` tree.
+
+    A sibling of :class:`ForeignCheckout`: the target may be in no checkout at all, or in the main
+    checkout's ``scratch/`` or tracked tree, so "foreign checkout" would not be true of it.
+    """
+
+    def __init__(self, target: Path, expected: Path) -> None:
+        self.target = target
+        self.expected = expected
+        super().__init__(
+            f"refusing to write a patient-information artifact outside the main checkout's output folder: "
+            f"{target}\n  use {expected / 'output'} instead."
+        )
+
+
 def ensure_main_checkout(path: Path | str, start: Path | None = None, *, under_output: bool = False) -> Path:
     """The resolved target, or ``ForeignCheckout`` for a disposable checkout.
 
@@ -319,7 +335,7 @@ def ensure_main_checkout(path: Path | str, start: Path | None = None, *, under_o
     directories. Only a target inside another checkout is refused. ``under_output``
     allows only the main checkout's ``output/`` tree, for an artifact that carries
     patient information: it never lands among tracked files, and never outside
-    every patient-record root either.
+    every patient-record root either. Such a target raises ``OutsideOutput``.
     """
     target = Path(path).expanduser().resolve()
     expected = main_repo_root(start).resolve()
@@ -327,5 +343,5 @@ def ensure_main_checkout(path: Path | str, start: Path | None = None, *, under_o
     if checkout is not None and checkout.resolve() != expected:
         raise ForeignCheckout(target, expected)
     if under_output and not target.is_relative_to((expected / "output").resolve()):
-        raise ForeignCheckout(target, expected)
+        raise OutsideOutput(target, expected)
     return target

@@ -28,6 +28,7 @@ from run_record_reader import (DamagedRecord, damaged_record_result, check_handw
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
+from encounter_openers import digest
 import git_paths
 from cpt_identity import ED_EM, OFFICE_EM  # the one E/M family constant, shared with the worksheet readers
 
@@ -66,9 +67,9 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def sheet_sha256(content: bytes) -> str:
-    """The receipt's MDM sheet fingerprint rule over one committed version's bytes."""
-    return hashlib.sha256(content).hexdigest()
+# The receipt's MDM sheet fingerprint rule over one committed version's bytes: the one SHA-256
+# rule the run records use, not a second one.
+sheet_sha256 = digest
 
 
 def committed_sheet(path: Path) -> bytes | None:
@@ -78,22 +79,34 @@ def committed_sheet(path: Path) -> bytes | None:
     return None if committed.returncode else committed.stdout
 
 
-def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, str]]:
-    """Each commit of ``git log -z --name-only --format=%H`` with the path it held the sheet at.
+def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, tuple[str, ...]]]:
+    """Each commit of ``git log -z --name-only --format=%H`` with the paths to ask it for the sheet at.
 
     ``records`` are ``git_paths.read_path_records``'s, split on NUL before byte-safe decoding. A
-    commit is followed by its name list, which ``-z`` opens with a line break; a commit listing no
-    name, such as a merge, holds the path of the newer commit before it, ``relative`` first.
+    commit is followed by its name list, which ``-z`` opens with a line break. A commit listing no
+    name may sit on either side of a rename, so it is asked at the path of the newer listed commit
+    (``relative`` for the newest) and then at that of the next older one. ``-m`` lists a merge once
+    per parent; it is asked once.
     """
-    found: list[tuple[str, str]] = []
-    at = relative
+    listed: list[list] = []
     for token in records:
         if token.startswith("\n"):
-            at = token[1:]
-            if found:
-                found[-1] = (found[-1][0], at)
+            if listed and listed[-1][1] is None:
+                listed[-1][1] = token[1:]
         elif token.strip():
-            found.append((token.strip(), at))
+            listed.append([token.strip(), None])
+    found: list[tuple[str, tuple[str, ...]]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    newer = relative
+    for index, (commit, at) in enumerate(listed):
+        if at is not None:
+            newer, candidates = at, (at,)
+        else:
+            older = next((path for _, path in listed[index + 1:] if path is not None), None)
+            candidates = tuple(dict.fromkeys(path for path in (newer, older) if path is not None))
+        if (commit, candidates) not in seen:
+            seen.add((commit, candidates))
+            found.append((commit, candidates))
     return found
 
 
@@ -103,9 +116,10 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
     when HEAD does not match is the path's history walked, newest first, each version hashed by
     ``sheet_sha256``, so a receipt keeps reading the sheet it bound after later commits change it;
-    ``--full-history`` keeps a version committed on a side branch and merged in, and ``--follow``
+    ``--full-history`` keeps a version committed on a side branch and merged in, ``--follow``
     with ``--name-only`` names the path each commit held the sheet at, so a version committed
-    before a rename is read at its former path. The walk is two git processes: ``git log -z``
+    before a rename is read at its former path, and ``-m`` keeps a merge that resolved the sheet
+    itself, which ``--follow`` otherwise leaves out. The walk is two git processes: ``git log -z``
     lists the commits with their paths, and one ``git cat-file --batch`` is asked for one version
     at a time and closed at the first match, so no later version is read. Each object is skipped
     by its declared size whatever its type. None when no version matches, the path is outside this
@@ -117,7 +131,8 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
             return head
         relative = path.relative_to(ROOT).as_posix()
         commits = history_paths(git_paths.read_path_records(
-            ROOT, "log", "-z", "--full-history", "--follow", "--name-only", "--format=%H", "--", relative), relative)
+            ROOT, "log", "-z", "--full-history", "--follow", "-m", "--name-only", "--format=%H", "--", relative),
+            relative)
         if not commits:
             return None
         batch = subprocess.Popen(["git", "cat-file", "--batch"], cwd=ROOT, stdin=subprocess.PIPE,
@@ -125,21 +140,22 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     except (OSError, ValueError, git_paths.GitPathError):
         return None
     try:
-        for commit, at in commits:
-            batch.stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
-            batch.stdin.flush()
-            header = batch.stdout.readline().split()
-            if not header:
-                return None
-            if len(header) != 3 or not header[2].isdigit():
-                continue  # "<object> missing" or "ambiguous": a header with no body
-            size = int(header[2])
-            version = batch.stdout.read(size)
-            batch.stdout.read(1)  # every object type carries its body and a trailing LF
-            if len(version) != size:
-                return None
-            if header[1] == b"blob" and sheet_sha256(version) == digest:
-                return version
+        for commit, candidates in commits:
+            for at in candidates:
+                batch.stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
+                batch.stdin.flush()
+                header = batch.stdout.readline().split()
+                if not header:
+                    return None
+                if len(header) != 3 or not header[2].isdigit():
+                    continue  # "<object> missing" or "ambiguous": a header with no body
+                size = int(header[2])
+                version = batch.stdout.read(size)
+                batch.stdout.read(1)  # every object type carries its body and a trailing LF
+                if len(version) != size:
+                    return None
+                if header[1] == b"blob" and sheet_sha256(version) == digest:
+                    return version
         return None
     except OSError:
         return None

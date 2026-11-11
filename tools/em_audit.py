@@ -22,7 +22,8 @@ the run is judged current), an element block that contradicts itself or the sele
 billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
 contradicts itself or differs element by element, a record that changed or went missing after the
 manifest (a note, worksheet, opener, patient status or receipt, or a private worksheet against its
-recorded fingerprint), or a damaged handwritten record; 2 when the run could not be read, a note number is
+recorded fingerprint), or a damaged handwritten record; 2 when the run could not be read, a tool
+defect stopped the render (named by its exception type, for a maintainer), a note number is
 unknown, the CPT MDM sheet version the receipt bound does not parse (a tool defect), a Word option
 was given without ``--docx``, a
 check-off or Word copy was refused (naming the note number that stopped it and the copies already
@@ -58,7 +59,7 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
                                EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block,
-                               entry_region, physical_lines, read_entries, selected_em_lines,
+                               entry_region, physical_lines, read_entries,
                                step_four_lines, worksheet_em_block)
 
 
@@ -151,9 +152,9 @@ DECLARED_LIMITS = (
     "again; a check-off is compared only when its note's own render read everything, and a record "
     "outside any one note left unread (the sheet version, the CPT 2026 descriptors, the answers "
     "record) stops every comparison, named in the report. At submission, a run "
-    "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
-    "and only where a worksheet carries a selected E/M line; a direct consultation with no opener "
-    "record is not graded, so a note-path run whose opener record is lost reads the same way.",
+    "with no manifest is incomplete on the note path, marked by its encounter opener record, "
+    "whatever its worksheets select; a direct consultation with no opener record is not graded, "
+    "so a note-path run whose opener record is lost reads the same way.",
     "The ECG line is mechanical only for 93000 and 93005 on the worksheet. A billed one needs an "
     "EM-ECG limb other than not applicable, and a single billed code a limb naming it rather than "
     "only the other code; with no ECG code billed, the limb's text is not graded. \"not billed\" "
@@ -344,7 +345,8 @@ def parse_private(text: str) -> PrivateWorksheet:
     # Each entry and each selected E/M line of the region owns a body; an unselected label owns none.
     owners = sorted({region.count("\n", 0, match.start()) for match in matches}
                     | {index for index in physical.selected if index < region_lines})
-    walks = {index: entry_walk(lines[:region_lines], index, physical.selected) for index in owners}
+    in_region = lines[:region_lines]
+    walks = {index: entry_walk(in_region, index, physical.selected) for index in owners}
     sections: list[EmSection] = []
     claimed: set[int] = set()
     for index in sorted(physical.selected):
@@ -646,13 +648,12 @@ def filled_marks(text: str) -> tuple[list[str], int]:
     marks: set[str] = set()
     unclosed = 0
     for opener in FILLED_OPENER.finditer(text):
-        rest = text[opener.start():]
-        close = rest.find("]")
-        broken = MARK_BREAK.search(rest, 1)
+        close = text.find("]", opener.start())
+        broken = MARK_BREAK.search(text, opener.start() + 1)
         if close < 0 or (broken is not None and broken.start() < close):
             unclosed += 1
             continue
-        mark = " ".join(rest[:close + 1].split())
+        mark = " ".join(text[opener.start():close + 1].split())
         if FILLED_MARK.fullmatch(mark):
             marks.add(mark)
     return sorted(marks), unclosed
@@ -1016,6 +1017,13 @@ class UnknownNote(ValueError):
     """A --note number names no encounter of the run."""
 
 
+class RecordsRefused(ValueError):
+    """The coding records are missing or invalid: validation refused them before anything rendered."""
+
+
+TOOL_DEFECT_REMEDY = "report it to a maintainer; the coding records need no repair for it"
+
+
 class WordTargetRefused(ValueError):
     """A Word copy aimed anywhere but the main checkout's output/ tree."""
 
@@ -1023,8 +1031,14 @@ class WordTargetRefused(ValueError):
 def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     """Every selected check-off as a ``Sheet``, rendered from the validated read itself."""
     run = run.resolve()
-    fingerprints = review_manifest.private_fingerprints(run) or {}
-    validated = review_manifest.validated_population(run, fingerprints)
+    try:
+        fingerprints = review_manifest.private_fingerprints(run) or {}
+        validated = review_manifest.validated_population(run, fingerprints)
+    except (review_manifest.StaleRecord, UnreadableRecord, DamagedRecord):
+        raise
+    except (OSError, UnicodeError, ValueError) as error:
+        # Validation refuses a missing or invalid record deliberately; anything else is a tool defect.
+        raise RecordsRefused(str(error)) from error
     manifest, receipt = validated.manifest, validated.receipt
     orders = [encounter.item["order"] for encounter in validated.encounters]
     if any(number not in orders for number in notes):
@@ -1112,7 +1126,7 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
             folder = repo_root.main_repo_root() / folder
         # The one destination rule, docx_write's own for a patient-information artifact.
         return repo_root.ensure_main_checkout(folder, under_output=True)
-    except repo_root.ForeignCheckout as error:
+    except (repo_root.ForeignCheckout, repo_root.OutsideOutput) as error:
         raise WordTargetRefused(str(error.target)) from error
     except (OSError, ValueError, RuntimeError) as error:
         raise WordTargetRefused("the Word destination could not be resolved") from error
@@ -1132,7 +1146,8 @@ def export_word(run: Path, sheets: list[Sheet], output_dir: Path | None, force: 
             # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
             write_docx(sheet_.text, folder / (sheet_.stem + ".docx"), force=force, bold_headings=True,
                        layout="plain", literal=True, under_output=True)
-        except (RefusedToOverwrite, repo_root.ForeignCheckout, OutboundTextError, OSError) as error:
+        except (RefusedToOverwrite, repo_root.ForeignCheckout, repo_root.OutsideOutput, OutboundTextError,
+                OSError) as error:
             raise WordExportStopped(written, sheet_.order, error) from error
         written += 1
     return written
@@ -1183,16 +1198,6 @@ def status_of(tally: Tally) -> int:
 EXPECTED_ROW = em_audit_scope.ROW
 
 
-def selects_em_level(run: Path) -> bool:
-    """Whether a private worksheet of the run carries a selected E/M line.
-
-    A worksheet carrying content damage raises ``DamagedRecord``, and one that cannot be read
-    raises ``OSError`` or ``UnicodeError``; the caller reports each as what it is.
-    """
-    return any(selected_em_lines(physical_lines(review_manifest.read_text(path)))
-               for path in sorted((run / "worksheets").glob("*.md")))
-
-
 STALE_FINDINGS = {
     review_manifest.StaleRecord: ("the manifest or its freshness receipt is stale against the run: a record "
                                   "it was built from changed or went missing after it"),
@@ -1214,18 +1219,7 @@ def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
     frozen = completion_checks.exemption(run, submission, "em_audit", EXPECTED_ROW)
     if frozen is not None:
         return False, frozen, 0
-    if not (run / review_manifest.MANIFEST).exists():
-        try:
-            selects = selects_em_level(run)
-        except DamagedRecord:
-            return True, f"{EXPECTED_ROW}: finding - a private worksheet carries content damage", 0
-        except (UnreadableRecord, OSError, UnicodeError):
-            return False, (f"{EXPECTED_ROW}: incomplete - a private worksheet could not be read, and the run "
-                           "has no coding manifest"), 1
-        if selects:
-            return False, (f"{EXPECTED_ROW}: incomplete - a worksheet selects an E/M level, but the run has "
-                           "no coding manifest to render its check-offs from"), 1
-        return False, f"{EXPECTED_ROW}: not graded - the run has no coding manifest and no E/M worksheet", 0
+    # Scope is em_audit_scope's alone: a run it grades with no manifest reads as missing records.
     try:
         tally, total, sheets = render(run, [])
     except UnreadableRecord:
@@ -1241,8 +1235,11 @@ def completion_gate(run: Path, submission: str) -> tuple[bool, str, int]:
     except (review_manifest.StaleRecord, PrivateWorksheetMoved) as error:
         # A record that read but no longer matches the run is a defect of the run, not unread coverage.
         return True, f"{EXPECTED_ROW}: finding - {STALE_FINDINGS[type(error)]}", 0
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+    except RecordsRefused:
         return False, f"{EXPECTED_ROW}: incomplete - the coding records are missing or cannot be read", 1
+    except Exception as error:  # noqa: BLE001 - anything not raised deliberately is the tool's own defect
+        return False, (f"{EXPECTED_ROW}: incomplete - a tool defect ({type(error).__name__}) stopped the "
+                       f"render; {TOOL_DEFECT_REMEDY}"), 1
     stale = unreadable = uncompared = 0
     # A fresh render that left something unread is not the check-off a complete read would write, so
     # a difference from it is incomplete coverage, never a stale check-off. A note's own unread
@@ -1334,8 +1331,11 @@ def main(argv: list[str] | None = None) -> int:
     except DamagedRecord as error:
         print(damaged_record_result(error, check="em-audit", force=True)[1])
         return 1
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+    except RecordsRefused:
         print("em-audit: refused - missing, invalid, or stale coding records")
+        return 2
+    except Exception as error:  # noqa: BLE001 - anything not raised deliberately is the tool's own defect
+        print(f"em-audit: refused - a tool defect ({type(error).__name__}) stopped the render; {TOOL_DEFECT_REMEDY}")
         return 2
     written, refusal = [], None
     if args.write:
@@ -1355,7 +1355,8 @@ def main(argv: list[str] | None = None) -> int:
         except WordExportStopped as stopped:
             written.append(f"Word copies written {stopped.written}")
             reason = next(text for kind, text in ((RefusedToOverwrite, WORD_REFUSALS["overwrite"]),
-                                                  (repo_root.ForeignCheckout, WORD_REFUSALS["target"]),
+                                                  ((repo_root.ForeignCheckout, repo_root.OutsideOutput),
+                                                   WORD_REFUSALS["target"]),
                                                   (OutboundTextError, WORD_REFUSALS["character"]),
                                                   (OSError, WORD_REFUSALS["write"]))
                           if isinstance(stopped.cause, kind))

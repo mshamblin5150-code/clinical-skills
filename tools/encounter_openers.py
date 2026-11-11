@@ -138,10 +138,11 @@ class OpenerChanged(ValueError):
 
 
 def bound_bytes(path: Path, name: str) -> bytes:
+    """The bytes of a file the opener record bound; gone as a file is a change, other errors stay unreadable."""
     try:
         return path.read_bytes()
-    except FileNotFoundError as error:
-        raise OpenerChanged(f"{name} went missing since opener reading") from error
+    except (FileNotFoundError, NotADirectoryError, IsADirectoryError) as error:
+        raise OpenerChanged(f"{name} is no longer a file where opener reading found it") from error
 
 
 def read_openers(run: Path) -> dict:

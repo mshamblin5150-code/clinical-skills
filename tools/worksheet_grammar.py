@@ -258,8 +258,9 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
     ``em_identity`` entry of ``region`` (``text`` itself, or its for-entry region), indented or not.
     ``entries`` are ``read_entries`` of ``region``, whose lines are ``text``'s, so each line is
     numbered over ``text`` split on LF. An entry marked ``NOT FOR ENTRY``, an entry outside
-    ``region``, and a label inside the body (``body_end``) of an entry marked ``NOT FOR ENTRY`` are
-    never selected: a rejected level is never the final one. Rejected entries are found in
+    ``region``, and a label inside the body (``body_end``) of an E/M entry marked ``NOT FOR ENTRY``
+    are never selected: a rejected level is never the final one. A label inside the body of a
+    rejected diagnosis or procedure is selected as anywhere else. Rejected entries are found in
     ``entry_reading`` of the worksheet's mode, so a visible ``CPT: 99285 ... NOT FOR ENTRY`` rejects
     a label beneath it as its private copy does. ``lines`` is ``physical_lines(text)`` for the
     private mode, passed by a caller that already split it; the visible mode splits its own
@@ -272,7 +273,8 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
     every = list(ENTRY.finditer(reading))
     rejected: set[int] = set()
     for index, match in enumerate(every):
-        if not entry_is_for_entry(reading, every, index):
+        # Only a rejected level rejects a label inside it; a rejected diagnosis rejects no level.
+        if not entry_is_for_entry(reading, every, index) and em_identity(match.group("system"), match.group("code")):
             start = reading.count("\n", 0, match.start())
             rejected.update(range(start + 1, body_end(lines, start)))
     found = {(line, match.group("code")) for match in EM_CODE_LABEL.finditer(text)
