@@ -2826,10 +2826,11 @@ approval uses, so a stale manifest or receipt refuses rather than rendering a pa
 with the records. Codes for entry come from the private worksheet through `worksheet_grammar`; its
 icd10-cpt step 4 blocks are quoted. The E/M section renders the element block that
 `worksheet_grammar.worksheet_em_block` reads and checks it against the selected code, the CPT MDM
-sheet ids, read by `cpt_mdm_sheet.read_entries` from the sheet the receipt fingerprints, and the
-pre-approval answers record; a worksheet without a block shows its visible worksheet instead. The
-manifest binds the element lines through a fingerprint apart from the receipt-bound one. A re-derivation record is compared element by element. `--write` uses
-`encounter_openers.atomic_write`, which keeps check-offs under the private `scratch/` run; `--docx`
+sheet ids, read by `cpt_mdm_sheet.read_entries` from the committed sheet version the receipt
+fingerprints, and the pre-approval answers record; a worksheet without a block shows its visible
+worksheet instead. The manifest binds the element lines through a fingerprint apart from the
+receipt-bound one. A re-derivation record is compared element by element. `--write` writes each
+check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`
 renders the same text through `docx_write.write_docx` into the main checkout `output/`, keeping its
 overwrite refusal and setting the copied text literally (`literal=True`). The default output is
 counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, and 2 is a refused

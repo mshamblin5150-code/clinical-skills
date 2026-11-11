@@ -800,20 +800,20 @@ class FifthReviewFindings(RunFixture):
     def test_v4_the_sheet_fingerprint_is_the_receipts_own_rule(self):
         import coding_freshness
         name_the_committed_sheet(self.run)
-        with mock.patch.object(coding_freshness, "committed_sheet_sha256",
-                               wraps=coding_freshness.committed_sheet_sha256) as rule:
+        # Eighth review: the receipt's rule is applied to the sheet's committed history, not HEAD alone.
+        with mock.patch.object(coding_freshness, "sheet_sha256", wraps=coding_freshness.sheet_sha256) as rule:
             status, output = self.in_process("--write")
         self.assertEqual(0, status, output)
         self.assertGreater(rule.call_count, 0)
         self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
-        with mock.patch.object(coding_freshness, "committed_sheet_sha256", return_value="0" * 64):
+        with mock.patch.object(coding_freshness, "sheet_sha256", return_value="0" * 64):
+            status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("unread remainder 1", output)
+        with mock.patch.object(coding_freshness, "bound_sheet_version", return_value=b"no entries here"):
             status, output = self.in_process()
         self.assertEqual(2, status, output)
         self.assertIn("CPT MDM sheet", output)
-        with mock.patch.object(coding_freshness, "committed_sheet_sha256",
-                               side_effect=ValueError("MDM sheet differs from its committed version")):
-            status, output = self.in_process()
-        self.assertEqual(2, status, output)
 
     def test_v6_a_refused_check_off_says_the_word_copies_were_not_attempted(self):
         (self.run / em_audit.OUTPUT_DIRECTORY / "note-2.md").mkdir(parents=True)
@@ -937,12 +937,15 @@ class SixthReviewFindings(RunFixture):
             self.assertIn(expected[1], report)
 
     def test_x6_a_re_derivation_with_no_readable_element_line_is_absent(self):
-        for text in ("Prose only, no element line.\n", "  EM-OPINION: an unrecognized line\n"):
-            with self.subTest(text=text):
-                self.record(text)
-                result = self.invoke("--write")
-                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-                self.assertIn("absent 1", result.stdout)
+        # Eighth review: only a record with no element candidate is absent; refused candidates are unread.
+        self.record("Prose only, no element line.\n")
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 1", result.stdout)
+        self.record("  EM-OPINION: an unrecognized line\n")
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 0", result.stdout)
         self.record(ELEMENTS.replace("  EM-LEVEL: 99283\n", "  EM-LEVEL: not a code\n"))
         result = self.invoke()
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
@@ -1073,6 +1076,105 @@ class SeventhReviewFindings(RunFixture):
         function = next(node for node in tree.body
                         if isinstance(node, ast.FunctionDef) and node.name == "rederivation_lines")
         self.assertEqual([], [ast.unparse(node) for node in ast.walk(function) if isinstance(node, ast.IfExp)])
+
+
+
+class EighthReviewFindings(RunFixture):
+    """The eighth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_z1_a_finding_is_repaired_before_approval_and_only_differences_are_shown(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        coding = (ROOT / "skills" / "icd10-cpt" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("`FINDING` lines the clinician has seen", skill)
+        self.assertNotIn("differences and findings shown to the clinician", coding)
+        for text in (skill, coding):
+            self.assertIn("rebuild the manifest", " ".join(text.split()))
+        self.record(ELEMENTS.replace("definition-stable-chronic | not counted", "definition-stable-chronic | counted"))
+        self.assertEqual(1, self.invoke("--write").returncode)
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 0), (finding, unread), report)
+        self.assertIn("differing 1", report)
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace("risk low; mdm low", "risk low; mdm moderate")))
+        self.invoke("--write")
+        finding, report, _ = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertTrue(finding, report)
+
+    def git_repository(self) -> Path:
+        repository = self.root / "repository"
+        (repository / "reference").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(repository)], check=True)
+        return repository
+
+    def commit(self, repository: Path, content: bytes) -> None:
+        (repository / "reference" / "history-mdm.md").write_bytes(content)
+        subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(repository), "-c", "user.name=synthetic", "-c", "user.email=synthetic@example.test",
+                        "commit", "-q", "-m", "synthetic"], check=True)
+
+    def test_z5_the_sheet_version_the_receipt_bound_is_read_after_a_later_commit(self):
+        import coding_freshness
+        import hashlib
+        real = (ROOT / "reference" / "cpt-em-mdm-2026.md").read_bytes()
+        repository = self.git_repository()
+        self.commit(repository, real)
+        self.commit(repository, real + b"\nA later revision of the sheet.\n")
+        receipt = self.run / review_manifest.RECEIPT
+        value = json.loads(receipt.read_text(encoding="utf-8"))
+        value["sources"]["cpt"]["mdm_sheet_filename"] = "history-mdm.md"
+        value["sources"]["cpt"]["mdm_sheet_sha256"] = hashlib.sha256(real).hexdigest()
+        receipt.write_text(json.dumps(value), encoding="utf-8")
+        with mock.patch.object(coding_freshness, "ROOT", repository), mock.patch.object(em_audit, "REPOSITORY", repository):
+            status, output = self.in_process("--write")
+            self.assertEqual(0, status, output)
+            self.assertNotIn("Entry ids: not checked", self.sheet.read_text(encoding="utf-8"))
+            value["sources"]["cpt"]["mdm_sheet_sha256"] = "0" * 64
+            receipt.write_text(json.dumps(value), encoding="utf-8")
+            status, output = self.in_process()
+            self.assertEqual(2, status, output)
+            self.assertIn("unread remainder 1", output)
+
+    def test_z6_a_re_derivation_whose_element_lines_are_all_refused_is_unread_not_absent(self):
+        self.record("".join("- " + line.strip() + "\n" for line in ELEMENTS.splitlines()))
+        result = self.invoke("--write")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 0", result.stdout)
+        self.record("Prose only, no element line.\n")
+        result = self.invoke("--write")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("absent 1", result.stdout)
+
+    def test_z7_check_offs_are_written_under_the_run_record_lock(self):
+        with mock.patch.object(em_audit, "update_tool_record", wraps=em_audit.update_tool_record) as writer:
+            status, output = self.in_process("--write")
+        self.assertEqual(0, status, output)
+        self.assertEqual(1, writer.call_count)
+        self.sheet.write_bytes(b"\xff damaged check-off")
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertIn("check-offs refused at note 1", output)
+
+    def test_z8_one_em_family_constant_and_no_lock_stack_in_the_grammar(self):
+        import coding_freshness
+        import cpt_identity
+        import worksheet_grammar
+        self.assertIs(cpt_identity.EM_CODES, review_manifest.EM_CODES)
+        self.assertIs(cpt_identity.EM_CODES, worksheet_grammar.EM_CODES)
+        self.assertEqual(cpt_identity.EM_CODES, coding_freshness.ED_EM | coding_freshness.OFFICE_EM)
+        self.assertFalse(hasattr(worksheet_grammar, "em_family"))
+        tree = ast.parse(Path(worksheet_grammar.__file__).read_text(encoding="utf-8"))
+        imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+        imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+        self.assertEqual({"__future__", "re", "dataclasses", "cpt_identity"}, imported)
+
+    def test_z9_and_z10_the_element_block_walk_does_not_copy_and_the_stops_share_one_class(self):
+        import worksheet_grammar
+        tree = ast.parse(Path(worksheet_grammar.__file__).read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "opens_element_block")
+        self.assertEqual([], [ast.unparse(node) for node in ast.walk(function) if isinstance(node, ast.Slice)])
+        self.assertIs(em_audit.CheckOffsStopped.__init__, em_audit.WordExportStopped.__init__)
+        self.assertTrue(issubclass(em_audit.CheckOffsStopped, em_audit.WritesStopped))
+        self.assertTrue(issubclass(em_audit.WordExportStopped, em_audit.WritesStopped))
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ from run_record_reader import (DamagedRecord, damaged_record_result, check_handw
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
+from cpt_identity import ED_EM, OFFICE_EM  # the one E/M family constant, shared with the worksheet readers
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,8 +40,6 @@ HCPCS_RELEASE_URL = (
 STATUS_VALUES = frozenset({"new", "established"})
 STATUS_EVIDENCE = frozenset({"identity-map", "medatrax", "clinician-answer"})
 SHA256 = re.compile(r"[0-9a-f]{64}")
-OFFICE_EM = frozenset(f"992{number:02d}" for number in range(2, 16))
-ED_EM = frozenset(f"992{number}" for number in range(81, 86))
 MONTH = (
     r"(?:January|February|March|April|May|June|July|August|September|October|"
     r"November|December)"
@@ -66,6 +65,35 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sheet_sha256(content: bytes) -> str:
+    """The receipt's MDM sheet fingerprint rule over one committed version's bytes."""
+    return hashlib.sha256(content).hexdigest()
+
+
+def bound_sheet_version(path: Path, digest: str) -> bytes | None:
+    """The committed version of the sheet at ``path`` whose fingerprint is ``digest``.
+
+    The path's history is walked newest first, each version hashed by ``sheet_sha256``, so a
+    receipt keeps reading the sheet it bound after later commits change it. None when no version
+    matches, the path is outside this checkout, or git cannot be run.
+    """
+    try:
+        relative = path.relative_to(ROOT).as_posix()
+        log = subprocess.run(["git", "log", "--format=%H", "--", relative], cwd=ROOT, capture_output=True)
+    except (OSError, ValueError):
+        return None
+    if log.returncode:
+        return None
+    for commit in log.stdout.decode("ascii", errors="replace").split():
+        try:
+            version = subprocess.run(["git", "show", f"{commit}:{relative}"], cwd=ROOT, capture_output=True)
+        except OSError:
+            return None
+        if version.returncode == 0 and sheet_sha256(version.stdout) == digest:
+            return version.stdout
+    return None
+
+
 def committed_sheet_sha256(path: Path) -> str:
     relative = path.relative_to(ROOT).as_posix()
     committed = subprocess.run(
@@ -75,7 +103,7 @@ def committed_sheet_sha256(path: Path) -> str:
         raise ValueError("MDM sheet is not committed at HEAD")
     if committed.stdout.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
         raise ValueError("MDM sheet differs from its committed version")
-    return hashlib.sha256(committed.stdout).hexdigest()
+    return sheet_sha256(committed.stdout)
 
 
 def read_url(url: str) -> str:

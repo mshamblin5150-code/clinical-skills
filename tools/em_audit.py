@@ -41,10 +41,11 @@ import preapproval_answers
 import repo_root
 import review_manifest
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import atomic_write
+from encounter_openers import private_target
 from run_grader import format_unread_remainder
-from run_record_reader import (DamagedRecord, OutboundTextError, UnreadableRecord, collecting_errors,
-                               damaged_record_result, fault_report, read_handwritten_record, read_tool_record)
+from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, UnreadableRecord,
+                               collecting_errors, damaged_record_result, fault_report, read_handwritten_record,
+                               read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, ENTRY, FIELD, REFUSAL_HEADING,
                                UNDOCUMENTED_HEADING, EmBlock, block_text, em_block, entry_region,
                                opens_element_block, paired_entry, physical_lines, read_entries,
@@ -60,10 +61,10 @@ DECLARED_LIMITS = (
     "the selected code, answer ids present in the pre-approval answers record, and one block per "
     "worksheet. It is not checked that the code follows from the MDM level, setting and status, "
     "that a quotation is faithful to the note, or that every element weighed was written down.",
-    "Entry ids are checked only when the sheet the receipt names exists under reference/, read by "
-    "cpt_mdm_sheet.read_entries; an absent sheet leaves them unchecked and counts once as unread. "
-    "A present sheet that coding_freshness.committed_sheet_sha256 refuses or fingerprints otherwise "
-    "than the receipt, or that the parser refuses, refuses the check-off.",
+    "Entry ids are read by cpt_mdm_sheet.read_entries from the committed version of the sheet the "
+    "receipt names whose fingerprint, by coding_freshness.sheet_sha256, equals the receipt's, found "
+    "in that path's git history. No matching version, or no git, leaves them unchecked and counts "
+    "once as unread; a matching version the parser refuses refuses the check-off.",
     "An answer recorded as unreadable is shown and counted as incomplete coverage; the record "
     "itself does not establish which question a reply answered. An answers record that exists but "
     "cannot be read leaves the block's answer ids unchecked and counts once as unread; an absent "
@@ -80,15 +81,18 @@ DECLARED_LIMITS = (
     "the note verbatim, with the governing rules for the setting, and a re-derivation of it is "
     "compared on the level alone. A missing block or re-derivation is not graded only for a run "
     "whose approval predates the em_audit start; the command reads that approval only through "
-    "--submission, and missing evidence grants no exemption. A re-derivation file with no readable "
-    "element line is not a placed re-derivation.",
+    "--submission, and missing evidence grants no exemption. A re-derivation file with no element "
+    "candidate line is not a placed re-derivation; one whose candidates are all refused is unread.",
     "Codes for entry are read from the private worksheet region and with the readers the "
     "manifest validation uses; the icd10-cpt step 4 blocks are copied as quotations with blank "
     "lines dropped, not parsed, through worksheet_grammar.step_four_block with the terminator, "
     "iteration and line splitting of the grader that grades each block (BLOCK_READERS); the "
-    "undocumented block, which no grader reads, takes refusal_scan's. A block also ends at a "
-    "selected E/M line whose indented body holds an element line; any other line, an E/M entry "
-    "marked NOT FOR ENTRY included, stays the block's text.",
+    "undocumented block, which no grader reads, takes refusal_scan's. A selected E/M line whose "
+    "indented body holds an element line is skipped with that body and the block reads on; any "
+    "other line, an E/M entry marked NOT FOR ENTRY included, stays the block's text.",
+    "Element candidates are any upper-case EM- name and the eight element names in any case, after "
+    "an optional bullet or bold; a candidate the strict reader refuses is unread and fingerprinted. "
+    "A misspelled element name in another case is not a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line owns, "
     "and an indented line after an element block, are counted unread. A continuation that a "
@@ -107,6 +111,11 @@ DECLARED_LIMITS = (
     "only the other code; with no ECG code billed, the limb's text is not graded.",
     "Validation re-reads the opener source, notes, worksheets, status evidence and receipt; a "
     "moved or edited source refuses the check-off even long after the shift.",
+    "Each check-off is written through run_record_reader.update_tool_record: the exclusive "
+    "run-record lock covers the strict read of the existing check-off and its atomic replacement, "
+    "one file at a time with no transaction across notes. An existing check-off that cannot be "
+    "read refuses its replacement, as every tool-written run record does. Word copies are outbound "
+    "artifacts written by docx_write under its own overwrite refusal.",
 )
 
 
@@ -282,27 +291,22 @@ class SheetMoved(ValueError):
 
 
 def sheet_ids(receipt: dict) -> set[str] | None:
-    """The entry ids of the sheet the receipt names, through ``cpt_mdm_sheet.read_entries``.
+    """The entry ids of the sheet version the receipt bound, through ``cpt_mdm_sheet.read_entries``.
 
-    None when no file of that name is under reference/, which the caller counts as unread. The
-    fingerprint is ``coding_freshness.committed_sheet_sha256``, the rule that wrote the receipt's
-    ``mdm_sheet_sha256``; a sheet it refuses or whose fingerprint differs, or that the sheet parser
-    refuses, refuses the check-off, as validation refuses any other source the receipt binds.
+    ``coding_freshness.bound_sheet_version`` finds that version in the path's git history with the
+    rule that wrote the receipt's ``mdm_sheet_sha256``, so a later commit to the sheet does not
+    block an older run. None when no version matches or git cannot be run, which the caller counts
+    as unread. A matching version the sheet parser refuses refuses the check-off.
     """
     cpt = receipt["sources"]["cpt"]
     path = REPOSITORY / "reference" / Path(cpt["mdm_sheet_filename"]).name
-    if not path.is_file():
+    content = coding_freshness.bound_sheet_version(path, cpt["mdm_sheet_sha256"])
+    if content is None:
         return None
     try:
-        if coding_freshness.committed_sheet_sha256(path) != cpt["mdm_sheet_sha256"]:
-            raise SheetMoved("the CPT MDM sheet differs from the receipt fingerprint")
-        return set(cpt_mdm_sheet.read_entries(path.read_text(encoding="utf-8")))
-    except SheetMoved:
-        raise
-    except (OSError, UnicodeError) as error:
-        raise SheetMoved("the CPT MDM sheet could not be read") from error
-    except ValueError as error:
-        raise SheetMoved("the CPT MDM sheet is not the committed sheet, or does not parse") from error
+        return set(cpt_mdm_sheet.read_entries(content.decode("utf-8")))
+    except (UnicodeError, ValueError) as error:
+        raise SheetMoved("the CPT MDM sheet version the receipt bound does not parse") from error
 
 
 def item_lines(block_: EmBlock) -> list[str]:
@@ -443,9 +447,8 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
         tally.unread += 1
         return ["The re-derivation record could not be read."]
     rederived = em_block(text)
-    if rederived is None or not (rederived.items or rederived.rules or rederived.answers or rederived.ecg
-                                 or rederived.mdm or rederived.level):
-        return absent_rederivation(tally, "The re-derivation record holds no readable element line, so no "
+    if rederived is None:
+        return absent_rederivation(tally, "The re-derivation record holds no element line, so no "
                                           "re-derivation is placed for this note.")
     if rederived.unread:
         tally.unread += rederived.unread
@@ -501,7 +504,7 @@ class Context:
     def __init__(self, run: Path, receipt: dict, tally: Tally) -> None:
         self.ids = sheet_ids(receipt)
         if self.ids is None:
-            tally.unread += 1  # the sheet the receipt names is absent: entry ids are not graded
+            tally.unread += 1  # no committed sheet version matches the receipt: entry ids are not graded
         self.unreadable = False
         try:
             self.answers = preapproval_answers.read(run)
@@ -567,8 +570,8 @@ def em_lines(item: dict, note: str, worksheet: str, private: str, receipt: dict,
     if elements.blocks > 1:
         found.append(f"the private worksheet carries {elements.blocks} element blocks; the first is shown")
     if context.ids is None:
-        lines.append("- Entry ids: not checked; the CPT MDM sheet the receipt names is not under reference/, "
-                     "counted once in the unread remainder")
+        lines.append("- Entry ids: not checked; no committed version of the CPT MDM sheet the receipt names "
+                     "matches its fingerprint, counted once in the unread remainder")
     if found:
         tally.block_findings += len(found)
         lines += ["", *["- FINDING: " + finding for finding in found]]
@@ -646,31 +649,41 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
 
 
 def write_markdown(run: Path, sheets: list[Sheet]) -> int:
-    """Write each check-off into the private run; a failed write stops with ``CheckOffsStopped``."""
+    """Write each check-off into the private run under its run-record lock.
+
+    Each is one ``update_tool_record`` transaction: the exclusive lock covers the strict read of
+    the existing check-off and its atomic replacement, and an unchanged check-off is not rewritten.
+    A failed write, an existing check-off that cannot be read included, stops with
+    ``CheckOffsStopped``.
+    """
     written = 0
     for sheet_ in sheets:
+        payload = sheet_.text.encode("utf-8")
         try:
-            atomic_write(run.resolve() / OUTPUT_DIRECTORY / (sheet_.stem + ".md"), sheet_.text.encode("utf-8"))
+            path = private_target(run.resolve() / OUTPUT_DIRECTORY / (sheet_.stem + ".md"))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            update_tool_record(path, str, lambda previous: RecordUpdate(
+                None if previous == sheet_.text else payload, None))
         except (OSError, ValueError) as error:
             raise CheckOffsStopped(written, sheet_.order, error) from error
         written += 1
     return written
 
 
-class CheckOffsStopped(Exception):
-    """A check-off write failed part way: how many were written, and the note number that stopped it."""
+class WritesStopped(Exception):
+    """A run of writes failed part way: how many were written, and the note number that stopped it."""
 
     def __init__(self, written: int, order: int, cause: BaseException) -> None:
         super().__init__(f"stopped at note {order} after {written} written")
         self.written, self.order, self.cause = written, order, cause
 
 
-class WordExportStopped(Exception):
-    """A Word copy failed part way: how many were written, and the note number that stopped it."""
+class CheckOffsStopped(WritesStopped):
+    """A Markdown check-off write stopped."""
 
-    def __init__(self, written: int, order: int, cause: BaseException) -> None:
-        super().__init__(f"stopped at note {order} after {written} written")
-        self.written, self.order, self.cause = written, order, cause
+
+class WordExportStopped(WritesStopped):
+    """A Word copy stopped."""
 
 
 def word_folder(run: Path, output_dir: Path | None) -> Path:

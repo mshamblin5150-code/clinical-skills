@@ -154,6 +154,32 @@ class TheStrictReader(unittest.TestCase):
             with self.subTest(old=old):
                 self.assertEqual(1, grammar.em_block(BLOCK.replace(old, new, 1)).unread)
 
+    def test_z2_a_lower_case_element_name_is_unread_and_fingerprinted(self):
+        for spelling in ("EM-Problem", "em-problem", "- em-data"):
+            with self.subTest(spelling=spelling):
+                near = "  " + spelling + ': definition-acute-uncomplicated | counted | "Cough" | evaluated\n'
+                block, outside, _ = astuple_of(grammar.worksheet_em_block(EM_LINE + BLOCK + near, EM_CODES))
+                self.assertEqual((0, 1), (outside, block.unread))
+                self.assertNotEqual(review_manifest.element_block_sha256(EM_LINE + BLOCK + near),
+                                    review_manifest.element_block_sha256(EM_LINE + BLOCK + near.replace("Cough", "Fever")))
+        self.assertIsNone(grammar.em_block("- em-dashes set this sentence apart\n"))
+
+    def test_z3_the_anchor_takes_its_for_entry_flag_from_the_entry_reader(self):
+        text = "CPT 99284 Emergency visit\n\n  reasoning only, NOT FOR ENTRY\n"
+        lines = text.splitlines()
+        self.assertFalse(grammar.read_entries(text)[0].for_entry)
+        self.assertFalse(grammar.selected_em_anchor(lines, 0, EM_CODES))
+        self.assertTrue(grammar.selected_em_anchor(["CPT 99284 Emergency visit", "", "  reasoning"], 0, EM_CODES))
+
+    def test_z4_an_element_block_inside_a_step_four_block_is_skipped_not_an_end(self):
+        import anchor_scan
+        import refusal_scan
+        filled = "---CODED, ANCHOR WAS FILLED---\n" + EM_LINE + BLOCK + "Z68.36\n"
+        self.assertEqual((["Z68.36"], True), anchor_scan._block_lines(filled))
+        refused = "---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n" + EM_LINE + BLOCK + "more\n"
+        self.assertEqual((["refused", "more"], True), refusal_scan._block_lines(refused.splitlines()))
+        self.assertEqual("refused\nmore", grammar.block_text(refused, grammar.REFUSAL_HEADING, "refusal"))
+
     def test_a_block_ends_at_an_unspaced_step_four_heading(self):
         text = "---CODED, ANCHOR WAS FILLED---\nNone.\n---NOT CODED, NOTHING ESTABLISHED IT---\nrefused\n"
         self.assertEqual("None.", grammar.block_text(text, grammar.BLOCK_HEADING, "filled"))

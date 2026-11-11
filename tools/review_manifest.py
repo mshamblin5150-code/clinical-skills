@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 
 import coding_freshness
+from cpt_identity import EM_CODES  # the one E/M family constant
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import digest, private_target, read_openers
 from encounter_status import status_for
@@ -135,7 +136,6 @@ def clean_codes(codes: dict) -> dict:
             "hcpcs": coding_freshness.normalize_codes(codes.get("hcpcs", []), "hcpcs")}
 
 
-EM_CODES = coding_freshness.ED_EM | coding_freshness.OFFICE_EM
 
 
 def code_key(system: str, code: str) -> str:

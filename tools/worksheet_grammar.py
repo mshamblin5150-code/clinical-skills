@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from cpt_identity import CPT_CODE
+from cpt_identity import CPT_CODE, EM_CODES
 
 
 # icd10-cpt step 4 has one set of phrases. The optional confirmation tail is part of the
@@ -225,36 +225,23 @@ def entry_region(text: str) -> str:
     return text[:min(boundaries)] if boundaries else text
 
 
-def em_family() -> frozenset[str]:
-    """The E/M-family CPT codes, the rule ``review_manifest.EM_CODES`` selects by.
-
-    Imported when first needed: ``coding_freshness`` opens the code databases' modules, which a
-    worksheet reader that meets no CPT line never needs.
-    """
-    import coding_freshness
-    return coding_freshness.ED_EM | coding_freshness.OFFICE_EM
-
-
-def selected_em_anchor(lines: list[str], index: int, em_codes: frozenset[str] | None = None) -> bool:
+def selected_em_anchor(lines: list[str], index: int, em_codes: frozenset[str] = EM_CODES) -> bool:
     """Whether the line at ``index`` is a selected E/M line: an ``E/M:`` label, or a for-entry
-    ``CPT`` entry whose code is E/M-family (``em_codes``, by default ``em_family``).
+    ``CPT`` entry whose code is E/M-family (``cpt_identity.EM_CODES`` by default).
 
-    An E/M entry marked ``NOT FOR ENTRY`` in its header (``entry_is_for_entry``) is reasoning, never
-    the line an element block, a block end or the check-off's E/M section is anchored to.
+    For entry is ``read_entries``' own rule, ``entry_is_for_entry``, over the text from this entry
+    to the next: its header runs past blank lines to the first field, element line or entry, so an
+    E/M entry marked ``NOT FOR ENTRY`` there is reasoning, never the line an element block, a block
+    end or the check-off's E/M section is anchored to.
     """
     line = lines[index]
     if EM_CODE_LABEL.match(line):
         return True
     entry = ENTRY.match(line)
-    if entry is None or entry.group("system").upper() != "CPT":
+    if entry is None or entry.group("system").upper() != "CPT" or entry.group("code").upper() not in em_codes:
         return False
-    if entry.group("code").upper() not in (em_family() if em_codes is None else em_codes):
-        return False
-    end = index + 1
-    while end < len(lines) and lines[end].strip() and lines[end][0] in " \t" and not ENTRY.match(lines[end]):
-        end += 1
-    header = "\n".join(lines[index:end])
-    return entry_is_for_entry(header, list(ENTRY.finditer(header))[:1], 0)
+    rest = "\n".join(lines[index:])
+    return entry_is_for_entry(rest, [match for _, match in zip(range(2), ENTRY.finditer(rest))], 0)
 
 
 def physical_lines(text: str) -> list[str]:
@@ -277,14 +264,21 @@ def opens_element_block(lines: list[str], index: int) -> bool:
     written inside an icd10-cpt step 4 block with no element line beneath it never qualifies, and
     neither does a margin code that is not a selected E/M line.
     """
+    return element_body_end(lines, index) is not None
+
+
+def element_body_end(lines: list[str], index: int) -> int | None:
+    """The index after the indented body of a margin selected E/M line that holds an EM- line.
+
+    None when the line is not such an anchor. The body is the contiguous indented lines below it.
+    """
     if not lines[index][:1].strip() or not selected_em_anchor(lines, index):
-        return False
-    for follower in lines[index + 1:]:
-        if not follower.strip() or follower[0] not in " \t":
-            return False
-        if EM_CANDIDATE.match(follower):
-            return True
-    return False
+        return None
+    follower, holds_element = index + 1, False
+    while follower < len(lines) and lines[follower].strip() and lines[follower][0] in " \t":
+        holds_element = holds_element or bool(EM_CANDIDATE.match(lines[follower]))
+        follower += 1
+    return follower if holds_element else None
 
 
 def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
@@ -293,22 +287,27 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
 
     The caller supplies the lines, split as it splits them, and the terminator it grades by:
     refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to ``OTHER_HEADING``
-    under ``every`` heading. The one shared addition is the E/M section: a block also ends at a
-    selected E/M line that opens its element block, which a worksheet without the block never has.
+    under ``every`` heading. The one shared addition is the E/M section: a selected E/M line that
+    opens its element block is skipped with its indented body and the block reads on, so nothing
+    after it is dropped. A worksheet without an element block never has one.
     """
     collected: list[str] = []
     found = inside = False
-    for index, line in enumerate(lines):
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         if heading.match(line) and (every or not found):
             found = inside = True
+        elif inside and (skip := element_body_end(lines, index)) is not None:
+            index = skip
             continue
-        if inside:
-            if end.match(line) or opens_element_block(lines, index):
-                inside = False
-                if not every:
-                    break
-                continue
+        elif inside and end.match(line):
+            inside = False
+            if not every:
+                break
+        elif inside:
             collected.append(line)
+        index += 1
     return collected, found
 
 
@@ -327,7 +326,11 @@ def block_text(text: str, heading: re.Pattern[str], kind: str) -> str | None:
     collected, found = step_four_block(text.splitlines(), heading, end, every=every)
     return "\n".join(collected).strip("\n") if found else None
 
-EM_CANDIDATE = re.compile(r"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?EM-[A-Z]+\b")
+# Every line that tries to be an element line: any upper-case EM- name, and the eight element
+# names in any case, after an optional bullet or bold. A near miss is a candidate the strict
+# reader refuses, so it is counted unread and fingerprinted, never silently skipped.
+ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
+EM_CANDIDATE = re.compile(rf"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})))\b")
 EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
 _EM_ITEM = re.compile(
@@ -338,8 +341,8 @@ _EM_MDM = re.compile(
     r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
 )
 # A refused element line still names its element and, in its first field, usually its entry id.
-_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[ \t*]*:?(?P<entry>[^|]*)")
-_EM_KIND = re.compile(r"EM-(?P<kind>[A-Z]+)\b")
+_EM_LOOSE_ITEM = re.compile(r"EM-(?P<kind>PROBLEM|DATA|RISK)\b[ \t*]*:?(?P<entry>[^|]*)", re.IGNORECASE)
+_EM_KIND = re.compile(r"EM-(?P<kind>[A-Za-z]+)\b")
 _EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
 _EM_CODE = re.compile(r"^\d{5}$")
 _EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
@@ -413,10 +416,10 @@ def em_block(text: str) -> EmBlock | None:
         else:
             unread += 1
             named = _EM_KIND.search(line)
-            refused.add(named.group("kind") if named else "")
+            refused.add(named.group("kind").upper() if named else "")
             if loose is not None:
                 entry = loose.group("entry").strip(" \t*")
-                unread_items.append((loose.group("kind"), entry if _EM_ENTRY.fullmatch(entry) else None))
+                unread_items.append((loose.group("kind").upper(), entry if _EM_ENTRY.fullmatch(entry) else None))
     # A required line that is present but refused is already counted once; only an absent one adds.
     present = {item.kind for item in items} | {kind for kind, values in free.items() if values} | refused
     present |= {"MDM"} if mdms else set()
