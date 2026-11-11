@@ -533,6 +533,23 @@ def element_of(name: str) -> str | None:
     return next((element for element in EM_KINDS if upper.startswith(element)), None)
 
 
+def unread_keys(line: str) -> list[tuple[str, str | None]]:
+    """The (element, entry id) keys an unread EM- candidate line leaves out of a comparison.
+
+    A PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id (None where
+    not); a line no element can be named for may be any counted element, so it leaves every one
+    out; any other element (MDM, LEVEL, ANSWER, RULE, ECG) is no counted item and leaves nothing.
+    """
+    loose = _EM_LOOSE.search(line)
+    element = element_of(loose.group("kind")) if loose else None
+    if element in ITEM_KINDS and loose is not None:  # an element is only named from ``loose``
+        entry = loose.group("entry").strip(" \t*")
+        return [(element, entry if _EM_ENTRY.fullmatch(entry) else None)]
+    if element is None:
+        return [(kind, None) for kind in ITEM_KINDS]
+    return []
+
+
 def em_block(text: str) -> EmBlock | None:
     """Read every EM- line in ``text``; None when the text holds no EM- candidate.
 
@@ -574,12 +591,7 @@ def em_block(text: str) -> EmBlock | None:
             unread += 1
             element = element_of(loose.group("kind")) if loose else None
             refused.add(element or "")
-            if element in ITEM_KINDS and loose is not None:  # an element is only named from ``loose``
-                entry = loose.group("entry").strip(" \t*")
-                unread_items.append((element, entry if _EM_ENTRY.fullmatch(entry) else None))
-            elif element is None:
-                # A refused line no element can be named for may be any counted element.
-                unread_items.extend((kind, None) for kind in ITEM_KINDS)
+            unread_items.extend(unread_keys(line))
     # A required line that is present but refused is already counted once; only an absent one adds.
     present = {item.kind for item in items} | {kind for kind, values in free.items() if values} | refused
     present |= {"MDM"} if mdms else set()
@@ -602,6 +614,8 @@ class WorksheetElements:
     block: EmBlock | None
     outside: int
     blocks: int
+    # ``unread_keys`` of each outside candidate, so a comparison leaves its counterpart out.
+    outside_items: tuple[tuple[str, str | None], ...] = ()
 
 
 def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetElements:
@@ -614,7 +628,8 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     as an indented label under the selected entry, belongs to that block rather than opening a
     second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and
     the caller reports the rest.
-    EM- candidates under no anchor are ``outside``. A worksheet written before the block existed
+    EM- candidates under no anchor are ``outside``, with their ``unread_keys`` in
+    ``outside_items``. A worksheet written before the block existed
     reads ``(None, 0, 0)``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
     a caller that already holds them; lines that do not join back to ``text`` are refused with
     ``ValueError``.
@@ -634,4 +649,6 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
             groups.append(range(index + 1, end))
     within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
-    return WorksheetElements(block, len(candidates - within), len(groups))
+    outside = sorted(candidates - within)
+    keys = tuple(key for index in outside for key in unread_keys(rows[index]))
+    return WorksheetElements(block, len(outside), len(groups), keys)

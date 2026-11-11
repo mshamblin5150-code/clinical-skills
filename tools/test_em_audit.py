@@ -3774,5 +3774,22 @@ class FleetRoundOneFindings(RunFixture):
                               em_audit.rederivation_findings(block, None, levels))
 
 
+class FleetRoundTwoFindings(RunFixture):
+    """Round 2 of the adversarial fleet review."""
+
+    HTN = ('  EM-PROBLEM: definition-stable-chronic | not counted | "Hypertension." | '
+           "history only, no evaluation documented\n")
+    elements = ELEMENTS.replace(HTN, "") + "\n" + HTN
+
+    def test_fb1_an_outside_element_line_stays_out_of_the_comparison(self):
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertIn("unread remainder 1", output)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertNotIn("DIFFERS: Problem definition-stable-chronic", text)
+        self.assertIn("1 worksheet element line(s) or required line(s) unread and left out", text)
+        self.assertNotIn("Compared (elements, MDM and level):", text)
+
+
 if __name__ == "__main__":
     unittest.main()

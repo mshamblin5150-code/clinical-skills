@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 import re
 import sqlite3
@@ -1002,7 +1003,11 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     if found:
         tally.block_findings += len(found)
         lines += ["", *["- FINDING: " + finding for finding in found]]
-    return lines, block_
+    # An outside EM- line is unread like a refused one: the comparison leaves it and its
+    # counterpart out and names it in its scope (already counted in the remainder above).
+    compared = replace(block_, unread=block_.unread + elements.outside,
+                       unread_items=block_.unread_items + elements.outside_items)
+    return lines, compared
 
 
 def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, worksheet: str,
