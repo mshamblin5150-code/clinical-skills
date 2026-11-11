@@ -2832,13 +2832,15 @@ descriptor names in `reference/procedure-codes-2026.sqlite`; a worksheet without
 worksheet instead. The manifest build records a fingerprint of the whole private worksheet in its own
 record beside the manifest, so approval never binds it, and the check-off refuses on a change. A re-derivation record is compared element by element. `--write` writes each
 check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`
-renders the same text through `docx_write.write_docx` into the main checkout `output/`, keeping its
+renders the same text through `docx_write.write_docx` only into the main checkout `output/`, keeping its
 overwrite refusal and setting the copied text literally (`literal=True`). The default output is
 counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, and 2 is a refused
 run, a refused Word copy, a Word option without `--docx` or an unread candidate.
 `em_audit.completion_gate` is the `the E/M audit check-offs` row that `specificity_scan.py` grades
 at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`; there a
-stale or changed record is a finding and a missing or unreadable one is incomplete. `em_audit_scope`
+stale record, or one the manifest was built from that changed or went missing, is a finding, and a
+missing freshness receipt or an unreadable record is incomplete. The command and the gate read one
+start row. `em_audit_scope`
 holds that row's name and its two not-graded answers, so `specificity_scan` gives them without
 loading `em_audit`. The
 complete boundary belongs to `em_audit.DECLARED_LIMITS`. Covered by `tools/test_em_audit.py`, and

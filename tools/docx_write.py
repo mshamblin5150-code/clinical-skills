@@ -1410,8 +1410,7 @@ def write_docx(
     """
     _require_layout(layout)
     # under_output: repo_root.ensure_main_checkout's narrower rule for a patient-information artifact.
-    destination = (ensure_main_checkout(destination, under_output=True) if under_output
-                   else ensure_main_checkout(destination))
+    destination = ensure_main_checkout(destination, under_output=under_output)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
     if not force:

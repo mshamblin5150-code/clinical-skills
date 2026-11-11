@@ -129,13 +129,28 @@ def decode_record(text: str) -> dict:
     return record
 
 
+class OpenerRecordMissing(ValueError):
+    """The run has no opener record."""
+
+
+class OpenerChanged(ValueError):
+    """A file the opener record bound changed, or went missing, since the opener reading."""
+
+
+def bound_bytes(path: Path, name: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except FileNotFoundError as error:
+        raise OpenerChanged(f"{name} went missing since opener reading") from error
+
+
 def read_openers(run: Path) -> dict:
     record = read_tool_record(run / "openers.json", decode_record)
     if record is None:
-        raise ValueError("opener record is missing")
-    source = Path(record["source"]).read_bytes()
+        raise OpenerRecordMissing("opener record is missing")
+    source = bound_bytes(Path(record["source"]), "source")
     if digest(source) != record["source_sha256"]:
-        raise ValueError("source changed since opener reading")
+        raise OpenerChanged("source changed since opener reading")
     text = source.decode("utf-8")
     cursor = record["unassigned_end"]
     if type(cursor) is not int or not 0 <= cursor <= len(text):
@@ -144,14 +159,15 @@ def read_openers(run: Path) -> dict:
         if item["start"] != cursor or not cursor < item["end"] <= len(text):
             raise ValueError("source coverage is incomplete")
         expected = text[cursor:item["end"]].encode("utf-8")
-        if (run / item["file"]).read_bytes() != expected or digest(expected) != item["sha256"]:
-            raise ValueError("encounter changed since opener reading")
+        if bound_bytes(run / item["file"], "encounter") != expected or digest(expected) != item["sha256"]:
+            raise OpenerChanged("encounter changed since opener reading")
         check_name(item, expected.decode("utf-8"))
         cursor = item["end"]
     if cursor != len(text):
         raise ValueError("source coverage is incomplete")
-    if (run / "encounters/unassigned.txt").read_bytes() != text[:record["unassigned_end"]].encode("utf-8"):
-        raise ValueError("unassigned text changed")
+    if (bound_bytes(run / "encounters/unassigned.txt", "unassigned text")
+            != text[:record["unassigned_end"]].encode("utf-8")):
+        raise OpenerChanged("unassigned text changed")
     return record
 
 

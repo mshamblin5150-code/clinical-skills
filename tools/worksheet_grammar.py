@@ -262,10 +262,13 @@ def selected_em(text: str, region: str, entries: list[WorksheetEntry],
     never selected: a rejected level is never the final one. Rejected entries are found in
     ``entry_reading`` of the worksheet's mode, so a visible ``CPT: 99285 ... NOT FOR ENTRY`` rejects
     a label beneath it as its private copy does. ``lines`` is ``physical_lines(text)`` for the
-    private mode, passed by a caller that already split it.
+    private mode, passed by a caller that already split it; the visible mode splits its own
+    reading and refuses ``lines`` rather than discard it.
     """
+    if lines is not None and not private:
+        raise ValueError("lines is the private worksheet's split; the visible mode splits its own reading")
     reading = entry_reading(text, private=private)
-    lines = physical_lines(reading) if lines is None or not private else lines
+    lines = physical_lines(reading) if lines is None else lines
     every = list(ENTRY.finditer(reading))
     rejected: set[int] = set()
     for index, match in enumerate(every):

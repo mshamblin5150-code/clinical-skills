@@ -16,8 +16,8 @@ import re
 
 import coding_freshness
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import digest, private_target, read_openers
-from encounter_status import EvidenceChanged, status_for
+from encounter_openers import OpenerChanged, OpenerRecordMissing, digest, private_target, read_openers
+from encounter_status import EvidenceChanged, StatusMissing, status_for
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
                                read_handwritten_record, read_tool_record, update_tool_record)
 
@@ -98,13 +98,27 @@ def resolve(run: Path, value: str) -> Path:
 class StaleRecord(ValueError):
     """The manifest or its freshness receipt no longer matches the run it was built from.
 
-    A reader can tell a stale record, which is a defect of the run, from one that is missing or
-    cannot be read, which leaves coverage incomplete; every other caller reads a ``ValueError``.
+    A reader can tell a stale record, which is a defect of the run, from one that cannot be read
+    or that the manifest never bound, which leaves coverage incomplete; every other caller reads a
+    ``ValueError``. A file the manifest was built from that is now missing (a note, worksheet,
+    opener record, opener source or encounter file, patient-status record or evidence) changed
+    after the manifest and is stale; a missing freshness receipt, written after the manifest, is
+    not.
     """
 
 
 def read_text(path: Path) -> str:
     return read_handwritten_record(path, "text").require_text(force=True)
+
+
+def recorded_text(path: Path, recorded: bool) -> str:
+    """``read_text`` of a file a recorded manifest item names, whose absence is a change after it."""
+    try:
+        return read_text(path)
+    except FileNotFoundError as error:
+        if recorded:
+            raise StaleRecord(f"{path.name} went missing after the manifest recorded it") from error
+        raise
 
 
 def _codes_or_none(text: str, *, private: bool) -> dict | None:
@@ -128,8 +142,8 @@ def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[
     be told from a manifest never valid.
     """
     recorded = "normalized_sha256" in item
-    note, fields, embedded = note_parts(read_text(resolve(run, item["note_path"])))
-    worksheet = visible_worksheet(read_text(resolve(run, item["worksheet_path"])))
+    note, fields, embedded = note_parts(recorded_text(resolve(run, item["note_path"]), recorded))
+    worksheet = visible_worksheet(recorded_text(resolve(run, item["worksheet_path"]), recorded))
     code_hash = digest((note + worksheet).encode("utf-8"))
     if any(visible_worksheet(value).strip() != worksheet.strip() for value in embedded):
         raise (StaleRecord if recorded else ValueError)("embedded and selected visible worksheets disagree")
@@ -137,7 +151,7 @@ def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[
     if _codes_or_none(worksheet, private=False) != expected:
         moved = recorded and code_hash != item["normalized_sha256"]
         raise (StaleRecord if moved else ValueError)("visible worksheet selected codes disagree with manifest")
-    private = read_text(resolve(run, item["private_worksheet_path"]))
+    private = recorded_text(resolve(run, item["private_worksheet_path"]), recorded)
     if _codes_or_none(private, private=True) != expected:
         moved = private_sha256 not in (None, private_worksheet_sha256(private))
         raise (StaleRecord if moved else ValueError)("private worksheet selected codes disagree with manifest")
@@ -379,7 +393,12 @@ def _validated(run: Path, *, batch: bool | None,
     """
     run = run.resolve()
     manifest = manifest_for(run, batch=batch)
-    openers = read_openers(run)
+    try:
+        openers = read_openers(run)
+    except OpenerRecordMissing as error:
+        raise StaleRecord("opener record went missing after the manifest recorded its encounters") from error
+    except OpenerChanged as error:
+        raise StaleRecord(f"{error}, after the manifest") from error
     if manifest["service_date"] != openers["service_date"] or len(manifest["encounters"]) != len(openers["encounters"]):
         raise StaleRecord("opener population or service date changed")
     notes, worksheets, encounters = [], [], []
@@ -395,7 +414,9 @@ def _validated(run: Path, *, batch: bool | None,
             try:
                 current = status_for(run, item["order"])
             except EvidenceChanged as error:
-                raise StaleRecord("patient-status evidence changed after the manifest") from error
+                raise StaleRecord(f"{error}, after the manifest") from error
+            except StatusMissing as error:
+                raise StaleRecord("patient-status record went missing after the manifest recorded it") from error
             if item["patient_status"] != current:
                 raise StaleRecord("patient status changed")
         notes.append(resolve(run, item["note_path"]))

@@ -1293,7 +1293,7 @@ class FinishedSubmissionsAvoidDisposableWorktrees(unittest.TestCase):
     def test_the_library_refuses_before_mkdir(self):
         destination = self.worktree / "output" / "case-studies" / "case.docx"
         original = docx_write.ensure_main_checkout
-        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        docx_write.ensure_main_checkout = lambda path, **options: original(path, self.main / "tools", **options)
         self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
         with self.assertRaises(ForeignCheckout):
             docx_write.write_docx("# Case\n", destination)
@@ -1302,7 +1302,7 @@ class FinishedSubmissionsAvoidDisposableWorktrees(unittest.TestCase):
     def test_the_command_converts_the_refusal_to_status_two(self):
         destination = self.worktree / "output" / "case-studies" / "case.docx"
         original = docx_write.ensure_main_checkout
-        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        docx_write.ensure_main_checkout = lambda path, **options: original(path, self.main / "tools", **options)
         self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):

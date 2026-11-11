@@ -77,29 +77,48 @@ def committed_sheet(path: Path) -> bytes | None:
     return None if committed.returncode else committed.stdout
 
 
+def history_paths(log: bytes, relative: str) -> list[tuple[str, str]]:
+    """Each commit of ``git log -z --name-only --format=%H`` with the path it held the sheet at.
+
+    A commit is followed by its name list, which ``-z`` opens with a line break; a commit listing
+    no name, such as a merge, holds the path of the newer commit before it, ``relative`` first.
+    """
+    found: list[tuple[str, str]] = []
+    at = relative
+    for token in log.decode("utf-8", errors="surrogateescape").split("\0"):
+        if token.startswith("\n"):
+            at = token[1:]
+            if found:
+                found[-1] = (found[-1][0], at)
+        elif token.strip():
+            found.append((token.strip(), at))
+    return found
+
+
 def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     """The committed version of the sheet at ``path`` whose fingerprint is ``digest``.
 
     HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
     when HEAD does not match is the path's history walked, newest first, each version hashed by
     ``sheet_sha256``, so a receipt keeps reading the sheet it bound after later commits change it;
-    ``--full-history`` keeps a version committed on a side branch and merged in. The walk is two
-    git processes: ``git log -z`` lists the commits, and one ``git cat-file --batch`` is asked for
-    one version at a time and closed at the first match, so no later version is read. Each object
-    is skipped by its declared size whatever its type. None when no version matches, the path is
-    outside this checkout, or git cannot be run.
+    ``--full-history`` keeps a version committed on a side branch and merged in, and ``--follow``
+    with ``--name-only`` names the path each commit held the sheet at, so a version committed
+    before a rename is read at its former path. The walk is two git processes: ``git log -z``
+    lists the commits with their paths, and one ``git cat-file --batch`` is asked for one version
+    at a time and closed at the first match, so no later version is read. Each object is skipped
+    by its declared size whatever its type. None when no version matches, the path is outside this
+    checkout, or git cannot be run.
     """
     try:
         head = committed_sheet(path)
         if head is not None and sheet_sha256(head) == digest:
             return head
         relative = path.relative_to(ROOT).as_posix()
-        log = subprocess.run(["git", "log", "-z", "--full-history", "--format=%H", "--", relative],
-                             cwd=ROOT, capture_output=True)
+        log = subprocess.run(["git", "log", "-z", "--full-history", "--follow", "--name-only", "--format=%H",
+                              "--", relative], cwd=ROOT, capture_output=True)
         if log.returncode:
             return None
-        commits = [commit.strip() for commit in log.stdout.decode("ascii", errors="replace").split("\0")
-                   if commit.strip()]
+        commits = history_paths(log.stdout, relative)
         if not commits:
             return None
         batch = subprocess.Popen(["git", "cat-file", "--batch"], cwd=ROOT, stdin=subprocess.PIPE,
@@ -107,8 +126,8 @@ def bound_sheet_version(path: Path, digest: str) -> bytes | None:
     except (OSError, ValueError):
         return None
     try:
-        for commit in commits:
-            batch.stdin.write(f"{commit}:{relative}\n".encode("utf-8"))
+        for commit, at in commits:
+            batch.stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
             batch.stdin.flush()
             header = batch.stdout.readline().split()
             if not header:

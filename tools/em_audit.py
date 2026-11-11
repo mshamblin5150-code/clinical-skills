@@ -7,7 +7,8 @@ any re-derivation record under ``RUN/em-audit/rederivation/<note stem>.md``. ``-
 one Markdown check-off per selected note to ``RUN/em-audit/<note stem>.md``. ``--docx`` renders
 the same text to Word through ``docx_write.write_docx`` with ``literal=True``, so copied note
 text, reasons, questions and replies keep their asterisks and backticks, by default under the
-owning checkout ``output/em-audit/<run name>-<path fingerprint>/``; nothing writes a Word copy unless asked, and
+owning checkout ``output/em-audit/<run name>-<path fingerprint>/`` and never outside that checkout's
+``output/``; nothing writes a Word copy unless asked, and
 ``--output-dir`` or ``--force`` without ``--docx`` is refused.
 
 The check-off is derived from the records the coding run wrote, so the two cannot disagree: a
@@ -19,9 +20,9 @@ element block or a placed re-derivation (ADR 0445) in a run approved on or after
 start in ``reference/completion-check-starts.tsv`` (``--submission`` reads the approval; without it
 the run is judged current), an element block that contradicts itself or the selected code or the
 billed ECG code, an unknown CPT entry id, an answer id this note lacks, a re-derivation that
-contradicts itself or differs element by element, a record that changed after the manifest (a
-note, worksheet, opener, patient status or receipt, or a private worksheet against its recorded
-fingerprint), or a damaged handwritten record; 2 when the run could not be read, a note number is
+contradicts itself or differs element by element, a record that changed or went missing after the
+manifest (a note, worksheet, opener, patient status or receipt, or a private worksheet against its
+recorded fingerprint), or a damaged handwritten record; 2 when the run could not be read, a note number is
 unknown, the CPT MDM sheet version the receipt bound does not parse (a tool defect), a Word option
 was given without ``--docx``, a
 check-off or Word copy was refused (naming the note number that stopped it and the copies already
@@ -85,7 +86,8 @@ DECLARED_LIMITS = (
     "faithful to the note, or that every element weighed was written down.",
     "Entry ids are read by cpt_mdm_sheet.read_entries from the committed version of the sheet the "
     "receipt names whose fingerprint, by coding_freshness.sheet_sha256, equals the receipt's, found "
-    "in that path's git history. No matching version, or no git, leaves them unchecked and counts "
+    "in that path's git history, followed across renames. No matching version, or no git, leaves "
+    "them unchecked and counts "
     "once as unread; a matching version the parser refuses refuses the check-off.",
     "An answer recorded as unreadable is shown and counted as incomplete coverage; the record "
     "itself does not establish which question a reply answered. An answers record that exists but "
@@ -140,8 +142,9 @@ DECLARED_LIMITS = (
     "and approval validation does not, and a changed file refuses the check-off. A run with no "
     "recorded fingerprint is counted unread on each check-off, or not graded for a run whose "
     "approval predates the em_audit start; building again records it. At submission, a changed private "
-    "worksheet or a stale manifest or receipt is a finding of the run; a bound sheet version the "
-    "current reader refuses is a tool defect, incomplete like a missing or unreadable record. A "
+    "worksheet or a stale manifest or receipt is a finding of the run, and so is a record the "
+    "manifest was built from that went missing after it; a bound sheet version the current reader "
+    "refuses is a tool defect, incomplete like a missing freshness receipt or an unreadable record. A "
     "check-off written before the last pre-approval answer was recorded is stale until rendered "
     "again. At submission, a run "
     "with no manifest is incomplete only on the note path, marked by its encounter opener record, "
@@ -162,6 +165,9 @@ DECLARED_LIMITS = (
 
 OUTPUT_DIRECTORY = "em-audit"
 REDERIVATION_DIRECTORY = "rederivation"
+# The one start row of the check: completion_checks.exemption reads it for the gate, and render for
+# the command. completion_checks.derive still needs the EXPECTED_ROW row to exist.
+START_KEY = "em_audit:completion_gate"
 WORD_DIRECTORY = "em-audit"
 REPOSITORY = coding_freshness.ROOT  # the checkout whose reference/ holds the CPT MDM sheet
 SECTIONS = (
@@ -937,7 +943,7 @@ class UnknownNote(ValueError):
 
 
 class WordTargetRefused(ValueError):
-    """A Word copy aimed inside a checkout but outside its output/ tree."""
+    """A Word copy aimed anywhere but the main checkout's output/ tree."""
 
 
 def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
@@ -959,8 +965,9 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
     tally = Tally()
     import completion_checks
     # Reached only on the command's --submission path: completion_gate returns its exemption for a
-    # pre-start run before it renders, so inside the gate predates is always False.
-    tally.predates = not completion_checks.active("em_audit:" + EXPECTED_ROW)
+    # pre-start run before it renders, so inside the gate predates is always False. START_KEY is
+    # the row that exemption reads, so the command and the gate cannot start on different dates.
+    tally.predates = not completion_checks.active(START_KEY)
     context = Context(run, receipt, tally, manifest["service_date"])
     sheets = []
     for encounter in validated.encounters:
@@ -1012,7 +1019,7 @@ class WordExportStopped(WritesStopped):
 
 
 def word_folder(run: Path, output_dir: Path | None) -> Path:
-    """The Word destination: under the main checkout output/ tree, or outside every checkout.
+    """The Word destination: under the main checkout output/ tree, and nowhere else.
 
     The default folder is the run's name and a short fingerprint of its resolved path, so two runs
     sharing a name never share a folder. A destination that cannot be resolved is refused as one
@@ -1023,7 +1030,7 @@ def word_folder(run: Path, output_dir: Path | None) -> Path:
         tag = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:10]
         folder = (repo_root.output_root() / WORD_DIRECTORY / f"{resolved.name}-{tag}" if output_dir is None
                   else output_dir.expanduser())
-        # The one destination rule, docx_write's own: the main checkout's output/ or no checkout.
+        # The one destination rule, docx_write's own for a patient-information artifact.
         return repo_root.ensure_main_checkout(folder, under_output=True)
     except repo_root.ForeignCheckout as error:
         raise WordTargetRefused(str(error.target)) from error
@@ -1107,7 +1114,8 @@ def selects_em_level(run: Path) -> bool:
 
 
 STALE_FINDINGS = {
-    review_manifest.StaleRecord: "the manifest or its freshness receipt is stale against the run",
+    review_manifest.StaleRecord: ("the manifest or its freshness receipt is stale against the run: a record "
+                                  "it was built from changed or went missing after it"),
     PrivateWorksheetMoved: "a private worksheet changed after its fingerprint was recorded",
 }
 
@@ -1193,7 +1201,7 @@ def scoped_gate(run: Path, submission: str) -> tuple[bool, str, int]:
 
 WORD_REFUSALS = {
     "overwrite": "a Word copy is there that this renderer did not write; recover any edit, then pass --force",
-    "target": "a Word copy goes under the output folder of the main checkout or outside every checkout",
+    "target": "a Word copy goes only under the output folder of the main checkout",
     "character": "the Word renderer refuses a character in the check-off text",
     "write": "the file could not be written",
 }
@@ -1207,7 +1215,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", action="store_true", help="write the Markdown check-offs into the run")
     parser.add_argument("--docx", action="store_true", help="also render the check-offs to Word")
     parser.add_argument("--output-dir", type=Path,
-                        help="Word destination under the main checkout output/ or outside every checkout")
+                        help="Word destination under the main checkout output/")
     parser.add_argument("--force", action="store_true", help="replace a Word copy docx_write would refuse")
     parser.add_argument("--submission", help="the run's submission key; a run approved before the E/M audit "
                                              "check started is not graded on missing blocks or re-derivations")
@@ -1228,8 +1236,9 @@ def main(argv: list[str] | None = None) -> int:
               "approved manifest unchanged when only provenance moved")
         return 1
     except review_manifest.StaleRecord:
-        print("em-audit: finding - a coding record changed after the manifest (a note, worksheet, opener, "
-              "patient status or receipt); restore it, or rebuild the manifest and run coding_freshness again")
+        print("em-audit: finding - a coding record changed or went missing after the manifest (a note, "
+              "worksheet, opener, patient status or receipt); restore it, or rebuild the manifest and run "
+              "coding_freshness again")
         return 1
     except SheetMoved:
         print("em-audit: refused - the committed CPT MDM sheet version the receipt fingerprinted does not "

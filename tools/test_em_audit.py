@@ -116,6 +116,19 @@ class RunFixture(unittest.TestCase):
             status = em_audit.main([str(self.run), *map(str, args)])
         return status, output.getvalue()
 
+    def fake_checkout(self) -> Path:
+        checkout = self.root / "main-checkout"
+        (checkout / ".git").mkdir(parents=True, exist_ok=True)
+        return checkout
+
+    def word_destination(self) -> Path:
+        """A folder under a stand-in main checkout's output/, the only place a Word copy may go."""
+        checkout = self.fake_checkout()
+        patcher = mock.patch.object(repo_root, "main_repo_root", return_value=checkout)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return checkout / "output" / "export"
+
     def record(self, text: str) -> None:
         folder = self.run / em_audit.OUTPUT_DIRECTORY / em_audit.REDERIVATION_DIRECTORY
         folder.mkdir(parents=True, exist_ok=True)
@@ -241,7 +254,7 @@ class CheckOffCommand(RunFixture):
         note.write_text(note.read_text(encoding="utf-8").replace("Cough.", "Cough and fever."), encoding="utf-8")
         result = self.invoke("--write")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)  # eighteenth review: a finding
-        self.assertIn("changed after the manifest", result.stdout)
+        self.assertIn("changed or went missing after the manifest", result.stdout)
         self.assertFalse(self.sheet.exists())
 
     def test_note_selection_and_unknown_note(self):
@@ -249,18 +262,18 @@ class CheckOffCommand(RunFixture):
         self.assertEqual(2, self.invoke("--note", 2).returncode)
 
     def test_word_export_is_on_demand_and_keeps_the_overwrite_refusal(self):
-        folder = self.root / "export"
-        result = self.invoke("--docx", "--output-dir", folder)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn("Word copies written 1", result.stdout)
+        folder = self.word_destination()
+        status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(0, status, output)
+        self.assertIn("Word copies written 1", output)
         self.assertTrue((folder / "note-1.docx").is_file())
         self.assertFalse(self.sheet.exists())
         (folder / "note-1.docx").write_bytes(b"not a document this renderer wrote")
-        refused = self.invoke("--docx", "--output-dir", folder)
-        self.assertEqual(2, refused.returncode, refused.stdout + refused.stderr)
-        self.assertIn("Word copy refused", refused.stdout)
-        forced = self.invoke("--docx", "--output-dir", folder, "--force")
-        self.assertEqual(0, forced.returncode, forced.stdout + forced.stderr)
+        status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(2, status, output)
+        self.assertIn("Word copy refused", output)
+        status, output = self.in_process("--docx", "--output-dir", folder, "--force")
+        self.assertEqual(0, status, output)
 
     def test_completion_requires_a_re_derivation_and_a_current_check_off(self):
         self.rederivation.unlink()
@@ -312,9 +325,10 @@ class PreservedWorksheetWithoutTheBlock(CheckOffCommand):
         self.assertIn("unread remainder 1", result.stdout)
 
     def test_word_export_is_on_demand_and_keeps_the_overwrite_refusal(self):
-        result = self.invoke("--docx", "--output-dir", self.root / "export")
-        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-        self.assertTrue((self.root / "export" / "note-1.docx").is_file())
+        folder = self.word_destination()
+        status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(1, status, output)
+        self.assertTrue((folder / "note-1.docx").is_file())
 
     def test_a_block_that_contradicts_itself_is_a_finding(self):
         pass
@@ -460,11 +474,6 @@ class SecondReviewFindings(RunFixture):
         value["answers"].extend(entries)
         path.write_text(json.dumps(value), encoding="utf-8")
 
-    def fake_checkout(self) -> Path:
-        checkout = self.root / "main-checkout"
-        (checkout / ".git").mkdir(parents=True)
-        return checkout
-
     def test_r1_a_note_without_a_re_derivation_or_an_element_block_is_not_complete(self):
         self.rederivation.unlink()
         result = self.invoke("--write")
@@ -513,8 +522,9 @@ class SecondReviewFindings(RunFixture):
         self.assertIn("is not an encounter of this run", unknown.stdout)
         self.assertNotIn("stale", unknown.stdout)
         self.record(ELEMENTS)
+        folder = self.word_destination()
         with mock.patch("docx_write.write_docx", side_effect=OutboundTextError("line 3: U+0085")):
-            status, output = self.in_process("--write", "--docx", "--output-dir", self.root / "export")
+            status, output = self.in_process("--write", "--docx", "--output-dir", folder)
         self.assertEqual(2, status, output)
         self.assertIn("check-offs written 1", output)
         self.assertIn("Word copy refused", output)
@@ -587,9 +597,9 @@ class ThirdReviewFindings(RunFixture):
         question = "Synthetic question with `code` and *recheck* in it?"
         with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
             preapproval_answers.record(self.run, 1, question, [], "Reply with **bold** markers.")
-        folder = self.root / "export"
-        result = self.invoke("--docx", "--output-dir", folder)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        folder = self.word_destination()
+        status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(0, status, output)
         import docx_read
         text = "\n".join(docx_read.read_docx(folder / "note-1.docx"))
         for literal in ("*recheck* rest.", "rest ** education", "`code` and *recheck*", "**bold** markers."):
@@ -744,9 +754,9 @@ class FourthReviewFindings(RunFixture):
         self.assertEqual((1, True), (status, finding))
 
     def test_u9_a_word_refusal_names_the_note_and_counts_the_copies_already_written(self):
-        folder = self.root / "export"
+        folder = self.word_destination()
         sheets = [em_audit.Sheet(1, "note-1", "# One\n"), em_audit.Sheet(2, "note-2", "# Two\n")]
-        folder.mkdir()
+        folder.mkdir(parents=True)
         (folder / "note-2.docx").write_bytes(b"not a document this renderer wrote")
         with self.assertRaises(em_audit.WordExportStopped) as stopped:
             em_audit.export_word(self.run, sheets, folder, False)
@@ -827,11 +837,12 @@ class FifthReviewFindings(RunFixture):
 
     def test_v6_a_refused_check_off_says_the_word_copies_were_not_attempted(self):
         (self.run / em_audit.OUTPUT_DIRECTORY / "note-2.md").mkdir(parents=True)
+        folder = self.word_destination()
         with mock.patch.object(em_audit, "render", return_value=(em_audit.Tally(), 2, self.two_sheets())):
-            status, output = self.in_process("--write", "--docx", "--output-dir", self.root / "export")
+            status, output = self.in_process("--write", "--docx", "--output-dir", folder)
         self.assertEqual(2, status, output)
         self.assertIn("Word copies not attempted", output)
-        self.assertFalse((self.root / "export").exists())
+        self.assertFalse(folder.exists())
 
     def bill_ecg(self, code: str, ecg: str) -> None:
         inputs = self.run / "inputs.json"
@@ -1962,15 +1973,17 @@ class FourteenthReviewFindings(ProseBind, RunFixture):
         manifest = json.loads((run / review_manifest.MANIFEST).read_text(encoding="utf-8"))
         status = manifest["encounters"][0]["patient_status"]
         self.assertEqual((SALT["status pointer"], SALT["status reply"]), (status["pointer"], status["clinician_reply"]))
-        command = [sys.executable, str(Path(__file__).with_name("em_audit.py")), str(run), "--write", "--docx",
-                   "--output-dir", str(self.root / "export")]
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        self.assertIn("check-offs written 1", result.stdout, result.stdout + result.stderr)
+        folder = self.word_destination()
+        captured = io.StringIO()
+        with contextlib.redirect_stdout(captured):
+            em_audit.main([str(run), "--write", "--docx", "--output-dir", str(folder)])
+        stdout = captured.getvalue()
+        self.assertIn("check-offs written 1", stdout, stdout)
         import docx_read
         markdown = (run / em_audit.OUTPUT_DIRECTORY / "note-1.md").read_text(encoding="utf-8")
-        word = "\n".join(docx_read.read_docx(self.root / "export" / "note-1.docx"))
+        word = "\n".join(docx_read.read_docx(folder / "note-1.docx"))
         for field, marker in SALT.items():
-            for name, text in (("Markdown", markdown), ("Word", word), ("stdout", result.stdout)):
+            for name, text in (("Markdown", markdown), ("Word", word), ("stdout", stdout)):
                 self.assertNotIn(marker.casefold(), text.casefold(), f"{field} reached the {name} copy")
         # The status is shown by value, evidence kind and fingerprint; the answers record keeps its replies.
         self.assertIn(f"- Patient status: established; evidence: clinician answer; fingerprint {status['evidence_sha256']}",
@@ -2428,10 +2441,10 @@ class EighteenthReviewFindings(ProseBind, RunFixture):
         status, output = self.in_process()
         self.assertEqual(1, status, output)
         self.assertIn("finding", output)
-        self.assertIn("changed after the manifest", output)
+        self.assertIn("changed or went missing after the manifest", output)
         self.assertTrue(self.gate()[0])
         step = SKILL.read_text(encoding="utf-8").split("## 1.", 1)[1].split("## 2.", 1)[0]
-        self.assertProseIn("Exit 1 naming a record that changed after the manifest", step)
+        self.assertProseIn("Exit 1 naming a record that changed or went missing after the manifest", step)
 
     def test_n6_the_mdm_levels_read_only_the_em_codes(self):
         import procedure_codes_lookup
@@ -2500,7 +2513,8 @@ class NineteenthReviewFindings(ProseBind, RunFixture):
         doc = em_audit.__doc__
         exit_two = doc.split("; 2 when", 1)[1]
         self.assertNotIn("private worksheet changed", exit_two)
-        self.assertIn("a record that changed after the manifest", doc.split("; 2 when", 1)[0])
+        self.assertIn("a record that changed or went missing after the manifest",
+                      " ".join(doc.split("; 2 when", 1)[0].split()))
 
     def test_o5_a_sheet_version_the_reader_refuses_is_an_incomplete_tool_defect(self):
         import coding_freshness
@@ -2518,6 +2532,174 @@ class NineteenthReviewFindings(ProseBind, RunFixture):
         with mock.patch.object(em_audit_scope, "not_graded", wraps=em_audit_scope.not_graded) as scope:
             em_audit.completion_gate(self.run, "shift-synthetic")
         self.assertEqual(1, scope.call_count)
+
+
+def committed_tree(root: Path, steps: list[tuple[str, str | None, bytes | None]]) -> None:
+    """A throwaway repository: each step writes ``(path, None, bytes)`` or renames ``(old, new, None)``, then commits."""
+    def run(*args):
+        subprocess.run(["git", "-c", "user.email=synthetic@example.invalid", "-c", "user.name=synthetic",
+                        "-c", "commit.gpgsign=false", *args], cwd=root, check=True, capture_output=True)
+    run("init", "-q")
+    for index, (first, second, body) in enumerate(steps):
+        if second is None:
+            (root / first).parent.mkdir(parents=True, exist_ok=True)
+            (root / first).write_bytes(body)
+            run("add", "-A")
+        else:
+            run("mv", first, second)
+        run("commit", "-qm", f"step {index}")
+
+
+class TwentiethReviewFindings(ProseBind, RunFixture):
+    """The twentieth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def assert_changed_after_the_manifest(self, run: Path) -> None:
+        captured = io.StringIO()
+        with contextlib.redirect_stdout(captured):
+            status = em_audit.main([str(run)])
+        self.assertEqual(1, status, captured.getvalue())
+        self.assertIn("changed or went missing after the manifest", captured.getvalue())
+        finding, report, unread = em_audit.completion_gate(run, "shift-synthetic")
+        self.assertEqual((True, 0), (finding, unread), report)
+        with self.assertRaises(review_manifest.StaleRecord):
+            review_manifest.validated_population(run)
+
+    def test_p1_a_word_copy_goes_only_under_the_main_checkout_output(self):
+        checkout = self.fake_checkout()
+        outside = self.root / "elsewhere"
+        with mock.patch.object(repo_root, "main_repo_root", return_value=checkout):
+            with self.assertRaises(repo_root.ForeignCheckout):
+                repo_root.ensure_main_checkout(outside / "audit", under_output=True)
+            # The default rule is unchanged: an explicit export outside every checkout stays allowed.
+            self.assertEqual((outside / "audit").resolve(), repo_root.ensure_main_checkout(outside / "audit"))
+            with self.assertRaises(em_audit.WordTargetRefused):
+                em_audit.word_folder(self.run, outside)
+            status, output = self.in_process("--docx", "--output-dir", outside)
+            self.assertEqual(2, status, output)
+            self.assertIn("Word copy refused - " + em_audit.WORD_REFUSALS["target"], output)
+            self.assertFalse(outside.exists())
+            status, output = self.in_process("--docx", "--output-dir", checkout / "output" / "audit")
+            self.assertEqual(0, status, output)
+            self.assertTrue((checkout / "output" / "audit" / "note-1.docx").is_file())
+        for text in (em_audit.WORD_REFUSALS["target"], em_audit.word_folder.__doc__, SKILL.read_text(encoding="utf-8")):
+            self.assertProseNotIn("outside every checkout", text)
+
+    def test_p2_an_opener_record_that_changed_or_went_missing_is_a_finding(self):
+        source = self.root / "source.txt"
+        encounter = self.run / "encounters" / "encounter-1.txt"
+        unassigned = self.run / "encounters" / "unassigned.txt"
+        record = self.run / "openers.json"
+        for path, edited in ((source, b"Note 1 Example Person\n41 female\n"), (encounter, b"edited\n"),
+                             (unassigned, b"edited\n"), (record, None)):
+            original = path.read_bytes()
+            changes = [("missing", path.unlink)]
+            if edited is not None:
+                changes.append(("edited", lambda path=path, edited=edited: path.write_bytes(edited)))
+            for name, change in changes:
+                with self.subTest(path=path.name, change=name):
+                    change()
+                    try:
+                        self.assert_changed_after_the_manifest(self.run)
+                    finally:
+                        path.write_bytes(original)
+
+    def test_p2_a_note_or_worksheet_the_manifest_recorded_and_now_missing_is_a_finding(self):
+        for path in (self.run / "note-1.md", self.run / "visible-worksheet-1.md", self.run / "worksheets" / "note-1.md"):
+            original = path.read_bytes()
+            with self.subTest(path=path.name):
+                path.unlink()
+                try:
+                    self.assert_changed_after_the_manifest(self.run)
+                finally:
+                    path.write_bytes(original)
+
+    def test_p2_patient_status_evidence_or_record_gone_after_the_manifest_is_a_finding(self):
+        run = FourteenthReviewFindings.office_run(self)
+        status = json.loads((run / "encounter-status.json").read_text(encoding="utf-8"))["encounters"]["1"]
+        for path in (Path(status["evidence_path"]), run / "encounter-status.json"):
+            original = path.read_bytes()
+            with self.subTest(path=path.name):
+                path.unlink()
+                try:
+                    self.assert_changed_after_the_manifest(run)
+                finally:
+                    path.write_bytes(original)
+
+    def test_p2_a_missing_freshness_receipt_stays_incomplete(self):
+        (self.run / review_manifest.RECEIPT).unlink()
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        finding, report, unread = em_audit.completion_gate(self.run, "shift-synthetic")
+        self.assertEqual((False, 1), (finding, unread), report)
+
+    def test_p3_the_command_and_the_gate_read_one_start_row(self):
+        import completion_checks
+        keys = []
+        real = completion_checks.active
+
+        def spy(key, moment=None):
+            keys.append(key)
+            return real(key, moment)
+        with mock.patch.object(completion_checks, "active", side_effect=spy):
+            em_audit.render(self.run, [])
+            command = {key for key in keys if key.startswith("em_audit:")}
+            keys.clear()
+            em_audit.scoped_gate(self.run, "shift-synthetic")
+            gate = {key for key in keys if key.startswith("em_audit:")}
+        self.assertEqual({"em_audit:completion_gate"}, command)
+        self.assertEqual(command, gate)
+
+    def test_p4_a_sheet_version_committed_under_its_former_name_is_found(self):
+        import coding_freshness
+        repository = self.root / "repository"
+        repository.mkdir()
+        first, second, third = b"first version\n", b"second version\n", b"third version\n"
+        committed_tree(repository, [("reference/old-sheet.md", None, first), ("reference/old-sheet.md", None, second),
+                                    ("reference/old-sheet.md", "reference/new-sheet.md", None),
+                                    ("reference/new-sheet.md", None, third)])
+        sheet = repository / "reference" / "new-sheet.md"
+        with mock.patch.object(coding_freshness, "ROOT", repository):
+            for version in (third, second, first):
+                with self.subTest(version=version):
+                    self.assertEqual(version, coding_freshness.bound_sheet_version(
+                        sheet, coding_freshness.sheet_sha256(version)))
+            self.assertIsNone(coding_freshness.bound_sheet_version(sheet, "0" * 64))
+
+    def test_p4_the_history_walk_follows_renames_on_the_full_history(self):
+        import coding_freshness
+        commands = []
+
+        def run(command, **_):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, b"head\n" if command[1] == "show" else b"", b"")
+        with mock.patch.object(coding_freshness.subprocess, "run", side_effect=run):
+            coding_freshness.bound_sheet_version(ROOT / "reference" / "cpt-em-mdm-2026.md", "0" * 64)
+        log = next(command for command in commands if command[1] == "log")
+        for option in ("--full-history", "--follow", "--name-only"):
+            self.assertIn(option, log)
+
+    def test_p5_a_line_split_is_refused_in_the_visible_mode(self):
+        import worksheet_grammar
+        visible = VISIBLE
+        reading = worksheet_grammar.entry_reading(visible, private=False)
+        entries = worksheet_grammar.read_entries(reading)
+        with self.assertRaises(ValueError):
+            worksheet_grammar.selected_em(visible, reading, entries, worksheet_grammar.physical_lines(reading),
+                                          private=False)
+        self.assertEqual("99283", review_manifest.selected_codes(visible, private=False)["em"])
+
+    def test_p7_docx_write_passes_its_destination_rule_through(self):
+        import docx_write
+        calls = []
+
+        def guard(destination, *args, **options):
+            calls.append(options)
+            raise repo_root.ForeignCheckout(Path(destination), self.root)
+        with mock.patch.object(docx_write, "ensure_main_checkout", side_effect=guard):
+            for under_output in (False, True):
+                with self.assertRaises(repo_root.ForeignCheckout):
+                    docx_write.write_docx("# One\n", self.root / "out.docx", under_output=under_output)
+        self.assertEqual([{"under_output": False}, {"under_output": True}], calls)
 
 
 if __name__ == "__main__":
