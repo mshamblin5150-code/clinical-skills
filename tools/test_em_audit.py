@@ -453,7 +453,11 @@ class ReviewFindings(RunFixture):
         self.assertNotIn("system_key", defined)
         self.assertNotIn("entry_is_for_entry", called)
         # Fifteenth review: ownership is entry_walk's, whose field rule is detail_belongs_to_entry's (test_h9).
-        self.assertTrue({"read_entries", "entry_walk"} <= called, called)
+        # Twenty-sixth review: the region and its entries are validation's own read (read_private).
+        attributes = {node.func.attr for node in ast.walk(tree)
+                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        self.assertIn("entry_walk", called, called)
+        self.assertIn("read_private", attributes)
 
     def test_f10_the_terminal_grader_imports_the_gate_lazily_and_names_the_run_once(self):
         # Seventh review: the module-level import loaded the approval and manifest stack on every
@@ -1510,9 +1514,11 @@ class EleventhReviewFindings(ProseBind, RunFixture):
                 if hasattr(em_audit, name):
                     stack.enter_context(mock.patch.object(em_audit, name, wrapper))
             em_audit.render(self.run, [])
-        self.assertEqual(1, counted["entry_region"].call_count)
-        self.assertEqual(1, counted["read_entries"].call_count)
-        self.assertEqual(1, sum(call.args[0] == private for call in counted["physical_lines"].call_args_list))
+        # Twenty-sixth review: the check-off reuses validation's parse, so beyond it nothing is parsed;
+        # test_y7 counts the one parse per render, validation included.
+        self.assertEqual(0, counted["entry_region"].call_count)
+        self.assertEqual(0, counted["read_entries"].call_count)
+        self.assertEqual(0, sum(call.args[0] == private for call in counted["physical_lines"].call_args_list))
 
     def test_e8_the_bound_sheet_version_is_found_in_two_processes(self):
         import coding_freshness
@@ -3139,7 +3145,7 @@ class TwentyFourthReviewFindings(ProseBind, RunFixture):
         (self.run / review_manifest.RECEIPT).unlink()
         status, output = self.in_process()
         self.assertEqual(2, status, output)
-        self.assertIn("missing, invalid, or stale coding records", output)
+        self.assertIn("missing, invalid or unreadable coding records", output)
 
     def test_w4_the_region_is_sliced_once_and_the_marks_read_in_place(self):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
@@ -3343,6 +3349,102 @@ class TwentyFifthReviewFindings(ProseBind, RunFixture):
                                                        ["99284", "99283", "99284"], REPLY)
         entry = next(entry for entry in preapproval_answers.read(self.run)["answers"] if entry["id"] == identifier)
         self.assertEqual(["99283", "99284"], entry["levels"])
+
+
+class TwentySixthReviewFindings(ProseBind, RunFixture):
+    """The twenty-sixth code-review findings of 2026-11-11, each reproduced red before its fix."""
+
+    def test_y1_the_colon_form_applies_only_where_it_opens_the_clause(self):
+        both, one = frozenset({"93000", "93005"}), frozenset({"93005"})
+        cases = {"93005 not billed: 93000 is billed for the read": {"93005"},
+                 "not billed: 93005": {"93005"},
+                 "93005 tracing only, not billed": {"93005"},
+                 "93005 billed, 93000 not billed": {"93000"},
+                 "93005 billed while the read is pending (93000 not billed)": {"93000"},
+                 "93005 is not billed; 93000 reading documented": {"93005"},
+                 "93000 read and reported; 93005 traced here": set()}
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(expected, em_audit.negated_codes(line) & both)
+        self.assertEqual({"93005"}, em_audit.negated_codes("Tracing not billed: 93005") & one)
+
+    def test_y2_a_tab_in_a_reply_renders_as_a_space_in_word(self):
+        reply = "Synthetic reply:\tno, radiology read it."
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            preapproval_answers.record(self.run, 1, "A synthetic question with a tabbed reply?", [], reply)
+        folder = self.word_destination()
+        status, output = self.in_process("--write", "--docx", "--output-dir", folder)
+        self.assertIn("Word copies written 1", output)
+        self.assertIn("> " + reply, self.sheet.read_text(encoding="utf-8"))
+        import docx_read
+        self.assertIn("Synthetic reply: no, radiology read it.", "\n".join(docx_read.read_docx(folder / "note-1.docx")))
+        self.assertProseIn("tab", " ".join(row for row in em_audit.DECLARED_LIMITS if "Word" in row))
+
+    def test_y2_another_control_character_is_refused_when_the_answer_is_recorded(self):
+        record = self.run / preapproval_answers.RECORD
+        before = record.read_bytes()
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=VERIFIED):
+            with self.assertRaises(ValueError) as refused:
+                preapproval_answers.record(self.run, 1, "A synthetic question\x07 with a bell?", [], REPLY)
+        self.assertIn("U+0007", str(refused.exception))
+        self.assertIn("line 1", str(refused.exception))
+        self.assertEqual(before, record.read_bytes())
+
+    def test_y2_a_word_refusal_names_its_note_and_line(self):
+        folder = self.word_destination()
+        with mock.patch("docx_write.write_docx", side_effect=OutboundTextError("line 3: U+0085")):
+            status, output = self.in_process("--docx", "--output-dir", folder)
+        self.assertEqual(2, status, output)
+        self.assertIn("Word copy refused at note 1", output)
+        self.assertIn("line 3: U+0085", output)
+
+    def test_y3_an_empty_anchor_is_not_an_anchor(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS).replace('  ANCHOR: "Cough."', "  ANCHOR:"))
+        status, output = self.in_process("--write")
+        self.assertIn("codes without an anchor 1", output)
+        self.assertIn("  - Anchor: not recorded", self.sheet.read_text(encoding="utf-8"))
+
+    def test_y4_a_refused_record_is_not_called_stale(self):
+        (self.run / review_manifest.RECEIPT).unlink()
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("em-audit: refused - missing, invalid or unreadable coding records", output)
+        self.assertNotIn("stale", output)
+
+    def test_y5_the_gate_regrades_inside_a_with_block(self):
+        import specificity_scan
+        gate = next(node for node in ast.parse(Path(specificity_scan.__file__).read_text(encoding="utf-8")).body
+                    if isinstance(node, ast.FunctionDef) and node.name == "em_audit_gate")
+        self.assertTrue(any(isinstance(node, ast.With) for node in ast.walk(gate)))
+        self.assertNotIn("__enter__", ast.unparse(gate))
+        self.assertNotIn("UnreadableRecord", ast.unparse(gate))
+
+    def test_y6_history_paths_reads_in_one_pass_each_way(self):
+        import coding_freshness
+        function = next(node for node in ast.parse(Path(coding_freshness.__file__).read_text(encoding="utf-8")).body
+                        if isinstance(node, ast.FunctionDef) and node.name == "history_paths")
+        self.assertEqual([], [ast.unparse(node) for node in ast.walk(function) if isinstance(node, ast.Slice)])
+        records = ("c5", "c4", "\nreference/new.md", "c3", "c2", "\nreference/old.md", "c1")
+        self.assertEqual([("c5", ("reference/new.md",)), ("c4", ("reference/new.md",)),
+                          ("c3", ("reference/new.md", "reference/old.md")), ("c2", ("reference/old.md",)),
+                          ("c1", ("reference/old.md",))],
+                         coding_freshness.history_paths(records, "reference/new.md"))
+
+    def test_y7_one_parse_of_each_private_worksheet_per_render_validation_included(self):
+        import worksheet_grammar
+        private = (self.run / "worksheets/note-1.md").read_text(encoding="utf-8")
+        region = worksheet_grammar.entry_region(private)
+        counted = {name: mock.Mock(wraps=getattr(worksheet_grammar, name))
+                   for name in ("entry_region", "read_entries", "physical_lines")}
+        with contextlib.ExitStack() as stack:
+            for name, wrapper in counted.items():
+                for module in (worksheet_grammar, review_manifest, em_audit):
+                    if hasattr(module, name):
+                        stack.enter_context(mock.patch.object(module, name, wrapper))
+            em_audit.render(self.run, [])
+        self.assertEqual(1, sum(call.args[0] == private for call in counted["entry_region"].call_args_list))
+        self.assertEqual(1, sum(call.args[0] == region for call in counted["read_entries"].call_args_list))
+        self.assertEqual(1, sum(call.args[0] == private for call in counted["physical_lines"].call_args_list))
 
 
 if __name__ == "__main__":

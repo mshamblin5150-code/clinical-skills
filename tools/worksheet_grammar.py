@@ -310,8 +310,15 @@ class Anchored:
     selected: frozenset[int]
 
 
-def anchored(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> Anchored:
-    """``lines`` with ``selected_em_lines`` of them; ``read`` as ``selected_em_lines`` takes it."""
+def anchored(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None, *,
+             selected: tuple[tuple[int, str], ...] | None = None) -> Anchored:
+    """``lines`` with ``selected_em_lines`` of them; ``read`` as ``selected_em_lines`` takes it.
+
+    ``selected`` is ``selected_em`` of these same lines (its ``lines`` argument), from a caller that
+    already selected them, so nothing is selected twice.
+    """
+    if selected is not None:
+        return Anchored(tuple(lines), frozenset(index for index, _ in selected))
     return Anchored(tuple(lines), selected_em_lines(list(lines), read))
 
 

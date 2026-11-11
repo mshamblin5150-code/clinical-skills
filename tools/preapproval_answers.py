@@ -25,7 +25,8 @@ import approval_record
 import delegated_answers
 from console_codec import require_python_floor, use_utf8
 from encounter_openers import private_target, read_openers
-from run_record_reader import RecordUpdate, UnreadableRecord, fault_report, object_record, read_tool_record, update_tool_record
+from run_record_reader import (RecordUpdate, UnreadableRecord, fault_report, object_record, outbound_text_damage,
+                               read_tool_record, update_tool_record)
 
 DECLARED_LIMITS = (
     "A verified entry proves its reply was a whole clinician message after the run opened. It "
@@ -104,6 +105,12 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
         raise ValueError("note is outside the opener population")
     if not _text(question) or not _text(reply) or not all(CODE.fullmatch(code) for code in levels):
         raise ValueError("a question, a whole reply and five-digit levels are required")
+    # The check-off quotes both verbatim and its Word copy refuses a control character; a tab
+    # renders there as a space, so only another control character is refused, before anything is written.
+    for name, value in (("question", question), ("reply", reply)):
+        if damage := outbound_text_damage(value, allow_tab=True):
+            raise ValueError(f"the {name} carries a control character: "
+                             + "; ".join(f"line {line}: U+{ord(character):04X}" for line, character in damage))
     # The reply must follow the opener source. Its time is read here, so verify_clinician_reply's
     # "unreadable" can only mean an unreadable transcript: a missing source refuses instead.
     try:

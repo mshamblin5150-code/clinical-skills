@@ -92,18 +92,24 @@ def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, tu
     for token in records:
         if token.startswith("\n"):
             if listed and listed[-1][1] is None:
-                listed[-1][1] = token[1:]
+                listed[-1][1] = token.removeprefix("\n")
         elif token.strip():
             listed.append([token.strip(), None])
+    # One pass from the oldest carries the next older listed path; one from the newest the newer.
+    older: list[str | None] = []
+    last = None
+    for _, at in reversed(listed):
+        older.append(last)
+        last = at if at is not None else last
+    older.reverse()
     found: list[tuple[str, tuple[str, ...]]] = []
     seen: set[tuple[str, tuple[str, ...]]] = set()
     newer = relative
-    for index, (commit, at) in enumerate(listed):
+    for (commit, at), previous in zip(listed, older):
         if at is not None:
             newer, candidates = at, (at,)
         else:
-            older = next((path for _, path in listed[index + 1:] if path is not None), None)
-            candidates = tuple(dict.fromkeys(path for path in (newer, older) if path is not None))
+            candidates = tuple(dict.fromkeys(path for path in (newer, previous) if path is not None))
         if (commit, candidates) not in seen:
             seen.add((commit, candidates))
             found.append((commit, candidates))

@@ -930,19 +930,10 @@ def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, st
     if skipped is not None:
         return False, skipped, 0
     import em_audit
-    from run_record_reader import UnreadableRecord
     # The approval time and exemption are read from the run the gate grades, which is the parent
     # of a worksheets/ folder the grader was given.
-    regrading = completion_checks.graded_at(run_directory, submission)
-    try:
-        regrading.__enter__()
-    except UnreadableRecord:
-        # An unreadable approval establishes no historical waiver, as run_grader rules.
+    with completion_checks.graded_at(run_directory, submission):
         return em_audit.completion_gate(run_directory, submission)
-    try:
-        return em_audit.completion_gate(run_directory, submission)
-    finally:
-        regrading.__exit__(None, None, None)
 
 
 GRADER = run_grader.Grader(

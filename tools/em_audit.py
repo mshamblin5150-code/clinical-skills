@@ -58,7 +58,6 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
                                EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
-                               entry_region, physical_lines, read_entries,
                                step_four_lines, worksheet_em_block)
 
 
@@ -172,7 +171,9 @@ DECLARED_LIMITS = (
     "run-record lock covers the strict read of the existing check-off and its atomic replacement, "
     "one file at a time with no transaction across notes. An existing check-off that cannot be "
     "read refuses its replacement, as every tool-written run record does. Word copies are outbound "
-    "artifacts written by docx_write under its own overwrite refusal.",
+    "artifacts written by docx_write under its own overwrite refusal; a tab in the copied text "
+    "renders as a space there, whitespace rather than a changed word, while the Markdown check-off "
+    "keeps it as recorded.",
 )
 
 
@@ -283,7 +284,8 @@ def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = N
             tail.append(line.strip())
         else:
             fields[state][-1] = (fields[state][-1] + " " + line.strip()).strip()
-    return tail, fields, unplaced, end
+    # A field with no non-blank value is no field: an empty ANCHOR is not an anchor.
+    return tail, {name: values for name, values in fields.items() if any(values)}, unplaced, end
 
 
 class EmSection(NamedTuple):
@@ -326,7 +328,7 @@ class PrivateWorksheet(NamedTuple):
     sections: tuple[EmSection, ...]
 
 
-def parse_private(text: str) -> PrivateWorksheet:
+def parse_private(text: str, read: review_manifest.PrivateRead | None = None) -> PrivateWorksheet:
     """The worksheet parsed once for its check-off: lines, region, every body walk and the E/M lines.
 
     Each entry and selected E/M line of the region is walked once over the region's lines, and each
@@ -334,18 +336,20 @@ def parse_private(text: str) -> PrivateWorksheet:
     by line, and ``sections`` the E/M lines the E/M section renders, in order. An E/M line after
     the region renders only when it opens its element block (an entry written inside an icd10-cpt
     step 4 block with no block is that block's text), and a selected line inside another one's
-    body is part of it.
+    body is part of it. ``read`` is validation's own read of ``text``
+    (``review_manifest.read_private``), so a render parses each private worksheet once.
     """
-    lines = physical_lines(text)
-    region = entry_region(text)
-    matches, entries = list(ENTRY.finditer(region)), read_entries(region)
+    if read is None:
+        read = review_manifest.read_private(text)
+    lines, region, entries = list(read.lines), read.region, read.entries
+    matches = list(ENTRY.finditer(region))
     starts, position = [], 0
     for line in lines:
         starts.append(position)
         position += len((line + "\n").splitlines())
     starts.append(position)
     region_lines = region.count("\n") if len(region) < len(text) else len(lines)
-    physical = anchored(lines, (region, entries))
+    physical = anchored(lines, selected=read.selected)
     # Each entry and each selected E/M line of the region owns a body; an unselected label owns none.
     owners = sorted({region.count("\n", 0, match.start()) for match in matches}
                     | {index for index in physical.selected if index < region_lines})
@@ -706,7 +710,9 @@ def negated_codes(line: str) -> set[str]:
         for negation in NOT_BILLED.finditer(clause):
             before = [token for token in tokens if token.end() <= negation.start()]
             after = [token for token in tokens if token.start() >= negation.end()]
-            chosen = (after[0] if negation.group("lead") and after else before[-1] if before else None)
+            # The colon form opens its clause: with an ECG code before it, it qualifies that one.
+            colon_form = negation.group("lead") and not before and after
+            chosen = after[0] if colon_form else before[-1] if before else None
             if chosen is not None:
                 negated.add(chosen.group())
     return negated
@@ -996,8 +1002,9 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
 
 
 def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, worksheet: str,
-          private_text: str, context: Context, tally: Tally, fingerprinted: bool) -> str:
-    private = parse_private(private_text)
+          private_text: str, context: Context, tally: Tally, fingerprinted: bool,
+          read: review_manifest.PrivateRead | None = None) -> str:
+    private = parse_private(private_text, read)
     stem = Path(item["note_path"]).stem
     identifier, order, total = item["id"], item["order"], len(manifest["encounters"])
     setting = "office" if item["setting"] == "office" else "emergency department"
@@ -1088,7 +1095,7 @@ def render(run: Path, notes: list[int]) -> tuple[Tally, int, list[Sheet]]:
             continue
         before = tally.unread + tally.faults
         text = sheet(run, manifest, receipt, item, encounter.note, encounter.worksheet, encounter.private,
-                     context, tally, item["private_worksheet_path"] in fingerprints)
+                     context, tally, item["private_worksheet_path"] in fingerprints, encounter.read)
         sheets.append(Sheet(item["order"], Path(item["note_path"]).stem, text,
                             tally.unread + tally.faults - before))
     return tally, len(orders), sheets
@@ -1168,7 +1175,9 @@ def export_word(run: Path, sheets: list[Sheet], output_dir: Path | None, force: 
     for sheet_ in sheets:
         try:
             # literal: note text, reasons, questions and replies carry asterisks and backticks verbatim.
-            write_docx(sheet_.text, folder / (sheet_.stem + ".docx"), force=force, bold_headings=True,
+            # A tab is whitespace the Word renderer refuses; it renders as a space, no word changed.
+            write_docx(sheet_.text.replace("\t", " "), folder / (sheet_.stem + ".docx"), force=force,
+                       bold_headings=True,
                        layout="plain", literal=True, under_output=True)
         except (RefusedToOverwrite, repo_root.ForeignCheckout, repo_root.OutsideOutput, OutboundTextError,
                 OSError) as error:
@@ -1353,7 +1362,7 @@ def main(argv: list[str] | None = None) -> int:
         print(damaged_record_result(error, check="em-audit", force=True)[1])
         return 1
     except RecordsRefused:
-        print("em-audit: refused - missing, invalid, or stale coding records")
+        print("em-audit: refused - missing, invalid or unreadable coding records")
         return 2
     except Exception as error:  # noqa: BLE001 - anything not raised deliberately is the tool's own defect
         print(f"em-audit: refused - a tool defect ({type(error).__name__}) stopped the render; {TOOL_DEFECT_REMEDY}")
@@ -1381,7 +1390,9 @@ def main(argv: list[str] | None = None) -> int:
                                                   (OutboundTextError, WORD_REFUSALS["character"]),
                                                   (OSError, WORD_REFUSALS["write"]))
                           if isinstance(stopped.cause, kind))
-            refusal = f"Word copy refused at note {stopped.order} - {reason}"
+            # An outbound refusal names only a line and a code point, never the text.
+            cause = f" ({stopped.cause})" if isinstance(stopped.cause, OutboundTextError) else ""
+            refusal = f"Word copy refused at note {stopped.order} - {reason}{cause}"
     selected = len(set(args.note)) if args.note else total
     print(report(tally, total, selected, "; ".join(written) or "nothing written (pass --write or --docx)"))
     for order in tally.moved:

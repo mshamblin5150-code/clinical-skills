@@ -151,7 +151,8 @@ class TheStrictReader(unittest.TestCase):
         changed = moved.replace(chr(0x2028) + "stable", chr(0x2028) + "steady")
         self.assertNotEqual(review_manifest.private_worksheet_sha256(EM_LINE + moved),
                             review_manifest.private_worksheet_sha256(EM_LINE + changed))
-        self.assertIs(grammar.physical_lines, __import__("em_audit").physical_lines)
+        # Twenty-sixth review: the check-off splits through validation's read, review_manifest.read_private.
+        self.assertIs(grammar.physical_lines, review_manifest.physical_lines)
 
     def test_x3_a_refused_element_line_without_a_colon_keeps_its_element_and_entry_id(self):
         line = '  EM-PROBLEM definition-stable-chronic | not counted | "History" | history only\n'

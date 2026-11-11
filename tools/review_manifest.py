@@ -19,7 +19,8 @@ from console_codec import require_python_floor, use_utf8
 from encounter_openers import (OpenerChanged, OpenerRecordMissing, digest, no_longer_a_file, private_target,
                                read_openers)
 from encounter_status import EvidenceChanged, StatusMissing, status_for
-from worksheet_grammar import ENTRY_CANDIDATE, em_identity, entry_reading, entry_region, read_entries, selected_em
+from worksheet_grammar import (ENTRY_CANDIDATE, WorksheetEntry, em_identity, entry_reading, entry_region,
+                               physical_lines, read_entries, selected_em)
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report, object_record,
                                read_handwritten_record, read_tool_record, update_tool_record)
 
@@ -123,10 +124,11 @@ def recorded_text(path: Path, recorded: bool) -> str:
         raise
 
 
-def _codes_or_refusal(text: str, *, private: bool) -> tuple[dict | None, ValueError | None]:
+def _codes_or_refusal(text: str, *, private: bool,
+                      read: PrivateRead | None = None) -> tuple[dict | None, ValueError | None]:
     """``selected_codes``, or None with the refusal where its grammar refuses the worksheet."""
     try:
-        return selected_codes(text, private=private), None
+        return selected_codes(text, private=private, read=read), None
     except ValueError as error:
         return None, error
 
@@ -138,8 +140,10 @@ def _disagreement(kind: str, refusal: ValueError | None) -> str:
     return f"{kind} worksheet selected codes disagree with manifest"
 
 
-def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[str, str, str, str, str]:
-    """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints.
+def _content(run: Path, item: dict,
+             private_sha256: str | None = None) -> tuple[str, str, str, str, str, PrivateRead]:
+    """Note, visible worksheet and private worksheet text, each read once, with the two fingerprints
+    and the private worksheet's parse (``read_private``).
 
     For a recorded manifest item, a disagreement is ``StaleRecord`` when the record it reads changed
     after the manifest: the embedded worksheet copy, which ``build`` refuses to bind in
@@ -162,18 +166,19 @@ def _content(run: Path, item: dict, private_sha256: str | None = None) -> tuple[
         moved = recorded and code_hash != item["normalized_sha256"]
         raise (StaleRecord if moved else ValueError)(_disagreement("visible", refusal)) from refusal
     private = recorded_text(resolve(run, item["private_worksheet_path"]), recorded)
-    codes, refusal = _codes_or_refusal(private, private=True)
+    read = read_private(private)
+    codes, refusal = _codes_or_refusal(private, private=True, read=read)
     if codes != expected:
         # A recorded fingerprint binds this worksheet to a build: a worksheet that changed after it,
         # or one it already binds because build wrote the record and then failed to write the
         # manifest, means the manifest is the stale record.
         moved = private_sha256 is not None
         raise (StaleRecord if moved else ValueError)(_disagreement("private", refusal)) from refusal
-    return note, worksheet, private, code_hash, digest(fields.encode("utf-8"))
+    return note, worksheet, private, code_hash, digest(fields.encode("utf-8")), read
 
 
 def content(run: Path, item: dict) -> tuple[str, str, str, str]:
-    note, worksheet, _, code_hash, field_hash = _content(run, item)
+    note, worksheet, _, code_hash, field_hash, _ = _content(run, item)
     return note, worksheet, code_hash, field_hash
 
 
@@ -204,19 +209,47 @@ def code_key(system: str, code: str) -> str:
     return "em" if em_identity(system, code) else system.lower()
 
 
-def selected_codes(text: str, *, private: bool) -> dict:
+@dataclass(frozen=True)
+class PrivateRead:
+    """A private worksheet as validation reads it, kept so the check-off parses it no second time.
+
+    ``lines`` are ``physical_lines`` of the text, ``region`` its ``entry_region`` with its
+    ``read_entries``, and ``selected`` the ``selected_em`` lines numbered over ``lines``.
+    """
+
+    lines: tuple[str, ...]
+    region: str
+    entries: list[WorksheetEntry]
+    selected: tuple[tuple[int, str], ...]
+
+
+def read_private(text: str) -> PrivateRead:
+    """The one parse of a private worksheet: its lines, region, entries and selected E/M lines."""
+    lines = physical_lines(text)
+    region = entry_region(text)
+    entries = read_entries(region)
+    return PrivateRead(tuple(lines), region, entries, selected_em(text, region, entries, lines))
+
+
+def selected_codes(text: str, *, private: bool, read: PrivateRead | None = None) -> dict:
     """Project code identities through shared strict entry/for-entry grammar.
 
     Visible colon labels are the SOAP/HP worksheet adapter. Private differential
     and reconciliation regions do not add final selections; E/M remains an
     explicit code label or a shared-parsed CPT entry from the E/M families, as
     ``worksheet_grammar.selected_em`` selects it: the one rule the E/M audit check-off anchors to.
+    ``read`` is ``read_private`` of ``text``, from a private caller that keeps it.
     """
-    entry_text = entry_region(text) if private else entry_reading(text, private=False)
-    entries = read_entries(entry_text)
+    if private:
+        read = read or read_private(text)
+        entry_text, entries, lines = read.region, read.entries, read.selected
+    else:
+        entry_text = entry_reading(text, private=False)
+        entries = read_entries(entry_text)
+        lines = selected_em(text, entry_text, entries, private=False)
     if len(list(ENTRY_CANDIDATE.finditer(entry_text))) != len(entries):
         raise ValueError("worksheet has unread selected-code lines")
-    em = {code for _, code in selected_em(text, entry_text, entries, private=private)}
+    em = {code for _, code in lines}
     result = {"icd10": set(), "em": em, "cpt": set(), "hcpcs": set()}
     for entry in entries:
         if not entry.for_entry or em_identity(entry.system, entry.code):
@@ -303,7 +336,7 @@ def build(run: Path, inputs: Path, *, batch: bool, receipt: Path | None = None,
                     setting=row["setting"], codes=row["codes"],
                     opener={key: opener[key] for key in ("name", "age", "sex")},
                     patient_status=status_for(run, order) if row["setting"] == "office" else {"value": "not-applicable"})
-        _, _, private, item["normalized_sha256"], item["field_block_sha256"] = _content(run, item)
+        _, _, private, item["normalized_sha256"], item["field_block_sha256"], _ = _content(run, item)
         fingerprints.append({"private_worksheet_path": item["private_worksheet_path"],
                              "private_worksheet_sha256": private_worksheet_sha256(private)})
         value["encounters"].append(item)
@@ -384,6 +417,7 @@ class ValidatedEncounter:
     note: str
     worksheet: str
     private: str
+    read: PrivateRead | None = None  # validation's parse of ``private``, reused by the check-off
 
 
 @dataclass(frozen=True)
@@ -414,9 +448,9 @@ def _validated(run: Path, *, batch: bool | None,
         raise StaleRecord("opener population or service date changed")
     notes, worksheets, encounters = [], [], []
     for item, opener in zip(manifest["encounters"], openers["encounters"]):
-        note, worksheet, private_text, code_hash, field_hash = _content(
+        note, worksheet, private_text, code_hash, field_hash, read = _content(
             run, item, (fingerprints or {}).get(item["private_worksheet_path"]))
-        encounters.append(ValidatedEncounter(item, note, worksheet, private_text))
+        encounters.append(ValidatedEncounter(item, note, worksheet, private_text, read))
         if code_hash != item["normalized_sha256"] or field_hash != item["field_block_sha256"]:
             raise StaleRecord("manifest is stale against current notes or worksheets")
         if item["opener"] != {key: opener[key] for key in ("name", "age", "sex")}:
