@@ -3791,5 +3791,40 @@ class FleetRoundTwoFindings(RunFixture):
         self.assertNotIn("Compared (elements, MDM and level):", text)
 
 
+class FleetRoundThreeFindings(RunFixture):
+    """Round 3 of the adversarial fleet review: lines counted but never named, or never shown."""
+
+    def test_fc1_an_outside_line_is_named_when_nothing_is_compared(self):
+        HTN = FleetRoundTwoFindings.HTN
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(HTN, "") + "\n" + HTN))
+        # A refused re-derivation leaves only unread input (2); an absent one is a finding (1), which wins.
+        for situation, expected in (("refused", 2), ("absent", 1)):
+            with self.subTest(situation=situation):
+                if situation == "refused":
+                    self.record(ELEMENTS + "  EM-PROBLEM: bogus line\n")
+                else:
+                    self.rederivation.unlink()
+                status, output = self.in_process("--write")
+                self.assertEqual(expected, status, output)
+                self.assertNotIn("unread remainder 0", output)
+                self.assertIn("1 element line(s) outside the element block could not be read",
+                              self.sheet.read_text(encoding="utf-8"))
+
+    def test_fc2_a_selected_label_nested_in_an_em_line_body_is_shown(self):
+        label = "  E/M: 99283 MARKERLABEL low complexity\n"
+        region = PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n",
+                                                     "CPT 99283 Emergency visit\n" + label + ELEMENTS)
+        step_four = PRIVATE.format(elements="").replace("CPT 99283 Emergency visit\n", "").replace(
+            "## Coded, anchor was filled: confirm before submitting\n\nNone.\n",
+            "## Coded, anchor was filled: confirm before submitting\n\nE/M: 99283 low complexity\n"
+            + label + ELEMENTS)
+        for name, text in (("region", region), ("step four", step_four)):
+            with self.subTest(placement=name):
+                self.write_private(text)
+                status, output = self.in_process("--write")
+                shown = self.sheet.is_file() and "MARKERLABEL" in self.sheet.read_text(encoding="utf-8")
+                self.assertTrue(shown or "unread remainder 0" not in output, output)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -630,7 +630,7 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     the caller reports the rest.
     EM- candidates under no anchor are ``outside``, with their ``unread_keys`` in
     ``outside_items``. A worksheet written before the block existed
-    reads ``(None, 0, 0)``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
+    reads ``(None, 0, 0, ())``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
     a caller that already holds them; lines that do not join back to ``text`` are refused with
     ``ValueError``.
     """

@@ -117,8 +117,8 @@ DECLARED_LIMITS = (
     "line splitting of the grader that grades each block, under every heading of its kind "
     "(BLOCK_READERS), so a second refusal block is quoted though refusal_scan grades the first; the "
     "undocumented block, which no grader reads, takes refusal_scan's. Every line the E/M section "
-    "renders (a selected E/M line that opens its element block, its wrapped header, its fields and "
-    "its EM- lines) is shown there once and left out of the quotation; a line that section leaves "
+    "renders (a selected E/M line that opens its element block, its wrapped header, its fields, any "
+    "selected E/M line nested in its body and its EM- lines) is shown there once and left out of the quotation; a line that section leaves "
     "unplaced, and any other line, an E/M entry marked NOT FOR ENTRY included, stays the block's "
     "text as the grader reads it. The graders read the same plain lines, the E/M section included, "
     "which is measured to grade nothing on the placement em-elements.md defines; another placement "
@@ -322,8 +322,14 @@ class EmSection(NamedTuple):
     end: int
 
     def rendered(self) -> set[int]:
-        """The physical lines the E/M section shows: the line, its wrapped header, fields and EM- lines."""
+        """The physical lines the E/M section shows: the line, its wrapped header, fields, nested E/M
+        lines and EM- lines."""
         return {self.line, *range(self.line + 1, self.end)} - set(self.unplaced)
+
+    def nested(self, selected: frozenset[int]) -> list[int]:
+        """The selected E/M labels inside this line's body, which ``em_entry_lines`` shows as written."""
+        return sorted(position for position in selected
+                      if self.line < position < self.end and position not in self.unplaced)
 
 
 class PrivateWorksheet(NamedTuple):
@@ -502,6 +508,9 @@ def em_entry_lines(private: PrivateWorksheet, tally: Tally) -> list[str]:
         tally.unread += len(section.unplaced)
         out.append("- E/M line: " + " ".join([private.physical.lines[section.line].strip(), *section.tail]))
         out += field_lines(section.fields, defaults=False)
+        # A selected E/M label inside this line's body is part of its block, shown here as written.
+        out += ["- Nested E/M line: " + private.physical.lines[position].strip()
+                for position in section.nested(private.physical.selected)]
     return out
 
 
@@ -959,6 +968,9 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     elements = worksheet_em_block(private.text, private.physical)
     block_ = elements.block
     tally.unread += elements.outside
+    if elements.outside:
+        lines.append(f"- {elements.outside} element line(s) outside the element block could not be read and "
+                     "are counted in the unread remainder; move each under its E/M line and render again")
     if block_ is None:
         if tally.predates:
             tally.blocks_predating += 1
