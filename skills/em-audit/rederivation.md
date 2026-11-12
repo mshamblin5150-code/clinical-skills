@@ -16,8 +16,9 @@ The brief carries exactly these, and the reader works from them alone:
   [office check sheet](../../reference/office-mdm-check.md) for an office level, and
   [em-elements.md](../_shared/reference/em-elements.md).
 
-The worksheets, the manifest code population and the selected level reach the reader only after
-its record is placed. The reader applies icd10-cpt step 5 as the coding run does. Where the run
+The brief is given after the note's last pre-approval answer is recorded; an answer recorded later
+makes the placed record stale, and the note is re-derived from a new brief. The worksheets, the
+manifest code population and the selected level reach the reader only after its record is placed. The reader applies icd10-cpt step 5 as the coding run does. Where the run
 would ask the clinician a question, the reader writes an `EM-RULE` line naming both levels and
 selects the lower one.
 

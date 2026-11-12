@@ -1015,9 +1015,11 @@ encounter's account-backed patient status must all pass. The rendered worksheet 
 
 On the note path, every coded note also needs its E/M audit check-off. After the freshness gate
 passes, follow [em-audit](../em-audit/SKILL.md) steps 2 and 3: a blind re-derivation for every note,
-then `python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt and
+placed again after the note's last pre-approval answer is recorded, then
+`python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt and
 after the last pre-approval answer is recorded, before approval: the check-off shows that record,
-so one written earlier is reported stale at the terminal grade. Its
+so one written earlier is reported stale at the terminal grade, and a re-derivation placed before
+its note's last answer is a finding. Its
 report shows no absent element block or re-derivation and no finding, and it exits 0, or exits 1
 only for differences shown to the clinician before approval. A finding is a defect in this
 worksheet's element block: correct the block, rebuild the manifest and render again before

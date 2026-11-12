@@ -835,8 +835,27 @@ def absent_rederivation(tally: Tally, line: str) -> list[str]:
     return [line]
 
 
+STALE_REDERIVATION = ("- FINDING (re-derivation): placed before this note's last pre-approval answer was "
+                      "recorded, so it never read that answer; re-derive the note (em-audit step 2) and render again")
+
+
+# A file's modification time comes from the kernel's coarse clock, which can trail time.time() by
+# milliseconds, so a re-derivation written just after an answer may carry an earlier stamp. Two
+# seconds absorbs that; a re-derivation placed within two seconds before an answer is not one a
+# reader could have written from the note and that answer.
+CLOCK_GRACE_SECONDS = 2.0
+
+
+def rederivation_stale(path: Path, context: Context, order: int) -> bool:
+    """Whether the re-derivation was last written before the note's newest recorded answer (ADR 0445 ruling 6)."""
+    if context.answers is None:
+        return False
+    times = [entry["recorded_at"] for entry in preapproval_answers.entries_for(context.answers, order)]
+    return bool(times) and path.stat().st_mtime + CLOCK_GRACE_SECONDS < max(times)
+
+
 def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock | None, tally: Tally,
-                       context: Context) -> list[str]:
+                       context: Context, order: int) -> list[str]:
     path = run / OUTPUT_DIRECTORY / REDERIVATION_DIRECTORY / (stem + ".md")
     if not path.exists():
         return absent_rederivation(tally, "No re-derivation record is placed for this note.")
@@ -852,10 +871,19 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     if rederived is None:
         return absent_rederivation(tally, "The re-derivation record holds no element line, so no "
                                           "re-derivation is placed for this note.")
+    try:
+        stale = rederivation_stale(path, context, order)
+    except OSError:
+        tally.unread += 1
+        return ["The re-derivation record's time could not be read, so its order against the answers is unknown."]
+    tally.rederivation_findings += stale
+    prefix: list[str] = []
+    if stale:
+        prefix = [STALE_REDERIVATION, ""]
     if rederived.unread:
         tally.unread += rederived.unread
-        return ["The re-derivation record is not a complete element block and was not compared."]
-    lines = item_lines(rederived)
+        return prefix + ["The re-derivation record is not a complete element block and was not compared."]
+    lines = prefix + item_lines(rederived)
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
     flaws = rederivation_findings(rederived, context.ids, context.levels)
@@ -979,7 +1007,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
                          "detected and this note is counted in the unread remainder. Build the manifest "
                          "again to record it; an unchanged manifest stays byte-identical, so its approval "
                          "holds.")
-    elements = worksheet_em_block(private.text, private.physical)
+    elements = worksheet_em_block(private.text, private.physical, region_lines=private.region_lines)
     block_ = elements.block
     tally.unread += elements.outside
     if elements.outside:
@@ -1069,7 +1097,7 @@ def sheet(run: Path, manifest: dict, receipt: dict, item: dict, note: str, works
     lines, worksheet_block = em_lines(item, note, worksheet, private, receipt, context, tally, fingerprinted, codes)
     out += ["## " + SECTIONS[5], "", *lines, ""]
     out += ["## " + SECTIONS[6], "", *answer_lines(context.answers, context.unreadable, order, tally), ""]
-    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, codes["em"], worksheet_block, tally, context), ""]
+    out += ["## " + SECTIONS[7], "", *rederivation_lines(run, stem, codes["em"], worksheet_block, tally, context, order), ""]
     out += ["## " + SECTIONS[8], "", *ATTESTATION, ""]
     return "\n".join(out)
 

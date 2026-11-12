@@ -618,7 +618,7 @@ class WorksheetElements:
     outside_items: tuple[tuple[str, str | None], ...] = ()
 
 
-def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetElements:
+def worksheet_em_block(text: str, lines: Anchored | None = None, *, region_lines: int = 0) -> WorksheetElements:
     """Read the element block under whichever E/M line carries it, counting each EM- line once.
 
     An E/M line is one of ``selected_em_lines``, by ``selected_em``'s rule: an ``EM_CODE_LABEL``
@@ -633,7 +633,9 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     ``outside_items``. A worksheet written before the block existed
     reads ``(None, 0, 0, ())``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
     a caller that already holds them; lines that do not join back to ``text`` are refused with
-    ``ValueError``.
+    ``ValueError``. ``region_lines`` is the number of lines in the for-entry region: a selected line
+    there owns its whole body as the check-off's E/M section claims it, holding an EM- line or not,
+    so a selected label nested in it never opens a block of its own.
     """
     if lines is None:
         lines = anchored(physical_lines(text))
@@ -644,9 +646,11 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     groups: list[list[int]] = []
     bodies: list[range] = []
     for index in sorted(selected):
-        if bodies and index in bodies[-1]:
+        if any(index in body for body in bodies):
             continue
         end = element_body_end(rows, index, selected)
+        if end is None and index < region_lines:
+            bodies.append(range(index + 1, body_end(rows, index)))  # a region E/M line claims its body
         if end is not None:
             bodies.append(range(index + 1, end))
             # An E/M label no rule selects inside the body is a rejected level: the lines under it, up

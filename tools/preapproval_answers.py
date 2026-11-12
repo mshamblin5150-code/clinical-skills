@@ -113,15 +113,16 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
                              + "; ".join(f"line {line}: U+{ord(character):04X}" for line, character in damage))
     # The reply must follow the opener source. Its time is read here, so verify_clinician_reply's
     # "unreadable" can only mean an unreadable transcript: a missing source refuses instead.
+    # An identical answer already recorded is found under the lock below even when its reply no
+    # longer matches (a moved source, a rotated transcript); only a new entry needs the match.
     try:
-        source_time = Path(openers["source"]).stat().st_mtime
-    except OSError as error:
-        raise ValueError("the opener source cannot be read") from error
-    verification = approval_record.verify_clinician_reply(
+        source_time: float | None = Path(openers["source"]).stat().st_mtime
+    except OSError:
+        source_time = None
+    verification = None if source_time is None else approval_record.verify_clinician_reply(
         run, reply, (Path(openers["source"]),), source_modified_at=source_time, transcripts=transcripts)
-    if verification.state not in ("verified", "unreadable"):
-        raise ValueError("no later whole clinician message matches the reply")
-    state = "verified" if verification.state == "verified" else "unreadable"
+    state = (None if verification is None or verification.state not in ("verified", "unreadable")
+             else "verified" if verification.state == "verified" else "unreadable")
 
     def payload(value: dict) -> bytes:
         text = json.dumps(value, indent=2, ensure_ascii=False) + "\n"
@@ -134,12 +135,14 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
             same = (entry["note"], entry["question"], entry["clinician_reply"], set(entry["levels"]))
             if same != (note, question, reply, set(levels)):
                 continue
-            if entry["verification"] == "verified" or state != "verified":
+            if entry["verification"] == "verified" or state != "verified" or verification is None:
                 return RecordUpdate(None, (entry["id"], entry["verification"]))
             # A transcript readable now upgrades the same answer in place; nothing downgrades it.
             upgraded = dict(entry, verification="verified", reply_matched_at=verification.matched_at)
             answers = [*value["answers"][:index], upgraded, *value["answers"][index + 1:]]
             return RecordUpdate(payload(dict(value, answers=answers)), (entry["id"], "verified"))
+        if state is None or verification is None:
+            return RecordUpdate(None, None)  # no identical entry, and the reply matches no later message
         number = 1 + len(entries_for(value, note))
         entry = {"id": f"note-{note}.q{number}", "note": note, "question": question, "levels": sorted(set(levels)),
                  "clinician_reply": reply, "verification": state,
@@ -148,7 +151,10 @@ def record(run: Path, note: int, question: str, levels: list[str], reply: str, *
         return RecordUpdate(payload(dict(value, answers=[*value["answers"], entry])), (entry["id"], state))
 
     result = update_tool_record(run / RECORD, decode, change)
-    assert isinstance(result, tuple)  # every RecordUpdate change returns carries (id, reply check)
+    if result is None:
+        raise ValueError("the opener source cannot be read" if source_time is None
+                         else "no later whole clinician message matches the reply")
+    assert isinstance(result, tuple)  # every other RecordUpdate change returns carries (id, reply check)
     return result
 
 

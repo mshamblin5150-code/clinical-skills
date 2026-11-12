@@ -135,5 +135,26 @@ class AnswersRecord(unittest.TestCase):
                                   mode=NAMING))
 
 
+
+class AnAnswerAlreadyRecorded(unittest.TestCase):
+    """Fleet review round 8: an identical recorded answer is found even when the reply no longer matches."""
+
+    def test_an_identical_verified_answer_is_already_present(self):
+        import test_em_audit as T
+
+        class Fixture(T.RunFixture):
+            def runTest(self):
+                pass
+
+        fixture = Fixture()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        with mock.patch.object(approval_record, "verify_clinician_reply", return_value=NOT_FOUND):
+            self.assertEqual(("note-1.q1", "verified"),
+                             preapproval_answers.record(fixture.run_dir, 1, T.QUESTION, [], T.REPLY))
+            with self.assertRaises(ValueError):
+                preapproval_answers.record(fixture.run_dir, 1, "A question never asked?", [], T.REPLY)
+
+
 if __name__ == "__main__":
     unittest.main()

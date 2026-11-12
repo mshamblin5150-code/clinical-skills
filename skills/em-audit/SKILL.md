@@ -48,9 +48,11 @@ gives `--submission`, which reports it not graded.
 
 ## 2. Re-derive every note
 
-Follow [rederivation.md](rederivation.md) once per note.
+Follow [rederivation.md](rederivation.md) once per note, after that note's last pre-approval
+answer is recorded: the reader works from those answers, so a re-derivation placed before an answer
+is reported as a finding until the note is re-derived and placed again.
 
-Done when every note in the run has a placed re-derivation record.
+Done when every note in the run has a re-derivation record placed after its last answer.
 
 ## 3. Render the check-offs
 

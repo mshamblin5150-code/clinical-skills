@@ -3978,5 +3978,33 @@ class FleetRoundSevenFindings(RunFixture):
         self.assertEqual((3, 1), next(iter(readings))[2:])
 
 
+class FleetRoundEightFindings(RunFixture):
+    """Round 8 of the adversarial fleet review."""
+
+    def test_fh1_a_rederivation_placed_before_the_last_answer_is_stale(self):
+        import os
+        stamp = json.loads((self.run_dir / preapproval_answers.RECORD).read_text(encoding="utf-8"))
+        latest = max(entry["recorded_at"] for entry in stamp["answers"])
+        os.utime(self.rederivation, (latest - 60, latest - 60))
+        status, output = self.in_process("--write")
+        self.assertEqual(1, status, output)
+        self.assertIn("placed before this note's last pre-approval answer",
+                      self.sheet.read_text(encoding="utf-8"))
+        os.utime(self.rederivation, (latest + 60, latest + 60))
+        self.assertEqual(0, self.in_process("--write")[0])
+
+    def test_fh2_a_nested_label_whose_body_outruns_its_entry_opens_no_block(self):
+        body = "".join(line + "\n" for line in ELEMENTS.splitlines())
+        text = PRIVATE.format(elements="").replace(
+            "CPT 99283 Emergency visit\n",
+            'CPT 99283 Emergency visit\nANCHOR: "Cough."\n  E/M: 99283\nSPECIFICITY: complete - x\n'
+            + body + "  stray prose line\n")
+        self.write_private(text)
+        status, output = self.in_process("--write")
+        self.assertNotIn("unread remainder 0", output)
+        self.assertIn("element line(s) outside the element block could not be read",
+                      self.sheet.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()
