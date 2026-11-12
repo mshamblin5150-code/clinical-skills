@@ -1223,7 +1223,9 @@ class EighthReviewFindings(ProseBind, RunFixture):
     def test_z5_the_sheet_version_the_receipt_bound_is_read_after_a_later_commit(self):
         import coding_freshness
         import hashlib
-        real = (ROOT / "reference" / "cpt-em-mdm-2026.md").read_bytes()
+        # The receipt hashes the committed version, so the bytes are LF however the checkout wrote them
+        # (a Windows checkout with core.autocrlf reads CRLF, and git stores LF).
+        real = (ROOT / "reference" / "cpt-em-mdm-2026.md").read_bytes().replace(b"\r\n", b"\n")
         repository = self.git_repository()
         self.commit(repository, real)
         self.commit(repository, real + b"\nA later revision of the sheet.\n")
