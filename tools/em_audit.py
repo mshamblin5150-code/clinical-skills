@@ -142,7 +142,8 @@ DECLARED_LIMITS = (
     "Every selected E/M line (an E/M: label naming an E/M code outside the lines of an entry marked "
     "NOT FOR ENTRY, or a for-entry E/M-family CPT entry) of the for-entry "
     "region, and every later one that opens an element block, is rendered with its own provenance "
-    "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY anchor no block "
+    "fields in the E/M section. EM- lines under an E/M entry marked NOT FOR ENTRY, or under a "
+    "rejected E/M label inside a selected line's body, anchor no block "
     "and are counted unread as outside lines.",
     "The private worksheet is bound only through its whole-file fingerprint, which "
     "review_manifest.build records beside the manifest and never in it; the check-off compares it "

@@ -3883,5 +3883,25 @@ class FleetRoundFourFindings(RunFixture):
         self.assertEqual([], misses)
 
 
+class FleetRoundFiveFindings(RunFixture):
+    """Round 5 of the adversarial fleet review."""
+
+    def test_fe1_element_lines_under_a_nested_rejected_label_form_no_block(self):
+        rejected = ('  E/M: 99285 NOT FOR ENTRY\n'
+                    '  EM-RISK: table-high | counted | "Education: Rest." | rejected level\'s risk\n')
+        private = PRIVATE.format(elements=ELEMENTS + rejected)
+        elements = em_audit.worksheet_em_block(private)
+        self.assertEqual(1, elements.outside)
+        assert elements.block is not None
+        self.assertEqual(4, len(elements.block.items))
+        self.write_private(private)
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        text = self.sheet.read_text(encoding="utf-8")
+        self.assertNotIn("Risk: table-high", text)
+        self.assertNotIn("DIFFERS", text)
+        self.assertIn("1 element line(s) outside the element block could not be read", text)
+
+
 if __name__ == "__main__":
     unittest.main()

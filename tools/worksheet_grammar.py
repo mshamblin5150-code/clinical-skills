@@ -628,7 +628,8 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     as an indented label under the selected entry, belongs to that block rather than opening a
     second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and
     the caller reports the rest.
-    EM- candidates under no anchor are ``outside``, with their ``unread_keys`` in
+    EM- candidates under no anchor, or under a rejected E/M label (one no rule selects) inside a
+    block's body, are ``outside``, with their ``unread_keys`` in
     ``outside_items``. A worksheet written before the block existed
     reads ``(None, 0, 0, ())``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
     a caller that already holds them; lines that do not join back to ``text`` are refused with
@@ -641,12 +642,18 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
     rows, selected = list(lines.lines), lines.selected
     candidates = {index for index, line in enumerate(rows) if EM_CANDIDATE.match(line)}
     groups: list[range] = []
+    bodies: list[range] = []
     for index in sorted(selected):
-        if groups and index in groups[-1]:
+        if bodies and index in bodies[-1]:
             continue
         end = element_body_end(rows, index, selected)
         if end is not None:
-            groups.append(range(index + 1, end))
+            bodies.append(range(index + 1, end))
+            # An E/M label no rule selects inside the body is a rejected level: its EM- lines and
+            # everything after it form no block and are outside (entry_walk leaves them unplaced).
+            cut = next((row for row in range(index + 1, end)
+                        if row not in selected and EM_CODE_LABEL.match(rows[row])), end)
+            groups.append(range(index + 1, cut))
     within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     outside = sorted(candidates - within)
