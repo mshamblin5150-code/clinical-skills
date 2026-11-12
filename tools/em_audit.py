@@ -636,8 +636,12 @@ def mdm_levels(service_date: str) -> MdmLevels:
 
 
 def time_based(block_: EmBlock) -> bool:
-    """Whether the block declares its level selected by total time (``TIME_BASIS`` in an EM-RULE line)."""
-    return any(TIME_BASIS in rule.lower() for rule in block_.rules)
+    """Whether an EM-RULE line is the declaration em-elements.md defines, ``TIME_BASIS`` itself.
+
+    The line is read whole, in any case and with a closing period, so a line that only mentions
+    the phrase (one denying time selection, say) declares nothing and the level stays held to MDM.
+    """
+    return any(rule.strip().rstrip(".").strip().lower() == TIME_BASIS for rule in block_.rules)
 
 
 def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
@@ -1385,6 +1389,8 @@ def main(argv: list[str] | None = None) -> int:
               "receipt still binds that version")
         return 2
     except UnreadableRecord as error:
+        # skills/em-audit/SKILL.md step 1: a record that cannot be read is refused; icd10-cpt rebuilds it.
+        print("em-audit: refused - a tool-written coding record cannot be read; have icd10-cpt rebuild it")
         print(fault_report(error, check="em-audit"))
         return 2
     except DamagedRecord as error:

@@ -653,7 +653,9 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
             # everything after it form no block and are outside (entry_walk leaves them unplaced).
             cut = next((row for row in range(index + 1, end)
                         if row not in selected and EM_CODE_LABEL.match(rows[row])), end)
-            groups.append(range(index + 1, cut))
+            # A body that opens with a rejected label holds no element line of its own: no block.
+            if any(row in candidates for row in range(index + 1, cut)):
+                groups.append(range(index + 1, cut))
     within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     outside = sorted(candidates - within)

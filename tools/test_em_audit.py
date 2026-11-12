@@ -3903,5 +3903,42 @@ class FleetRoundFiveFindings(RunFixture):
         self.assertIn("1 element line(s) outside the element block could not be read", text)
 
 
+class FleetRoundSixFindings(RunFixture):
+    """Round 6 of the adversarial fleet review."""
+
+    REJECTED = "  E/M: 99284 considered NOT FOR ENTRY\n    EM-LEVEL: 99284\n"
+
+    def test_ff1_an_unreadable_tool_written_record_is_refused(self):
+        (self.run_dir / "batch-codes.json").write_bytes(b"\xff\xfe not json")
+        status, output = self.in_process()
+        self.assertEqual(2, status, output)
+        self.assertIn("refused", output)
+        self.assertIn("does not decode", output)
+
+    def test_ff2_a_body_opening_with_a_rejected_label_makes_no_empty_block(self):
+        first = PRIVATE.format(elements=self.REJECTED + "E/M: 99283 final level\n" + ELEMENTS)
+        last = PRIVATE.format(elements=ELEMENTS + "E/M: 99283 final level\n" + self.REJECTED)
+        for name, private in (("rejected first", first), ("rejected last", last)):
+            with self.subTest(placement=name):
+                elements = em_audit.worksheet_em_block(private)
+                self.assertIsNotNone(elements.block)
+                self.assertEqual(1, elements.blocks)
+                self.assertEqual(1, elements.outside)
+
+    def test_ff3_only_the_declared_rule_line_lifts_the_mdm_level_check(self):
+        levels = em_audit.MdmLevels(True, {"99213": "low", "99214": "moderate"}, frozenset())
+        body = ELEMENTS.replace("EM-LEVEL: 99283", "EM-LEVEL: 99214")
+        denied = "MDM governs this level; it was not a level selected by total time on the date of the encounter"
+        block = strict_block(body.replace("EM-RULE: ADR 0308 ruling 1", "EM-RULE: " + denied))
+        self.assertFalse(em_audit.time_based(block))
+        self.assertTrue(any("is moderate MDM" in finding
+                            for finding in em_audit.rederivation_findings(block, None, levels)))
+        for declared in ("level selected by total time on the date of the encounter",
+                         "Level selected by total time on the date of the encounter."):
+            with self.subTest(rule=declared):
+                self.assertTrue(em_audit.time_based(
+                    strict_block(body.replace("EM-RULE: ADR 0308 ruling 1", "EM-RULE: " + declared))))
+
+
 if __name__ == "__main__":
     unittest.main()
