@@ -58,8 +58,9 @@ from run_record_reader import (DamagedRecord, OutboundTextError, RecordUpdate, U
                                read_tool_record, update_tool_record)
 from worksheet_grammar import (BLOCK_HEADING, EM_CANDIDATE, EM_CODE_LABEL, EM_LABEL, ENTRY, FIELD,
                                REFUSAL_HEADING, UNDOCUMENTED_HEADING, ANY_HEADING, OTHER_HEADING, Anchored,
-                               EmBlock, WorksheetEntry, anchored, body_end, element_body_end, em_block, em_identity,
-                               ecg_listed, line_of, line_starts, step_four_lines, worksheet_em_block)
+                               EmBlock, WorksheetEntry, anchored, body_end, em_block, em_identity,
+                               ecg_listed, element_block_rows, line_of, line_starts, step_four_lines,
+                               worksheet_em_block)
 
 
 DECLARED_LIMITS = (
@@ -104,7 +105,10 @@ DECLARED_LIMITS = (
     "required line that is missing rather than refused excludes nothing. "
     "Note text, reasons, rules, answers and ECG lines are rendered side by side but not compared, "
     "and nothing establishes that the re-derivation was written before its author read the "
-    "worksheet.",
+    "worksheet. Its order against the note's pre-approval answers is read from the record's "
+    "modification time, with a two-second grace for the file clock: a record placed before the "
+    "note's last answer is a finding, but a stale record touched or rewritten after the last answer "
+    "passes whatever brief produced it, since nothing binds the record to the answers it read.",
     "A worksheet without an element block renders the visible worksheet and the E/M paragraph of "
     "the note verbatim, with the governing rules for the setting, and a re-derivation of it is "
     "compared on the level alone. A missing block or re-derivation is not graded only for a run "
@@ -398,7 +402,7 @@ def parse_private(text: str, read: review_manifest.PrivateRead | None = None) ->
         if index in claimed:
             continue
         if index >= region_lines:
-            if element_body_end(lines, index, physical.selected) is None:
+            if element_block_rows(lines, index, physical.selected) is None:
                 continue
             walks[index] = entry_walk(lines, index, physical.selected)
         section = EmSection(index, *walks[index])

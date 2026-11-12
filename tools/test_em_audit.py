@@ -1383,7 +1383,12 @@ class TenthReviewFindings(RunFixture):
         tree = ast.parse(Path(worksheet_grammar.__file__).read_text(encoding="utf-8"))
         function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "worksheet_em_block")
         calls = {node.func.id for node in ast.walk(function) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
-        self.assertIn("element_body_end", calls)
+        # Fleet round 9: the block is read through element_block_rows, the predicate the check-off's
+        # sections share, and that predicate reads the one body rule.
+        self.assertIn("element_block_rows", calls)
+        rows = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "element_block_rows")
+        self.assertIn("element_body_end", {node.func.id for node in ast.walk(rows)
+                                            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)})
         self.assertEqual([], [node for node in ast.walk(function) if isinstance(node, (ast.For, ast.While))
                               and any(isinstance(inner, ast.Compare) and "lines" in ast.unparse(inner)
                                       and '" \\t"' in ast.unparse(inner) for inner in ast.walk(node))])
@@ -4004,6 +4009,40 @@ class FleetRoundEightFindings(RunFixture):
         self.assertNotIn("unread remainder 0", output)
         self.assertIn("element line(s) outside the element block could not be read",
                       self.sheet.read_text(encoding="utf-8"))
+
+
+class FleetRoundNineFindings(RunFixture):
+    """Round 9 of the adversarial fleet review."""
+
+    def test_fi1_a_step_four_label_whose_only_element_line_is_rejected_stays_block_text(self):
+        placements = {
+            "rejected after the refusal": (
+                "  needs: imaging establishing pneumonia\n",
+                "  E/M: 99284 rejected level NOT FOR ENTRY\n  EM-LEVEL: 99284\n"
+                "  needs: imaging establishing pneumonia\n"),
+            "rejected first": (
+                "  NOT CODED: J18.9  Pneumonia, unspecified organism\n",
+                "  E/M: 99284 rejected level NOT FOR ENTRY\n  EM-LEVEL: 99284\n"
+                "  NOT CODED: J18.9  Pneumonia, unspecified organism\n"),
+        }
+        for name, (old, new) in placements.items():
+            with self.subTest(placement=name):
+                text = PRIVATE.format(elements=ELEMENTS).replace(
+                    "Synthetic refusal line\n", "Synthetic refusal line\nE/M: 99283 written in the block\n"
+                ).replace(old, new)
+                self.write_private(text)
+                status, output = self.in_process("--write")
+                self.assertIn("unread remainder 1", output)
+                sheet = self.sheet.read_text(encoding="utf-8")
+                refused = sheet[sheet.index("## Codes refused"):sheet.index("## Documentation")]
+                for line in ("E/M: 99283 written in the block", "NOT CODED: J18.9", "needs: imaging"):
+                    self.assertIn(line, refused)
+                self.assertNotIn("- E/M line: E/M: 99283 written in the block", sheet)
+
+    def test_fi2_the_stale_re_derivation_limit_is_declared(self):
+        limits = " ".join(" ".join(em_audit.DECLARED_LIMITS).split())
+        self.assertIn("modification time", limits)
+        self.assertIn("touched or rewritten after the last answer passes", limits)
 
 
 if __name__ == "__main__":

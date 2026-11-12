@@ -430,6 +430,26 @@ def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> 
     return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
 
 
+def element_block_rows(lines: list[str], index: int, selected: frozenset[int]) -> list[int] | None:
+    """The rows of the element block a selected E/M line opens; None when it opens none.
+
+    The rows are ``element_body_end``'s body less every row under an E/M label no rule selects
+    (a rejected level) up to the next selected label. A body whose only EM- lines sit under a
+    rejected label opens no block. The one predicate both ``worksheet_em_block`` and the E/M audit
+    check-off's sections read, so a line renders as an E/M line exactly when it opens a block.
+    """
+    end = element_body_end(lines, index, selected)
+    if end is None:
+        return None
+    kept, rejected = [], False
+    for row in range(index + 1, end):
+        if EM_CODE_LABEL.match(lines[row]):
+            rejected = row not in selected
+        elif not rejected:
+            kept.append(row)
+    return kept if any(EM_CANDIDATE.match(lines[row]) for row in kept) else None
+
+
 def step_four_lines(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
                     every: bool = False) -> tuple[list[int], bool]:
     """The indexes of the lines under an icd10-cpt step 4 heading, and whether it was found.
@@ -648,23 +668,14 @@ def worksheet_em_block(text: str, lines: Anchored | None = None, *, region_lines
     for index in sorted(selected):
         if any(index in body for body in bodies):
             continue
-        end = element_body_end(rows, index, selected)
-        if end is None and index < region_lines:
-            bodies.append(range(index + 1, body_end(rows, index)))  # a region E/M line claims its body
-        if end is not None:
-            bodies.append(range(index + 1, end))
-            # An E/M label no rule selects inside the body is a rejected level: the lines under it, up
-            # to the next selected label, form no block and are outside (entry_walk leaves them
-            # unplaced); a selected label after it resumes the block, as the one selection rule says.
-            kept, rejected = [], False
-            for row in range(index + 1, end):
-                if EM_CODE_LABEL.match(rows[row]):
-                    rejected = row not in selected
-                elif not rejected:
-                    kept.append(row)
-            # A body whose only EM- lines sit under a rejected label holds no block of its own.
-            if any(row in candidates for row in kept):
-                groups.append(kept)
+        # A region E/M line claims its whole body, as the check-off's section does; a later one
+        # only when it opens a block. A rejected level's lines are outside (element_block_rows).
+        kept = element_block_rows(rows, index, selected)
+        if kept is None and index >= region_lines:
+            continue
+        bodies.append(range(index + 1, body_end(rows, index)))
+        if kept is not None:
+            groups.append(kept)
     within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     outside = sorted(candidates - within)

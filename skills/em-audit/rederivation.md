@@ -29,9 +29,12 @@ One element block per note, in the em-elements.md line format, at
 The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0`,
 `damaged 0` and `findings 0` among the re-derivations, and its `agree` and `differ` counts add up to
 the notes in the run: a re-derivation is placed for every note, with no re-derivation line unread
-and no re-derivation finding. A `FINDING (re-derivation)` line names a record that contradicts
-itself (an entry id, a quotation, its MDM line or its level against its own elements); the reader
-repairs it against the note, never toward the worksheet, and places the record again. A level or
+and no re-derivation finding. A `FINDING (re-derivation)` line names one of two defects. A record
+that contradicts itself (an entry id, a quotation, its MDM line or its level against its own
+elements) is repaired by the reader against the note, never toward the worksheet, and placed again.
+A record placed before the note's last pre-approval answer is discarded: a fresh reader re-derives
+the note from a new brief that carries that answer, and its record is placed. Editing or re-saving
+the old record clears that finding without the answer ever being read, so it is never the repair. A level or
 element that differs from the worksheet is a `DIFFERS` line the clinician sees, never a finding.
 Other causes the
 `unread remainder` counts, such as an unreadable answers record or a private worksheet
