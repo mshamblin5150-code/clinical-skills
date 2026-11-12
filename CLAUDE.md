@@ -4,6 +4,38 @@ See [AGENTS.md](AGENTS.md) for the skill index and the standing rules that bind 
 
 Configuration for the maintainer's engineering skills. **None of this is required to use the clinical skills** — consumers read [AGENTS.md](AGENTS.md) and need nothing else, with no plugin to install.
 
+### Pinned engineering skills
+
+pstack and the Matt Pocock skills are installed whole, as Claude Code plugins, from the pinned
+marketplace at [docs/agents/engineering-plugins](docs/agents/engineering-plugins/.claude-plugin/marketplace.json).
+Each plugin entry names its release and one exact upstream commit (`sha`). pstack is the Claude Code
+package that `cursor/plugins` publishes: every skill, both agents, the guide and its Claude Code
+harness notes. Install at user scope, so consumers of the clinical skills are never offered them:
+
+```bash
+claude plugin marketplace add ./docs/agents/engineering-plugins --scope user
+claude plugin install pstack@clinical-skills-engineering --scope user
+claude plugin install mattpocock-skills@clinical-skills-engineering --scope user
+```
+
+pstack's skills are written for Cursor; its `docs/harness/claude-code.md`, inside the installed
+plugin, maps their tool, agent and model names to Claude Code. Run `/pstack:setup-pstack` once to
+write `~/.claude/rules/pstack-models.md`.
+
+[docs/agents/agent-skills-lock.json](docs/agents/agent-skills-lock.json) pins, by the same commits,
+every skill installed loose rather than through a plugin, including the Pocock skills its plugin
+does not publish and pstack's Benny automation skills. Install one from a checkout of its source:
+
+```bash
+git init <dir> && git -C <dir> fetch --depth 1 <repository> <commit> && git -C <dir> checkout FETCH_HEAD
+cp -R <dir>/<path> ~/.claude/skills/<name>
+```
+
+Where the installed name differs from the upstream directory name, set the `name:` line of the
+copied `SKILL.md` to the installed name. To move to a newer release, change the version and commit
+in both files together, run `claude plugin validate docs/agents/engineering-plugins`, and confirm
+every lock path still holds a `SKILL.md` at the new commit.
+
 ### Maintainer harness checkpoints
 
 Use the existing Matt Pocock implementation and review workflow, with relevant
@@ -479,6 +511,12 @@ new direct commands for #1206; both call `use_utf8` and `require_python_floor` f
 
 **Correction, 2026-10-19:** `backslash_pair_hook.py` is now the most recent direct command
 and calls `use_utf8()` then `require_python_floor()` from that path.
+
+**Correction, 2026-11-10:** `em_audit.py` is a direct command; its command path calls
+`use_utf8()` then `require_python_floor()`.
+
+**Correction, 2026-11-11:** `preapproval_answers.py` is a direct command; its command path calls
+`use_utf8()` then `require_python_floor()`.
 
 ### Memory index
 
@@ -2812,6 +2850,44 @@ the as-of date, selected-code population, committed-sheet SHA-256, and status ev
 gate's complete claim boundary is `coding_freshness.DECLARED_LIMITS`; this section points to that
 object without copying its rows.
 
+### E/M audit check-off
+
+`python tools/em_audit.py <run> [--note N ...] [--submission KEY] [--write] [--docx]` renders the check-off for
+`em-audit`. It reads the manifest through `review_manifest.validated_population`, the validation
+approval uses, so a stale manifest or receipt refuses rather than rendering a packet that disagrees
+with the records. Codes for entry come from the private worksheet through `worksheet_grammar`; its
+icd10-cpt step 4 blocks are quoted. The E/M section renders the element block that
+`worksheet_grammar.worksheet_em_block` reads and checks it against the selected code, the CPT MDM
+sheet ids, read by `cpt_mdm_sheet.read_entries` from the committed sheet version the receipt
+fingerprints, the pre-approval answers record, and the MDM level each code's verified CPT 2026
+descriptor names in `reference/procedure-codes-2026.sqlite`; a worksheet without a block shows its visible
+worksheet instead. The manifest build records a fingerprint of the whole private worksheet in its own
+record beside the manifest, so approval never binds it, and a change refuses that note's check-off. A re-derivation record is compared element by element. `--write` writes each
+check-off under the private `scratch/` run through `run_record_reader.update_tool_record`; `--docx`
+renders the same text through `docx_write.write_docx` only into the main checkout `output/`, keeping its
+overwrite refusal and setting the copied text literally (`literal=True`). The default output is
+counts only with the shared unread remainder. Exit 0 is clean, 1 is a finding, and 2 is a refused
+run, a refused Word copy, a Word option without `--docx` or an unread candidate.
+`specificity_scan.em_audit_gate` grades the `the E/M audit check-offs` row through
+`em_audit.completion_gate` at the icd10-cpt submission under ADR 0445, dated in `reference/completion-check-starts.tsv`; there a
+stale record, or one the manifest was built from that changed or went missing, is a finding, and a
+missing freshness receipt or an unreadable record is incomplete. The command and the gate read one
+start row. `em_audit_scope`
+holds that row's name and its two not-graded answers, so `specificity_scan` gives them without
+loading `em_audit`. The
+complete boundary belongs to `em_audit.DECLARED_LIMITS`. Covered by `tools/test_em_audit.py`, and
+the element grammar and its worksheet-reader tolerance by `tools/test_em_elements.py`.
+
+### Pre-approval answers record
+
+`python tools/preapproval_answers.py <run> --note N --question TEXT [--level CODE ...] --reply TEXT`
+adds one keyed entry to the private `pre-approval-answers.json` through
+`run_record_reader.update_tool_record`. It matches the reply with
+`approval_record.verify_clinician_reply`; an unreadable transcript records the entry as
+unreadable, and an unmatched reply or a run carrying `delegated-answers.md` writes nothing. Exit 0
+records or finds the entry; exit 2 writes nothing. Output names the entry id and reply check only. The complete boundary belongs to
+`preapproval_answers.DECLARED_LIMITS`. Covered by `tools/test_preapproval_answers.py`.
+
 ### CDC BMI-for-age table
 
 `reference/cdc-bmi-for-age-2022.csv` is committed for the same consumer-critical-path reason as the ICD database. It is CDC's public 2022 Extended BMI-for-Age data file, downloaded byte-for-byte from `https://www.cdc.gov/growthcharts/data/extended-bmi/bmi-age-2022.csv`: **438 data rows, 219 per sex**, plus its header. The source page is `https://www.cdc.gov/growthcharts/extended-bmi-data-files.htm`; SHA-256 at import on 2026-08-20 was `7F416A213157A5209BB6CBFD1B19292510248F3F31FE43C9FF63F6D8E39F7890`.
@@ -2858,7 +2934,7 @@ python tools/guidelines_extract.py "C:/codeing/guidelines-src"
 **One of the three tools here that is not stdlib** — see *Corpus census* above:
 
 ```bash
-python -m pip install pymupdf
+python -m pip install -r tools/pdf-requirements.txt
 ```
 
 That is affordable because it is maintainer-only and runs once per corpus refresh, and the script checks for the dependency once up front rather than once per document.
@@ -3524,7 +3600,7 @@ Unreadable scope output selects full validation; explicit workflow cancellation 
 respected. No prior check is canceled or treated as passing by this classification.
 The separate trusted tracker workflow continues grading changed tracker records.
 
-`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The pinned maintainer job runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`, and the floating Python `3.14` canary runs the same suite. No job installs dependencies. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
+`.github/workflows/checks.yml`, with jobs on `windows-latest` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and [#927](https://github.com/mshamblin5150-code/clinical-skills/issues/927), and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md) and [ADR 0187](docs/adr/0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md). The pinned maintainer job runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check. The floor job runs the complete `python tools/suite.py` command at Python `3.10`, and the floating Python `3.15` canary runs the same suite. No job installs dependencies. The threshold step puts its report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
 
@@ -3538,7 +3614,7 @@ The separate trusted tracker workflow continues grading changed tracker records.
 
 That was the sharpest risk in the ticket and it is answered rather than closed: `scratch/` is gitignored PHI that must never reach a runner, so **in CI the corpus layer is dead on every run that will ever happen**, and the `--all` mode leaves the path layer inapplicable too. Two of three layers dark, on the rule that matters most. It is scanned anyway because the shape layer caught a real date of birth on #64, and because **CI is not the weak configuration — it is the ordinary one**: agents commit from worktrees, where the corpus layer is already dead ([#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)).
 
-**`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. The maintainer job reads its exact Python release from `.github/maintainer-python-version`; the floating Python `3.14` canary reports failures from newer releases before the maintainer upgrades, under [ADR 0431](docs/adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md). Both tracker jobs read that same pin. At commit time, `python tools/maintainer_python.py` prints an advisory if the local interpreter differs or the pin cannot be read, and stays silent on a match.
+**`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. The maintainer job reads its exact Python release from `.github/maintainer-python-version`; the floating Python `3.15` canary reports failures from newer releases before the maintainer upgrades, under [ADR 0431](docs/adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md) and [ADR 0446](docs/adr/0446-the-canary-follows-the-newest-python-minor-line-and-the-maintainer-pin-stays-on-the-maintainer-s-machine.md). Both tracker jobs read that same pin. At commit time, `python tools/maintainer_python.py` prints an advisory if the local interpreter differs or the pin cannot be read, and stays silent on a match.
 
 **"No consumer runs these tools" was written here and in ADR 0002 and it is false.** [AGENTS.md](AGENTS.md) says `icd10-cpt` and — since #46 — `clinical-note` both look codes up by running `tools/icd10_lookup.py`, so *"an agent that cannot run the script is working from recall."* **A consumer runs Python on the critical path.** On the ICD lookup path, `icd10_lookup.py`, `icd10_build.py`, and `console_codec.py` take the future import, do not call `zip(strict=)`, and parse at 3.7. `practicum-case-study` also requires the separate `render_scan.py` path through `run_grader` and runtime PyMuPDF. So **there are consumer and tooling floors here, and this job measures neither.**
 

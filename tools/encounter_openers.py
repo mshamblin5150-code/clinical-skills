@@ -7,6 +7,8 @@ bookkeeping retain their separate shared reader boundaries.
 from __future__ import annotations
 
 import argparse
+import errno
+import stat
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 from datetime import date
 import hashlib
@@ -15,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import sys
+from typing import Any
 import uuid
 
 import artifact_lock
@@ -129,13 +132,60 @@ def decode_record(text: str) -> dict:
     return record
 
 
+class OpenerRecordMissing(ValueError):
+    """The run has no opener record."""
+
+
+class OpenerChanged(ValueError):
+    """A file the opener record bound changed, or went missing, since the opener reading."""
+
+
+def no_longer_a_file(path: Path) -> bool:
+    """Whether a file a record bound is no longer a regular file at its path.
+
+    Missing or under a parent that is no longer a folder (``ENOENT``, ``ENOTDIR``), or present as
+    a folder or another non-file: the record's file is gone, whatever error the read raised
+    (Windows raises a permission error for a folder). Read by ``os.stat`` and its errno alone, so
+    no interpreter's own file test decides it; any other error, such as a permission error,
+    re-raises, so the path stays unreadable.
+    """
+    try:
+        status = os.stat(path)
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR):
+            return True
+        raise
+    return not stat.S_ISREG(status.st_mode)
+
+
+def read_or_changed(path: Path, read, changed):
+    """``read(path)``; where the path is no longer a file (``no_longer_a_file``) raise ``changed()``
+    instead, so a record's file that is gone reads as a change; any other error stays unreadable."""
+    try:
+        return read(path)
+    except OSError as error:
+        try:
+            replaced = no_longer_a_file(path)
+        except OSError:
+            raise error from None  # the path cannot be examined: the read's own fault stands
+        if replaced:
+            raise changed() from error
+        raise
+
+
+def bound_bytes(path: Path, name: str) -> bytes:
+    """The bytes of a file the opener record bound; gone as a file is a change, other errors stay unreadable."""
+    return read_or_changed(path, Path.read_bytes,
+                           lambda: OpenerChanged(f"{name} is no longer a file where opener reading found it"))
+
+
 def read_openers(run: Path) -> dict:
     record = read_tool_record(run / "openers.json", decode_record)
     if record is None:
-        raise ValueError("opener record is missing")
-    source = Path(record["source"]).read_bytes()
+        raise OpenerRecordMissing("opener record is missing")
+    source = bound_bytes(Path(record["source"]), "source")
     if digest(source) != record["source_sha256"]:
-        raise ValueError("source changed since opener reading")
+        raise OpenerChanged("source changed since opener reading")
     text = source.decode("utf-8")
     cursor = record["unassigned_end"]
     if type(cursor) is not int or not 0 <= cursor <= len(text):
@@ -144,14 +194,15 @@ def read_openers(run: Path) -> dict:
         if item["start"] != cursor or not cursor < item["end"] <= len(text):
             raise ValueError("source coverage is incomplete")
         expected = text[cursor:item["end"]].encode("utf-8")
-        if (run / item["file"]).read_bytes() != expected or digest(expected) != item["sha256"]:
-            raise ValueError("encounter changed since opener reading")
+        if bound_bytes(run / item["file"], "encounter") != expected or digest(expected) != item["sha256"]:
+            raise OpenerChanged("encounter changed since opener reading")
         check_name(item, expected.decode("utf-8"))
         cursor = item["end"]
     if cursor != len(text):
         raise ValueError("source coverage is incomplete")
-    if (run / "encounters/unassigned.txt").read_bytes() != text[:record["unassigned_end"]].encode("utf-8"):
-        raise ValueError("unassigned text changed")
+    if (bound_bytes(run / "encounters/unassigned.txt", "unassigned text")
+            != text[:record["unassigned_end"]].encode("utf-8")):
+        raise OpenerChanged("unassigned text changed")
     return record
 
 
@@ -172,10 +223,12 @@ def create(run: Path, source: Path, supplied: Path, service_date: str, mode: str
         raise ValueError("supplied opener readings are missing")
     if mode == "split":
         matches = list(NOTE_DELIMITER.finditer(text))
-        numbers = [int(re.search(r"\d+", m.group()).group()) for m in matches]
+        # NOTE_DELIMITER requires the note number, so every match carries its digits.
+        numbers = [int(digits.group()) for m in matches if (digits := re.search(r"\d+", m.group())) is not None]
         if not matches or numbers != list(range(1, len(matches) + 1)):
             raise ValueError("broken or absent numbering; supply hand cuts with a reason")
-        spans = [(m.start(), matches[i + 1].start() if i + 1 < len(matches) else len(text)) for i, m in enumerate(matches)]
+        spans: list[tuple[Any, Any]] = [  # hand cuts below are unvalidated JSON, checked after
+            (m.start(), matches[i + 1].start() if i + 1 < len(matches) else len(text)) for i, m in enumerate(matches)]
     elif mode == "single":
         if len(items) != 1:
             raise ValueError("single mode needs exactly one encounter")
@@ -278,7 +331,7 @@ def append_identity(run: Path, note: int, reference: str, target: Path, collisio
         text = raw.decode("utf-8")
         if reference.lower() in text.lower():
             raise ValueError("reference already exists in identity map")
-        collisions = set()
+        collisions: set[str] = set()
         for line in text.splitlines():
             if not line.lstrip().startswith("|"):
                 continue

@@ -12,7 +12,7 @@ work are both outside this repo.
 
 from __future__ import annotations
 
-import artifact_lock_test_support
+import artifact_lock_test_support  # noqa: F401
 import ast
 import contextlib
 import io
@@ -22,6 +22,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 from xml.etree import ElementTree
 
 import docx_read
@@ -174,7 +175,7 @@ class TheArchiveHasTheRequiredParts(unittest.TestCase):
             names = set(archive.namelist())
             root = ElementTree.fromstring(archive.read("[Content_Types].xml"))
         overrides = [
-            node.get("PartName").lstrip("/") for node in root if node.tag.endswith("}Override")
+            node.attrib["PartName"].lstrip("/") for node in root if node.tag.endswith("}Override")
         ]
         self.assertIn("word/header1.xml", overrides)
         for part in overrides:
@@ -193,10 +194,10 @@ class TheArchiveHasTheRequiredParts(unittest.TestCase):
             names = set(archive.namelist())
             root = ElementTree.fromstring(archive.read("[Content_Types].xml"))
         overrides = {
-            node.get("PartName").lstrip("/") for node in root if node.tag.endswith("}Override")
+            node.attrib["PartName"].lstrip("/") for node in root if node.tag.endswith("}Override")
         }
         extensions = {
-            node.get("Extension").lower() for node in root if node.tag.endswith("}Default")
+            node.attrib["Extension"].lower() for node in root if node.tag.endswith("}Default")
         }
         typed = [n for n in names if n.startswith("word/") and n.endswith(".xml")]
         self.assertIn("word/header1.xml", typed)
@@ -211,7 +212,7 @@ class TheArchiveHasTheRequiredParts(unittest.TestCase):
             names = set(archive.namelist())
             rels = ElementTree.fromstring(archive.read("word/_rels/document.xml.rels"))
             document = archive.read("word/document.xml").decode("utf-8")
-        targets = {node.get("Id"): node.get("Target") for node in rels}
+        targets = {node.get("Id"): node.attrib["Target"] for node in rels}
         self.assertTrue(targets)
         for identifier, target in targets.items():
             self.assertIn("word/" + target, names, identifier)
@@ -536,7 +537,9 @@ class MarkdownBlankLinesRenderNothing(unittest.TestCase):
 
     def body_children(self, markdown: str):
         document = ElementTree.fromstring(docx_write.document_xml(markdown))
-        return list(document.find("./" + self.W + "body"))
+        body = document.find("./" + self.W + "body")
+        assert body is not None, "every rendered document has a body"
+        return list(body)
 
     def paragraph_text(self, paragraph) -> str:
         return "".join(node.text or "" for node in paragraph.iter(self.W + "t"))
@@ -998,9 +1001,11 @@ class TheTableRules(unittest.TestCase):
         NS = {'w': namespace}
         styles = ElementTree.fromstring(self.styles)
         table_style = styles.find("w:style[@w:styleId='APATable']/w:tblPr", NS)
+        assert table_style is not None, "the shipped styles declare APATable"
         self.assertEqual([node.tag.rsplit('}', 1)[-1] for node in table_style],
                          ["tblBorders", "tblCellMar"])
         margin = table_style.find("w:tblCellMar", NS)
+        assert margin is not None, "the table style carries its cell margins"
         self.assertEqual([(node.tag.rsplit('}', 1)[-1], node.get(W + 'w'), node.get(W + 'type'))
                           for node in margin],
                          [('top', '0', 'dxa'), ('left', '108', 'dxa'),
@@ -1020,7 +1025,9 @@ class TheTableRules(unittest.TestCase):
 
     def test_the_table_names_a_style_the_shipped_styles_part_declares(self):
         """The two halves ship in different parts, which is what reading the zip buys."""
-        named = re.search(r'<w:tblStyle w:val="([^"]+)"/>', self.document).group(1)
+        style = re.search(r'<w:tblStyle w:val="([^"]+)"/>', self.document)
+        assert style is not None, "the rendered table names a style"
+        named = style.group(1)
         self.assertIn('w:type="table" w:styleId="{s}"'.format(s=named), self.styles)
 
     def test_a_header_only_table_is_still_closed(self):
@@ -1293,7 +1300,7 @@ class FinishedSubmissionsAvoidDisposableWorktrees(unittest.TestCase):
     def test_the_library_refuses_before_mkdir(self):
         destination = self.worktree / "output" / "case-studies" / "case.docx"
         original = docx_write.ensure_main_checkout
-        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        docx_write.ensure_main_checkout = lambda path, **options: original(path, self.main / "tools", **options)
         self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
         with self.assertRaises(ForeignCheckout):
             docx_write.write_docx("# Case\n", destination)
@@ -1302,7 +1309,7 @@ class FinishedSubmissionsAvoidDisposableWorktrees(unittest.TestCase):
     def test_the_command_converts_the_refusal_to_status_two(self):
         destination = self.worktree / "output" / "case-studies" / "case.docx"
         original = docx_write.ensure_main_checkout
-        docx_write.ensure_main_checkout = lambda path: original(path, self.main / "tools")
+        docx_write.ensure_main_checkout = lambda path, **options: original(path, self.main / "tools", **options)
         self.addCleanup(setattr, docx_write, "ensure_main_checkout", original)
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
@@ -1803,7 +1810,9 @@ class TheRxTableTheStyleSheetDocuments(unittest.TestCase):
 
     def test_the_grid_is_three_columns_wide(self):
         xml = rendered_parts(self.block())["word/document.xml"]
-        grid = re.search(r"<w:tblGrid>.*?</w:tblGrid>", xml, re.DOTALL).group(0)
+        found = re.search(r"<w:tblGrid>.*?</w:tblGrid>", xml, re.DOTALL)
+        assert found is not None, "the rendered table carries a grid"
+        grid = found.group(0)
         self.assertEqual(grid.count("<w:gridCol"), 3)
 
     def test_the_patient_row_declares_three_cells(self):
@@ -2140,10 +2149,10 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         self.assertIsNone(nums[0].find(f"{{{namespace}}}lvlOverride"))
         for node in nums[1:]:
             override = node.find(f"{{{namespace}}}lvlOverride")
-            self.assertIsNotNone(override)
+            assert override is not None, "every later list restarts through an override"
             self.assertEqual(override.get(f"{{{namespace}}}ilvl"), "0")
             start = override.find(f"{{{namespace}}}startOverride")
-            self.assertIsNotNone(start)
+            assert start is not None, "the override names its start"
             self.assertEqual(start.get(f"{{{namespace}}}val"), "1")
 
     def test_a_paragraph_between_items_does_not_restart_the_list(self):
@@ -2239,6 +2248,18 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         self.assertIn("<w:b/><w:i/>", xml)
         self.assertIn("Neisseria gonorrhoeae", xml)
 
+    def test_a_literal_render_keeps_asterisks_and_backticks_and_its_block_grammar(self):
+        """The em-audit check-off copies record text verbatim; a literal render reads
+        no inline span but still sets headings, bullets and quotations."""
+        text = "# Heading *x*\n\n- *recheck* and ** and `code`\n\n> quoted **reply**\n"
+        body, _ = docx_write.render_body(text, layout="plain", literal=True)
+        for literal in ("Heading *x*", "*recheck* and ** and `code`", "quoted **reply**"):
+            self.assertIn(literal, body)
+        self.assertNotIn("<w:i/>", body)
+        self.assertIn('w:val="ListParagraph"', body)
+        self.assertIn('w:val="BlockQuotation"', body)
+        self.assertNotIn("*recheck*", docx_write.render_body(text, layout="plain")[0])
+
     def test_an_unnested_bold_span_is_unchanged(self):
         """The nesting branch must not fire on ordinary bold, which is almost all
         of it."""
@@ -2280,14 +2301,11 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
             calls.append(markdown)
             return original(markdown, **options)
 
-        docx_write.render_body = counted
-        try:
-            with tempfile.TemporaryDirectory() as directory:
-                docx_write.write_docx(
-                    "## A\n\n1. one\n", Path(directory) / "once.docx"
-                )
-        finally:
-            docx_write.render_body = original
+        with mock.patch.object(docx_write, "render_body", counted), \
+                tempfile.TemporaryDirectory() as directory:
+            docx_write.write_docx(
+                "## A\n\n1. one\n", Path(directory) / "once.docx"
+            )
         self.assertEqual(len(calls), 1, "the body was parsed more than once")
 
     def test_the_rendered_document_still_opens_as_xml(self):

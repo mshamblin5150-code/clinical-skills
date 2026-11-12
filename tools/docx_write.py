@@ -58,6 +58,9 @@ formatting or a page-number header. Inline bold marks field labels; numbered ent
 remain regular weight unless explicitly marked. Both layouts accept the exported
 ``PAGE_BREAK`` line and share every output guard.
 
+``literal=True`` (no CLI flag) keeps the block grammar and reads no inline span, so asterisks
+and backticks in copied record text reach the page as written; ``tools/em_audit.py`` uses it.
+
 **``--bold-headings`` carries that same visible heading format directly.** The heading
 paragraph has no named heading style or outline level; bold and level-three italic are
 run properties, while centering and the level-four indent remain paragraph properties.
@@ -127,6 +130,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from console_codec import require_python_floor, use_utf8
 from repo_root import ForeignCheckout, ensure_main_checkout
@@ -400,7 +404,15 @@ REFERENCE_HEADING = re.compile(r"references\b|reference\s*$", re.I)
 # manual, which Markdown cannot express because ``#### x`` owns its own line; it is
 # rendered as the indented bold paragraph the run-in form is otherwise identical to.
 BODY_HALF_POINTS = 24
-HEADING_LEVELS = {
+class HeadingSpec(TypedDict, total=False):
+    """One heading level's presentation; a key left out is that level's default."""
+
+    align: str
+    italic: bool
+    indent: int
+
+
+HEADING_LEVELS: dict[int, HeadingSpec] = {
     1: {"align": "center"},
     2: {},
     3: {"italic": True},
@@ -571,10 +583,15 @@ def inline_spans(text: str, bold: bool = False, italic: bool = False):
         yield InlineSpan(body, is_bold, is_italic, is_mono)
 
 
-def runs(text: str, bold: bool = False, italic: bool = False) -> str:
-    """Split bold, italic and monospace spans into Word runs."""
+def runs(text: str, bold: bool = False, italic: bool = False, literal: bool = False) -> str:
+    """Split bold, italic and monospace spans into Word runs.
+
+    ``literal`` sets the text as one run with no inline span read, so an asterisk or a
+    backtick in copied text reaches the page as written.
+    """
     out = []
-    for span in inline_spans(text, bold=bold, italic=italic):
+    spans = (InlineSpan(text, bold, italic),) if literal else inline_spans(text, bold=bold, italic=italic)
+    for span in spans:
         # ``CT_RPr`` is a sequence like ``CT_PPrBase`` in ``para`` above --
         # ``rStyle``, ``rFonts``, ``b``, ``i`` -- and Word refuses a file whose
         # run properties arrive out of order. ``rFonts`` therefore goes first.
@@ -607,6 +624,7 @@ def para(
     indent: int = 0,
     bold: bool = False,
     italic: bool = False,
+    literal: bool = False,
 ) -> str:
     """One paragraph. The property order is the schema's, not a preference.
 
@@ -639,11 +657,11 @@ def para(
         props.append('<w:jc w:val="{a}"/>'.format(a=align))
     ppr = "<w:pPr>{p}</w:pPr>".format(p="".join(props)) if props else ""
     return "<w:p>{ppr}{r}</w:p>".format(
-        ppr=ppr, r=runs(text, bold=bold, italic=italic)
+        ppr=ppr, r=runs(text, bold=bold, italic=italic, literal=literal)
     )
 
 
-def table(rows: list) -> str:
+def table(rows: list, literal: bool = False) -> str:
     if not rows:
         return ""
     prescription_pad = all(not cell.strip() for cell in rows[0])
@@ -676,7 +694,7 @@ def table(rows: list) -> str:
                     j='<w:jc w:val="right"/>'
                     if len(row) > 1 and column == len(row) - 1 and span > 1
                     else "",
-                    r=runs(text, bold=index == 0),
+                    r=runs(text, bold=index == 0, literal=literal),
                 )
             )
         header = "<w:trPr><w:tblHeader/></w:trPr>" if index == 0 else ""
@@ -1092,7 +1110,7 @@ def blocks(markdown: str):
         index += 1
 
 
-def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa"):
+def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa", literal: bool = False):
     """``(body payload, number of decimal lists)``.
 
     The count is what ``numbering_xml`` has to be sized by, and it is returned
@@ -1140,23 +1158,24 @@ def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa")
                     indent=heading.get("indent", 0) if bold_headings and not plain else 0,
                     bold=bold_headings or plain,
                     italic=bool(heading.get("italic")) if bold_headings and not plain else False,
+                    literal=literal,
                 )
             )
             has_content = True
             continue
 
         if block.kind == "table":
-            out.append(table([list(row) for row in block.rows]))
+            out.append(table([list(row) for row in block.rows], literal=literal))
             has_content = True
             continue
 
         if block.kind == "block-quotation":
-            out.append(para(block.text, style="BlockQuotation"))
+            out.append(para(block.text, style="BlockQuotation", literal=literal))
             has_content = True
             continue
 
         if block.kind == "bullet":
-            out.append(para(block.text, style="ListParagraph", num_id=1, level=block.level))
+            out.append(para(block.text, style="ListParagraph", num_id=1, level=block.level, literal=literal))
             has_content = True
             continue
 
@@ -1176,6 +1195,7 @@ def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa")
                     style="ListParagraph",
                     num_id=decimal_id,
                     level=block.level,
+                    literal=literal,
                 )
             )
             has_content = True
@@ -1188,6 +1208,7 @@ def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa")
                 block.text,
                 style="Reference" if in_references else "",
                 first_line=not plain and not in_references,
+                literal=literal,
             )
         )
         has_content = True
@@ -1195,7 +1216,7 @@ def render_body(markdown: str, bold_headings: bool = False, layout: str = "apa")
     return "".join(out), decimal_lists
 
 
-def document_xml(markdown: str, body: str = None, layout: str = "apa") -> str:
+def document_xml(markdown: str, body: str | None = None, layout: str = "apa") -> str:
     from run_record_reader import require_outbound_text
     require_outbound_text(markdown)
     _require_layout(layout)
@@ -1225,7 +1246,7 @@ class RefusedToOverwrite(Exception):
     """The destination holds work this renderer did not write, or Word has it open."""
 
 
-def parts(markdown: str, bold_headings: bool = False, layout: str = "apa") -> dict:
+def parts(markdown: str, bold_headings: bool = False, layout: str = "apa", literal: bool = False) -> dict:
     """Every part of the archive, keyed by name, in the order it is written.
 
     **One object, so the guard cannot hold a different answer than the writer.**
@@ -1242,7 +1263,7 @@ def parts(markdown: str, bold_headings: bool = False, layout: str = "apa") -> di
     """
     from run_record_reader import require_outbound_text
     require_outbound_text(markdown)
-    body, decimal_lists = render_body(markdown, bold_headings=bold_headings, layout=layout)
+    body, decimal_lists = render_body(markdown, bold_headings=bold_headings, layout=layout, literal=literal)
     return {
         "[Content_Types].xml": CONTENT_TYPES,
         "_rels/.rels": ROOT_RELS,
@@ -1379,6 +1400,8 @@ def write_docx(
     force: bool = False,
     bold_headings: bool = False,
     layout: str = "apa",
+    literal: bool = False,
+    under_output: bool = False,
 ) -> Path:
     """Render ``markdown`` to ``destination``, refusing to destroy work it did not write.
 
@@ -1395,7 +1418,8 @@ def write_docx(
     limb is now on the path the test drives.
     """
     _require_layout(layout)
-    destination = ensure_main_checkout(destination)
+    # under_output: repo_root.ensure_main_checkout's narrower rule for a patient-information artifact.
+    destination = ensure_main_checkout(destination, under_output=under_output)
     if destination.parent != Path("."):
         destination.parent.mkdir(parents=True, exist_ok=True)
     if not force:
@@ -1407,7 +1431,7 @@ def write_docx(
     try:
         with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
             for name, content in parts(
-                markdown, bold_headings=bold_headings, layout=layout
+                markdown, bold_headings=bold_headings, layout=layout, literal=literal
             ).items():
                 archive.writestr(name, content)
         os.replace(partial, destination)

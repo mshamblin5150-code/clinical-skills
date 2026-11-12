@@ -84,7 +84,7 @@ from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
     BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
     REFUSAL_HEADING, STEP_FOUR_START, detail_belongs_to_entry, entry_is_for_entry,
-    heading_counts, paired_entry,
+    OTHER_HEADING, heading_counts, paired_entry, step_four_block,
 )
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -95,8 +95,8 @@ CDC_COMPUTED = re.compile(
     r"CDC 2022 Extended BMI-for-Age\.?$"
 )
 
-# Any other ``--- ... ---`` or Markdown heading closes the block.
-OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+# Any other ``--- ... ---`` or Markdown heading closes the block: worksheet_grammar.OTHER_HEADING,
+# shared with the one block reader the em-audit check-off quotes through.
 
 # ``Z68.36 - BMI 36.4 ...``. The bare code is pinned at the start of its line by a
 # dash, which is what makes this a line format rather than a substring search.
@@ -274,22 +274,8 @@ class Scan:
 
 
 def _block_lines(text: str) -> tuple[list[str], bool]:
-    """The ``icd10-cpt`` step-4 block's lines, and whether its heading was found."""
-    lines = text.splitlines()
-    collected: list[str] = []
-    found = False
-    inside = False
-    for line in lines:
-        if BLOCK_HEADING.match(line):
-            found = True
-            inside = True
-            continue
-        if inside:
-            if OTHER_HEADING.match(line):
-                inside = False
-                continue
-            collected.append(line)
-    return collected, found
+    """The ``icd10-cpt`` step-4 block's lines under every heading, and whether one was found."""
+    return step_four_block(text.splitlines(), BLOCK_HEADING, OTHER_HEADING, every=True)
 
 
 def read_worksheet(text: str) -> Worksheet:
@@ -578,14 +564,16 @@ def _database_descriptor(system: str, code: str) -> str | None:
     import procedure_codes_lookup
 
     with closing(procedure_codes_lookup.open_database()) as connection:
-        match = procedure_codes_lookup.describe(connection, code)
-        return match.description if match else None
+        procedure = procedure_codes_lookup.describe(connection, code)
+        return procedure.description if procedure else None
 
 
 def _rendered_descriptors(path: Path | None) -> dict[str, dict[str, str]]:
     if path is None:
         return {}
     payload = read_handwritten_record(path, "json").json
+    if not isinstance(payload, dict):
+        raise TypeError("rendered descriptor record is not a JSON object")  # indexing it raised TypeError too
     rows = payload["codes"]
     if not isinstance(rows, list):
         raise ValueError("rendered descriptor codes must be a list")
@@ -765,7 +753,10 @@ def _first_column_pointer(route: str) -> str:
     first = _index_route_catalog().get(route.split(" | ", 1)[0])
     if first is None or " > " in first[0] or first[0].lower() == "toxicity":
         return ""
-    referral = (first[2] or first[3]).lower()
+    either = first[2] or first[3]
+    # A main entry carrying neither see nor see-also fails here as it always has; the type says so.
+    assert either is not None, "the matched main entry carries no referral"
+    referral = either.lower()
     if "table of drugs and chemicals" not in referral:
         return ""
     if re.search(r"\bpoisoning\b", referral):
@@ -1564,10 +1555,10 @@ def _binding_findings(pair: AgreementPair) -> tuple[list[str], list[str]]:
         if note_side != worksheet_side
     ]
     substitutes: set[str] = set()
-    for field in PROPOSED_INSTEAD.finditer(pair.worksheet):
-        value = field["value"]
-        for line in SUBSTITUTE_CONTINUATION.finditer(pair.worksheet, field.end()):
-            if (not detail_belongs_to_entry(pair.worksheet, field, line)
+    for proposed in PROPOSED_INSTEAD.finditer(pair.worksheet):
+        value = proposed["value"]
+        for line in SUBSTITUTE_CONTINUATION.finditer(pair.worksheet, proposed.end()):
+            if (not detail_belongs_to_entry(pair.worksheet, proposed, line)
                     or FIELD.match(line.group()) or REFUSAL_FIELD.match(line.group())
                     or OTHER_HEADING.match(line.group())):
                 break
@@ -1818,6 +1809,8 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
         writer = writer_record or path.parent.name == "agreement-self"
         check_keys = completion_checks.active("anchor_scan:unexpected-reader-keys")
         check_remarks = completion_checks.active("anchor_scan:reader-remarks")
+        if not isinstance(payload, dict):
+            raise TypeError("the agreement record is not a JSON object")  # indexing it raised TypeError too
         if check_keys:
             unexpected_keys += len(set(payload) - {"pairs"})
         supplied_pairs = payload["pairs"]

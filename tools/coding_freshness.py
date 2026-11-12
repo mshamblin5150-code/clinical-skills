@@ -19,6 +19,7 @@ import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
+from typing import TypedDict
 from urllib.request import urlopen
 
 from console_codec import require_python_floor, use_utf8
@@ -28,6 +29,8 @@ from run_record_reader import (DamagedRecord, damaged_record_result, check_handw
 import icd10_lookup
 import procedure_codes_lookup
 import cpt_mdm_sheet
+import git_paths
+from cpt_identity import ED_EM, OFFICE_EM  # the one E/M family constant, shared with the worksheet readers
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,8 +42,6 @@ HCPCS_RELEASE_URL = (
 STATUS_VALUES = frozenset({"new", "established"})
 STATUS_EVIDENCE = frozenset({"identity-map", "medatrax", "clinician-answer"})
 SHA256 = re.compile(r"[0-9a-f]{64}")
-OFFICE_EM = frozenset(f"992{number:02d}" for number in range(2, 16))
-ED_EM = frozenset(f"992{number}" for number in range(81, 86))
 MONTH = (
     r"(?:January|February|March|April|May|June|July|August|September|October|"
     r"November|December)"
@@ -66,16 +67,132 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def committed_sheet_sha256(path: Path) -> str:
+def sheet_sha256(content: bytes) -> str:
+    """The receipt's MDM sheet fingerprint over one committed version's bytes.
+
+    It is the SHA-256 hex digest the run records use (``encounter_openers.digest``); a test holds
+    the two equal rather than this module importing the opener stack.
+    """
+    return hashlib.sha256(content).hexdigest()
+
+
+def committed_sheet(path: Path) -> bytes | None:
+    """The bytes of the sheet at ``path`` as committed at HEAD; None when git cannot read it there."""
     relative = path.relative_to(ROOT).as_posix()
-    committed = subprocess.run(
-        ["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True,
-    )
-    if committed.returncode:
+    committed = subprocess.run(["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True)
+    return None if committed.returncode else committed.stdout
+
+
+def history_paths(records: tuple[str, ...], relative: str) -> list[tuple[str, tuple[str, ...]]]:
+    """Each commit of ``git log -z --name-only --format=%H`` with the paths to ask it for the sheet at.
+
+    ``records`` are ``git_paths.read_path_records``'s, split on NUL before byte-safe decoding. A
+    commit is followed by its name list, which ``-z`` opens with a line break. A commit listing no
+    name may sit on either side of a rename, so it is asked at the path of the newer listed commit
+    (``relative`` for the newest) and then at that of the next older one. ``-m`` lists a merge once
+    per parent; it is asked once.
+    """
+    listed: list[list] = []
+    for token in records:
+        if token.startswith("\n"):
+            if listed and listed[-1][1] is None:
+                listed[-1][1] = token.removeprefix("\n")
+        elif token.strip():
+            listed.append([token.strip(), None])
+    # One pass from the oldest carries the next older listed path; one from the newest the newer.
+    older: list[str | None] = []
+    last = None
+    for _, at in reversed(listed):
+        older.append(last)
+        last = at if at is not None else last
+    older.reverse()
+    found: list[tuple[str, tuple[str, ...]]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    newer = relative
+    candidates: tuple[str, ...]
+    for (commit, at), previous in zip(listed, older):
+        if at is not None:
+            newer, candidates = at, (at,)
+        else:
+            candidates = tuple(dict.fromkeys(path for path in (newer, previous) if path is not None))
+        if (commit, candidates) not in seen:
+            seen.add((commit, candidates))
+            found.append((commit, candidates))
+    return found
+
+
+def bound_sheet_version(path: Path, fingerprint: str) -> bytes | None:
+    """The committed version of the sheet at ``path`` whose fingerprint is ``fingerprint``.
+
+    HEAD's version, ``committed_sheet``, is checked first, since a current receipt bound it. Only
+    when HEAD does not match is the path's history walked, newest first, each version hashed by
+    ``sheet_sha256``, so a receipt keeps reading the sheet it bound after later commits change it;
+    ``--full-history`` keeps a version committed on a side branch and merged in, ``--follow``
+    with ``--name-only`` names the path each commit held the sheet at, so a version committed
+    before a rename is read at its former path, and ``-m`` keeps a merge that resolved the sheet
+    itself, which ``--follow`` otherwise leaves out. The walk is two git processes: ``git log -z``
+    lists the commits with their paths, and one ``git cat-file --batch`` is asked for one version
+    at a time and closed at the first match, so no later version is read. Each object is skipped
+    by its declared size whatever its type. None when no version matches, the path is outside this
+    checkout, or git cannot be run.
+    """
+    try:
+        head = committed_sheet(path)
+        if head is not None and sheet_sha256(head) == fingerprint:
+            return head
+        relative = path.relative_to(ROOT).as_posix()
+        commits = history_paths(git_paths.read_path_records(
+            ROOT, "log", "-z", "--full-history", "--follow", "-m", "--name-only", "--format=%H", "--", relative),
+            relative)
+        if not commits:
+            return None
+        batch = subprocess.Popen(["git", "cat-file", "--batch"], cwd=ROOT, stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except (OSError, ValueError, git_paths.GitPathError):
+        return None
+    # Both streams were opened with PIPE, so neither is None.
+    stdin, stdout = batch.stdin, batch.stdout
+    assert stdin is not None and stdout is not None
+    asked: set[tuple[str, str]] = set()
+    try:
+        for commit, candidates in commits:
+            for at in candidates:
+                if (commit, at) in asked:
+                    continue  # a merge listed once per parent is asked once at each path
+                asked.add((commit, at))
+                stdin.write(f"{commit}:{at}\n".encode("utf-8", errors="surrogateescape"))
+                stdin.flush()
+                header = stdout.readline().split()
+                if not header:
+                    return None
+                if len(header) != 3 or not header[2].isdigit():
+                    continue  # "<object> missing" or "ambiguous": a header with no body
+                size = int(header[2])
+                version = stdout.read(size)
+                stdout.read(1)  # every object type carries its body and a trailing LF
+                if len(version) != size:
+                    return None
+                if header[1] == b"blob" and sheet_sha256(version) == fingerprint:
+                    return version
+        return None
+    except OSError:
+        return None
+    finally:
+        try:
+            stdin.close()
+        except OSError:
+            pass
+        stdout.close()
+        batch.wait()
+
+
+def committed_sheet_sha256(path: Path) -> str:
+    committed = committed_sheet(path)
+    if committed is None:
         raise ValueError("MDM sheet is not committed at HEAD")
-    if committed.stdout.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
+    if committed.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
         raise ValueError("MDM sheet differs from its committed version")
-    return hashlib.sha256(committed.stdout).hexdigest()
+    return sheet_sha256(committed)
 
 
 def read_url(url: str) -> str:
@@ -166,7 +283,27 @@ def normalize_codes(value: object, label: str) -> list[str]:
     return sorted({item.strip().upper() for item in value if item.strip()})
 
 
-def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[dict[str, object]]:
+class EncounterCodes(TypedDict):
+    """One encounter's final codes as ``read_encounters`` normalizes them."""
+
+    icd10: list[str]
+    em: str
+    cpt: list[str]
+    hcpcs: list[str]
+
+
+class ReadEncounter(TypedDict):
+    """One manifest encounter as ``read_encounters`` returns it, every field cleaned."""
+
+    id: str
+    order: int
+    normalized_sha256: str
+    patient_status: dict[str, object]
+    setting: object
+    codes: EncounterCodes
+
+
+def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[ReadEncounter]:
     if manifest.get("schema") != 1:
         findings.append("batch manifest schema is unreadable")
     population = manifest.get("encounters")
@@ -174,7 +311,7 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
         findings.append("batch has no encounter population")
         return []
 
-    encounters: list[dict[str, object]] = []
+    encounters: list[ReadEncounter] = []
     for position, raw in enumerate(population, 1):
         if not isinstance(raw, dict):
             findings.append(f"encounter {position} is unreadable")
@@ -254,7 +391,7 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
     return encounters
 
 
-def validate_status_replies(run: Path, encounters: list[dict[str, object]], findings: list[str]) -> None:
+def validate_status_replies(run: Path, encounters: list[ReadEncounter], findings: list[str]) -> None:
     """Bind clinician-answer evidence to a whole reply after its source."""
     from approval_record import verify_clinician_reply
     for position, encounter in enumerate(encounters, 1):
@@ -300,7 +437,7 @@ def derived_cpt_boundary(source: dict[str, str | None]) -> date:
 
 def validate_procedures(
     connection: sqlite3.Connection,
-    encounters: list[dict[str, object]],
+    encounters: list[ReadEncounter],
     service_date: str,
     as_of: date,
     hcpcs_page: str,
@@ -398,7 +535,7 @@ def receipt_record(text: str) -> dict:
         raise ValueError("freshness receipt fields")
     date.fromisoformat(value["service_date"])
     date.fromisoformat(value["checked_as_of"])
-    findings = []
+    findings: list[str] = []
     encounters = read_encounters(value, findings)
     if (findings or encounters != value["encounters"]
             or any(type(item["order"]) is not int for item in encounters)):
@@ -451,6 +588,7 @@ def main(argv: list[str]) -> int:
         def change(previous):
             return _gate(args)
         status = update_tool_record(args.receipt, receipt_record, change)
+        assert isinstance(status, int)  # every RecordUpdate _gate returns carries the exit status
         if status == 0:
             print("coding-freshness: PASS")
         return status

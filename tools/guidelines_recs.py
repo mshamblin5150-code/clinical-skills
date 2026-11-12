@@ -133,7 +133,7 @@ Paste a line into a ticket, never a table.
 
 **One of the tools in ``tools/`` that is not stdlib**, because it reads a PDF:
 
-    python -m pip install pymupdf
+    python -m pip install -r tools/pdf-requirements.txt
 
 The import sits inside the function that opens the file, so the test suite needs
 nothing installed and **nothing a consumer runs imports this at all**.
@@ -150,6 +150,7 @@ import re
 import sys
 import unicodedata
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
@@ -651,7 +652,7 @@ def load_recommendation_record(
     record = _recommendation_record(loaded, path)
     reasons: list[str] = []
     counted_from = record.get("counted_from")
-    floor = RECORD_TRUST_FLOOR.get(counted_from)
+    floor = RECORD_TRUST_FLOOR.get(counted_from) if isinstance(counted_from, str) else None
     if floor is None:
         reasons.append(
             "has absent or unrecognized counted_from"
@@ -929,7 +930,7 @@ class Recommendation:
     mode: str
 
 
-def read_table_recommendations(page_number: int, tables: list[list[list[str | None]]], doc_id: str) -> list[Recommendation]:
+def read_table_recommendations(page_number: int, tables: Sequence[list[list[str | None]]], doc_id: str) -> list[Recommendation]:
     """Every numbered recommendation in the ruled tables of one page.
 
     A table qualifies only if it carries **both** a ``Recommendations for`` title
@@ -1300,10 +1301,11 @@ def extract(
             # plain read, so marker pages are read in a second pass only when no ruled
             # table answered the document. #446 permits this cheaper three-limb shape.
             for page in document.pages():
+                tables: Sequence[list[list[str | None]]]
                 try:
                     tables = page.tables()
                 except Exception:  # noqa: BLE001 - a page whose tables will not parse is not a failed document
-                    tables = []
+                    tables = ()
                 table_hits.extend(
                     read_table_recommendations(page.number, tables, doc_id)
                 )
@@ -1333,7 +1335,7 @@ def _record_payload(
     """Serialize one standalone or sweep recommendation record."""
     outcome = RECOMMENDATIONS_FOUND if records else NOTHING_FOUND
     floor_key = counted_from if records else SOURCE_NOTHING_FOUND
-    record_producer = dict(producer)
+    record_producer: dict[str, object] = dict(producer)
     record_producer["inputs"] = artifact_provenance.producer_file_identity(
         RECORD_TRUST_FLOOR[floor_key]
     )
@@ -1394,9 +1396,11 @@ def build_sweep(
                 "outcome": outcome,
             }
         )
+        totals = payload.get("totals")
+        floor_count = totals.get("changelog_shape_floor", 0) if isinstance(totals, dict) else 0
         print(
             f"  {doc_id}  changelog floor "
-            f"{payload.get('totals', {}).get('changelog_shape_floor', 0)} "
+            f"{floor_count} "
             "(Recommendation <ref> was <participle>; reports only; "
             "spacing-dependent after #446's rebuilt-text reconstruction)"
         )

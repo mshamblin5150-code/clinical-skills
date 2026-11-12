@@ -6,9 +6,11 @@ used by graders that attribute an indented detail line to a code entry.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 import re
+import unicodedata
 from dataclasses import dataclass
-from cpt_identity import CPT_CODE
+from cpt_identity import CPT_CODE, EM_CODES
 
 
 # icd10-cpt step 4 has one set of phrases. The optional confirmation tail is part of the
@@ -117,15 +119,46 @@ def entry_is_for_entry(
 ) -> bool:
     """Whether one entry header lacks a line ending in ``NOT FOR ENTRY``.
 
-    A field or the next entry closes the header. This retains readable historical
-    worksheets whose official descriptor wrapped before the line-scoped marker.
+    A field, an E/M element line, an ``E/M:`` label line or the next entry closes the header, so
+    a label's own NOT FOR ENTRY never rejects the entry above it. This retains
+    readable historical worksheets whose official descriptor wrapped before the
+    line-scoped marker; an element line's free text is never read as the marker.
+    EM- lines exist only in worksheets written with the element block, which put NOT
+    FOR ENTRY on the code's own line, so the element-line closer moves no historical one.
     """
 
     start = entries[index].start()
     end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
-    field = FIELD.search(text, start, end)
-    header = text[start : field.start() if field else end]
+    closers = [match.start() for pattern in (FIELD, EM_LINE_START, EM_LABEL_START)
+               if (match := pattern.search(text, start, end))]
+    header = text[start : min(closers) if closers else end]
     return NOT_FOR_ENTRY.search(header) is None
+
+
+@dataclass(frozen=True)
+class WorksheetEntry:
+    """One code entry, including entries whose required specificity line is absent."""
+
+    start: int
+    system: str
+    code: str
+    descriptor: str
+    for_entry: bool
+
+
+def read_entries(text: str) -> list[WorksheetEntry]:
+    """Every code entry and its for-entry classification; specificity_scan re-exports this name."""
+    found = list(ENTRY.finditer(text))
+    return [
+        WorksheetEntry(
+            start=match.start(),
+            system=match.group("system"),
+            code=match.group("code"),
+            descriptor=match.group("descriptor"),
+            for_entry=entry_is_for_entry(text, found, index),
+        )
+        for index, match in enumerate(found)
+    ]
 
 
 def differential_prose(text: str) -> tuple[str, ...]:
@@ -159,7 +192,10 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     """Whether ``detail`` is in ``entry``'s contiguous indented body.
 
     The entry line itself ends at ``entry.end()``.  Every complete physical line
-    after that and before the detail must contain text and begin with indentation.
+    after that and before the detail must contain text, begin with indentation, and not end a
+    body (``ends_body``): the one body rule ``body_end`` reads too. An element block in the body
+    ends nothing: em-elements.md puts an entry's fields before its block, and a field written
+    after the block is still the entry's, as the E/M audit check-off reads it.
     """
 
     if detail.start() <= entry.end():
@@ -167,7 +203,7 @@ def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[st
     between = text[entry.end() : detail.start()]
     lines = between.splitlines()
     intervening = lines[1:] if lines else ()
-    return all(line.strip() and line[0] in " \t" for line in intervening)
+    return all(indented_line(line) and not ends_body(line) for line in intervening)
 
 
 def paired_entry(
@@ -179,3 +215,519 @@ def paired_entry(
     if owner is None or not detail_belongs_to_entry(text, owner, detail):
         return None
     return owner
+
+
+# The E/M element block (skills/_shared/reference/em-elements.md). icd10-cpt step 5 indents it
+# under the E/M line of the private worksheet; the em-audit re-derivation record carries the same
+# lines. Every EM- line is a candidate, so a line the strict reader refuses is counted as unread.
+EM_KINDS = ("PROBLEM", "DATA", "RISK", "RULE", "ANSWER", "ECG", "MDM", "LEVEL")
+ITEM_KINDS = ("PROBLEM", "DATA", "RISK")
+MDM_LEVELS = ("straightforward", "low", "moderate", "high")
+# The E/M label, indented or not and bold or not; EM_CODE_LABEL is the label followed by its code,
+# as selected_em reads it when it selects the final code.
+EM_LABEL = r"^[ \t]*(?:\*\*)?E/M(?:\*\*)?[ \t]*:"
+EM_CODE_LABEL = re.compile(rf"(?mi){EM_LABEL}[ \t]*(?P<code>\d{{5}})\b")
+# Where an E/M label line opens; it closes the header of the entry above it (``entry_is_for_entry``).
+EM_LABEL_START = re.compile(rf"(?mi){EM_LABEL}")
+
+
+def entry_region(text: str) -> str:
+    """The private worksheet before its differential and icd10-cpt step 4 blocks: the for-entry codes."""
+    boundaries = [match.start() for pattern in (DIFFERENTIAL_HEADING, STEP_FOUR_START)
+                  if (match := pattern.search(text)) is not None]
+    return text[:min(boundaries)] if boundaries else text
+
+
+def em_identity(system: str, code: str) -> bool:
+    """Whether a code entry names an E/M identity: a ``CPT`` code of the office or ED E/M families."""
+    return system.upper() == "CPT" and code.upper() in EM_CODES
+
+
+# The visible worksheet's colon labels (``CPT: 99213``), read as entries in the visible mode.
+VISIBLE_CODE_LABEL = re.compile(r"(?mi)^(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]*:[ \t]*")
+
+
+def entry_reading(text: str, *, private: bool) -> str:
+    """The text a worksheet's entries are read in, by mode: the private worksheet as written, the
+    visible worksheet with its colon labels read as entries. No line break moves, so every line
+    keeps its number."""
+    return text if private else VISIBLE_CODE_LABEL.sub(r"\1 ", text)
+
+
+def selected_em(text: str, region: str, entries: list[WorksheetEntry],
+                lines: list[str] | None = None, *, private: bool = True) -> tuple[tuple[int, str], ...]:
+    """Every selected E/M line of ``text`` with its code: the one rule that selects the E/M identity.
+
+    ``review_manifest.selected_codes`` takes the worksheet's E/M identity from these codes and the
+    E/M audit check-off anchors its element block to these lines. A selected line is an
+    ``EM_CODE_LABEL`` line anywhere in ``text`` whose code is an ``em_identity``, or a for-entry
+    ``em_identity`` entry of ``region`` (``text`` itself, or its for-entry region), indented or not.
+    ``entries`` are ``read_entries`` of ``region``, whose lines are ``text``'s, so each line is
+    numbered over ``text`` split on LF. An entry marked ``NOT FOR ENTRY``, an entry outside
+    ``region``, and a label inside the body (``body_end``) of an E/M entry marked ``NOT FOR ENTRY``
+    are never selected: a rejected level is never the final one, and neither is a label whose own
+    line is marked ``NOT FOR ENTRY``. A label inside the body of a rejected diagnosis or procedure
+    is selected as anywhere else. Rejected entries are found in
+    ``entry_reading`` of the worksheet's mode, so a visible ``CPT: 99285 ... NOT FOR ENTRY`` rejects
+    a label beneath it as its private copy does. ``lines`` is ``physical_lines(text)`` for the
+    private mode, passed by a caller that already split it; the visible mode splits its own
+    reading and refuses ``lines`` rather than discard it.
+    """
+    if lines is not None and not private:
+        raise ValueError("lines is the private worksheet's split; the visible mode splits its own reading")
+    reading = entry_reading(text, private=private)
+    lines = physical_lines(reading) if lines is None else lines
+    # ``region`` is a prefix of ``reading``, which keeps every line break of ``text``.
+    reading_starts, text_starts = line_starts(reading), line_starts(text)
+    every = list(ENTRY.finditer(reading))
+    rejected: set[int] = set()
+    for index, match in enumerate(every):
+        # Only a rejected level rejects a label inside it; a rejected diagnosis rejects no level.
+        if not entry_is_for_entry(reading, every, index) and em_identity(match.group("system"), match.group("code")):
+            start = line_of(reading_starts, match.start())
+            rejected.update(range(start + 1, body_end(lines, start)))
+    found = set()
+    for match in EM_CODE_LABEL.finditer(text):
+        line = line_of(text_starts, match.start())
+        # A label whose own line is marked NOT FOR ENTRY is a rejected level too.
+        own = text[match.start():text_starts[line + 1] if line + 1 < len(text_starts) else len(text)]
+        if em_identity("CPT", match.group("code")) and line not in rejected and not NOT_FOR_ENTRY.search(own):
+            found.add((line, match.group("code")))
+    found |= {(line_of(reading_starts, entry.start), entry.code.upper()) for entry in entries
+              if entry.for_entry and em_identity(entry.system, entry.code)}
+    return tuple(sorted(found))
+
+
+def line_starts(text: str) -> list[int]:
+    """The offset where each line of ``text`` split on LF starts, for ``line_of``."""
+    starts = [0]
+    position = text.find("\n")
+    while position >= 0:
+        starts.append(position + 1)
+        position = text.find("\n", position + 1)
+    return starts
+
+
+def line_of(starts: list[int] | tuple[int, ...], offset: int) -> int:
+    """The LF line holding ``offset``: one bisect over ``line_starts`` instead of a count per match."""
+    return bisect_right(starts, offset) - 1
+
+
+def selected_em_lines(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None) -> frozenset[int]:
+    """The indexes of ``selected_em``'s lines among ``lines``, the worksheet split on LF.
+
+    ``read`` is the ``entry_region`` of these lines joined by LF with its ``read_entries``, passed
+    by a caller that already parsed them.
+    """
+    text = "\n".join(lines)
+    if read is None:
+        region = entry_region(text)
+        read = region, read_entries(region)
+    return frozenset(index for index, _ in selected_em(text, *read, lines))
+
+
+@dataclass(frozen=True)
+class Anchored:
+    """A worksheet's lines with its selected E/M lines numbered over them, built together.
+
+    ``anchored`` is its constructor, so ``worksheet_em_block`` can never be handed one splitting's
+    lines with another splitting's anchors.
+    """
+
+    lines: tuple[str, ...]
+    selected: frozenset[int]
+
+
+def anchored(lines: list[str], read: tuple[str, list[WorksheetEntry]] | None = None, *,
+             selected: tuple[tuple[int, str], ...] | None = None) -> Anchored:
+    """``lines`` with ``selected_em_lines`` of them; ``read`` as ``selected_em_lines`` takes it.
+
+    ``selected`` is ``selected_em`` of these same lines (its ``lines`` argument), from a caller that
+    already selected them, so nothing is selected twice.
+    """
+    if selected is not None:
+        return Anchored(tuple(lines), frozenset(index for index, _ in selected))
+    return Anchored(tuple(lines), selected_em_lines(list(lines), read))
+
+
+def physical_lines(text: str) -> list[str]:
+    """The lines of ``text`` split on LF alone, each without a trailing CR.
+
+    ``str.splitlines`` also splits on U+2028, U+2029 and U+0085, which the handwritten reader lets
+    through, so a line counted by LF would drift against it and an element line would break apart.
+    """
+    return [line.removesuffix("\r") for line in text.split("\n")]
+
+
+# The line anchor_scan ends its icd10-cpt step 4 block at; refusal_scan ends its own at ANY_HEADING.
+OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
+
+
+def indented_line(line: str) -> bool:
+    """Whether ``line`` continues an indented body: it holds text and opens with a space or tab."""
+    return bool(line.strip()) and line[0] in " \t"
+
+
+def block_heading_line(line: str) -> bool:
+    """Whether ``line`` is an icd10-cpt step 4 block heading, at the margin or indented."""
+    return any(pattern.match(line) for pattern in _BLOCKS)
+
+
+def ends_body(line: str) -> bool:
+    """Whether ``line`` ends a body however it is indented: a blank line, an entry line, or an
+    icd10-cpt step 4 block heading. Any other indented line, a ``#`` line included, is body text.
+
+    ``body_end`` and ``detail_belongs_to_entry`` both stop at these lines, so the check-off and the
+    graders draw one body.
+    """
+    return not line.strip() or bool(ENTRY.match(line)) or block_heading_line(line)
+
+
+def indented_pieces(line: str) -> bool:
+    """Whether every line ``str.splitlines`` makes of this LF line, its ending included, is indented.
+
+    ``detail_belongs_to_entry`` requires exactly this of each line between an entry and its detail,
+    so a reader walking an entry's lines can own a field from the lines it already consumed.
+    """
+    return all(indented_line(piece) for piece in (line + "\n").splitlines())
+
+
+def body_end(lines: list[str], index: int) -> int:
+    """The index after the body of the entry or E/M line at ``index``: the one body rule.
+
+    A body line is an indented line, or a field line while every body line before it is indented
+    text (``indented_pieces``), so a field may sit at the margin directly after the line or after
+    an indented run, as ``detail_belongs_to_entry`` pairs a detail. A line that ends any body
+    (``ends_body``: a blank line, an entry line, an icd10-cpt step 4 block heading indented or not),
+    or any other margin line ends it; an indented ``#`` line that is no step 4 heading is body text.
+    The E/M audit check-off reads an entry's provenance and the element block's extent through this
+    rule alike.
+    """
+    owned = True
+    position = index + 1
+    while position < len(lines):
+        line = lines[position]
+        if ends_body(line):
+            break
+        if FIELD.match(line):
+            if not owned:
+                break
+        elif not indented_line(line):
+            break
+        owned = owned and indented_pieces(line)
+        position += 1
+    return position
+
+
+def element_body_end(lines: list[str], index: int, selected: frozenset[int]) -> int | None:
+    """The index after the body of a selected E/M line (``selected_em_lines``) holding an EM- line.
+
+    None when the line is not such an anchor. The body is ``body_end``'s, the rule an entry's
+    provenance is read by too.
+    """
+    if index not in selected:
+        return None
+    end = body_end(lines, index)
+    return end if any(EM_CANDIDATE.match(lines[follower]) for follower in range(index + 1, end)) else None
+
+
+def element_block_rows(lines: list[str], index: int, selected: frozenset[int]) -> list[int] | None:
+    """The rows of the element block a selected E/M line opens; None when it opens none.
+
+    The rows are ``element_body_end``'s body less every row under an E/M label no rule selects
+    (a rejected level) up to the next selected label. A body whose only EM- lines sit under a
+    rejected label opens no block. The one predicate both ``worksheet_em_block`` and the E/M audit
+    check-off's sections read, so a line renders as an E/M line exactly when it opens a block.
+    """
+    end = element_body_end(lines, index, selected)
+    if end is None:
+        return None
+    kept, rejected = [], False
+    for row in range(index + 1, end):
+        if EM_CODE_LABEL.match(lines[row]):
+            rejected = row not in selected
+        elif not rejected:
+            kept.append(row)
+    return kept if any(EM_CANDIDATE.match(lines[row]) for row in kept) else None
+
+
+def step_four_lines(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False) -> tuple[list[int], bool]:
+    """The indexes of the lines under an icd10-cpt step 4 heading, and whether it was found.
+
+    The one block reader. The caller supplies the lines, split as it splits them, and its
+    terminator: refusal_scan reads to ``ANY_HEADING`` from the first heading, anchor_scan to
+    ``OTHER_HEADING`` under ``every`` heading. Every line is block text, the E/M section included;
+    on the placement em-elements.md defines that grades nothing in either grader (measured in
+    test_em_audit). The E/M audit check-off filters its own quotation from these indexes.
+    """
+    collected: list[int] = []
+    found = inside = False
+    for index, line in enumerate(lines):
+        if heading.match(line) and (every or not found):
+            found = inside = True
+        elif inside and end.match(line):
+            inside = False
+            if not every:
+                break
+        elif inside:
+            collected.append(index)
+    return collected, found
+
+
+def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[str], *,
+                    every: bool = False) -> tuple[list[str], bool]:
+    """``step_four_lines``'s lines themselves, as the graders read them."""
+    indexes, found = step_four_lines(lines, heading, end, every=every)
+    return [lines[index] for index in indexes], found
+
+
+# Every line that tries to be an element line: any upper-case EM- name, and the element
+# names below in any case, after an optional bullet or bold. A near miss is a candidate the strict
+# reader refuses, so it is counted unread and fingerprinted, never silently skipped. The leading
+# run also takes any other whitespace and every Unicode format (Cf) character a saved file can
+# carry (a byte-order mark, a zero-width space, a soft hyphen, a bidi control), which the strict
+# reader refuses in the same way.
+ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
+
+
+def _format_characters() -> str:
+    """Every format (Cf) character of this interpreter's Unicode data, escaped for a class.
+
+    Unicode places format characters only in planes 0, 1 and 14, so those are scanned rather than
+    every code point; test_em_elements binds the result to a full scan.
+    """
+    planes = (range(0x0000, 0x20000), range(0xE0000, 0xF0000))
+    return "".join(re.escape(chr(code)) for plane in planes for code in plane
+                   if unicodedata.category(chr(code)) == "Cf")
+
+
+_CANDIDATE_LEAD = rf"(?:[^\S\n]|[{_format_characters()}])*"
+EM_CANDIDATE = re.compile(rf"^{_CANDIDATE_LEAD}(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")
+EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
+_EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
+_EM_ITEM = re.compile(
+    r"^(?P<entry>[a-z0-9][a-z0-9-]*|none)[ \t]*\|[ \t]*(?P<counted>counted|not counted)[ \t]*\|"
+    r"[ \t]*(?P<text>\".*\"|none)[ \t]*\|[ \t]*(?P<reason>[^|]*\S)$"
+)
+_EM_MDM = re.compile(
+    r"^problems (?P<problems>[a-z]+); data (?P<data>[a-z]+); risk (?P<risk>[a-z]+); mdm (?P<mdm>[a-z]+)$"
+)
+# A refused element line still names its element and, in its first field, usually its entry id.
+# A refused candidate's name and first field, read in any case so it can be mapped to its element.
+_EM_LOOSE = re.compile(r"EM-(?P<kind>[A-Z]+)\b[ \t*]*:?(?P<entry>[^|]*)", re.IGNORECASE)
+_EM_ENTRY = re.compile(r"[a-z0-9][a-z0-9-]*|none")
+_EM_CODE = re.compile(r"^\d{5}$")
+_EM_ANSWER = re.compile(r"^(?:note-[1-9][0-9]*\.q[1-9][0-9]*|none)$")
+# em-elements.md: EM-ECG lists the billed ECG codes, comma-separated, or none, then the limb text,
+# which nothing parses; or reads not applicable.
+_EM_ECG = re.compile(r"^(?:(?i:not[ \t]+applicable)|(?P<codes>(?i:none)|[0-9]{5}(?:[ \t]*,[ \t]*[0-9]{5})*)"
+                     r"[ \t]*\|[ \t]*\S.*)$")
+
+
+def ecg_listed(value: str) -> frozenset[str]:
+    """The ECG codes an EM-ECG value lists (``_EM_ECG``): none for ``not applicable`` or ``none``."""
+    match = _EM_ECG.match(value)
+    codes = match.group("codes") if match else None
+    if codes is None or codes.lower() == "none":
+        return frozenset()
+    return frozenset(code.strip() for code in codes.split(","))
+
+
+@dataclass(frozen=True)
+class EmItem:
+    kind: str
+    entry: str
+    counted: bool
+    text: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class EmBlock:
+    """The strictly read element lines; ``unread`` counts every refused candidate."""
+
+    items: tuple[EmItem, ...]
+    rules: tuple[str, ...]
+    answers: tuple[str, ...]
+    ecg: tuple[str, ...]
+    mdm: dict[str, str] | None
+    level: str | None
+    unread: int
+    # (element, entry id) of each refused PROBLEM, DATA or RISK line; None where the id is unreadable.
+    unread_items: tuple[tuple[str, str | None], ...] = ()
+    # Whether a refused candidate is, or may be, an EM-RULE line: the time-basis declaration is
+    # then unknown unless a strictly read rule makes it.
+    rule_unread: bool = False
+
+    def two_of_three(self) -> str | None:
+        """The MDM level two of the three elements meet: the middle of the three."""
+        if self.mdm is None:
+            return None
+        ranks = sorted(MDM_LEVELS.index(self.mdm[element]) for element in ("problems", "data", "risk"))
+        return MDM_LEVELS[ranks[1]]
+
+
+def element_of(name: str) -> str | None:
+    """The element a candidate's name stands for, in any case and with a suffix such as a plural."""
+    upper = name.upper()
+    return next((element for element in EM_KINDS if upper.startswith(element)), None)
+
+
+def may_be_rule(line: str) -> bool:
+    """Whether an EM- candidate is, or may be, an EM-RULE line (``element_of`` names RULE or nothing)."""
+    loose = _EM_LOOSE.search(line)
+    return (element_of(loose.group("kind")) if loose else None) in (None, "RULE")
+
+
+def unread_keys(line: str) -> list[tuple[str, str | None]]:
+    """The (element, entry id) keys an unread EM- candidate line leaves out of a comparison.
+
+    A PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id (None where
+    not); a line no element can be named for may be any counted element, so it leaves every one
+    out; any other element (MDM, LEVEL, ANSWER, RULE, ECG) is no counted item and leaves nothing.
+    """
+    loose = _EM_LOOSE.search(line)
+    element = element_of(loose.group("kind")) if loose else None
+    if element in ITEM_KINDS and loose is not None:  # an element is only named from ``loose``
+        entry = loose.group("entry").strip(" \t*")
+        return [(element, entry if _EM_ENTRY.fullmatch(entry) else None)]
+    if element is None:
+        return [(kind, None) for kind in ITEM_KINDS]
+    return []
+
+
+def em_block(text: str, *, whole_record: bool = False) -> EmBlock | None:
+    """Read every EM- line in ``text``; None when the text holds no EM- candidate.
+
+    A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM,
+    one LEVEL and one ECG line, adds one to ``unread``: an incomplete block is not a clean one. A refused
+    PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
+    ``unread_items``, so a comparison can leave its counterpart out. A refused MDM or LEVEL line
+    leaves the block's MDM or level unknown (None), even beside a readable copy.
+
+    A non-blank line that is neither a candidate nor a field, directly after an EM-RULE line or a
+    candidate that may be one (``may_be_rule``), may continue the time-basis declaration, so it
+    marks ``rule_unread``. ``whole_record`` is a re-derivation record, which is the element block
+    alone: each of its non-blank lines that is not a candidate, a field line included, adds one to
+    ``unread``. In a worksheet such a line is the E/M section's to count, as an unplaced line.
+    """
+    physical = physical_lines(text)
+    lines = [line for line in physical if EM_CANDIDATE.match(line)]
+    if not lines:
+        return None
+    other, continued, rule_open = 0, False, False
+    for line in physical:
+        if EM_CANDIDATE.match(line):
+            rule_open = may_be_rule(line)
+        elif not line.strip():
+            rule_open = False
+        elif FIELD.match(line):
+            rule_open = False
+            other += 1  # a field belongs to a worksheet entry, never to a re-derivation record
+        else:
+            other += 1
+            continued = continued or rule_open
+    items: list[EmItem] = []
+    free: dict[str, list[str]] = {"RULE": [], "ANSWER": [], "ECG": []}
+    mdms: list[dict[str, str]] = []
+    levels: list[str] = []
+    unread = 0
+    unread_items: list[tuple[str, str | None]] = []
+    refused: set[str] = set()
+    for line in lines:
+        loose = _EM_LOOSE.search(line)
+        match = _EM_LINE.match(line)
+        kind = match.group("kind") if match else ""
+        value = match.group("value") if match else ""
+        if kind in ITEM_KINDS and (item := _EM_ITEM.match(value)):
+            items.append(EmItem(kind, item.group("entry"), item.group("counted") == "counted",
+                                item.group("text"), item.group("reason")))
+        elif kind == "MDM" and (mdm := _EM_MDM.match(value)) and set(mdm.groupdict().values()) <= set(MDM_LEVELS):
+            mdms.append(mdm.groupdict())
+        elif kind == "LEVEL" and _EM_CODE.match(value):
+            levels.append(value)
+        elif kind == "ANSWER" and _EM_ANSWER.match(value):
+            free[kind].append(value)
+        elif kind == "RULE" and value:
+            free[kind].append(value)
+        elif kind == "ECG" and _EM_ECG.match(value):
+            free[kind].append(value)
+        else:
+            unread += 1
+            element = element_of(loose.group("kind")) if loose else None
+            refused.add(element or "")
+            unread_items.extend(unread_keys(line))
+    # A required line that is present but refused is already counted once; only an absent one adds.
+    present = {item.kind for item in items} | {kind for kind, values in free.items() if values} | refused
+    present |= {"MDM"} if mdms else set()
+    present |= {"LEVEL"} if levels else set()
+    complete = (present >= {*ITEM_KINDS, "ANSWER", "ECG", "MDM", "LEVEL"}
+                and len(mdms) <= 1 and len(levels) <= 1 and len(free["ECG"]) <= 1)
+    # A refused copy of the MDM, LEVEL or ECG line, or a second copy, leaves that line unknown: the
+    # readable copy is not known to be the one the author meant, so nothing is graded against it.
+    block_mdm = mdms[0] if len(mdms) == 1 and "MDM" not in refused else None
+    level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
+    ecg = tuple(free["ECG"]) if len(free["ECG"]) == 1 and "ECG" not in refused else ()
+    return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), ecg,
+                   block_mdm, level, unread + (0 if complete else 1) + (other if whole_record else 0),
+                   tuple(unread_items), rule_unread=bool(refused & {"RULE", ""}) or continued)
+
+
+@dataclass(frozen=True)
+class WorksheetElements:
+    """The element block of one private worksheet, and where its EM- lines sat."""
+
+    block: EmBlock | None
+    outside: int
+    blocks: int
+    # ``unread_keys`` of each outside candidate, so a comparison leaves its counterpart out.
+    outside_items: tuple[tuple[str, str | None], ...] = ()
+    # Whether an outside candidate is, or may be, an EM-RULE line (``may_be_rule``).
+    outside_rule: bool = False
+
+
+def worksheet_em_block(text: str, lines: Anchored | None = None, *, region_lines: int = 0) -> WorksheetElements:
+    """Read the element block under whichever E/M line carries it, counting each EM- line once.
+
+    An E/M line is one of ``selected_em_lines``, by ``selected_em``'s rule: an ``EM_CODE_LABEL``
+    line or a for-entry ``em_identity`` entry, indented or not; EM- lines under a ``NOT FOR ENTRY``
+    E/M entry are outside. A block is
+    ``element_body_end``'s body under such a line; a selected line inside another one's body, such
+    as an indented label under the selected entry, belongs to that block rather than opening a
+    second. ``blocks`` counts the distinct blocks; when it exceeds one the first is returned and
+    the caller reports the rest.
+    EM- candidates under no anchor, or under a rejected E/M label (one no rule selects) inside a
+    block's body, are ``outside``, with their ``unread_keys`` in
+    ``outside_items``. A worksheet written before the block existed
+    reads ``(None, 0, 0, ())``. ``lines`` is the CR-free ``text`` split on LF with its anchors, passed by
+    a caller that already holds them; lines that do not join back to ``text`` are refused with
+    ``ValueError``. ``region_lines`` is the number of lines in the for-entry region: a selected line
+    there owns its whole body as the check-off's E/M section claims it, holding an EM- line or not,
+    so a selected label nested in it never opens a block of its own.
+    """
+    if lines is None:
+        lines = anchored(physical_lines(text))
+    elif "\n".join(lines.lines) != text:
+        raise ValueError("the anchored lines are not this text split on LF")
+    rows, selected = list(lines.lines), lines.selected
+    candidates = {index for index, line in enumerate(rows) if EM_CANDIDATE.match(line)}
+    groups: list[list[int]] = []
+    bodies: list[range] = []
+    for index in sorted(selected):
+        if any(index in body for body in bodies):
+            continue
+        # A region E/M line claims its whole body, as the check-off's section does; a later one
+        # only when it opens a block. A rejected level's lines are outside (element_block_rows).
+        kept = element_block_rows(rows, index, selected)
+        if kept is None and index >= region_lines:
+            continue
+        bodies.append(range(index + 1, body_end(rows, index)))
+        if kept is not None:
+            groups.append(kept)
+    within = candidates & {follower for group in groups for follower in group}
+    block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
+    outside = sorted(candidates - within)
+    keys = tuple(key for index in outside for key in unread_keys(rows[index]))
+    return WorksheetElements(block, len(outside), len(groups), keys,
+                             outside_rule=any(may_be_rule(rows[index]) for index in outside))

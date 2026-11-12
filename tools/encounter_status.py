@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from console_codec import require_python_floor, use_utf8
-from encounter_openers import digest, private_target, read_openers
+from encounter_openers import digest, private_target, read_openers, read_or_changed
 from run_record_reader import (DamagedRecord, damaged_record_result, RecordUpdate, UnreadableRecord, fault_report,
                                object_record, read_tool_record, update_tool_record)
 
@@ -36,14 +36,26 @@ def decode_record(text: str) -> dict:
     return record
 
 
+class EvidenceChanged(ValueError):
+    """The recorded patient-status evidence file no longer has the bytes its record fingerprinted,
+    or is gone."""
+
+
+class StatusMissing(ValueError):
+    """The office encounter has no recorded patient status."""
+
+
 def status_for(run: Path, note: int) -> dict:
     record = read_tool_record(run / "encounter-status.json", decode_record)
     item = record["encounters"].get(str(note)) if record else None
     if item is None:
-        raise ValueError("office encounter has no recorded patient status")
+        raise StatusMissing("office encounter has no recorded patient status")
     evidence = Path(item["evidence_path"])
-    if digest(evidence.read_bytes()) != item["evidence_sha256"]:
-        raise ValueError("patient-status evidence changed")
+    evidence_bytes = read_or_changed(
+        evidence, Path.read_bytes,
+        lambda: EvidenceChanged("patient-status evidence is no longer a file where it was recorded"))
+    if digest(evidence_bytes) != item["evidence_sha256"]:
+        raise EvidenceChanged("patient-status evidence changed")
     return dict(item)
 
 
@@ -53,8 +65,8 @@ def record_status(run: Path, note: int, value: str, evidence: str,
     openers = read_openers(run)
     if note not in [item["note"] for item in openers["encounters"]]:
         raise ValueError("status note is outside opener population")
-    item = dict(value=value, evidence=evidence, evidence_path=str(evidence_path.resolve()),
-                pointer=pointer, evidence_sha256=digest(evidence_path.read_bytes()))
+    item: dict[str, str | None] = dict(value=value, evidence=evidence, evidence_path=str(evidence_path.resolve()),
+                                       pointer=pointer, evidence_sha256=digest(evidence_path.read_bytes()))
     if evidence == "clinician-answer":
         item.update(clinician_reply=clinician_reply, source_path=openers["source"])
         # The fingerprinted evidence must actually retain the whole answer.
@@ -65,7 +77,9 @@ def record_status(run: Path, note: int, value: str, evidence: str,
         result = previous or {"schema": 1, "encounters": {}}
         result["encounters"][str(note)] = item
         return RecordUpdate((json.dumps(result, indent=2, ensure_ascii=False) + "\n").encode("utf-8"), item)
-    return update_tool_record(run / "encounter-status.json", decode_record, change)
+    recorded = update_tool_record(run / "encounter-status.json", decode_record, change)
+    assert isinstance(recorded, dict)  # change returns the recorded item as its result
+    return recorded
 
 
 def main(argv=None) -> int:
@@ -82,14 +96,19 @@ def main(argv=None) -> int:
         reply = args.reply_file.read_text(encoding="utf-8") if args.reply_file else None
         record_status(args.run, args.note, args.value, args.evidence, args.evidence_path, args.pointer, reply)
     except UnreadableRecord as error:
-        print(fault_report(error, check="patient status")); return 2
+        print(fault_report(error, check="patient status"))
+        return 2
     except DamagedRecord as error:
-        print(damaged_record_result(error, check="patient status", force=True)[1]); return 1
+        print(damaged_record_result(error, check="patient status", force=True)[1])
+        return 1
     except (OSError, UnicodeError, ValueError):
-        print("encounter-status: refused — invalid or unreadable evidence"); return 2
+        print("encounter-status: refused — invalid or unreadable evidence")
+        return 2
     print("encounter-status: recorded 1 encounter")
     return 0
 
 
 if __name__ == "__main__":
-    use_utf8(); require_python_floor(); raise SystemExit(main())
+    use_utf8()
+    require_python_floor()
+    raise SystemExit(main())

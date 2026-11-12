@@ -1,0 +1,87 @@
+{
+  "schema": "agent-skills-lock/1",
+  "sources": {
+    "mattpocock-skills": {
+      "repository": "https://github.com/mattpocock/skills",
+      "version": "v1.3.2",
+      "commit": "d1478fcb140db0b93c0c8df17bcfd311844749d0"
+    },
+    "pstack": {
+      "repository": "https://github.com/cursor/plugins",
+      "version": "0.15.36",
+      "commit": "5866df557357d005b3c0c9d3da0d9e739b4bdde3"
+    }
+  },
+  "skills": [
+    {
+      "name": "chief-of-staff",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/chief-of-staff"
+    },
+    {
+      "name": "claude-handoff",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/claude-handoff"
+    },
+    {
+      "name": "git-guardrails-claude-code",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/git-guardrails-claude-code"
+    },
+    {
+      "name": "loop-me",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/loop-me"
+    },
+    {
+      "name": "migrate-to-shoehorn",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/migrate-to-shoehorn"
+    },
+    {
+      "name": "reproduce-and-fix-issues",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/reproduce-and-fix-issues"
+    },
+    {
+      "name": "scaffold-exercises",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/scaffold-exercises"
+    },
+    {
+      "name": "setup-benny",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/setup-benny"
+    },
+    {
+      "name": "setup-pre-commit",
+      "source": "mattpocock-skills",
+      "path": "skills/misc/setup-pre-commit"
+    },
+    {
+      "name": "setup-ts-deep-modules",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/setup-ts-deep-modules"
+    },
+    {
+      "name": "triage-issue-reports",
+      "source": "pstack",
+      "path": "pstack/automations/benny/skills/triage-issue-reports"
+    },
+    {
+      "name": "writing-beats",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-beats"
+    },
+    {
+      "name": "writing-fragments",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-fragments"
+    },
+    {
+      "name": "writing-shape",
+      "source": "mattpocock-skills",
+      "path": "skills/in-progress/writing-shape"
+    }
+  ]
+}

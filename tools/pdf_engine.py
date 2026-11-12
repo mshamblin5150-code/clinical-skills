@@ -7,11 +7,11 @@ from types import ModuleType
 from console_codec import require_python_floor, use_utf8
 
 
-REMEDY = "Install the PDF engine with `python -m pip install pymupdf`."
+REMEDY = "Install the PDF engine with `python -m pip install -r tools/pdf-requirements.txt`."
 LEGACY_REQUIRE_MESSAGE = (
     "pymupdf is not installed. This is one of the tools in tools/ that is "
     "not stdlib, because it reads a PDF:\n"
-    "    python -m pip install pymupdf"
+    "    python -m pip install -r tools/pdf-requirements.txt"
 )
 RENDER_UNAVAILABLE = "PyMuPDF is unavailable"
 TIER2_UNAVAILABLE = "pymupdf is not installed"

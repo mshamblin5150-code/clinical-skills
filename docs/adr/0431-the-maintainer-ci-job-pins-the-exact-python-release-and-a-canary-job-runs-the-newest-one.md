@@ -46,6 +46,8 @@ declined because the expected version must be recorded somewhere, which is the p
 guarantee. The canary's cost is one more Windows job per run, which a public repository does not pay
 for.
 
+*Superseded 2026-11-11.* The words "on the newest 3.14 release" are superseded by [ADR 0446](0446-the-canary-follows-the-newest-python-minor-line-and-the-maintainer-pin-stays-on-the-maintainer-s-machine.md) ruling 1. The canary runs the newest released Python minor line, 3.15 at that record; the maintainer pin and the rest of this ruling stand.
+
 ## Ruling 2 — the commit hook says when the local interpreter differs from the pin
 
 The pre-commit hook prints one advisory line when the interpreter running it differs from the pinned

@@ -804,8 +804,8 @@ level, select the lower level and put one question in the run's existing
 pre-approval questions: whether the clinician addressed that condition this
 visit, naming both levels. Record a yes as his answer and count it. A no removes
 nothing from the note, including the proposed Plan line; the coding worksheet
-and note's E/M paragraph list only the problems that counted. Keep the answer
-with the run's private pre-approval answers. Ask no question when the condition
+and note's E/M paragraph list only the problems that counted. Record the answer
+in the pre-approval answers record below. Ask no question when the condition
 would not change the level. Where pre-approval questions are delegated, the
 lower level stands; a delegate cannot supply the clinician's answer.
 
@@ -814,8 +814,8 @@ no drug management is documented, and moderate risk would raise the E/M level,
 select the lower level and put one question in the run's existing pre-approval
 questions: whether the clinician gave or prescribed a drug at this visit,
 naming both levels. A yes, with the drug he names, enters the note as his order
-and counts toward risk. Keep the answer with the run's private pre-approval
-answers. Ask no question when moderate risk would leave the level unchanged.
+and counts toward risk. Record the answer in the pre-approval answers record
+below. Ask no question when moderate risk would leave the level unchanged.
 Where pre-approval questions are delegated, the lower level stands; a delegate
 cannot supply the clinician's answer. ADR 0376 ruling 3 extends ADR 0308 ruling 2
 to the risk element in this shape.
@@ -932,6 +932,16 @@ and date status rather than level support. The inline mark therefore stays a
 required reading for both data and risk, with no new gate claim. The freshness manifest's `em` value
 remains the code alone; provenance is carried by the rendered E/M line.
 
+**The element block and the pre-approval answers record.** Under the private worksheet's E/M
+line, after the line's own ANCHOR, SOURCE, SPECIFICITY and CONFIDENCE fields, write the element
+block defined in
+[em-elements.md](../_shared/reference/em-elements.md): every problem, data item and risk this step
+weighed, counted or not, with its CPT MDM sheet entry id and verbatim note text, then the rules,
+answers, ECG line (the billed ECG codes, or `none`, then `|` and the ADR 0443 limb; or
+`EM-ECG: not applicable` where no ECG was weighed), MDM line and selected level. Record every question this step puts before
+approval, with the clinician's whole reply, in that file's pre-approval answers record, including
+a question whose answer leaves the level unchanged. The visible worksheet keeps its concise support.
+
 **Synthetic worked case — a history condition.** A new office patient has
 stable diabetes that the clinician evaluates and continues on metformin.
 Hypertension appears only in the history; the shorthand records no evaluation
@@ -1002,6 +1012,24 @@ The live CDC and CMS release checks, the database's CPT edition coverage and yea
 completeness, code identity, billability where applicable, service-date activity, and every
 encounter's account-backed patient status must all pass. The rendered worksheet says only
 `Coding freshness: PASS`; technical receipt content remains private.
+
+On the note path, every coded note also needs its E/M audit check-off. After the freshness gate
+passes, follow [em-audit](../em-audit/SKILL.md) steps 2 and 3: a blind re-derivation for every note,
+from a brief given after the note's last pre-approval answer is recorded, then
+`python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt and
+after the last pre-approval answer is recorded, before approval: the check-off shows that record,
+so one written earlier is reported stale at the terminal grade, and a re-derivation placed before
+its note's last answer is a finding. Its
+report shows no absent element block or re-derivation and no finding, and it exits 0, or exits 1
+only for differences shown to the clinician before approval. A `FINDING (re-derivation)` is
+repaired as [rederivation.md](../em-audit/rederivation.md) says, never toward the worksheet: a
+self-contradicting record in place against the note, and one placed before its note's last answer
+by a fresh re-derivation from a new brief. Any other `FINDING` is a defect in this worksheet's
+element block: correct the block, rebuild the manifest and render again before approval. On exit
+2, the `unread remainder` counts inputs the command could not read, and each
+check-off names its own: repair what it names and render again. When an input cannot be repaired,
+tell the clinician which note and record it names and that the check-off for that note is
+incomplete. The terminal command below grades the result as `the E/M audit check-offs`.
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 

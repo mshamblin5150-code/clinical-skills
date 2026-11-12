@@ -273,7 +273,7 @@ boundaries belong to `tracker_publish_hook.NOT_REACHED` and
 `tracker_merge_receipt.NOT_REACHED`.
 
 **The canary may be red.** The fixed check name is
-`newer Python 3.14 canary (may fail before the maintainer upgrades)`.
+`newer Python 3.15 canary (may fail before the maintainer upgrades)`.
 [ADR 0431](../adr/0431-the-maintainer-ci-job-pins-the-exact-python-release-and-a-canary-job-runs-the-newest-one.md)
 keeps that failure visible and allows it at merge. Under
 [ADR 0437](../adr/0437-a-merge-does-not-wait-for-ci-and-a-red-main-is-handled-by-its-ticket.md),

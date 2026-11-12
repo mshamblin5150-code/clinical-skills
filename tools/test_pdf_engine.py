@@ -10,6 +10,7 @@ than silently treating an unread file as clean.  Issue #837.
 from __future__ import annotations
 
 import ast
+import importlib
 import io
 import subprocess
 import sys
@@ -17,6 +18,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
@@ -514,6 +516,50 @@ class PageImageOwnsRasterizationAndTheProbe(unittest.TestCase):
                 sorted(path.name for path in root.glob("*.png")),
                 ["page-2.png"],
             )
+
+
+def marker_type() -> Any:
+    """The packaging Marker class, from packaging or pip's vendored copy; None when neither imports."""
+    for name in ("packaging.markers", "pip._vendor.packaging.markers"):
+        try:
+            return importlib.import_module(name).Marker
+        except ImportError:
+            continue
+    return None
+
+
+class EveryTargetGetsAnInstallablePin(unittest.TestCase):
+    """Each supported target selects exactly one pin, and the 2.x line only where it ships wheels.
+
+    PyMuPDF 2.x hard-requires onnxruntime, which publishes no sdist, no wheel for a Python newer
+    than its newest tag and no Intel macOS wheel; PyMuPDF 2.x has no Intel macOS wheel either.
+    Those targets take the 1.x line, whose abi3 wheels install there. Measured with pip's dry run.
+    """
+
+    # (sys_platform, platform_machine, python_version) -> the version the line must select.
+    TARGETS = {
+        ("win32", "AMD64", "3.10"): "1.28.2",
+        ("win32", "AMD64", "3.14"): "2.1",
+        ("win32", "AMD64", "3.15"): "1.28.2",
+        ("darwin", "arm64", "3.13"): "2.1",
+        ("darwin", "x86_64", "3.13"): "1.28.2",
+        ("linux", "x86_64", "3.12"): "2.1",
+    }
+
+    def test_each_target_selects_its_one_installable_pin(self):
+        Marker = marker_type()
+        if Marker is None:
+            self.skipTest("neither packaging nor pip's vendored packaging is importable")
+        lines = [line.split(";", 1) for line in (TOOLS / "pdf-requirements.txt").read_text(
+            encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
+        self.assertTrue(lines)
+        for (platform, machine, version), expected in self.TARGETS.items():
+            environment = {"sys_platform": platform, "platform_machine": machine,
+                           "python_version": version, "python_full_version": version + ".0"}
+            with self.subTest(target=(platform, machine, version)):
+                chosen = [requirement.strip() for requirement, marker in lines
+                          if Marker(marker.strip()).evaluate(environment)]
+                self.assertEqual(["pymupdf==" + expected], chosen)
 
 
 if __name__ == "__main__":

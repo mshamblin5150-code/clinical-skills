@@ -9,7 +9,7 @@ limits objects remain outside the module-classification and warning walks.
 
 from __future__ import annotations
 
-import artifact_lock_test_support
+import artifact_lock_test_support  # noqa: F401
 import ast
 import re
 import tempfile
@@ -46,6 +46,7 @@ NO_LIMITS = {
     "clinical_credentials": "a narrow account-setting adapter that returns the saved credential pair and asserts no population completeness",
     "title_page_credentials": "a narrow account-setting adapter that returns one saved answer and asserts no population completeness",
     "cpt_identity": "shared CPT identity shape with no independent coverage conclusion",
+    "em_audit_scope": "the E/M audit row's name and its two not-graded answers; the gate's coverage limits belong to em_audit.DECLARED_LIMITS",
     "assignment_docx": "a deterministic producer whose supplied specification defines its output",
     "assignment_docx_render": "the renderer produces retained evidence and does not grade its coverage",
     "artifact_lock_test_support": "test support for artifact-lock fixtures, not a public checker",
@@ -647,10 +648,10 @@ def _local_imports_before(
 
 
 def _ancestors(node: ast.AST, parents: dict[ast.AST, ast.AST]):
-    node = parents.get(node)
-    while node is not None:
-        yield node
-        node = parents.get(node)
+    current = parents.get(node)
+    while current is not None:
+        yield current
+        current = parents.get(current)
 
 
 def _nearest_function(

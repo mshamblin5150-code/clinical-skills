@@ -47,8 +47,10 @@ import json
 import re
 import sqlite3
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import TypeVar
 from discussion_artifact import PostedReadingOutcome
 
 import run_grader
@@ -56,21 +58,23 @@ import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
 import completion_checks
+import em_audit_scope
 from run_record_reader import read_handwritten_record, DamagedRecord, damaged_record_result
 import reader_remarks
+from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 from worksheet_grammar import (
     ENTRY,
     ENTRY_CANDIDATE,
     NOT_FOR_ENTRY,
-    entry_is_for_entry,
     field_candidates,
     paired_entry,
     STEP_FOUR_START,
+    WorksheetEntry,
+    read_entries,
     heading_counts,
 )
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
-from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
 
@@ -176,17 +180,6 @@ class Flag:
 
 
 @dataclass(frozen=True)
-class WorksheetEntry:
-    """One code entry, including entries whose required specificity line is absent."""
-
-    start: int
-    system: str
-    code: str
-    descriptor: str
-    for_entry: bool
-
-
-@dataclass(frozen=True)
 class Finding(run_grader.Finding):
     """One flag raised as a C5 failure or an advisory."""
 
@@ -263,22 +256,6 @@ def _keyword(value: str) -> tuple[str, str]:
     return "", stripped
 
 
-def read_entries(text: str) -> list[WorksheetEntry]:
-    """Every code entry, whether or not its required ``SPECIFICITY`` line exists."""
-    found = list(ENTRY.finditer(text))
-
-    return [
-        WorksheetEntry(
-            start=match.start(),
-            system=match.group("system"),
-            code=match.group("code"),
-            descriptor=match.group("descriptor"),
-            for_entry=entry_is_for_entry(text, found, index),
-        )
-        for index, match in enumerate(found)
-    ]
-
-
 def read_flags_with_orphans(text: str) -> tuple[list[Flag], int]:
     """Every ``SPECIFICITY`` line in one worksheet, paired with its entry.
 
@@ -322,7 +299,11 @@ def read_flags(text: str) -> list[Flag]:
     return read_flags_with_orphans(text)[0]
 
 
-def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | WorksheetEntry]:
+# A flag or an entry: the walk returns the kind it is given.
+_Eligible = TypeVar("_Eligible", "Flag", WorksheetEntry)
+
+
+def for_entry_icd10(items: Sequence[Sequence[_Eligible]]) -> list[_Eligible]:
     """The one eligibility walk shared by the brief and its coverage gate."""
     return [
         item
@@ -332,7 +313,7 @@ def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | Wor
     ]
 
 
-def brief(per_worksheet: list[list[Flag | WorksheetEntry]], source: str) -> str:
+def brief(per_worksheet: Sequence[Sequence[_Eligible]], source: str) -> str:
     """A locator-only work order for a reader who cannot see the worksheets.
 
     A code is enough to open the committed release. Descriptors and flags are the
@@ -922,19 +903,47 @@ def _grade(
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, parsed.value("--submission")
     )
+    # Resolved before the name test: '.' from inside worksheets/ has no name, and would grade the
+    # worksheets folder itself as the run.
+    directory = source.directory.resolve()
+    run_directory = directory.parent if directory.name == "worksheets" else directory
     chain_failed, chain_report = artifact_repairs.completion_gate(
-        source.directory.parent if source.directory.name == "worksheets" else source.directory,
+        run_directory,
         parsed.value("--submission"),
         tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
     )
+    # ADR 0445: every coded note needs a blind re-derivation and a current check-off.
+    em_failed, em_report, em_unread = em_audit_gate(run_directory, parsed.value("--submission"))
+    if em_unread:
+        scan = replace(scan, unread_remainder=scan.unread_remainder + em_unread)
+        coverage_failed = True
+        diagnostics.append(f"unread E/M audit check-off members {em_unread} ({em_audit_scope.ROW})")
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=findings_failed or aar_failed or chain_failed,
+        findings_failed=findings_failed or aar_failed or chain_failed or em_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
-        reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report),
+        reports=tuple(reports) + (run_grader.run_records_report(source.directory), aar_report, chain_report, em_report),
     )
+
+
+def em_audit_gate(run_directory: Path, submission: str | None) -> tuple[bool, str, int]:
+    """The E/M audit check-offs row: the one production path to ``em_audit.completion_gate``.
+
+    A run the row never grades gets the scope module's not-graded report, so the approval and
+    manifest stack the gate reads is never loaded; every other run is graded by em_audit,
+    imported only then.
+    """
+    skipped = em_audit_scope.not_graded(run_directory, submission)
+    if skipped is not None:
+        return False, skipped, 0
+    import em_audit
+    assert submission is not None  # not_graded answers every run without a submission
+    # The approval time and exemption are read from the run the gate grades, which is the parent
+    # of a worksheets/ folder the grader was given.
+    with completion_checks.graded_at(run_directory, submission):
+        return em_audit.completion_gate(run_directory, submission)
 
 
 GRADER = run_grader.Grader(

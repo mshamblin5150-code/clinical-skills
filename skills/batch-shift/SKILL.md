@@ -474,7 +474,9 @@ Exit 0 and `coding-freshness: PASS` are required. An unknown status or any unrea
 incomplete, unsupported, nonbillable, or service-date-invalid code blocks the whole Review sheet;
 do not render a partial batch as ready for approval. Each visible worksheet carries only
 `Coding freshness: PASS`, while URLs, fingerprints, timestamps, source locators, and database
-hashes remain in the private receipt.
+hashes remain in the private receipt. Each note's [em-audit](../em-audit/SKILL.md) check-off,
+which icd10-cpt's completion requires, comes from these same records and stays in the private run
+beside them.
 
 **Only headings and field labels are bold. Numbered body entries remain regular weight**, including consecutive differential, diagnosis, MDM, plan, and coding entries. A numbered line is content rather than a heading; the Word exporter must not turn a sequence of them bold merely because each begins with a digit.
 
