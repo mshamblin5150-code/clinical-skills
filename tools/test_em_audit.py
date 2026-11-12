@@ -4103,5 +4103,16 @@ class FleetRoundElevenFindings(RunFixture):
                 self.assertTrue(lines and "re-derivations absent 1" in lines[0], lines)
 
 
+class FleetRoundTwelveFindings(RunFixture):
+    """Round 12 of the adversarial fleet review."""
+
+    def test_fl1_a_re_derivation_saved_with_a_byte_order_mark_is_unread_not_a_false_difference(self):
+        self.rederivation.write_bytes(b"\xef\xbb\xbf" + ELEMENTS.encode("utf-8"))
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertNotIn("unread remainder 0", output)
+        self.assertNotIn("differ 1", output)
+
+
 if __name__ == "__main__":
     unittest.main()

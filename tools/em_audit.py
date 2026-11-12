@@ -129,7 +129,8 @@ DECLARED_LIMITS = (
     "is not measured.",
     "Element candidates are any upper-case EM- name and the element names in "
     "worksheet_grammar.ELEMENT_NAMES in any case and "
-    "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
+    "with a letter suffix, after any leading whitespace or invisible format character (a byte-order "
+    "mark, a zero-width space) and an optional bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
     "a candidate.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "

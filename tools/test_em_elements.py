@@ -270,5 +270,22 @@ class EveryWorksheetReaderToleratesTheBlock(unittest.TestCase):
                          review_manifest.selected_codes(entry + BLOCK, private=True))
 
 
+class AnInvisiblyLedElementLineIsUnreadNotDropped(unittest.TestCase):
+    """A byte-order mark, no-break space or zero-width space before EM- keeps the line a candidate.
+
+    The strict reader refuses it, so it is counted unread; it is never silently left out of the
+    block, which would turn a partial read into a clean one (round 12 of the fleet review).
+    """
+
+    def test_each_invisible_lead_is_counted_unread(self):
+        for lead in ("﻿", " ", "​"):
+            with self.subTest(lead=hex(ord(lead))):
+                # EM-RULE is optional, so a dropped line would leave no missing-line count behind.
+                led = strict_block(BLOCK.replace("  EM-RULE:", lead + "  EM-RULE:"))
+                plain = strict_block(BLOCK)
+                self.assertEqual(plain.unread + 1, led.unread)
+                self.assertEqual((), led.rules)
+
+
 if __name__ == "__main__":
     unittest.main()

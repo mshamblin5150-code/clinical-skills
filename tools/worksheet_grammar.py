@@ -483,9 +483,12 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
 
 # Every line that tries to be an element line: any upper-case EM- name, and the element
 # names below in any case, after an optional bullet or bold. A near miss is a candidate the strict
-# reader refuses, so it is counted unread and fingerprinted, never silently skipped.
+# reader refuses, so it is counted unread and fingerprinted, never silently skipped. The leading
+# run also takes any other whitespace and the invisible format characters a saved file can carry
+# (a byte-order mark, a zero-width space), which the strict reader refuses in the same way.
 ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
-EM_CANDIDATE = re.compile(rf"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")
+_CANDIDATE_LEAD = r"(?:[^\S\n]|[\u200b-\u200f\u2060\ufeff])*"
+EM_CANDIDATE = re.compile(rf"^{_CANDIDATE_LEAD}(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")
 EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
 _EM_ITEM = re.compile(
