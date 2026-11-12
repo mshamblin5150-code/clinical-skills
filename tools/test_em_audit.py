@@ -4150,8 +4150,8 @@ class FleetRoundThirteenFindings(RunFixture):
         status, output = self.in_process("--write")
         self.assertEqual(2, status, output)
         self.assertNotIn("unread remainder 0", output)
-        self.assertIn("an element line that is, or may be, an EM-RULE line could not be read, so whether the "
-                      "level was selected by total time is unknown",
+        self.assertIn("an element line that is, or may be, an EM-RULE line, or a line continuing one, could "
+                      "not be read, so whether the level was selected by total time is unknown",
                       " ".join(self.sheet.read_text(encoding="utf-8").split()))
 
 
@@ -4173,7 +4173,7 @@ class FleetRoundFourteenFindings(RunFixture):
         self.in_process("--write")
         sheet = " ".join(self.sheet.read_text(encoding="utf-8").split())
         self.assertNotIn(": an EM-RULE line could not be read", sheet)
-        self.assertIn("is, or may be, an EM-RULE line could not be read", sheet)
+        self.assertIn("is, or may be, an EM-RULE line, or a line continuing one, could not be read", sheet)
 
     def test_fn4_a_wrapped_rule_line_leaves_the_time_basis_unknown_on_either_side(self):
         """Round 15: a hard-wrapped EM-RULE line's continuation is unread, never a false level finding."""
@@ -4194,6 +4194,15 @@ class FleetRoundFourteenFindings(RunFixture):
                 self.assertEqual(2, status, output)
                 self.assertNotIn("unread remainder 0", output)
                 self.assertNotIn(level_finding, self.sheet.read_text(encoding="utf-8"))
+
+    def test_fn5_a_field_shaped_line_in_a_re_derivation_record_is_unread(self):
+        """Round 16: the record is the element block alone, so a field line is unread like prose."""
+        for stray in ("  SPECIFICITY: complete - copied from the worksheet\n", "Note: reader skipped the ECG\n"):
+            with self.subTest(stray=stray):
+                self.record(ELEMENTS + stray)
+                status, output = self.in_process("--write")
+                self.assertEqual(2, status, output)
+                self.assertNotIn("unread remainder 0", output)
 
     def test_fn3_the_unreachable_re_derivation_notice_is_gone(self):
         source = Path(em_audit.__file__).read_text(encoding="utf-8")

@@ -575,7 +575,7 @@ def element_of(name: str) -> str | None:
 
 
 def may_be_rule(line: str) -> bool:
-    """Whether an unread EM- candidate is, or may be, an EM-RULE line (``element_of`` names RULE or nothing)."""
+    """Whether an EM- candidate is, or may be, an EM-RULE line (``element_of`` names RULE or nothing)."""
     loose = _EM_LOOSE.search(line)
     return (element_of(loose.group("kind")) if loose else None) in (None, "RULE")
 
@@ -609,8 +609,8 @@ def em_block(text: str, *, whole_record: bool = False) -> EmBlock | None:
     A non-blank line that is neither a candidate nor a field, directly after an EM-RULE line or a
     candidate that may be one (``may_be_rule``), may continue the time-basis declaration, so it
     marks ``rule_unread``. ``whole_record`` is a re-derivation record, which is the element block
-    alone: each of its non-blank lines that is not a candidate adds one to ``unread``. In a worksheet
-    such a line is the E/M section's to count, as an unplaced line.
+    alone: each of its non-blank lines that is not a candidate, a field line included, adds one to
+    ``unread``. In a worksheet such a line is the E/M section's to count, as an unplaced line.
     """
     physical = physical_lines(text)
     lines = [line for line in physical if EM_CANDIDATE.match(line)]
@@ -620,8 +620,11 @@ def em_block(text: str, *, whole_record: bool = False) -> EmBlock | None:
     for line in physical:
         if EM_CANDIDATE.match(line):
             rule_open = may_be_rule(line)
-        elif not line.strip() or FIELD.match(line):
+        elif not line.strip():
             rule_open = False
+        elif FIELD.match(line):
+            rule_open = False
+            other += 1  # a field belongs to a worksheet entry, never to a re-derivation record
         else:
             other += 1
             continued = continued or rule_open
