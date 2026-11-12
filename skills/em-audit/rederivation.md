@@ -25,7 +25,10 @@ selects the lower one.
 ## The record
 
 One element block per note, in the em-elements.md line format, at
-`<run>/em-audit/rederivation/<note stem>.md`. The reader stages it; the orchestrator places it.
+`<run>/em-audit/rederivation/<note stem>.md`. The record holds the EM- lines alone, one per
+physical line: no E/M entry line, no ANCHOR, SOURCE, SPECIFICITY or CONFIDENCE field and no prose,
+though em-elements.md's worked example shows a worksheet entry with them. Any other line is counted
+unread and leaves the note uncompared. The reader stages it; the orchestrator places it.
 The re-derivation is complete when `python tools/em_audit.py <run>` reports `absent 0`,
 `damaged 0` and `findings 0` among the re-derivations, and its `agree` and `differ` counts add up to
 the notes in the run: a re-derivation is placed for every note, with no re-derivation line unread
