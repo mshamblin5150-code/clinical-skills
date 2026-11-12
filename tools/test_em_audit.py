@@ -3940,5 +3940,43 @@ class FleetRoundSixFindings(RunFixture):
                     strict_block(body.replace("EM-RULE: ADR 0308 ruling 1", "EM-RULE: " + declared))))
 
 
+class FleetRoundSevenFindings(RunFixture):
+    """Round 7 of the adversarial fleet review: a rejected label excludes only its own lines."""
+
+    def test_fg1_a_selected_label_after_a_rejected_sibling_keeps_its_block(self):
+        nested = "".join("  " + line + "\n" for line in ELEMENTS.splitlines())
+        rejected = ('  E/M: 99284 NOT FOR ENTRY\n'
+                    '    EM-PROBLEM: definition-acute-uncomplicated | counted | "Cough." | evaluated\n'
+                    '    EM-LEVEL: 99284\n')
+        selected = "  E/M: 99283\n" + nested
+        for name, body in (("selected first", selected + rejected), ("rejected first", rejected + selected)):
+            with self.subTest(order=name):
+                private = PRIVATE.format(elements=body)
+                elements = em_audit.worksheet_em_block(private)
+                self.assertIsNotNone(elements.block)
+                self.assertEqual((2, 1), (elements.outside, elements.blocks))
+                self.write_private(private)
+                status, output = self.in_process("--write")
+                self.assertEqual(2, status, output)
+                self.assertIn("element blocks: present 1, absent 0", output)
+
+    def test_fg2_sibling_labels_read_the_same_in_every_order(self):
+        # Rounds 5 to 7 each broke one ordering of rejected and selected labels in one E/M body.
+        # Sibling sub-blocks are independent, so every order must read the same block.
+        import itertools
+        nested = "".join("  " + line + "\n" for line in ELEMENTS.splitlines())
+        parts = ["  E/M: 99283\n" + nested,
+                 '  E/M: 99284 NOT FOR ENTRY\n    EM-LEVEL: 99284\n',
+                 '  E/M: 99285 considered NOT FOR ENTRY\n    EM-RISK: table-high | counted | "x" | y\n'
+                 "    EM-LEVEL: 99285\n"]
+        readings = set()
+        for order in itertools.permutations(parts):
+            elements = em_audit.worksheet_em_block(PRIVATE.format(elements="".join(order)))
+            assert elements.block is not None, order
+            readings.add((elements.block.items, elements.block.level, elements.outside, elements.blocks))
+        self.assertEqual(1, len(readings), readings)
+        self.assertEqual((3, 1), next(iter(readings))[2:])
+
+
 if __name__ == "__main__":
     unittest.main()

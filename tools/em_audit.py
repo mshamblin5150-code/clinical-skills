@@ -291,6 +291,10 @@ def entry_walk(lines: list[str], index: int, selected: frozenset[int] | None = N
             # A selected label inside a plain entry's body owns the lines under it, its own section;
             # inside an E/M line's body it is part of that line's block.
             state = "label"
+        elif EM_CODE_LABEL.match(line) and state == "rejected":
+            # A selected label after a rejected one in an E/M line's body resumes that line's block
+            # (worksheet_em_block reads its EM- lines as the block).
+            state = "element"
         elif state in ("rejected", "label"):
             if not EM_CANDIDATE.match(line):
                 unplaced.append(position)  # under another label: nothing here, or that label's section
@@ -574,8 +578,8 @@ def item_lines(block_: EmBlock) -> list[str]:
     return lines
 
 
-# em-elements.md: an EM-RULE line carrying this phrase declares the level selected by total time,
-# so the level is not held to its own MDM line.
+# em-elements.md: an EM-RULE line reading this phrase whole (time_based) declares the level
+# selected by total time, so the level is not held to its own MDM line.
 TIME_BASIS = "level selected by total time on the date of the encounter"
 MDM_PHRASE = re.compile(r"\b(straightforward|low|moderate|high)[ \t]+(?:level[ \t]+of[ \t]+)?medical decision making",
                         re.IGNORECASE)

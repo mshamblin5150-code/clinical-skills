@@ -641,7 +641,7 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
         raise ValueError("the anchored lines are not this text split on LF")
     rows, selected = list(lines.lines), lines.selected
     candidates = {index for index, line in enumerate(rows) if EM_CANDIDATE.match(line)}
-    groups: list[range] = []
+    groups: list[list[int]] = []
     bodies: list[range] = []
     for index in sorted(selected):
         if bodies and index in bodies[-1]:
@@ -649,13 +649,18 @@ def worksheet_em_block(text: str, lines: Anchored | None = None) -> WorksheetEle
         end = element_body_end(rows, index, selected)
         if end is not None:
             bodies.append(range(index + 1, end))
-            # An E/M label no rule selects inside the body is a rejected level: its EM- lines and
-            # everything after it form no block and are outside (entry_walk leaves them unplaced).
-            cut = next((row for row in range(index + 1, end)
-                        if row not in selected and EM_CODE_LABEL.match(rows[row])), end)
-            # A body that opens with a rejected label holds no element line of its own: no block.
-            if any(row in candidates for row in range(index + 1, cut)):
-                groups.append(range(index + 1, cut))
+            # An E/M label no rule selects inside the body is a rejected level: the lines under it, up
+            # to the next selected label, form no block and are outside (entry_walk leaves them
+            # unplaced); a selected label after it resumes the block, as the one selection rule says.
+            kept, rejected = [], False
+            for row in range(index + 1, end):
+                if EM_CODE_LABEL.match(rows[row]):
+                    rejected = row not in selected
+                elif not rejected:
+                    kept.append(row)
+            # A body whose only EM- lines sit under a rejected label holds no block of its own.
+            if any(row in candidates for row in kept):
+                groups.append(kept)
     within = candidates & {follower for group in groups for follower in group}
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     outside = sorted(candidates - within)
