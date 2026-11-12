@@ -4150,8 +4150,34 @@ class FleetRoundThirteenFindings(RunFixture):
         status, output = self.in_process("--write")
         self.assertEqual(2, status, output)
         self.assertNotIn("unread remainder 0", output)
-        self.assertIn("an EM-RULE line could not be read, so whether the level was selected by total time "
-                      "is unknown", " ".join(self.sheet.read_text(encoding="utf-8").split()))
+        self.assertIn("an element line that is, or may be, an EM-RULE line could not be read, so whether the "
+                      "level was selected by total time is unknown",
+                      " ".join(self.sheet.read_text(encoding="utf-8").split()))
+
+
+class FleetRoundFourteenFindings(RunFixture):
+    """Round 14 of the adversarial fleet review."""
+
+    def test_fn1_no_time_basis_notice_names_a_level_that_was_not_read(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
+            "  EM-RULE: ADR 0308 ruling 1", "  EM-RULE ADR 0308 ruling 1").replace(
+            "  EM-LEVEL: 99283\n", "  EM-LEVEL: not a code\n")))
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        sheet = self.sheet.read_text(encoding="utf-8")
+        self.assertNotIn("MDM level of None", sheet)
+        self.assertNotIn("whether the level was selected by total time", sheet)
+
+    def test_fn2_the_notice_never_says_a_rule_line_was_unread_as_fact(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS + "  EM-NOTES: reviewed with preceptor\n"))
+        self.in_process("--write")
+        sheet = " ".join(self.sheet.read_text(encoding="utf-8").split())
+        self.assertNotIn(": an EM-RULE line could not be read", sheet)
+        self.assertIn("is, or may be, an EM-RULE line could not be read", sheet)
+
+    def test_fn3_the_unreachable_re_derivation_notice_is_gone(self):
+        source = Path(em_audit.__file__).read_text(encoding="utf-8")
+        self.assertEqual(1, source.count("TIME_BASIS_UNREAD.format("))
 
 
 if __name__ == "__main__":

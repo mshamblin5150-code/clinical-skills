@@ -589,9 +589,9 @@ def item_lines(block_: EmBlock) -> list[str]:
 # em-elements.md: an EM-RULE line reading this phrase whole (time_based) declares the level
 # selected by total time, so the level is not held to its own MDM line.
 TIME_BASIS = "level selected by total time on the date of the encounter"
-TIME_BASIS_UNREAD = ("- MDM level of {level} not checked against its elements: an EM-RULE line could not be "
-                     "read, so whether the level was selected by total time is unknown; that line is counted "
-                     "in the unread remainder")
+TIME_BASIS_UNREAD = ("- MDM level of {level} not checked against its elements: an element line that is, or "
+                     "may be, an EM-RULE line could not be read, so whether the level was selected by total "
+                     "time is unknown; that line is counted in the unread remainder")
 MDM_PHRASE = re.compile(r"\b(straightforward|low|moderate|high)[ \t]+(?:level[ \t]+of[ \t]+)?medical decision making",
                         re.IGNORECASE)
 
@@ -663,9 +663,10 @@ def time_basis_unread(block_: EmBlock) -> bool:
     """Whether an unread EM-RULE line may be the time-basis declaration no strictly read rule makes.
 
     The level is then held neither to its MDM nor exempt from it, so the level-against-MDM check is
-    left ungraded; the unread line is already counted in the unread remainder.
+    left ungraded; the unread line is already counted in the unread remainder. A block with no read
+    level has no level-against-MDM check to leave ungraded.
     """
-    return block_.rule_unread and not time_based(block_)
+    return block_.level is not None and block_.rule_unread and not time_based(block_)
 
 
 def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
@@ -912,8 +913,6 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
     flaws = rederivation_findings(rederived, context.ids, context.levels)
-    if time_basis_unread(rederived):
-        lines += ["", TIME_BASIS_UNREAD.format(level=rederived.level)]
     if level_unread(rederived, context.levels):
         tally.unread += 1
         lines += ["", f"- MDM level of {rederived.level} not checked: its CPT 2026 descriptor could not be read "
