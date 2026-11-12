@@ -846,8 +846,8 @@ STALE_REDERIVATION = ("- FINDING (re-derivation): placed before this note's last
 
 # A file's modification time comes from the kernel's coarse clock, which can trail time.time() by
 # milliseconds, so a re-derivation written just after an answer may carry an earlier stamp. Two
-# seconds absorbs that; a re-derivation placed within two seconds before an answer is not one a
-# reader could have written from the note and that answer.
+# seconds absorbs that. The cost: a re-derivation placed less than two seconds before an answer
+# also passes, though it cannot have read that answer.
 CLOCK_GRACE_SECONDS = 2.0
 
 
