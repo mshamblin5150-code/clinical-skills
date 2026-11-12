@@ -3,6 +3,7 @@
 import importlib.machinery
 import sys
 import types
+from typing import Any
 import unittest
 from unittest.mock import patch
 
@@ -12,7 +13,7 @@ import test_suite_ids
 class LazyRerunDiagnostics(unittest.TestCase):
     def run_identity_check(self, mismatch=None, *, poison=False, discovery_errors=()):
         module_name = "test_rerun_diagnostic_fixture"
-        fixture = types.ModuleType(module_name)
+        fixture: Any = types.ModuleType(module_name)  # its test classes are set below
         fixture.__file__ = str(test_suite_ids.TOOLS / f"{module_name}.py")
         # A real module carries a spec; Python 3.15's traceback formatting reads the parent
         # module's resources while reporting a failed dotted import, and refuses a spec of None.
