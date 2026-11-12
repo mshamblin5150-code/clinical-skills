@@ -42,9 +42,11 @@ counted unread:
 - **Level** in the MDM line is the column each element meets: `straightforward`, `low`,
   `moderate` or `high`. `mdm` is the level two of the three elements meet, the middle of the three,
   and `EM-LEVEL` is the code whose CPT 2026 descriptor names that MDM level; the check-off reads it
-  from the verified descriptors in `reference/procedure-codes-2026.sqlite`. Where the level is
-  selected by total time instead, write the rule line `EM-RULE: level selected by total time on the
-  date of the encounter`; the level is then not held to the MDM line, and the selected code still is.
+  from the verified descriptors in `reference/procedure-codes-2026.sqlite`. Where an office level
+  is selected by total time instead, write the rule line `EM-RULE: level selected by total time on
+  the date of the encounter`; the level is then not held to the MDM line, and the selected code
+  still is. Emergency department levels (99281–99285) are selected by MDM alone under CPT 2026, so
+  that rule line on an emergency department block is a finding and the level stays held to its MDM.
 - Repeat `EM-RULE` and `EM-ANSWER` as needed; write `EM-ANSWER: none` when no recorded answer was
   relied on. Write one `EM-ECG` line: the ECG codes (93000, 93005) the worksheet bills,
   comma-separated, or `none`, then `|` and the ADR 0443 limb applied, such as

@@ -44,7 +44,7 @@ from typing import NamedTuple
 
 import coding_freshness
 import cpt_mdm_sheet
-from cpt_identity import EM_CODES  # the codes mdm_levels looks up; selection is worksheet_grammar's
+from cpt_identity import ED_EM, EM_CODES  # the codes mdm_levels looks up; selection is worksheet_grammar's
 import procedure_codes_lookup
 import em_audit_scope
 import preapproval_answers
@@ -79,8 +79,9 @@ DECLARED_LIMITS = (
     "reference/procedure-codes-2026.sqlite for the service date (an unverified database or an E/M "
     "code with no descriptor valid on that date leaves it unread; a LEVEL outside the E/M families, "
     "or one the verified database carries no entry for, is a finding; a code whose descriptor "
-    "names no MDM level, or a block whose EM-RULE declares the level selected by total time, is not "
-    "held to it; a refused copy of the MDM or LEVEL line leaves that line ungraded); the "
+    "names no MDM level, or an office block whose EM-RULE declares the level selected by total time, "
+    "is not held to it; an emergency department block declaring total time is a finding and stays "
+    "held to it, since CPT 2026 selects those levels by MDM alone; a refused copy of the MDM or LEVEL line leaves that line ungraded); the "
     "worksheet block is also "
     "checked for a LEVEL equal to the selected code, answer ids present in the pre-approval answers "
     "record, the billed ECG codes, and one block per worksheet. A re-derivation takes only the "
@@ -239,6 +240,12 @@ ECG_RULES = {
              "so the ECG counts as one test ordered.",
 }
 NO_ECG_CODE = "No ECG code is on the worksheet."
+# ADR 0443 Consequences: ADR 0308 ruling 6's emergency department limb stands.
+ED_ECG_LIMB = ("ADR 0308 ruling 6, emergency department limb: the facility performs the tracing, the "
+               "clinician bills no ECG code, and his read counts as an independent interpretation of a "
+               "test performed by another and not separately reported.")
+ED_ECG_BILLED = ("the worksheet bills {code} in an emergency department encounter, where ADR 0308 ruling 6's "
+                 "emergency department limb bills no ECG code")
 ATTESTATION = (
     "I have reviewed this check-off against my note. The codes and level above reflect the "
     "services I documented for this encounter.",
@@ -587,9 +594,11 @@ def item_lines(block_: EmBlock) -> list[str]:
     return lines
 
 
-# em-elements.md: an EM-RULE line reading this phrase whole (time_based) declares the level
-# selected by total time, so the level is not held to its own MDM line.
+# em-elements.md: an EM-RULE line reading this phrase whole (declares_time) declares an office
+# level selected by total time, so the level is not held to its own MDM line (time_based).
 TIME_BASIS = "level selected by total time on the date of the encounter"
+ED_TIME = ("an EM-RULE line declares the level selected by total time, but {level} is an emergency "
+           "department level, which CPT 2026 selects by MDM alone; the level is held to its MDM")
 TIME_BASIS_UNREAD = ("- MDM level of {level} not checked against its elements: an element line that is, or "
                      "may be, an EM-RULE line, or a line continuing one, could not be read, so whether the "
                      "level was selected by total time is unknown; that line is counted in the unread "
@@ -652,13 +661,22 @@ def mdm_levels(service_date: str) -> MdmLevels:
         connection.close()
 
 
-def time_based(block_: EmBlock) -> bool:
+def declares_time(block_: EmBlock) -> bool:
     """Whether an EM-RULE line is the declaration em-elements.md defines, ``TIME_BASIS`` itself.
 
     The line is read whole, in any case and with a closing period, so a line that only mentions
     the phrase (one denying time selection, say) declares nothing and the level stays held to MDM.
     """
     return any(rule.strip().rstrip(".").strip().lower() == TIME_BASIS for rule in block_.rules)
+
+
+def time_based(block_: EmBlock) -> bool:
+    """Whether the block's level is selected by total time: declared, and not an emergency department level.
+
+    CPT 2026 selects emergency department levels (99281-99285) by MDM alone; their descriptors name
+    no time. A declaration on such a block is a finding (``ED_TIME``) and exempts nothing.
+    """
+    return declares_time(block_) and block_.level not in ED_EM
 
 
 def time_basis_unread(block_: EmBlock) -> bool:
@@ -668,7 +686,8 @@ def time_basis_unread(block_: EmBlock) -> bool:
     left ungraded; the unread line is already counted in the unread remainder. A block with no read
     level has no level-against-MDM check to leave ungraded.
     """
-    return block_.level is not None and block_.rule_unread and not time_based(block_)
+    return (block_.level is not None and block_.level not in ED_EM and block_.rule_unread
+            and not declares_time(block_))
 
 
 def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
@@ -704,11 +723,14 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
     none``, entry ids are in the bound CPT MDM sheet, the MDM line is the middle of its three
     elements, and the level is the one that MDM level selects: the level its verified CPT 2026
     descriptor names in the committed procedure-code database (``levels``), unless an EM-RULE line
-    declares the level selected by total time (``TIME_BASIS``). Nothing here compares the block
+    declares an office level selected by total time (``time_based``); the declaration on an
+    emergency department level is a finding (``ED_TIME``). Nothing here compares the block
     with the worksheet's decisions, so a blind reader who reaches another level shows only as a
     difference.
     """
     found = level_code_findings(block_, levels)
+    if declares_time(block_) and block_.level in ED_EM:
+        found.append(ED_TIME.format(level=block_.level))
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
@@ -732,7 +754,7 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
 
 def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_answers: set[str] | None,
                    *, answers_unread: bool = False, billed: frozenset[str] = frozenset(),
-                   levels: MdmLevels | None = None) -> list[str]:
+                   levels: MdmLevels | None = None, emergency: bool = False) -> list[str]:
     """What the worksheet's element block states against itself and against the worksheet's decisions.
 
     ``rederivation_findings``, then the level against the selected code, the answer ids against the
@@ -751,6 +773,8 @@ def block_findings(block_: EmBlock, selected: str, ids: set[str] | None, note_an
             found += [f"answer {answer} is not a pre-approval answer of this note"
                       for answer in named if answer not in note_answers]
     found += ecg_findings(block_, billed)
+    if emergency:
+        found += [ED_ECG_BILLED.format(code=code) for code in sorted(billed & ECG_RULES.keys())]
     return found
 
 
@@ -1020,7 +1044,11 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     tally.unread += unclosed
     tally.systems["em"] += 1
     cpt = set(codes["cpt"])
-    ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
+    if item["setting"] == "office":
+        ecg = [ECG_RULES[code] for code in sorted(ECG_RULES) if code in cpt] or [NO_ECG_CODE]
+    else:  # the office limb's rationale never explains an emergency department code
+        ecg = [ED_ECG_LIMB] + [ED_ECG_BILLED.format(code=code)[0].upper() + ED_ECG_BILLED.format(code=code)[1:]
+                               for code in sorted(ECG_RULES) if code in cpt]
     lines = ["- [ ] E/M code: " + selected, f"- MDM sheet: {mdm_name}, SHA-256 {mdm_digest}",
              "- Filled marks: " + ("; ".join(marks) if marks else "none")
              + (f"; {unclosed} could not be read, its bracket never closes" if unclosed else ""),
@@ -1075,7 +1103,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
     lines += [f"- Answer {answer} is recorded unverified: the transcript was unreadable, so this "
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
     found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
-                           billed=frozenset(cpt), levels=context.levels)
+                           billed=frozenset(cpt), levels=context.levels, emergency=item["setting"] != "office")
     if time_basis_unread(block_):
         lines.append(TIME_BASIS_UNREAD.format(level=block_.level))
     if level_unread(block_, context.levels):

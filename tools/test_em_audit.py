@@ -161,6 +161,15 @@ class RunFixture(unittest.TestCase):
         value["answers"].extend(entries)
         path.write_text(json.dumps(value), encoding="utf-8")
 
+    def use_office(self) -> None:
+        """Grade an office run: only an office level can be selected by total time."""
+        self.run_dir = self.office_run()
+        self.sheet = self.run_dir / em_audit.OUTPUT_DIRECTORY / "note-1.md"
+
+    @staticmethod
+    def office(text: str) -> str:
+        return text.replace("99283", "99213").replace("CPT 99213 Emergency visit", "CPT 99213 Office visit")
+
     def office_run(self) -> Path:
         """A synthetic office run whose identity fields all carry a SALT marker."""
         import encounter_openers
@@ -938,8 +947,13 @@ class FifthReviewFindings(RunFixture):
             with self.subTest(code=code, ecg=ecg):
                 self.bill_ecg(code, ecg)
                 result = self.invoke("--write")
-                self.assertEqual(1 if finding else 0, result.returncode, result.stdout + result.stderr)
-                self.assertEqual(finding, "- FINDING: the worksheet bills" in self.sheet.read_text(encoding="utf-8"))
+                sheet = self.sheet.read_text(encoding="utf-8")
+                # The fixture is an emergency department run, so every billed ECG code is also a finding.
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                self.assertIn(f"- FINDING: the worksheet bills {code} in an emergency department encounter", sheet)
+                listed = ("but its EM-ECG line does not list it" in sheet
+                          or "which the worksheet does not bill" in sheet or "is not an ECG code" in sheet)
+                self.assertEqual(finding, listed)
 
     def test_v8_the_answer_guard_has_no_empty_branch(self):
         tree = ast.parse(Path(em_audit.__file__).read_text(encoding="utf-8"))
@@ -1471,7 +1485,7 @@ class EleventhReviewFindings(ProseBind, RunFixture):
         passing_receipt(self.run_dir)
         name_the_committed_sheet(self.run_dir)
         tally, _, sheets = em_audit.render(self.run_dir, [])
-        self.assertIn("- ECG code: " + em_audit.ECG_RULES["93005"], sheets[0].text)
+        self.assertIn("- ECG code: The worksheet bills 93005 in an emergency department encounter", sheets[0].text)
         self.assertIn("the worksheet bills 93005, but its EM-ECG line does not list it", sheets[0].text)
 
     def test_e4_a_missing_fingerprint_is_unread_and_its_repair_keeps_the_approved_manifest(self):
@@ -4145,8 +4159,10 @@ class FleetRoundThirteenFindings(RunFixture):
                 self.assertFalse(em_audit.level_unread(block, levels))
 
     def test_fm2_the_check_off_names_the_ungraded_level_and_counts_the_rule_line(self):
-        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
-            "  EM-RULE: ADR 0308 ruling 1", f"  **EM-RULE:** {self.TIME_RULE}")))
+        self.use_office()
+        self.write_private(self.office(PRIVATE.format(elements=ELEMENTS.replace(
+            "  EM-RULE: ADR 0308 ruling 1", f"  **EM-RULE:** {self.TIME_RULE}"))))
+        self.record(self.office(ELEMENTS))
         status, output = self.in_process("--write")
         self.assertEqual(2, status, output)
         self.assertNotIn("unread remainder 0", output)
@@ -4169,7 +4185,8 @@ class FleetRoundFourteenFindings(RunFixture):
         self.assertNotIn("whether the level was selected by total time", sheet)
 
     def test_fn2_the_notice_never_says_a_rule_line_was_unread_as_fact(self):
-        self.write_private(PRIVATE.format(elements=ELEMENTS + "  EM-NOTES: reviewed with preceptor\n"))
+        self.use_office()
+        self.write_private(self.office(PRIVATE.format(elements=ELEMENTS + "  EM-NOTES: reviewed with preceptor\n")))
         self.in_process("--write")
         sheet = " ".join(self.sheet.read_text(encoding="utf-8").split())
         self.assertNotIn(": an EM-RULE line could not be read", sheet)
@@ -4184,12 +4201,13 @@ class FleetRoundFourteenFindings(RunFixture):
                              "  EM-RULE: level selected by total time on the date of the encounter\n")
         wrapped = base.replace("  EM-RULE: ADR 0308 ruling 1\n",
                                "  EM-RULE: level selected by total time on the\n    date of the encounter\n")
-        level_finding = "the level 99283 is low MDM, but the block's elements meet straightforward"
+        level_finding = "the level 99213 is low MDM, but the block's elements meet straightforward"
+        self.use_office()
         for name, worksheet, record in (("re-derivation wrapped", whole, wrapped),
                                         ("worksheet wrapped", wrapped, whole)):
             with self.subTest(case=name):
-                self.write_private(PRIVATE.format(elements=worksheet))
-                self.record(record)
+                self.write_private(self.office(PRIVATE.format(elements=worksheet)))
+                self.record(self.office(record))
                 status, output = self.in_process("--write")
                 self.assertEqual(2, status, output)
                 self.assertNotIn("unread remainder 0", output)
@@ -4203,6 +4221,44 @@ class FleetRoundFourteenFindings(RunFixture):
                 status, output = self.in_process("--write")
                 self.assertEqual(2, status, output)
                 self.assertNotIn("unread remainder 0", output)
+
+    def test_fn6_an_emergency_department_level_is_never_selected_by_time(self):
+        """An ED block declaring total time is a finding, and its level stays held to its MDM."""
+        import worksheet_grammar
+        levels = em_audit.mdm_levels("2026-10-01")
+        time_rule = "  EM-RULE: level selected by total time on the date of the encounter"
+        high = ELEMENTS.replace("  EM-RULE: ADR 0308 ruling 1", time_rule).replace(
+            "problems low; data straightforward; risk low; mdm low", "problems high; data high; risk high; mdm high")
+        block = worksheet_grammar.em_block(high)
+        assert block is not None
+        found = em_audit.rederivation_findings(block, None, levels)
+        self.assertIn("the level 99283 is low MDM, but the block's elements meet high", found)
+        self.assertTrue(any("emergency department level" in finding and "total time" in finding
+                            for finding in found), found)
+        # An unread rule line cannot exempt an ED level either, so no time-basis notice applies.
+        unread = worksheet_grammar.em_block(high.replace(time_rule, "  **EM-RULE:** x"))
+        assert unread is not None
+        self.assertFalse(em_audit.time_basis_unread(unread))
+        # The office family keeps the exemption.
+        office = worksheet_grammar.em_block(high.replace("EM-LEVEL: 99283", "EM-LEVEL: 99213"))
+        assert office is not None
+        self.assertEqual([], [f for f in em_audit.rederivation_findings(office, None, levels) if "MDM" in f
+                              or "total time" in f])
+
+    def test_fn7_an_emergency_department_check_off_never_states_the_office_ecg_limb(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS))
+        status, output = self.in_process("--write")
+        sheet = self.sheet.read_text(encoding="utf-8")
+        self.assertIn("emergency department limb", sheet)
+        self.assertNotIn(em_audit.NO_ECG_CODE, sheet)
+        block = em_audit.worksheet_em_block(PRIVATE.format(elements=ELEMENTS)).block
+        assert block is not None
+        found = em_audit.block_findings(block, "99283", None, None, billed=frozenset({"93000"}),
+                                        emergency=True)
+        self.assertTrue(any("93000" in finding and "emergency department" in finding for finding in found), found)
+        self.assertFalse(any("emergency department" in finding for finding in em_audit.block_findings(
+            block, "99283", None, None, billed=frozenset(), emergency=True)))
+        self.assertEqual(0, status, output)
 
     def test_fn3_the_unreachable_re_derivation_notice_is_gone(self):
         source = Path(em_audit.__file__).read_text(encoding="utf-8")

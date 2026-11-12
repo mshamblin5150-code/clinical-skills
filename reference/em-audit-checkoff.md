@@ -42,7 +42,7 @@ procedure and [em-elements.md](../skills/_shared/reference/em-elements.md) the r
 - [ ] E/M code: <code>
 - MDM sheet: <CPT MDM sheet filename>, SHA-256 <digest>
 - Filled marks: <each [SOURCE: filled - ...] mark, or none>
-- ECG code: <the ADR 0443 line for 93000 or 93005, or no ECG code>
+- ECG code: <office: the ADR 0443 line for 93000 or 93005, or no ECG code; emergency department: the ADR 0308 ruling 6 emergency department limb, and any billed ECG code shown as contrary to it>
 - [ ] Problem: <entry id>, <counted | not counted>; note text "<note text>"; reason: <reason>
 - [ ] Data: <entry id>, <counted | not counted>; note text "<note text>"; reason: <reason>
 - [ ] Risk: <entry id>, <counted | not counted>; note text "<note text>"; reason: <reason>
