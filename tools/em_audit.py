@@ -129,10 +129,12 @@ DECLARED_LIMITS = (
     "is not measured.",
     "Element candidates are any upper-case EM- name and the element names in "
     "worksheet_grammar.ELEMENT_NAMES in any case and "
-    "with a letter suffix, after any leading whitespace or invisible format character (a byte-order "
-    "mark, a zero-width space) and an optional bullet or bold; a candidate the strict reader refuses "
+    "with a letter suffix, after any leading whitespace or Unicode format (Cf) character of the "
+    "running interpreter's Unicode data (a byte-order mark, a zero-width space) and an optional "
+    "bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
-    "a candidate.",
+    "a candidate. An unread candidate that is, or may be, an EM-RULE line leaves the level against "
+    "its MDM ungraded unless a strictly read rule declares the time basis.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line "
     "owns, such as one after a blank line, an E/M label no rule selects with every field under "
@@ -587,6 +589,9 @@ def item_lines(block_: EmBlock) -> list[str]:
 # em-elements.md: an EM-RULE line reading this phrase whole (time_based) declares the level
 # selected by total time, so the level is not held to its own MDM line.
 TIME_BASIS = "level selected by total time on the date of the encounter"
+TIME_BASIS_UNREAD = ("- MDM level of {level} not checked against its elements: an EM-RULE line could not be "
+                     "read, so whether the level was selected by total time is unknown; that line is counted "
+                     "in the unread remainder")
 MDM_PHRASE = re.compile(r"\b(straightforward|low|moderate|high)[ \t]+(?:level[ \t]+of[ \t]+)?medical decision making",
                         re.IGNORECASE)
 
@@ -654,6 +659,15 @@ def time_based(block_: EmBlock) -> bool:
     return any(rule.strip().rstrip(".").strip().lower() == TIME_BASIS for rule in block_.rules)
 
 
+def time_basis_unread(block_: EmBlock) -> bool:
+    """Whether an unread EM-RULE line may be the time-basis declaration no strictly read rule makes.
+
+    The level is then held neither to its MDM nor exempt from it, so the level-against-MDM check is
+    left ungraded; the unread line is already counted in the unread remainder.
+    """
+    return block_.rule_unread and not time_based(block_)
+
+
 def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
     """Whether the block's level against its MDM went unchecked for want of a readable descriptor.
 
@@ -661,6 +675,8 @@ def level_unread(block_: EmBlock, levels: MdmLevels | None) -> bool:
     verified database carries no entry for, is a finding (``level_code_findings``).
     """
     if levels is None or not levels.readable or block_.level is None or time_based(block_):
+        return False
+    if time_basis_unread(block_):
         return False
     if level_code_findings(block_, levels):
         return False
@@ -693,7 +709,10 @@ def rederivation_findings(block_: EmBlock, ids: set[str] | None, levels: MdmLeve
     stated, computed = (block_.mdm or {}).get("mdm"), block_.two_of_three()
     if stated is not None and stated != computed:
         found.append(f"the MDM line states {stated}, but two of its three elements meet {computed}")
-    required = None if levels is None or time_based(block_) else levels.levels.get(block_.level or "")
+    if levels is None or time_based(block_) or time_basis_unread(block_):
+        required = None
+    else:
+        required = levels.levels.get(block_.level or "")
     if required is not None and computed is not None and required != computed:
         found.append(f"the level {block_.level} is {required} MDM, but the block's elements meet {computed}")
     for item in block_.items:
@@ -893,6 +912,8 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     # The re-derivation is held to its own consistency, so an agreement between two flawed blocks
     # cannot hide either flaw; its level against the selected code shows only as a difference.
     flaws = rederivation_findings(rederived, context.ids, context.levels)
+    if time_basis_unread(rederived):
+        lines += ["", TIME_BASIS_UNREAD.format(level=rederived.level)]
     if level_unread(rederived, context.levels):
         tally.unread += 1
         lines += ["", f"- MDM level of {rederived.level} not checked: its CPT 2026 descriptor could not be read "
@@ -1040,6 +1061,7 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
             "", "The visible Coding worksheet, as approved:", "", *quoted(worksheet, "Empty."),
         ], None
     tally.blocks_present += 1
+    block_ = replace(block_, rule_unread=block_.rule_unread or elements.outside_rule)
     if block_.unread:
         tally.unread += block_.unread
         lines += ["", f"{block_.unread} element line(s) or required line(s) could not be read and are counted "
@@ -1053,6 +1075,8 @@ def em_lines(item: dict, note: str, worksheet: str, private: PrivateWorksheet, r
               "coverage is incomplete (counted with the answers below)" for answer in unverified]
     found = block_findings(block_, selected, context.ids, note_answers, answers_unread=context.unreadable,
                            billed=frozenset(cpt), levels=context.levels)
+    if time_basis_unread(block_):
+        lines.append(TIME_BASIS_UNREAD.format(level=block_.level))
     if level_unread(block_, context.levels):
         tally.unread += 1
         lines.append(f"- MDM level of {block_.level} not checked: its CPT 2026 descriptor could not be read "

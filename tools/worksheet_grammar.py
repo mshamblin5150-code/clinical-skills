@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 import re
+import unicodedata
 from dataclasses import dataclass
 from cpt_identity import CPT_CODE, EM_CODES
 
@@ -484,10 +485,24 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
 # Every line that tries to be an element line: any upper-case EM- name, and the element
 # names below in any case, after an optional bullet or bold. A near miss is a candidate the strict
 # reader refuses, so it is counted unread and fingerprinted, never silently skipped. The leading
-# run also takes any other whitespace and the invisible format characters a saved file can carry
-# (a byte-order mark, a zero-width space), which the strict reader refuses in the same way.
+# run also takes any other whitespace and every Unicode format (Cf) character a saved file can
+# carry (a byte-order mark, a zero-width space, a soft hyphen, a bidi control), which the strict
+# reader refuses in the same way.
 ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
-_CANDIDATE_LEAD = r"(?:[^\S\n]|[\u200b-\u200f\u2060\ufeff])*"
+
+
+def _format_characters() -> str:
+    """Every format (Cf) character of this interpreter's Unicode data, escaped for a class.
+
+    Unicode places format characters only in planes 0, 1 and 14, so those are scanned rather than
+    every code point; test_em_elements binds the result to a full scan.
+    """
+    planes = (range(0x0000, 0x20000), range(0xE0000, 0xF0000))
+    return "".join(re.escape(chr(code)) for plane in planes for code in plane
+                   if unicodedata.category(chr(code)) == "Cf")
+
+
+_CANDIDATE_LEAD = rf"(?:[^\S\n]|[{_format_characters()}])*"
 EM_CANDIDATE = re.compile(rf"^{_CANDIDATE_LEAD}(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")
 EM_LINE_START = re.compile("(?m)" + EM_CANDIDATE.pattern)
 _EM_LINE = re.compile(r"^[ \t]*EM-(?P<kind>[A-Z]+)[ \t]*:[ \t]*(?P<value>.*?)[ \t]*$")
@@ -541,6 +556,9 @@ class EmBlock:
     unread: int
     # (element, entry id) of each refused PROBLEM, DATA or RISK line; None where the id is unreadable.
     unread_items: tuple[tuple[str, str | None], ...] = ()
+    # Whether a refused candidate is, or may be, an EM-RULE line: the time-basis declaration is
+    # then unknown unless a strictly read rule makes it.
+    rule_unread: bool = False
 
     def two_of_three(self) -> str | None:
         """The MDM level two of the three elements meet: the middle of the three."""
@@ -554,6 +572,12 @@ def element_of(name: str) -> str | None:
     """The element a candidate's name stands for, in any case and with a suffix such as a plural."""
     upper = name.upper()
     return next((element for element in EM_KINDS if upper.startswith(element)), None)
+
+
+def may_be_rule(line: str) -> bool:
+    """Whether an unread EM- candidate is, or may be, an EM-RULE line (``element_of`` names RULE or nothing)."""
+    loose = _EM_LOOSE.search(line)
+    return (element_of(loose.group("kind")) if loose else None) in (None, "RULE")
 
 
 def unread_keys(line: str) -> list[tuple[str, str | None]]:
@@ -627,7 +651,8 @@ def em_block(text: str) -> EmBlock | None:
     level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
     ecg = tuple(free["ECG"]) if len(free["ECG"]) == 1 and "ECG" not in refused else ()
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), ecg,
-                   block_mdm, level, unread + (0 if complete else 1), tuple(unread_items))
+                   block_mdm, level, unread + (0 if complete else 1), tuple(unread_items),
+                   rule_unread=bool(refused & {"RULE", ""}))
 
 
 @dataclass(frozen=True)
@@ -639,6 +664,8 @@ class WorksheetElements:
     blocks: int
     # ``unread_keys`` of each outside candidate, so a comparison leaves its counterpart out.
     outside_items: tuple[tuple[str, str | None], ...] = ()
+    # Whether an outside candidate is, or may be, an EM-RULE line (``may_be_rule``).
+    outside_rule: bool = False
 
 
 def worksheet_em_block(text: str, lines: Anchored | None = None, *, region_lines: int = 0) -> WorksheetElements:
@@ -683,4 +710,5 @@ def worksheet_em_block(text: str, lines: Anchored | None = None, *, region_lines
     block = em_block("\n".join(rows[index] for index in groups[0])) if groups else None
     outside = sorted(candidates - within)
     keys = tuple(key for index in outside for key in unread_keys(rows[index]))
-    return WorksheetElements(block, len(outside), len(groups), keys)
+    return WorksheetElements(block, len(outside), len(groups), keys,
+                             outside_rule=any(may_be_rule(rows[index]) for index in outside))

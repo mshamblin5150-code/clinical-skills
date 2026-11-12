@@ -286,6 +286,32 @@ class AnInvisiblyLedElementLineIsUnreadNotDropped(unittest.TestCase):
                 self.assertEqual(plain.unread + 1, led.unread)
                 self.assertEqual((), led.rules)
 
+    def test_every_unicode_format_character_is_a_lead(self):
+        # Round 13: the lead takes every format (Cf) character of the running interpreter's
+        # Unicode data, derived here by a full scan independent of the planes the grammar reads.
+        import unicodedata
+        formats = [code for code in range(sys.maxunicode + 1) if unicodedata.category(chr(code)) == "Cf"]
+        self.assertTrue(formats)
+        missed = [hex(code) for code in formats if not grammar.EM_CANDIDATE.match(chr(code) + "  EM-RULE: x")]
+        self.assertEqual([], missed)
+
+
+class AnUnreadRuleLineLeavesTheTimeBasisUnknown(unittest.TestCase):
+    """A refused or outside EM-RULE line may be the total-time declaration (round 13)."""
+
+    def test_a_refused_or_unnamable_candidate_marks_the_rule_unread(self):
+        self.assertFalse(strict_block(BLOCK).rule_unread)
+        for form in ("  **EM-RULE:** x", "  - EM-RULE: x", "  EM-RULE x", "  EM-RUL: x"):
+            with self.subTest(form=form):
+                self.assertTrue(strict_block(BLOCK.replace("  EM-RULE: ADR 0308 ruling 1", form)).rule_unread)
+        self.assertFalse(strict_block(BLOCK.replace("  EM-DATA: none | not counted | none |",
+                                                    "  EM-DATA: none |")).rule_unread)
+
+    def test_an_outside_rule_candidate_is_reported(self):
+        inside = EM_LINE + BLOCK.replace("  EM-RULE: ADR 0308 ruling 1\n", "")
+        self.assertFalse(grammar.worksheet_em_block(inside).outside_rule)
+        self.assertTrue(grammar.worksheet_em_block(inside + "\nEM-RULE: ADR 0308 ruling 1\n").outside_rule)
+
 
 if __name__ == "__main__":
     unittest.main()

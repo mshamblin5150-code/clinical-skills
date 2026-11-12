@@ -1261,8 +1261,9 @@ class EighthReviewFindings(ProseBind, RunFixture):
         imported: set[str | None] = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import)
                                      for alias in node.names}
         imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
-        # Twenty-seventh review: bisect numbers lines by their starts, standard library only.
-        self.assertEqual({"__future__", "bisect", "re", "dataclasses", "cpt_identity"}, imported)
+        # Twenty-seventh review: bisect numbers lines by their starts, standard library only; fleet
+        # round 13: unicodedata names the format characters an element candidate's lead takes.
+        self.assertEqual({"__future__", "bisect", "re", "unicodedata", "dataclasses", "cpt_identity"}, imported)
 
     def test_z9_and_z10_the_element_block_walk_does_not_copy_and_the_stops_share_one_class(self):
         import worksheet_grammar
@@ -4112,6 +4113,45 @@ class FleetRoundTwelveFindings(RunFixture):
         self.assertEqual(2, status, output)
         self.assertNotIn("unread remainder 0", output)
         self.assertNotIn("differ 1", output)
+
+
+class FleetRoundThirteenFindings(RunFixture):
+    """Round 13 of the adversarial fleet review."""
+
+    TIME_RULE = "level selected by total time on the date of the encounter"
+    BASE = ("  EM-PROBLEM: definition-stable-chronic | counted | \"Diabetes stable\" | evaluated\n"
+            "  EM-DATA: none | not counted | none | no test documented\n"
+            "  EM-RISK: table-low | counted | \"Rest\" | education\n"
+            "{rule}\n"
+            "  EM-ANSWER: none\n"
+            "  EM-ECG: not applicable\n"
+            "  EM-MDM: problems low; data straightforward; risk low; mdm low\n"
+            "  EM-LEVEL: 99214\n")
+
+    def test_fm1_an_unread_rule_line_leaves_the_level_against_mdm_ungraded(self):
+        import worksheet_grammar
+        levels = em_audit.mdm_levels("2026-10-01")
+        level_finding = "the level 99214 is moderate MDM, but the block's elements meet low"
+        # Control: a level held to MDM with no rule line is a finding, and a strict time rule exempts it.
+        none = worksheet_grammar.em_block(self.BASE.replace("{rule}\n", ""))
+        assert none is not None
+        self.assertIn(level_finding, em_audit.rederivation_findings(none, None, levels))
+        for form in (f"  EM-RULE: {self.TIME_RULE}", f"  **EM-RULE:** {self.TIME_RULE}",
+                     f"  - EM-RULE: {self.TIME_RULE}"):
+            with self.subTest(form=form):
+                block = worksheet_grammar.em_block(self.BASE.format(rule=form))
+                assert block is not None
+                self.assertNotIn(level_finding, em_audit.rederivation_findings(block, None, levels))
+                self.assertFalse(em_audit.level_unread(block, levels))
+
+    def test_fm2_the_check_off_names_the_ungraded_level_and_counts_the_rule_line(self):
+        self.write_private(PRIVATE.format(elements=ELEMENTS.replace(
+            "  EM-RULE: ADR 0308 ruling 1", f"  **EM-RULE:** {self.TIME_RULE}")))
+        status, output = self.in_process("--write")
+        self.assertEqual(2, status, output)
+        self.assertNotIn("unread remainder 0", output)
+        self.assertIn("an EM-RULE line could not be read, so whether the level was selected by total time "
+                      "is unknown", " ".join(self.sheet.read_text(encoding="utf-8").split()))
 
 
 if __name__ == "__main__":
