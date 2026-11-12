@@ -106,7 +106,7 @@ DECLARED_LIMITS = (
     "Note text, reasons, rules, answers and ECG lines are rendered side by side but not compared, "
     "and nothing establishes that the re-derivation was written before its author read the "
     "worksheet. Its order against the note's pre-approval answers is read from the record's "
-    "modification time, with a two-second grace for the file clock: a record placed before the "
+    "modification time, with a short grace for the file clock: a record placed before the "
     "note's last answer is a finding, but a stale record touched or rewritten after the last answer "
     "passes whatever brief produced it, since nothing binds the record to the answers it read.",
     "A worksheet without an element block renders the visible worksheet and the E/M paragraph of "
@@ -127,7 +127,8 @@ DECLARED_LIMITS = (
     "text as the grader reads it. The graders read the same plain lines, the E/M section included, "
     "which is measured to grade nothing on the placement em-elements.md defines; another placement "
     "is not measured.",
-    "Element candidates are any upper-case EM- name and the eight element names in any case and "
+    "Element candidates are any upper-case EM- name and the element names in "
+    "worksheet_grammar.ELEMENT_NAMES in any case and "
     "with a letter suffix, after an optional bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
     "a candidate.",

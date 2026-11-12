@@ -1015,15 +1015,17 @@ encounter's account-backed patient status must all pass. The rendered worksheet 
 
 On the note path, every coded note also needs its E/M audit check-off. After the freshness gate
 passes, follow [em-audit](../em-audit/SKILL.md) steps 2 and 3: a blind re-derivation for every note,
-placed again after the note's last pre-approval answer is recorded, then
+from a brief given after the note's last pre-approval answer is recorded, then
 `python tools/em_audit.py <run> --write`, rendered again whenever the manifest is rebuilt and
 after the last pre-approval answer is recorded, before approval: the check-off shows that record,
 so one written earlier is reported stale at the terminal grade, and a re-derivation placed before
 its note's last answer is a finding. Its
 report shows no absent element block or re-derivation and no finding, and it exits 0, or exits 1
-only for differences shown to the clinician before approval. A finding is a defect in this
-worksheet's element block: correct the block, rebuild the manifest and render again before
-approval. On exit 2, the `unread remainder` counts inputs the command could not read, and each
+only for differences shown to the clinician before approval. A `FINDING (re-derivation)` is repaired as
+[rederivation.md](../em-audit/rederivation.md) says, never toward the worksheet: a self-contradicting
+record in place against the note, and one placed before its note's last answer by a fresh
+re-derivation from a new brief. Any other `FINDING` is a defect in this worksheet's element block:
+correct the block, rebuild the manifest and render again before approval. On exit 2, the `unread remainder` counts inputs the command could not read, and each
 check-off names its own: repair what it names and render again. When an input cannot be repaired,
 tell the clinician which note and record it names and that the check-off for that note is
 incomplete. The terminal command below grades the result as `the E/M audit check-offs`.

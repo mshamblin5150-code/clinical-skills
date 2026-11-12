@@ -3766,9 +3766,9 @@ class FleetRoundOneFindings(RunFixture):
         status, output = self.in_process()
         self.assertEqual(1, status, output)
         self.assertTrue(em_audit_gate(self.run_dir, "k")[0])
-        # What the grammar ignores still leaves the fingerprint alone.
+        # Line endings alone leave the fingerprint alone.
         self.assertEqual(review_manifest.private_worksheet_sha256(private),
-                         review_manifest.private_worksheet_sha256(private.replace("\n", " \t\r\n")))
+                         review_manifest.private_worksheet_sha256(private.replace("\n", "\r\n")))
 
     def test_fa3_a_counted_item_with_an_empty_quotation_quotes_no_note_text(self):
         levels = em_audit.mdm_levels("2026-10-01")
@@ -4043,6 +4043,33 @@ class FleetRoundNineFindings(RunFixture):
         limits = " ".join(" ".join(em_audit.DECLARED_LIMITS).split())
         self.assertIn("modification time", limits)
         self.assertIn("touched or rewritten after the last answer passes", limits)
+
+
+class FleetRoundTenFindings(RunFixture):
+    """Round 10 of the adversarial fleet review."""
+
+    def test_fj1_a_trailing_space_that_changes_the_check_off_moves_the_fingerprint(self):
+        base = PRIVATE.format(elements=ELEMENTS) + "#\nSecond refusal line\n"
+        self.write_private(base)
+        before = em_audit.render(self.run_dir, [1])[2][0].text
+        edited = base.replace("\n#\n", "\n# \n")
+        self.write_private(edited)
+        self.assertNotEqual(before, em_audit.render(self.run_dir, [1])[2][0].text)
+        (self.run_dir / "worksheets/note-1.md").write_text(base, encoding="utf-8")
+        status, output = self.in_process()
+        self.assertEqual(1, status, output)
+        self.assertNotIn("changed after their fingerprint 0", output)
+
+    def test_fj2_the_limits_name_no_figure_their_source_holds(self):
+        limits = " ".join(" ".join(em_audit.DECLARED_LIMITS).split())
+        self.assertNotIn("two-second", limits)
+        self.assertNotIn("eight element", limits)
+        self.assertIn("worksheet_grammar.ELEMENT_NAMES", limits)
+
+    def test_fj3_icd10_cpt_sends_a_re_derivation_finding_to_its_own_repair(self):
+        skill = " ".join((ROOT / "skills/icd10-cpt/SKILL.md").read_text(encoding="utf-8").split())
+        self.assertNotIn("placed again after the note's last pre-approval answer", skill)
+        self.assertIn("A `FINDING (re-derivation)` is repaired as", skill)
 
 
 if __name__ == "__main__":

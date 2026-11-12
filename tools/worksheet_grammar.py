@@ -481,8 +481,8 @@ def step_four_block(lines: list[str], heading: re.Pattern[str], end: re.Pattern[
     return [lines[index] for index in indexes], found
 
 
-# Every line that tries to be an element line: any upper-case EM- name, and the eight element
-# names in any case, after an optional bullet or bold. A near miss is a candidate the strict
+# Every line that tries to be an element line: any upper-case EM- name, and the element
+# names below in any case, after an optional bullet or bold. A near miss is a candidate the strict
 # reader refuses, so it is counted unread and fingerprinted, never silently skipped.
 ELEMENT_NAMES = r"PROBLEM|DATA|RISK|RULE|ANSWER|ECG|MDM|LEVEL"
 EM_CANDIDATE = re.compile(rf"^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?(?:EM-[A-Z]+|(?i:EM-(?:{ELEMENT_NAMES})[a-z]*))\b")

@@ -185,7 +185,7 @@ def content(run: Path, item: dict) -> tuple[str, str, str, str]:
 
 
 def private_worksheet_sha256(private: str) -> str:
-    """The fingerprint of the whole private worksheet, less only what its grammar ignores.
+    """The fingerprint of the whole private worksheet, less only its line endings.
 
     ``normalized_sha256`` binds the note and the visible worksheet, which the receipt carries;
     this fingerprint covers everything the E/M audit check-off renders from the private worksheet
@@ -194,12 +194,12 @@ def private_worksheet_sha256(private: str) -> str:
     approval identity, as the selected-code projection rules. ``em_audit`` compares it and refuses
     a check-off whose private worksheet changed after it was recorded.
 
-    Line endings and trailing spaces and tabs are dropped, and nothing else: the grammar reads a
-    marker followed by other trailing whitespace (``NOT FOR ENTRY`` and a no-break space) as
-    another line, so ``normalized``'s ``str.rstrip`` would let such an edit keep the fingerprint.
+    Line endings and the final run of newlines are normalized, and nothing else: the grammar reads
+    trailing whitespace in places (a bare ``#`` against ``# `` as a heading, ``NOT FOR ENTRY`` and a
+    no-break space as another line), so any per-line strip would let such an edit keep the
+    fingerprint while the check-off it renders changes.
     """
-    lines = private.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    text = "\n".join(line.rstrip(" \t") for line in lines).rstrip("\n") + "\n"
+    text = private.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n") + "\n"
     return digest(text.encode("utf-8"))
 
 
