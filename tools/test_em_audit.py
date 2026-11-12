@@ -536,7 +536,7 @@ class ReviewFindings(RunFixture):
         self.assertEqual(nested, [node for node in ast.walk(gate) if node in nested])
         self.assertNotIn("em_audit", top)
         self.assertEqual(1, len(nested))
-        self.assertEqual(1, source.count("source.directory.parent if source.directory.name == \"worksheets\""))
+        self.assertEqual(1, source.count("directory.parent if directory.name == \"worksheets\""))
 
 
 class SecondReviewFindings(RunFixture):
@@ -4070,6 +4070,37 @@ class FleetRoundTenFindings(RunFixture):
         skill = " ".join((ROOT / "skills/icd10-cpt/SKILL.md").read_text(encoding="utf-8").split())
         self.assertNotIn("placed again after the note's last pre-approval answer", skill)
         self.assertIn("A `FINDING (re-derivation)` is repaired as", skill)
+
+
+class FleetRoundElevenFindings(RunFixture):
+    """Round 11 of the adversarial fleet review."""
+
+    def test_fk1_the_worksheets_folder_grades_the_same_however_it_is_spelled(self):
+        import aar_scan
+        import artifact_repairs
+        import specificity_scan
+        import os
+        self.rederivation.unlink()
+        worksheets = self.run_dir / "worksheets"
+        reports = {}
+        for spelling, cwd in ((str(worksheets), None), (".", worksheets), ("../worksheets", worksheets)):
+            output = io.StringIO()
+            previous = os.getcwd()
+            with mock.patch.object(aar_scan, "completion_gate", return_value=(False, "stub")), \
+                    mock.patch.object(artifact_repairs, "completion_gate", return_value=(False, "stub")):
+                try:
+                    if cwd is not None:
+                        os.chdir(cwd)
+                    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                        specificity_scan.main([spelling, "--submission", "shift-synthetic"])
+                finally:
+                    os.chdir(previous)
+            reports[spelling] = [line for line in output.getvalue().splitlines()
+                                 if line.lstrip().startswith("the E/M audit check-offs")]
+        for spelling, lines in reports.items():
+            with self.subTest(spelling=spelling):
+                self.assertEqual(reports[str(worksheets)], lines)
+                self.assertTrue(lines and "re-derivations absent 1" in lines[0], lines)
 
 
 if __name__ == "__main__":

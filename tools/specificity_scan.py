@@ -903,7 +903,10 @@ def _grade(
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, parsed.value("--submission")
     )
-    run_directory = source.directory.parent if source.directory.name == "worksheets" else source.directory
+    # Resolved before the name test: '.' from inside worksheets/ has no name, and would grade the
+    # worksheets folder itself as the run.
+    directory = source.directory.resolve()
+    run_directory = directory.parent if directory.name == "worksheets" else directory
     chain_failed, chain_report = artifact_repairs.completion_gate(
         run_directory,
         parsed.value("--submission"),
