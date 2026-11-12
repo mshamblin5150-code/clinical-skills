@@ -4175,6 +4175,26 @@ class FleetRoundFourteenFindings(RunFixture):
         self.assertNotIn(": an EM-RULE line could not be read", sheet)
         self.assertIn("is, or may be, an EM-RULE line could not be read", sheet)
 
+    def test_fn4_a_wrapped_rule_line_leaves_the_time_basis_unknown_on_either_side(self):
+        """Round 15: a hard-wrapped EM-RULE line's continuation is unread, never a false level finding."""
+        base = ELEMENTS.replace("problems low; data straightforward; risk low; mdm low",
+                                "problems straightforward; data straightforward; risk straightforward; "
+                                "mdm straightforward")
+        whole = base.replace("  EM-RULE: ADR 0308 ruling 1\n",
+                             "  EM-RULE: level selected by total time on the date of the encounter\n")
+        wrapped = base.replace("  EM-RULE: ADR 0308 ruling 1\n",
+                               "  EM-RULE: level selected by total time on the\n    date of the encounter\n")
+        level_finding = "the level 99283 is low MDM, but the block's elements meet straightforward"
+        for name, worksheet, record in (("re-derivation wrapped", whole, wrapped),
+                                        ("worksheet wrapped", wrapped, whole)):
+            with self.subTest(case=name):
+                self.write_private(PRIVATE.format(elements=worksheet))
+                self.record(record)
+                status, output = self.in_process("--write")
+                self.assertEqual(2, status, output)
+                self.assertNotIn("unread remainder 0", output)
+                self.assertNotIn(level_finding, self.sheet.read_text(encoding="utf-8"))
+
     def test_fn3_the_unreachable_re_derivation_notice_is_gone(self):
         source = Path(em_audit.__file__).read_text(encoding="utf-8")
         self.assertEqual(1, source.count("TIME_BASIS_UNREAD.format("))

@@ -133,8 +133,9 @@ DECLARED_LIMITS = (
     "running interpreter's Unicode data (a byte-order mark, a zero-width space) and an optional "
     "bullet or bold; a candidate the strict reader refuses "
     "is unread, counted once, and fingerprinted. A misspelled element name in another case is not "
-    "a candidate. An unread candidate that is, or may be, an EM-RULE line leaves the level against "
-    "its MDM ungraded unless a strictly read rule declares the time basis.",
+    "a candidate. An unread candidate that is, or may be, an EM-RULE line, or a non-field line "
+    "directly continuing one, leaves the level against its MDM ungraded unless a strictly read rule "
+    "declares the time basis. Every other line of a re-derivation record is unread.",
     "A wrapped descriptor or field value is joined from the contiguous indented lines below its "
     "entry, the bound worksheet_grammar pairs a detail by; a field line no entry or E/M line "
     "owns, such as one after a blank line, an E/M label no rule selects with every field under "
@@ -893,7 +894,7 @@ def rederivation_lines(run: Path, stem: str, selected: str, worksheet: EmBlock |
     except (OSError, UnicodeError):
         tally.unread += 1
         return ["The re-derivation record could not be read."]
-    rederived = em_block(text)
+    rederived = em_block(text, whole_record=True)
     if rederived is None:
         return absent_rederivation(tally, "The re-derivation record holds no element line, so no "
                                           "re-derivation is placed for this note.")

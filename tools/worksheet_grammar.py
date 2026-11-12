@@ -597,7 +597,7 @@ def unread_keys(line: str) -> list[tuple[str, str | None]]:
     return []
 
 
-def em_block(text: str) -> EmBlock | None:
+def em_block(text: str, *, whole_record: bool = False) -> EmBlock | None:
     """Read every EM- line in ``text``; None when the text holds no EM- candidate.
 
     A block missing a PROBLEM, DATA, RISK, ANSWER or ECG line, or not holding exactly one MDM,
@@ -605,10 +605,26 @@ def em_block(text: str) -> EmBlock | None:
     PROBLEM, DATA or RISK line keeps its element and, where readable, its entry id in
     ``unread_items``, so a comparison can leave its counterpart out. A refused MDM or LEVEL line
     leaves the block's MDM or level unknown (None), even beside a readable copy.
+
+    A non-blank line that is neither a candidate nor a field, directly after an EM-RULE line or a
+    candidate that may be one (``may_be_rule``), may continue the time-basis declaration, so it
+    marks ``rule_unread``. ``whole_record`` is a re-derivation record, which is the element block
+    alone: each of its non-blank lines that is not a candidate adds one to ``unread``. In a worksheet
+    such a line is the E/M section's to count, as an unplaced line.
     """
-    lines = [line for line in physical_lines(text) if EM_CANDIDATE.match(line)]
+    physical = physical_lines(text)
+    lines = [line for line in physical if EM_CANDIDATE.match(line)]
     if not lines:
         return None
+    other, continued, rule_open = 0, False, False
+    for line in physical:
+        if EM_CANDIDATE.match(line):
+            rule_open = may_be_rule(line)
+        elif not line.strip() or FIELD.match(line):
+            rule_open = False
+        else:
+            other += 1
+            continued = continued or rule_open
     items: list[EmItem] = []
     free: dict[str, list[str]] = {"RULE": [], "ANSWER": [], "ECG": []}
     mdms: list[dict[str, str]] = []
@@ -651,8 +667,8 @@ def em_block(text: str) -> EmBlock | None:
     level = levels[0] if len(levels) == 1 and "LEVEL" not in refused else None
     ecg = tuple(free["ECG"]) if len(free["ECG"]) == 1 and "ECG" not in refused else ()
     return EmBlock(tuple(items), tuple(free["RULE"]), tuple(free["ANSWER"]), ecg,
-                   block_mdm, level, unread + (0 if complete else 1), tuple(unread_items),
-                   rule_unread=bool(refused & {"RULE", ""}))
+                   block_mdm, level, unread + (0 if complete else 1) + (other if whole_record else 0),
+                   tuple(unread_items), rule_unread=bool(refused & {"RULE", ""}) or continued)
 
 
 @dataclass(frozen=True)
