@@ -47,6 +47,7 @@ October 1, 2026, through September 30, 2027.
 """
 
 HCPCS_PAGE = """
+January 2027 Alpha-Numeric HCPCS File (ZIP) - Updated 10/01/2026
 October 2026 Alpha-Numeric HCPCS File (ZIP) - Updated 09/10/2026
 July 2026 Alpha-Numeric HCPCS File (ZIP) - Updated 06/17/2026
 """
@@ -286,7 +287,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.assertIn("ICD-10-CM authoritative release is unread or stale", output)
 
     def test_newer_published_hcpcs_release_blocks_an_older_database(self):
-        page = "January 2027 Alpha-Numeric HCPCS File (ZIP) - Updated 09/12/2026\n" + HCPCS_PAGE
+        page = "April 2027 Alpha-Numeric HCPCS File (ZIP) - Updated 10/01/2026\n" + HCPCS_PAGE
         status, output = self.run_gate((ICD_PAGE, page))
         self.assertEqual(1, status)
         self.assertIn("HCPCS authoritative release is unread or stale", output)
