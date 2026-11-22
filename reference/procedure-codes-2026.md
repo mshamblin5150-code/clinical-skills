@@ -28,8 +28,8 @@ is separate from this database and does not carry other CPT instructions.
 
 ```bash
 python tools/procedure_codes_build.py \
-  --hcpcs october-2026-alpha-numeric-hcpcs-file.zip \
-  --hcpcs-effective 2026-10-01 \
+  --hcpcs january-2027-alpha-numeric-hcpcs-file.zip \
+  --hcpcs-effective 2027-01-01 \
   --cpt /owning-checkout/scratch/cpt-2026/agreed.csv \
   --cpt-agreement /owning-checkout/scratch/cpt-2026/agreement.json \
   --cpt-agreement-sha256 EXPECTED_AGREEMENT_SHA256 \
