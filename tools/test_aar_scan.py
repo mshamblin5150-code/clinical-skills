@@ -1537,6 +1537,22 @@ class SubmissionRecord(SyntheticSnapshotCase):
              "shape": {"system": [], "tools": []}},
             # #2072: the row Claude Code 2.1.312 writes at a context summary, in its real field shape.
             {"type": "tools-used", "tools": ["Bash"], "sessionId": "session-1"},
+            # #2119: the rows Claude Code 2.1.330 writes, with their observed key sets and placeholder values.
+            {"type": "data-flow-records", "v": 1, "sessionId": "session-1", "snapshot": False,
+             "records": [{"tool_name": "Bash", "tool_use_id": "toolu-1", "response_id": "resp-1"},
+                         {"mcp_tool_name": "tool", "server": {"id": "server-1", "type": "stdio"},
+                          "listed": ["id-1"], "mark_sent_by": "agent-1"},
+                         {"event_id": "event-1", "touched": {"kind": "file", "id": "id-2", "action": "edit"}}]},
+            {"type": "data-flow-incomplete", "v": 1, "sessionId": "session-1", "codes": [1]},
+            {"type": "derived-from", "v": 1, "sessionId": "session-1",
+             "sessions": [{"type": "claude_code_session", "id": "session-0", "via": "resume"}]},
+            {"type": "relocated", "sessionId": "session-1", "relocatedCwd": "C:/work"},
+            {"type": "worktree-state", "sessionId": "session-1",
+             "worktreeSession": {"originalCwd": "C:/work", "preEnterOriginalCwd": "C:/work",
+                                 "sessionId": "session-1", "worktreeBranch": "branch",
+                                 "worktreeName": "name", "worktreePath": "C:/work/wt"}},
+            {"type": "session-owner", "sessionId": "session-1", "accountUuid": "account-1",
+             "organizationUuid": "org-1"},
         )
         argv = [str(self.run), "--submission", self.submission,
                 "--transcript", str(self.transcript),

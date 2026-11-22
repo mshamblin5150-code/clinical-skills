@@ -223,6 +223,15 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
         "api-request-shape": "Request bookkeeping: the system prompt and tool definitions (#2052).",
         "api-request-blob": "The API-request copy of turns the review already reads (#2052).",
         "tools-used": "Tool names used before a context summary; no turn text (#2072).",
+        "data-flow-records": (
+            "Tool-call bookkeeping: per-record tool, response, event, MCP-server and listed or touched"
+            " identifiers; every field read across local Claude Code 2.1.330 transcripts held no free text (#2119)."
+        ),
+        "data-flow-incomplete": "Tool-call bookkeeping: an incompleteness marker carrying codes; no turn text (#2119).",
+        "derived-from": "Session lineage: the earlier session this one resumes or compacts from; no turn text (#2119).",
+        "relocated": "Session and harness state: the working directory a session moved to (#2119).",
+        "worktree-state": "Session and harness state: a worktree's name, branch and paths (#2119).",
+        "session-owner": "Session and harness state: account and organization identifiers (#2119).",
         "bridge-session": "Session and harness state.",
         "atis-latch": "Session and harness state.",
         "mode": "Session and harness state.",
